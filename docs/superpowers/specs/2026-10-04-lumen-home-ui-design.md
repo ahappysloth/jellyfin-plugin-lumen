@@ -2,7 +2,7 @@
 
 - **Date:** 2026-10-04
 - **Status:** Draft, awaiting review
-- **Target:** Jellyfin Server / jellyfin-web 12.1 (plugin `targetAbi` 12.1.0.0)
+- **Target:** Jellyfin Server / jellyfin-web 12.1+ (built against `Jellyfin.Controller` 12.1.0, plugin `targetAbi` 12.1.0.0; latest stable is 12.2, a bugfix release with no plugin-relevant changes)
 - **Repo:** `ahappysloth/jellyfin-plugin-lumen` (GPL-3.0)
 
 ## 1. Purpose
@@ -341,7 +341,7 @@ The client is built by an MSBuild target before `dotnet build` and embedded as `
 | C# unit | xUnit, NSubstitute | `HtmlInjector` (idempotent, no `</head>`, pre-modified by File Transformation), each provider with fake library data, `HomeService` timeout/isolation, `HomeCache` invalidation, `ConfigMigrator`, `ConfigValidator`, genre weighting determinism |
 | C# integration | ASP.NET `TestServer` | Middleware: gzip/br request handling, 304/ETag, non-index passthrough, error passthrough, coexistence with a second transforming middleware |
 | Client unit | Vitest, @testing-library/preact | Components, route matching, takeover mount/unmount, `compat.selfTest` against fixture DOMs (pass and fail) |
-| E2E | Playwright + Docker `jellyfin/jellyfin:12.1` with generated sample media | Home renders configured sections; Movie and Series details; Play starts playback; master switch off → stock UI; forced compat failure → stock UI + diagnostics entry; TV-layout keyboard navigation |
+| E2E | Playwright + Jellyfin latest stable (12.2): Docker `jellyfin/jellyfin:12.2` in CI, portable tarball locally, with generated sample media | Home renders configured sections; Movie and Series details; Play starts playback; master switch off → stock UI; forced compat failure → stock UI + diagnostics entry; TV-layout keyboard navigation |
 | Nightly | Same E2E against `jellyfin/jellyfin:unstable` | Early warning of jellyfin-web changes |
 | Manual (per release) | `docs/manual-test-checklist.md` | Desktop browser, official iOS app, TV layout |
 
@@ -361,12 +361,17 @@ The client is built by an MSBuild target before `dotnet build` and embedded as `
 
 ### 7.5 Local development
 
+The author's WSL environment has no Docker and no sudo, so local development uses user-level installs:
+
+- .NET 10 SDK via Microsoft's `dotnet-install.sh` into `~/.dotnet`.
+- Jellyfin portable tarball (`jellyfin_<ver>-amd64.tar.gz`) plus jellyfin-ffmpeg portable, under `~/.local/share/lumen-dev/`, with its own data/config/cache directories.
+
 `scripts/dev.sh`:
 1. Builds the plugin.
-2. Copies it into a local Jellyfin 12.1 Docker container's `plugins/Lumen` directory.
-3. Restarts the container.
+2. Copies it into `~/.local/share/lumen-dev/data/plugins/Lumen_<ver>/`.
+3. Restarts the portable server on port 8097.
 
-Docker availability in the author's WSL environment is verified during planning.
+`scripts/setup-dev.sh` performs the one-time downloads. Docker is used only in CI.
 
 ## 8. Risks
 
