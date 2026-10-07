@@ -26,7 +26,8 @@ This spec covers **sub-project 1**: the plugin foundation plus the Home and Deta
 | Desktop/mobile browsers | Yes | Yes |
 | Official Jellyfin iOS / Android mobile apps | Yes (web wrapper) | Yes |
 | Jellyfin Media Player / desktop | Yes | Yes |
-| Samsung Tizen, LG webOS, Xbox apps | Yes | Yes |
+| LG webOS, Xbox apps | Yes (believed to load the server-hosted web client; unverified) | Best-effort |
+| Samsung Tizen app | No. It bundles its own copy of jellyfin-web and never loads the server's `index.html`. | No |
 | Official Android TV app, Swiftfin, Roku, Infuse, Streamyfin | No (native) | No. Server-side features from later sub-projects only. |
 
 ### 1.2 Success criteria
@@ -54,6 +55,7 @@ These apply to every decision in this and later sub-projects:
 - Seerr integration, intro/credit skipping, resume-tracking changes, recommendation providers
 - Changes to the video player OSD, library grid pages, search, or settings pages
 - Per-user home customization (the layout is admin-controlled. Row *contents* are still personalized.)
+- Localization: row titles and UI strings are English-only in v1. Strings are centralized for later i18n.
 - Native client support (Android TV, Swiftfin, Roku)
 - Playback/transcoding changes (playback compatibility is a documentation topic in the README)
 
@@ -70,6 +72,9 @@ These apply to every decision in this and later sub-projects:
 │    GET  /Lumen/Home          → HomeService → IHomeSectionProvider[]  │
 │    GET  /Lumen/Assets/{file} → embedded client bundle                │
 │    POST /Lumen/Diagnostics   → DiagnosticsStore                      │
+│  AdminController (RequiresElevation)                                 │
+│    GET/POST /Lumen/Admin/Config, GET /Lumen/Admin/SectionTypes,      │
+│    GET /Lumen/Admin/Diagnostics                                      │
 │                                                                      │
 │  HomeService ── HomeCache (IMemoryCache)                             │
 │  Configuration: PluginConfiguration, ConfigMigrator, ConfigValidator │
@@ -77,7 +82,7 @@ These apply to every decision in this and later sub-projects:
 └──────────────────────────────────────────────────────────────────────┘
             ▲ index.html with <script>/<link> to /Lumen/Assets
             │
-┌──────────── jellyfin-web 12.1 (browser / iOS app / Tizen) ───────────┐
+┌─────────── jellyfin-web 12.1 (browser / iOS app / desktop) ──────────┐
 │  Lumen client bundle (TypeScript + Preact)                           │
 │    compat/   selectors + startup self-test                           │
 │    takeover/ hash-route watcher, #lmn-root mount, html.lmn-active    │
@@ -93,7 +98,7 @@ These apply to every decision in this and later sub-projects:
 | `Plugin` | Plugin metadata, config holder, `IHasWebPages` for the admin page | Jellyfin `BasePlugin<T>` |
 | `ServiceRegistrator` | Registers all services, providers, startup filter | `IPluginServiceRegistrator` |
 | `LumenStartupFilter` | Adds `IndexHtmlMiddleware` to the pipeline | `IStartupFilter` |
-| `IndexHtmlMiddleware` | Intercepts only `GET …/web/` and `…/web/index.html`, buffers the response, calls `HtmlInjector`, serves the original on any error | `HtmlInjector`, config |
+| `IndexHtmlMiddleware` | Intercepts only `GET …/web/` and `…/web/index.html` (the path still includes any BaseUrl, because the filter runs before `Map(BaseUrl)`). Strips `Accept-Encoding`, `If-None-Match`, `If-Modified-Since`, and `Range` from the request so the inner static-file middleware returns a full, uncompressed 200. Buffers the response, calls `HtmlInjector`, resets `Content-Length`, and replaces `ETag`/`Last-Modified` with a content-hash ETag. Serves the original on any error. | `HtmlInjector`, `AssetCatalog` |
 | `HtmlInjector` | Pure function: `string Inject(string html, AssetVersion v)`. Inserts `<!-- lumen -->` marker, `<link>`, and `<script defer>` before `</head>`. No-op if marker present or `</head>` missing. | none |
 | `LumenController` | HTTP endpoints. `/ClientConfig`, `/Home`, and `/Diagnostics` require an authenticated user. Assets are anonymous. | services below |
 | `HomeService` | Resolves the user, runs enabled section providers in parallel with per-provider timeout and exception isolation, assembles the response | providers, `HomeCache`, `HeroService` |
@@ -109,7 +114,7 @@ These apply to every decision in this and later sub-projects:
 | Unit | Responsibility |
 |---|---|
 | `compat/` | The only place that knows jellyfin-web selectors, globals, and route shapes. Exposes `selfTest(): CompatReport` and typed accessors. |
-| `takeover/` | Watches `hashchange`. On `#/home` or `#/details?id=…` (when enabled and compat OK), adds a route-specific class to `<html>` (`lmn-active lmn-home` / `lmn-details`), mounts the view into `#lmn-root`, and unmounts and removes the classes on navigation away. |
+| `takeover/` | Watches navigation. jellyfin-web navigates with `history.pushState`, which fires no event, so it patches `pushState`/`replaceState` once and also listens to `popstate` and `hashchange`, deduplicating on `location.href`. On `#/home` or `#/details?id=…` (when enabled and compat OK), adds a route-specific class to `<html>` (`lmn-active lmn-home` / `lmn-details`), mounts the view into `#lmn-root`, and unmounts and removes the classes on navigation away. |
 | `api/` | Typed wrappers over `window.ApiClient` (auth, base URL) for `/Lumen/Home` and the stock endpoints in §4.3 |
 | `views/home` | `HomeView` → `Hero`, `Row`, `Card` |
 | `views/details` | `MovieDetails`, `SeriesDetails`, shared `DetailsHeader`, `EpisodeList`, `CastRow`, `SimilarRow` |
@@ -136,14 +141,17 @@ Stored in `PluginConfiguration.Sections` as an ordered list:
 public interface IHomeSectionProvider
 {
     string Type { get; }
-    IReadOnlyList<SectionParameter> Parameters { get; } // drives admin form + validation
-    Task<HomeSection?> GetAsync(HomeContext context, SectionDefinition definition, CancellationToken ct);
+    string DisplayName { get; }
+    IReadOnlyList<SectionParameter> Parameters { get; }                         // drives admin form + generic validation
+    IReadOnlyList<string> Validate(SectionDefinition definition);              // provider-specific rules (e.g. "exactly one source")
+    Task<IReadOnlyList<HomeRow>> GetRowsAsync(HomeContext context, SectionDefinition definition, CancellationToken ct);
 }
 ```
 
+A section yields zero or more rows. An empty list means it is omitted. `BecauseYouWatched` and `Genre` yield several. Parameters are stored as a list of `{ Name, Value }` string pairs, because plugin configuration is XML-serialized and cannot hold dictionaries.
+
 - `HomeContext` carries the `User`, a `DtoOptions` with minimal fields, the current date (injected `TimeProvider`), and the shared item limit (20).
-- A provider returning `null` or an empty section means the row is omitted.
-- `SectionParameter` declares `name`, `kind` (`Library`, `Collection`, `Playlist`, `Tag`, `Integer`, `Boolean`), `required`, and `default`. The admin page renders inputs from this, and `ConfigValidator` validates against it.
+- `SectionParameter` declares `Name`, `Label`, `Kind` (`Library`, `Collection`, `Playlist`, `Text`, `Integer`), `Required`, `DefaultValue`, and for integers `Min`/`Max`. The admin page renders inputs from this, and `ConfigValidator` validates against it.
 
 **Default sections** on first install: Continue Watching, Next Up, Because You Watched, New For You, Recently Added (one per movie/TV library), Genre.
 
@@ -153,13 +161,15 @@ public interface IHomeSectionProvider
 |---|---|---|
 | `ContinueWatching` | none | User's resumable Movie and Episode items (`IsResumable`), ordered by `DatePlayed` desc |
 | `NextUp` | none | `ITVSeriesManager.GetNextUp` for the user |
-| `RecentlyAdded` | `libraryId` (req) | Latest items in the library, ordered by `DateCreated` desc. Episodes are grouped to their series (one card per series, like stock "Latest"). |
+| `RecentlyAdded` | `libraryId` (optional; empty = all of the user's libraries) | Latest items in the library, ordered by `DateCreated` desc. Episodes are grouped to their series (one card per series, like stock "Latest"). |
 | `BecauseYouWatched` | `maxRows` (default 2) | Movies: `ISimilarItemsManager.GetMovieRecommendationsAsync`. Series: seed = most recently played series not yet used as a seed this response; `GetSimilarItemsAsync(seed)`. Played items are excluded. Each seed produces one titled row ("Because you watched {Name}"). Rows are emitted alternating movie/series until `maxRows`. |
 | `Genre` | `genreCount` (default 3) | Genre weights = count of the user's plays per genre over the last 90 days (+1 smoothing for all genres present in the user's libraries). Pick `genreCount` genres by weighted sampling with an RNG seeded by `hash(userId, UTC date)`, so the selection is stable within a day and rotates daily. Items: unplayed, ordered by `CommunityRating` desc, top 40, then a seeded shuffle down to 20. One row per genre. |
 | `NewForYou` | `days` (default 14) | Union of (a) episodes created within `days` whose series has at least one played episode for this user, grouped to series, and (b) movies created within `days` in the user's top-3 genres (same weights as `Genre`). Unplayed only, ordered by `DateCreated` desc. |
 | `Curated` | `collectionId` \| `playlistId` \| `tag` (exactly one) | Items from the source, in source order (tag: `SortName`) |
 
-All queries run as the requesting user, so library access and parental controls are enforced by Jellyfin. Providers that emit multiple rows (`BecauseYouWatched`, `Genre`) return `HomeSection` with sub-rows. The response flattens them in order.
+All queries run as the requesting user, so library access and parental controls are enforced by Jellyfin. Providers that emit multiple rows (`BecauseYouWatched`, `Genre`) return them in order. The response is a flat list of rows.
+
+Watch history (recently played movies and episodes with their series and genres) is computed at most once per home build and shared by `Genre`, `NewForYou`, and `BecauseYouWatched`. Played/unplayed filtering uses `IUserDataManager.GetUserDataBatch`.
 
 ### 3.3 Hero
 
@@ -176,11 +186,13 @@ Config: `HeroSource` (`RecentlyAdded` | `TopRatedUnplayed` | `Collection` + `col
 
 ### 3.4 `GET /Lumen/Home` response
 
+Lumen's API uses Jellyfin's default PascalCase JSON, matching `BaseItemDto`.
+
 ```jsonc
 {
-  "configVersion": 7,
-  "hero": [ { "item": BaseItemDto, "trailerItemId": "…" | null } ],
-  "sections": [ { "id": "…", "type": "Genre", "title": "Sci-Fi", "items": [BaseItemDto] } ]
+  "ConfigVersion": 7,
+  "Hero": [ { "Item": BaseItemDto, "TrailerItemId": "…" | null } ],
+  "Rows": [ { "Id": "…", "Type": "Genre", "Title": "Sci-Fi", "Items": [BaseItemDto] } ]
 }
 ```
 
@@ -188,10 +200,10 @@ UI settings are not repeated here. They come from `GET /Lumen/ClientConfig`:
 
 ```jsonc
 {
-  "enabled": true, "homeTakeover": true, "detailsTakeover": true,
-  "accentColor": "#f5a524",   // default: warm amber
-  "heroIntervalSeconds": 8, "trailerPreview": true, "trailerDelaySeconds": 4,
-  "buildHash": "…"
+  "Enabled": true, "HomeTakeover": true, "DetailsTakeover": true,
+  "AccentColor": "#f5a524",   // default: warm amber
+  "HeroIntervalSeconds": 8, "TrailerPreview": true, "TrailerDelaySeconds": 4,
+  "BuildHash": "…"
 }
 ```
 
@@ -201,10 +213,13 @@ UI settings are not repeated here. They come from `GET /Lumen/ClientConfig`:
 
 ### 4.1 Takeover mechanics
 
-1. On bundle load: if `window.ApiClient` is absent or there is no signed-in user, do nothing until the next `hashchange`.
+1. On bundle load, poll every 100 ms (for up to 60 s) until `window.ApiClient?.getCurrentUserId()` returns a user. `window.ApiClient` exists before login but has no user. After that, re-check the user on every navigation, because `window.ApiClient` can be replaced when switching servers or users.
 2. Fetch `GET /Lumen/ClientConfig` once after sign-in. It decides whether home and details takeover are enabled, before any home data is loaded. `/Lumen/Home` is fetched only when the home route is visited.
 3. Run `compat.selfTest()`. If any required check fails: never take over, `console.warn`, and `POST /Lumen/Diagnostics` (once per session).
-4. On a matching route: add `lmn-active` plus the route class to `<html>` and render into `#lmn-root`, a sibling element we create and own. CSS `html.lmn-active <stock page container> { display: none }` hides stock content. jellyfin-web's app bar stays visible and is styled transparent over the hero.
+4. On a matching route: add `lmn-active` plus the route class to `<html>` and render into `#lmn-root`, an element appended to `<body>` that we own.
+   - CSS `html.lmn-active #reactRoot .skinBody, html.lmn-active .backdropContainer { display: none !important; }` hides stock content in both the Modern and Legacy layouts. The stock page keeps running hidden, which duplicates some API traffic; that is accepted.
+   - `#lmn-root` has an opaque background and a top offset equal to the app bar's height (`.MuiAppBar-root` in Modern, `.skinHeader` in Legacy). Both are `position: fixed`.
+   - jellyfin-web's app bar stays visible and is styled transparent over the hero.
 5. On a non-matching route: unmount and remove the classes.
 
 ### 4.2 Allowed jellyfin-web touchpoints
@@ -214,13 +229,18 @@ All live in `compat/` and are checked by `selfTest()`:
 - `window.ApiClient`: auth, base URL, `getCurrentUserId()`, `deviceId()`, `getItem`, `getUrl`, `ajax`
 - `window.Emby.Page`: optional, for `showItem` navigation. The hash fallback is always available.
 - Hash routes `#/home` and `#/details?id=`
-- The stock page container selector (one selector, used only in CSS to hide it)
-- Layout classes on `<html>` used to detect TV layout (`layout-tv`) and mobile layout
+- `#reactRoot .skinBody` and `.backdropContainer` (used only in CSS to hide them)
+- App bar: `.MuiAppBar-root` (Modern) or `.skinHeader` (Legacy), read only to measure its height
+- Layout classes on `<html>`: exactly one of `layout-tv`, `layout-mobile`, `layout-desktop`
+- `history.pushState` / `history.replaceState` (wrapped once to emit a navigation event)
+- Server version from `ApiClient.getPublicSystemInfo()` for diagnostics (`ApiClient.appVersion()` reports the native app's version under the iOS app, so it is not used)
 
 ### 4.3 Playback and actions
 
-- **Play / Resume / Episode click:** look up the own session (`GET /Sessions?deviceId=<ApiClient.deviceId()>`), then `POST /Sessions/{sessionId}/Playing?playCommand=PlayNow&itemIds=…&startPositionTicks=…`. Jellyfin's own player handles playback.
+- **Play / Resume / Episode click:** look up the own session (`GET /Sessions?deviceId=<decodeURIComponent(ApiClient.deviceId())>`; `ApiClient.deviceId()` is URL-encoded but the server stores the decoded value; fall back to the raw value). If no single session matches, show an inline "Couldn't start playback" message. Then `POST /Sessions/{sessionId}/Playing?playCommand=PlayNow&itemIds=…&startPositionTicks=…`. Jellyfin's own player handles playback.
 - **Watched:** `POST`/`DELETE /UserPlayedItems/{id}`. **Favorite:** `POST`/`DELETE /UserFavoriteItems/{id}`.
+- **Item fetch:** `GET /Items/{id}?userId=`. The `/Users/{userId}/Items/{id}` form used by `ApiClient.getItem` is obsolete and hidden from the 12.1 OpenAPI.
+- **Known behavior:** if the user has a cast/remote player selected in jellyfin-web, playback goes there. For a single episode with next-episode autoplay on, the server queues the following episodes.
 - **Trailer:** play the local trailer item via the same Play mechanism.
 
 ### 4.4 Details views
@@ -267,7 +287,14 @@ An embedded HTML/JS page registered via `IHasWebPages`, using the stock dashboar
   - Also: "Add section" (type picker) and "Reset to defaults" (with confirm).
 - **Diagnostics:** the latest compatibility reports (client name, jellyfin-web version, failed checks, timestamp).
 
-Saving runs `ConfigValidator`. Errors are shown inline and nothing is persisted until valid. Saving increments `ConfigVersion`.
+The page talks to admin-only endpoints (`Policies.RequiresElevation`):
+
+- `GET /Lumen/Admin/Config`
+- `POST /Lumen/Admin/Config`: runs `ConfigValidator`. Returns 400 with `{ Errors: [...] }` and persists nothing if invalid. Otherwise saves and increments `ConfigVersion`.
+- `GET /Lumen/Admin/SectionTypes`: each provider's `Type`, `DisplayName`, and `Parameters`
+- `GET /Lumen/Admin/Diagnostics`
+
+Library, collection, and playlist pickers use the stock `/Library/VirtualFolders` and `/Items` endpoints.
 
 `PluginConfiguration.SchemaVersion` starts at 1. `ConfigMigrator.Migrate(config)` runs on load and applies ordered pure migration steps.
 
@@ -343,7 +370,7 @@ The client is built by an MSBuild target before `dotnet build` and embedded as `
 | Client unit | Vitest, @testing-library/preact | Components, route matching, takeover mount/unmount, `compat.selfTest` against fixture DOMs (pass and fail) |
 | E2E | Playwright + Jellyfin latest stable (12.2): Docker `jellyfin/jellyfin:12.2` in CI, portable tarball locally, with generated sample media | Home renders configured sections; Movie and Series details; Play starts playback; master switch off → stock UI; forced compat failure → stock UI + diagnostics entry; TV-layout keyboard navigation |
 | Nightly | Same E2E against `jellyfin/jellyfin:unstable` | Early warning of jellyfin-web changes |
-| Manual (per release) | `docs/manual-test-checklist.md` | Desktop browser, official iOS app, TV layout |
+| Manual (per release) | `docs/manual-test-checklist.md` | Desktop browser, official iOS app, TV layout (desktop browser with layout set to TV) |
 
 ### 7.4 Release
 
@@ -382,4 +409,5 @@ The author's WSL environment has no Docker and no sudo, so local development use
 | Jellyfin plugin ABI changes on server upgrade | Pinned packages, `targetAbi`, nightly build against unstable surfaces breakage early |
 | Overlap with Jellyfin Enhanced / Home Screen Sections | Lumen differentiates as a unified, cohesive experience; README documents running alongside them (or not) |
 | Trailer preview bandwidth or codec failures | Local trailers only, `preload="none"`, silent fallback, admin toggle, reduced-motion respect |
-| No Tizen device for testing | TV-layout E2E plus community testing; documented as best-effort |
+| Tizen app bundles its own jellyfin-web | Documented as unsupported in the README client table |
+| Hidden stock pages still fetch data and may play theme music on details | Accepted for v1; documented. The client never touches the stock page. |
