@@ -11768,8 +11768,9 @@ In `docs/superpowers/specs/2026-10-04-lumen-home-ui-design.md`, add this section
 - The admin page logic is a second Vite bundle (`lumen-admin.js`, TypeScript + Preact, unit-tested). `configPage.html` is a thin shell that loads it from `/Lumen/Assets`.
 - Home is served by `HomeController`. `LumenController` serves assets, client config, and diagnostics; `AdminController` serves the admin endpoints.
 - Collection/playlist reading and trailer lookup sit behind small adapters (`ILinkedItemsReader`, `ITrailerLookup`), because Jellyfin implements them via static service locators. They are covered by end-to-end tests.
+- `CHANGELOG.md` is maintained by hand (Keep a Changelog style). The release workflow publishes the section matching the tag and fails if it's missing.
 ```
-In §7.1, replace `build.yaml, manifest.json` with `manifest.json`. Replace `configPage.js` with `(admin UI lives in client/src/admin)`.
+In §7.1, replace `build.yaml, manifest.json` with `manifest.json`. Replace `configPage.js` with `(admin UI lives in client/src/admin)`. In §7.2, change the sentence saying CHANGELOG.md is generated at release so it says CHANGELOG.md is maintained by hand (see §7.6).
 
 - [ ] **Step 6: Run everything once more**
 
