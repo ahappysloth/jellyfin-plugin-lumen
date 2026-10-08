@@ -24,7 +24,7 @@ public sealed class HomeCacheTests : IDisposable
     [Fact]
     public void Hit_UntilTtlExpires()
     {
-        _cache.Set(_alice, 1, Response);
+        _cache.Set(_alice, 1, _cache.Stamp(_alice), Response);
 
         Assert.True(_cache.TryGet(_alice, 1, out _));
         _time.Advance(HomeCache.Ttl + TimeSpan.FromSeconds(1));
@@ -34,7 +34,7 @@ public sealed class HomeCacheTests : IDisposable
     [Fact]
     public void Miss_WhenConfigVersionChanges()
     {
-        _cache.Set(_alice, 1, Response);
+        _cache.Set(_alice, 1, _cache.Stamp(_alice), Response);
 
         Assert.False(_cache.TryGet(_alice, 2, out _));
     }
@@ -42,8 +42,8 @@ public sealed class HomeCacheTests : IDisposable
     [Fact]
     public void UserDataSaved_EvictsOnlyThatUser()
     {
-        _cache.Set(_alice, 1, Response);
-        _cache.Set(_bob, 1, Response);
+        _cache.Set(_alice, 1, _cache.Stamp(_alice), Response);
+        _cache.Set(_bob, 1, _cache.Stamp(_bob), Response);
 
         _userData.UserDataSaved += Raise.EventWith(new UserDataSaveEventArgs { UserId = _alice });
 
@@ -54,7 +54,7 @@ public sealed class HomeCacheTests : IDisposable
     [Fact]
     public void LibraryChange_InvalidatesEveryone()
     {
-        _cache.Set(_alice, 1, Response);
+        _cache.Set(_alice, 1, _cache.Stamp(_alice), Response);
 
         _library.ItemAdded += Raise.Event<EventHandler<ItemChangeEventArgs>>(_library, new ItemChangeEventArgs());
 
@@ -77,6 +77,31 @@ public sealed class HomeCacheTests : IDisposable
         Assert.Equal(start + 2, _cache.LibraryGeneration);
         _time.Advance(HomeCache.LibraryDebounce * 3);
         Assert.Equal(start + 2, _cache.LibraryGeneration);
+    }
+
+    [Fact]
+    public void Set_IsDropped_WhenLibraryChangesDuringBuild()
+    {
+        var stamp = _cache.Stamp(_alice);
+
+        _library.ItemAdded += Raise.Event<EventHandler<ItemChangeEventArgs>>(_library, new ItemChangeEventArgs());
+        _cache.Set(_alice, 1, stamp, Response);
+
+        Assert.False(_cache.TryGet(_alice, 1, out _));
+    }
+
+    [Fact]
+    public void Set_IsDropped_WhenUserDataSavedDuringBuild()
+    {
+        var aliceStamp = _cache.Stamp(_alice);
+        var bobStamp = _cache.Stamp(_bob);
+
+        _userData.UserDataSaved += Raise.EventWith(new UserDataSaveEventArgs { UserId = _alice });
+        _cache.Set(_alice, 1, aliceStamp, Response);
+        _cache.Set(_bob, 1, bobStamp, Response);
+
+        Assert.False(_cache.TryGet(_alice, 1, out _));
+        Assert.True(_cache.TryGet(_bob, 1, out _));
     }
 
     [Fact]

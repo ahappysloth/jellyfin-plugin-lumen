@@ -16,6 +16,7 @@ public sealed class HomeCache : IDisposable
     public static readonly TimeSpan LibraryDebounce = TimeSpan.FromSeconds(30);
 
     private readonly ConcurrentDictionary<Guid, Entry> _entries = new();
+    private readonly ConcurrentDictionary<Guid, long> _userVersions = new();
     private readonly Lock _gate = new();
     private readonly IUserDataManager _userDataManager;
     private readonly ILibraryManager _libraryManager;
@@ -37,6 +38,9 @@ public sealed class HomeCache : IDisposable
 
     public long LibraryGeneration => Interlocked.Read(ref _generation);
 
+    public CacheStamp Stamp(Guid userId) =>
+        new(LibraryGeneration, _userVersions.TryGetValue(userId, out var version) ? version : 0);
+
     public bool TryGet(Guid userId, int configVersion, [NotNullWhen(true)] out HomeResponseDto? value)
     {
         if (_entries.TryGetValue(userId, out var entry)
@@ -52,10 +56,31 @@ public sealed class HomeCache : IDisposable
         return false;
     }
 
-    public void Set(Guid userId, int configVersion, HomeResponseDto value) =>
-        _entries[userId] = new Entry(LibraryGeneration, configVersion, _time.GetUtcNow() + Ttl, value);
+    /// <summary>
+    /// Stores the response only if nothing relevant changed since <paramref name="stamp"/> was taken; otherwise the
+    /// response is silently dropped.
+    /// </summary>
+    public void Set(Guid userId, int configVersion, CacheStamp stamp, HomeResponseDto value)
+    {
+        if (stamp != Stamp(userId))
+        {
+            return;
+        }
 
-    public void InvalidateUser(Guid userId) => _entries.TryRemove(userId, out _);
+        _entries[userId] = new Entry(stamp.LibraryGeneration, configVersion, _time.GetUtcNow() + Ttl, value);
+
+        // An invalidation that raced with the store above would otherwise leave a stale entry behind.
+        if (stamp != Stamp(userId))
+        {
+            _entries.TryRemove(userId, out _);
+        }
+    }
+
+    public void InvalidateUser(Guid userId)
+    {
+        _userVersions.AddOrUpdate(userId, 1, static (_, version) => version + 1);
+        _entries.TryRemove(userId, out _);
+    }
 
     public void Dispose()
     {
@@ -79,6 +104,9 @@ public sealed class HomeCache : IDisposable
             var now = _time.GetUtcNow();
             if (now - _lastBump >= LibraryDebounce)
             {
+                // The leading bump supersedes any trailer still waiting, so the trailer cannot bump again in this window.
+                _trailingBump?.Dispose();
+                _trailingBump = null;
                 Bump(now);
             }
             else
@@ -103,6 +131,9 @@ public sealed class HomeCache : IDisposable
         Interlocked.Increment(ref _generation);
         _lastBump = now;
     }
+
+    /// <summary>The versions a response must still match to be stored. Take it before building the response.</summary>
+    public readonly record struct CacheStamp(long LibraryGeneration, long UserVersion);
 
     private sealed record Entry(long Generation, int ConfigVersion, DateTimeOffset ExpiresAt, HomeResponseDto Value);
 }
