@@ -12,4 +12,23 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Jellyfin.Plugin.Lumen.Tests" />
   </ItemGroup>
+  <PropertyGroup>
+    <ClientDir>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'client'))</ClientDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <ClientSource Include="$(ClientDir)src/**/*;$(ClientDir)package.json;$(ClientDir)vite.config.ts;$(ClientDir)vite.admin.config.ts" />
+  </ItemGroup>
+  <!-- Builds the client unless SkipClientBuild=true (CI builds it in a separate step). Incremental via Inputs/Outputs. -->
+  <Target Name="BuildClient" BeforeTargets="BeforeBuild" Condition="'$(SkipClientBuild)' != 'true'"
+          Inputs="@(ClientSource)" Outputs="$(ClientDir)dist/lumen.js">
+    <Exec Command="npm ci --no-audit --no-fund" WorkingDirectory="$(ClientDir)" Condition="!Exists('$(ClientDir)node_modules')" />
+    <Exec Command="npm run build" WorkingDirectory="$(ClientDir)" />
+  </Target>
+  <!-- Items are added inside a target so files produced by BuildClient are picked up on the first build. -->
+  <Target Name="EmbedClient" BeforeTargets="BeforeBuild" DependsOnTargets="BuildClient">
+    <ItemGroup>
+      <ClientAsset Include="$(ClientDir)dist/*.js;$(ClientDir)dist/*.css" />
+      <EmbeddedResource Include="@(ClientAsset)" LogicalName="Lumen.Assets.%(Filename)%(Extension)" />
+    </ItemGroup>
+  </Target>
 </Project>
