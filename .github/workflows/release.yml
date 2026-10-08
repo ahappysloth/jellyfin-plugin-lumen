@@ -20,6 +20,10 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - name: Validate the tag
+        run: |
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Tag '$GITHUB_REF_NAME' is not vMAJOR.MINOR.PATCH"; exit 1; }
+          git merge-base --is-ancestor "$GITHUB_REF_NAME" origin/main || { echo "Tag '$GITHUB_REF_NAME' is not on main"; exit 1; }
       - name: Compute version
         id: v
         run: |
@@ -31,6 +35,7 @@ jobs:
           git checkout "$GITHUB_REF_NAME"
           (cd client && npm ci && npm run lint && npm test && npm run build && npm run size)
           dotnet test --nologo -p:SkipClientBuild=true
+          node --test scripts/update-manifest.test.mjs
           dotnet publish src/Jellyfin.Plugin.Lumen -c Release -o artifacts/plugin --nologo -p:SkipClientBuild=true \
             -p:Version=${{ steps.v.outputs.jellyfin }} -p:AssemblyVersion=${{ steps.v.outputs.jellyfin }} -p:FileVersion=${{ steps.v.outputs.jellyfin }}
           (cd artifacts/plugin && zip -j "../lumen_${{ steps.v.outputs.jellyfin }}.zip" Jellyfin.Plugin.Lumen.dll)
@@ -52,4 +57,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "chore(release): publish ${{ steps.v.outputs.semver }} to manifest"
+          git pull --rebase origin main
           git push origin main

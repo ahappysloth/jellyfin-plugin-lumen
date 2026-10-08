@@ -8,7 +8,21 @@ source "$ROOT/scripts/env.sh"
 if [[ -z "${FFMPEG:-}" ]]; then
   if [[ -x "$LUMEN_DEV_HOME/ffmpeg/ffmpeg" ]]; then FFMPEG="$LUMEN_DEV_HOME/ffmpeg/ffmpeg"; else FFMPEG="$(command -v ffmpeg)"; fi
 fi
-OUT="${1:-$ROOT/e2e/fixtures/media}"
+OUT="${1-$ROOT/e2e/fixtures/media}"
+
+# OUT is wiped and regenerated, so only ever delete something that is recognisably a previous fixture tree.
+if [[ -z "$OUT" || "$(realpath -m "$OUT")" == "/" || "$(realpath -m "$OUT")" == "$(realpath -m "$HOME")" ]]; then
+  echo "gen-test-media: refusing to use '$OUT' as the output directory" >&2
+  exit 1
+fi
+if [[ -e "$OUT" && ! -d "$OUT" ]]; then
+  echo "gen-test-media: '$OUT' exists and is not a directory" >&2
+  exit 1
+fi
+if [[ -d "$OUT" && -n "$(ls -A "$OUT")" && ! -d "$OUT/movies" && ! -d "$OUT/tv" ]]; then
+  echo "gen-test-media: refusing to delete '$OUT': it is not empty and has no movies/ or tv/ subdirectory" >&2
+  exit 1
+fi
 rm -rf "$OUT"
 mkdir -p "$OUT/movies" "$OUT/tv"
 
