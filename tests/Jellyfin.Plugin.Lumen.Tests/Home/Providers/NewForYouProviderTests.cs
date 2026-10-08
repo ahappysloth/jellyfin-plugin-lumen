@@ -42,6 +42,8 @@ public class NewForYouProviderTests
         var rows = await new NewForYouProvider(_library).GetRowsAsync(TestData.Context(_user, history), def, CancellationToken.None);
 
         Assert.Equal([watchedShow, newMovie], Assert.Single(rows).Items);
+        var episodeQuery = _queries.Single(q => q.IncludeItemTypes.Contains(BaseItemKind.Episode));
+        Assert.Equal([watchedShow.Id], episodeQuery.AncestorIds);
         var movieQuery = _queries.Single(q => q.IncludeItemTypes.Contains(BaseItemKind.Movie));
         Assert.Equal(["Sci-Fi"], movieQuery.Genres);
         Assert.Equal(TestData.Now.UtcDateTime.AddDays(-7), movieQuery.MinDateCreated);

@@ -39,12 +39,16 @@ public sealed class NewForYouProvider : IHomeSectionProvider
         var watchedSeries = history.Entries.Where(e => e.SeriesId is not null).Select(e => e.SeriesId!.Value).ToHashSet();
         if (watchedSeries.Count > 0)
         {
+            // AncestorIds scopes the query to the watched series in the database. Without it, the newest-200 window
+            // is taken library-wide and a bulk import of unwatched shows could push the watched shows' episodes out.
+            // The Contains filter below stays as a safety net.
             var newest = _libraryManager.GetItemList(new InternalItemsQuery(context.User)
                 {
                     IncludeItemTypes = [BaseItemKind.Episode],
                     Recursive = true,
                     IsPlayed = false,
                     IsVirtualItem = false,
+                    AncestorIds = watchedSeries.ToArray(),
                     MinDateCreated = since,
                     OrderBy = [(ItemSortBy.DateCreated, SortOrder.Descending)],
                     Limit = EpisodeScanLimit,
