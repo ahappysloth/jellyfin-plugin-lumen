@@ -12,6 +12,10 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Jellyfin.Plugin.Lumen.Tests" />
   </ItemGroup>
+  <ItemGroup>
+    <None Remove="Configuration\configPage.html" />
+    <EmbeddedResource Include="Configuration\configPage.html" />
+  </ItemGroup>
   <PropertyGroup>
     <ClientDir>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'client'))</ClientDir>
   </PropertyGroup>

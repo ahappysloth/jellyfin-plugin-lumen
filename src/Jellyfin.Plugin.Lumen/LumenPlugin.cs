@@ -26,5 +26,13 @@ public class LumenPlugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
     public override string Description => "A cinematic home screen and details pages for Jellyfin.";
 
-    public IEnumerable<PluginPageInfo> GetPages() => [];
+    public IEnumerable<PluginPageInfo> GetPages() =>
+    [
+        new PluginPageInfo
+        {
+            Name = Name,
+            DisplayName = "Lumen",
+            EmbeddedResourcePath = $"{GetType().Namespace}.Configuration.configPage.html",
+        },
+    ];
 }

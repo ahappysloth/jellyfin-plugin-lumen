@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "test": "vitest run",
-    "build": "vite build",
+    "build": "vite build && vite build -c vite.admin.config.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
