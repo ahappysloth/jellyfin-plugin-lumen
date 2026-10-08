@@ -29,6 +29,9 @@ dotnet_diagnostic.CS1591.severity = none   # (missing XML comment on public memb
 dotnet_diagnostic.CA1848.severity = none   # (LoggerMessage delegates are overkill for warn-level logs)
 dotnet_diagnostic.CA2007.severity = none   # (ASP.NET Core has no SynchronizationContext)
 dotnet_diagnostic.CA1515.severity = none   # (plugin types must be public for Jellyfin discovery)
+dotnet_diagnostic.SA1402.severity = none   # (plan groups small related types in one file)
+dotnet_diagnostic.SA1649.severity = none   # (file name need not match first type)
+dotnet_diagnostic.CA1720.severity = none   # (SectionParameterKind.Integer and HomeRow.Single are API names)
 
 [tests/**.cs]
 dotnet_diagnostic.CA1707.severity = none   # (underscores in test names)
