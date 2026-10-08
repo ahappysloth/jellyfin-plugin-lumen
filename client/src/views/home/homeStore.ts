@@ -28,3 +28,13 @@ export function usableCachedHome(userId: string): HomeResponse | undefined {
   const home = getCachedHome(userId);
   return home && !isEmptyHome(home) ? home : undefined;
 }
+
+let selection: { userId: string; itemId: string; scrollY: number } | null = null;
+
+export function rememberSelection(userId: string, itemId: string, scrollY: number): void {
+  selection = { userId, itemId, scrollY };
+}
+
+export function getSelection(userId: string): { itemId: string; scrollY: number } | undefined {
+  return selection?.userId === userId ? { itemId: selection.itemId, scrollY: selection.scrollY } : undefined;
+}

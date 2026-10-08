@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { BaseItem } from '../../api/types';
 import { detailsHash } from '../../compat/jellyfin';
+import { useAutoFocus } from '../../components/useAutoFocus';
 import { resumeTicks } from '../../playback/play';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
@@ -26,6 +27,8 @@ export function SeriesDetails({ series, initialSeasonId, ctx }: Props) {
   const [seasonId, setSeasonId] = useState<string | undefined>(initialSeasonId);
   const [episodesBySeason, setEpisodesBySeason] = useState<Record<string, BaseItem[]>>({});
   const [smartPlay, setSmartPlay] = useState<SmartPlay | null>(null);
+  const rootRef = useRef<HTMLElement>(null);
+  useAutoFocus(rootRef, true, ctx.layout);
 
   const storeEpisodes = (id: string, items: BaseItem[]): void =>
     setEpisodesBySeason((current) => ({ ...current, [id]: items }));
@@ -72,7 +75,7 @@ export function SeriesDetails({ series, initialSeasonId, ctx }: Props) {
 
   const episodes = seasonId ? episodesBySeason[seasonId] : undefined;
   return (
-    <article class="lmn-details lmn-details--series">
+    <article ref={rootRef} class="lmn-details lmn-details--series">
       <DetailsHeader
         item={series}
         client={ctx.client}

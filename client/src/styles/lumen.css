@@ -496,3 +496,16 @@ html.lmn-active #lmn-root {
     opacity: 1;
   }
 }
+
+/* TV layout: large, always-visible focus for D-pad navigation. */
+.layout-tv .lmn-card:focus,
+.layout-tv .lmn-episode:focus,
+.layout-tv .lmn-button:focus,
+.layout-tv .lmn-person:focus,
+.layout-tv .lmn-season-select:focus {
+  outline: 4px solid var(--lmn-accent);
+  outline-offset: 3px;
+}
+.layout-tv .lmn-card:focus {
+  transform: scale(1.08);
+}

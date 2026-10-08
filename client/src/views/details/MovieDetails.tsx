@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { BaseItem } from '../../api/types';
 import { detailsHash } from '../../compat/jellyfin';
 import { playedPercent } from '../../components/ProgressBar';
+import { useAutoFocus } from '../../components/useAutoFocus';
 import { resumeTicks } from '../../playback/play';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
@@ -14,6 +15,8 @@ import { useItemActions } from './useItemActions';
 export function MovieDetails({ item, ctx }: { item: BaseItem; ctx: ViewContext }) {
   const actions = useItemActions(item, ctx);
   const [trailerId, setTrailerId] = useState<string | null>(null);
+  const rootRef = useRef<HTMLElement>(null);
+  useAutoFocus(rootRef, true, ctx.layout);
 
   useEffect(() => {
     if ((item.LocalTrailerCount ?? 0) === 0) return;
@@ -25,7 +28,7 @@ export function MovieDetails({ item, ctx }: { item: BaseItem; ctx: ViewContext }
 
   const ticks = resumeTicks(item);
   return (
-    <article class="lmn-details lmn-details--movie">
+    <article ref={rootRef} class="lmn-details lmn-details--movie">
       <DetailsHeader
         item={item}
         client={ctx.client}

@@ -1,17 +1,31 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { BaseItem, HomeResponse, HomeRow } from '../../api/types';
 import { detailsHash } from '../../compat/jellyfin';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
+import { useAutoFocus } from '../../components/useAutoFocus';
 import { playItem, resumeTicks } from '../../playback/play';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { Hero } from './Hero';
-import { fetchHome, isEmptyHome, setCachedHome, usableCachedHome } from './homeStore';
+import {
+  fetchHome,
+  getSelection,
+  isEmptyHome,
+  rememberSelection,
+  setCachedHome,
+  usableCachedHome,
+} from './homeStore';
 import { Row } from './Row';
 
 export function HomeView({ ctx }: { ctx: ViewContext }) {
   const [home, setHome] = useState<HomeResponse | null>(() => usableCachedHome(ctx.userId) ?? null);
   const [error, setError] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const previous = getSelection(ctx.userId);
+  useAutoFocus(rootRef, home !== null, ctx.layout, previous?.itemId);
+  useLayoutEffect(() => {
+    if (home && previous) window.scrollTo({ top: previous.scrollY });
+  }, [home !== null]);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,6 +52,7 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
   };
   const open = (item: BaseItem): void => ctx.navigate(detailsHash(item.Id, item.ServerId));
   const select = (item: BaseItem, row: HomeRow): void => {
+    rememberSelection(ctx.userId, item.Id, window.scrollY);
     if (item.Type === 'Episode' || row.Type === 'ContinueWatching') play(item);
     else open(item);
   };
@@ -45,7 +60,7 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
   if (!home) return <div class="lmn-home lmn-home--loading" aria-busy="true" />;
 
   return (
-    <div class={`lmn-home${home.Hero.length === 0 ? ' lmn-home--no-hero' : ''}`}>
+    <div ref={rootRef} class={`lmn-home${home.Hero.length === 0 ? ' lmn-home--no-hero' : ''}`}>
       {home.Hero.length > 0 && (
         <ErrorBoundary fallback={null}>
           <Hero items={home.Hero} client={ctx.client} config={ctx.config} onPlay={play} onInfo={open} />

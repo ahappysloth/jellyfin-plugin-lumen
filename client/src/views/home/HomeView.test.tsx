@@ -4,7 +4,7 @@ import { createFakeClient, routes } from '../../../test/fakeClient';
 import { makeContext } from '../../../test/viewContext';
 import type { HomeResponse } from '../../api/types';
 import { HomeView } from './HomeView';
-import { setCachedHome } from './homeStore';
+import { getSelection, setCachedHome } from './homeStore';
 
 const home: HomeResponse = {
   ConfigVersion: 1,
@@ -108,5 +108,14 @@ describe('HomeView', () => {
     render(<HomeView ctx={makeContext(createFakeClient(() => new Promise(() => undefined)))} />);
 
     expect(screen.queryByRole('button', { name: 'Alpha' })).toBeNull();
+  });
+
+  it('remembers the selected card so returning home can restore it', async () => {
+    const ctx = makeContext(createFakeClient(routes({ 'Lumen/Home': home })));
+    render(<HomeView ctx={ctx} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Alpha' }));
+
+    expect(getSelection('user1')?.itemId).toBe('m1');
   });
 });
