@@ -47,6 +47,23 @@ describe('Takeover', () => {
     expect(options.mount).toHaveBeenCalledTimes(1);
   });
 
+  it('sets a valid accent on #lmn-root, never inline on <html>', () => {
+    const { takeover } = create({ config: { ...config, AccentColor: '#112233' } });
+
+    takeover.handle({ kind: 'home' });
+
+    expect(document.getElementById('lmn-root')?.style.getPropertyValue('--lmn-accent')).toBe('#112233');
+    expect(document.documentElement.getAttribute('style')).toBeNull();
+  });
+
+  it('ignores an accent that is not #RRGGBB', () => {
+    const { takeover } = create({ config: { ...config, AccentColor: 'red; background: url(x)' } });
+
+    takeover.handle({ kind: 'home' });
+
+    expect(document.getElementById('lmn-root')?.style.getPropertyValue('--lmn-accent')).toBe('');
+  });
+
   it('leaves disabled routes and other routes to the stock UI', () => {
     const { takeover, options } = create();
 

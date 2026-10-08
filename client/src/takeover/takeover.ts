@@ -12,6 +12,7 @@ export interface TakeoverOptions {
   report: (report: CompatReport) => void;
 }
 
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 const ROUTE_CLASSES = ['lmn-active', 'lmn-home', 'lmn-details'];
 
 /** Owns #lmn-root and the <html> classes that hide the stock page. Never touches jellyfin-web's own DOM. */
@@ -43,6 +44,8 @@ export class Takeover {
     const root = this.ensureRoot();
     doc.documentElement.classList.remove(...ROUTE_CLASSES);
     doc.documentElement.classList.add('lmn-active', route.kind === 'home' ? 'lmn-home' : 'lmn-details');
+    const { AccentColor } = this.options.config;
+    if (HEX_COLOR.test(AccentColor)) root.style.setProperty('--lmn-accent', AccentColor);
     root.style.setProperty('--lmn-top-offset', `${getAppBarHeight(doc)}px`);
 
     const key = route.kind === 'home' ? 'home' : `details:${route.id}`;

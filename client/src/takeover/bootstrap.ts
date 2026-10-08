@@ -22,12 +22,6 @@ export interface BootstrapOptions {
   timeoutMs?: number;
 }
 
-const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
-
-export function applyAccent(doc: Document, color: string): void {
-  if (HEX_COLOR.test(color)) doc.documentElement.style.setProperty('--lmn-accent', color);
-}
-
 /** window.ApiClient exists before sign-in but has no user; wait until it does (or give up). */
 function waitForUser(win: Window, pollMs: number, timeoutMs: number): Promise<void> {
   const started = Date.now();
@@ -45,7 +39,6 @@ interface Session {
   client: JellyfinApiClient;
   /** null = Lumen is disabled or unavailable for this user; the stock UI is used everywhere. */
   takeover: Takeover | null;
-  accentColor: string | null;
 }
 
 interface PendingSession {
@@ -68,9 +61,9 @@ export function startLumen(options: BootstrapOptions): () => void {
     try {
       config = await api.getClientConfig();
     } catch {
-      return { userId, client, takeover: null, accentColor: null };
+      return { userId, client, takeover: null };
     }
-    if (!config.Enabled) return { userId, client, takeover: null, accentColor: null };
+    if (!config.Enabled) return { userId, client, takeover: null };
 
     const takeover = new Takeover({
       config,
@@ -100,7 +93,7 @@ export function startLumen(options: BootstrapOptions): () => void {
         }),
       unmount: options.unmount,
     });
-    return { userId, client, takeover, accentColor: config.AccentColor };
+    return { userId, client, takeover };
   };
 
   const sync = async (): Promise<void> => {
@@ -129,7 +122,6 @@ export function startLumen(options: BootstrapOptions): () => void {
         entry.client.getCurrentUserId() === entry.userId
       ) {
         session = created;
-        if (created.accentColor !== null) applyAccent(doc, created.accentColor);
       }
     }
     session?.takeover?.handle(parseRoute(win.location.hash));

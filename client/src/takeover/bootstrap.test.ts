@@ -39,7 +39,7 @@ describe('startLumen', () => {
     return { mount, unmount };
   };
 
-  it('waits for a signed-in user, then takes over home and applies the accent', async () => {
+  it('waits for a signed-in user, then takes over home and applies the accent to #lmn-root', async () => {
     client.userId = null;
     const { mount } = start();
     await new Promise((r) => setTimeout(r, 20));
@@ -49,7 +49,9 @@ describe('startLumen', () => {
     await vi.waitFor(() => expect(mount).toHaveBeenCalledTimes(1));
     expect(mount.mock.calls[0]![0]).toEqual({ kind: 'home' });
     expect(mount.mock.calls[0]![2]).toMatchObject({ userId: 'user1', layout: 'desktop' });
-    expect(document.documentElement.style.getPropertyValue('--lmn-accent')).toBe('#112233');
+    expect(document.getElementById('lmn-root')?.style.getPropertyValue('--lmn-accent')).toBe('#112233');
+    expect(document.documentElement.style.getPropertyValue('--lmn-accent')).toBe('');
+    expect(document.documentElement.getAttribute('style')).toBeNull();
   });
 
   it('releases takeover when the user signs out', async () => {
