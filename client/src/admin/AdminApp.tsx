@@ -9,6 +9,7 @@ import type {
   SectionParamDef,
   SectionTypeDef,
 } from './adminApi';
+import { newUuid } from '../util/uuid';
 import {
   HERO_LABELS,
   HERO_SOURCES,
@@ -34,11 +35,7 @@ interface AdminAppProps {
   confirm?: (message: string) => boolean;
 }
 
-export function AdminApp({
-  api,
-  newId = () => crypto.randomUUID(),
-  confirm = (m) => window.confirm(m),
-}: AdminAppProps) {
+export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm(m) }: AdminAppProps) {
   const [config, setConfig] = useState<LumenConfig | null>(null);
   const [types, setTypes] = useState<SectionTypeDef[]>([]);
   const [lookups, setLookups] = useState<Lookups>({ Library: [], Collection: [], Playlist: [] });
