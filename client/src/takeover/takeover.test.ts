@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../api/types';
+import type { CompatReport } from '../compat/jellyfin';
 import { Takeover, type TakeoverOptions } from './takeover';
 
 const config: ClientConfig = {
@@ -65,6 +66,26 @@ describe('Takeover', () => {
 
     expect(options.report).toHaveBeenCalledTimes(1);
     expect(options.mount).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('re-runs a failed compatibility check and takes over once it passes, reporting only once', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const selfTest = vi
+      .fn<() => CompatReport>()
+      .mockReturnValueOnce({ ok: false, failed: ['stockPage'] })
+      .mockReturnValue({ ok: true, failed: [] });
+    const { takeover, options } = create({ selfTest });
+
+    takeover.handle({ kind: 'home' });
+    expect(options.mount).not.toHaveBeenCalled();
+
+    takeover.handle({ kind: 'home' });
+    takeover.handle({ kind: 'home' });
+
+    expect(options.mount).toHaveBeenCalledTimes(1);
+    expect(selfTest).toHaveBeenCalledTimes(2);
+    expect(options.report).toHaveBeenCalledTimes(1);
     warn.mockRestore();
   });
 

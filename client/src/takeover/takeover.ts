@@ -18,7 +18,8 @@ const ROUTE_CLASSES = ['lmn-active', 'lmn-home', 'lmn-details'];
 export class Takeover {
   private root: HTMLElement | null = null;
   private mountedKey: string | null = null;
-  private compat: CompatReport | null = null;
+  private compatible = false;
+  private reported = false;
   private suppressedHref: string | null = null;
   private generation = 0;
 
@@ -70,18 +71,20 @@ export class Takeover {
     return route.kind === 'home' ? this.options.config.HomeTakeover : this.options.config.DetailsTakeover;
   }
 
+  /** Only a passing self-test is remembered; a failing one is re-run later (jellyfin-web may not have rendered yet). */
   private isCompatible(): boolean {
-    if (!this.compat) {
-      this.compat = this.options.selfTest();
-      if (!this.compat.ok) {
-        console.warn(
-          '[Lumen] jellyfin-web compatibility check failed; using the stock UI.',
-          this.compat.failed,
-        );
-        this.options.report(this.compat);
-      }
+    if (this.compatible) return true;
+    const compat = this.options.selfTest();
+    if (compat.ok) {
+      this.compatible = true;
+      return true;
     }
-    return this.compat.ok;
+    if (!this.reported) {
+      this.reported = true;
+      console.warn('[Lumen] jellyfin-web compatibility check failed; using the stock UI.', compat.failed);
+      this.options.report(compat);
+    }
+    return false;
   }
 
   private ensureRoot(): HTMLElement {

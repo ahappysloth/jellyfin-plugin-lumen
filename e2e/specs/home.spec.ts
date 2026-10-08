@@ -12,6 +12,15 @@ test('Lumen replaces the home screen with a hero and rows', async ({ page }) => 
   await expect(page.locator('#reactRoot .skinBody').first()).toBeHidden();
 });
 
+test('a cold load with a remembered sign-in still shows the Lumen home', async ({ page }) => {
+  await login(page, ADMIN);
+  await expect(page.locator('#lmn-root .lmn-home')).toBeVisible();
+
+  await page.reload();
+
+  await expect(page.locator('#lmn-root .lmn-home')).toBeVisible();
+});
+
 test.afterEach(async () => {
   const { admin, items } = loadState();
   await api(`/UserItems/${items['Lumen Beta']}/UserData`, {
