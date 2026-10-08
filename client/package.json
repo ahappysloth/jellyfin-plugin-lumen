@@ -1,7 +1,6 @@
 {
   "name": "lumen-client",
   "version": "1.0.0",
-  "description": "",
   "scripts": {
     "test": "vitest run",
     "build": "vite build",
@@ -10,11 +9,9 @@
     "format": "prettier --write .",
     "size": "node scripts/check-size.mjs"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "license": "GPL-3.0",
   "type": "module",
-  "private": "true",
+  "private": true,
   "dependencies": {
     "preact": "^11.0.0"
   },

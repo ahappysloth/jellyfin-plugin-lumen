@@ -16,7 +16,7 @@
     <ClientDir>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'client'))</ClientDir>
   </PropertyGroup>
   <ItemGroup>
-    <ClientSource Include="$(ClientDir)src/**/*;$(ClientDir)package.json;$(ClientDir)vite.config.ts;$(ClientDir)vite.admin.config.ts" />
+    <ClientSource Include="$(ClientDir)src/**/*;$(ClientDir)package.json;$(ClientDir)package-lock.json;$(ClientDir)tsconfig.json;$(ClientDir)vite*.config.ts" />
   </ItemGroup>
   <!-- Builds the client unless SkipClientBuild=true (CI builds it in a separate step). Incremental via Inputs/Outputs. -->
   <Target Name="BuildClient" BeforeTargets="BeforeBuild" Condition="'$(SkipClientBuild)' != 'true'"
