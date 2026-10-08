@@ -173,7 +173,7 @@ html.lmn-active #lmn-root {
 .lmn-row__scroller {
   display: flex;
   gap: 8px;
-  padding: 4px var(--lmn-gutter) 12px;
+  padding: 12px var(--lmn-gutter);
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scroll-snap-type: x proximity;
@@ -241,6 +241,12 @@ html.lmn-active #lmn-root {
   font-size: 0.85rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.lmn-card--poster .lmn-card__caption {
+  max-width: 180px;
+}
+.lmn-card--thumb .lmn-card__caption {
+  max-width: 320px;
 }
 
 /* Progress */
@@ -442,8 +448,26 @@ html.lmn-active #lmn-root {
   .lmn-card--thumb .lmn-card__art {
     width: 220px;
   }
-  .lmn-button {
+  .lmn-card--poster .lmn-card__caption {
+    max-width: 120px;
+  }
+  .lmn-card--thumb .lmn-card__caption {
+    max-width: 220px;
+  }
+  .lmn-button,
+  .lmn-season-select {
     min-height: 44px;
+  }
+  .lmn-hero__dots {
+    gap: 34px;
+  }
+  .lmn-hero__dot {
+    position: relative;
+  }
+  .lmn-hero__dot::after {
+    content: '';
+    position: absolute;
+    inset: -17px;
   }
   .lmn-episode {
     flex-direction: column;
