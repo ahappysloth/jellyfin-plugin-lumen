@@ -28,8 +28,9 @@ jobs:
           FFMPEG=ffmpeg ./scripts/gen-test-media.sh "$PWD/media"
       - name: Start Jellyfin with Lumen installed
         run: |
-          mkdir -p config/plugins/Lumen_ci cache
-          cp plugin/Jellyfin.Plugin.Lumen.dll config/plugins/Lumen_ci/
+          VERSION=$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props)
+          mkdir -p "config/plugins/Lumen_$VERSION" cache
+          cp plugin/Jellyfin.Plugin.Lumen.dll "config/plugins/Lumen_$VERSION/"
           docker run -d --name jellyfin -p 8096:8096 \
             -v "$PWD/config:/config" -v "$PWD/cache:/cache" -v "$PWD/media:/media:ro" \
             "${{ inputs.jellyfin-image }}"
