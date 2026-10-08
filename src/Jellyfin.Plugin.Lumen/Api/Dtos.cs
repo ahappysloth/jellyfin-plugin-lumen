@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Jellyfin.Plugin.Lumen.Configuration;
+using Jellyfin.Plugin.Lumen.Home;
 using MediaBrowser.Model.Dto;
 
 namespace Jellyfin.Plugin.Lumen.Api;
@@ -56,3 +57,19 @@ public sealed record HomeRowDto(string Id, string Type, string Title, IReadOnlyL
 
 /// <summary>Response of GET /Lumen/Home.</summary>
 public sealed record HomeResponseDto(int ConfigVersion, IReadOnlyList<HeroItemDto> Hero, IReadOnlyList<HomeRowDto> Rows);
+
+/// <summary>400 body for an invalid configuration.</summary>
+public sealed record ValidationErrorsDto(IReadOnlyList<string> Errors);
+
+/// <summary>A section parameter for the admin form.</summary>
+public sealed record SectionParameterDto(string Name, string Label, string Kind, bool Required, string? DefaultValue, int? Min, int? Max)
+{
+    public static SectionParameterDto From(SectionParameter p) => new(p.Name, p.Label, p.Kind.ToString(), p.Required, p.DefaultValue, p.Min, p.Max);
+}
+
+/// <summary>A section type for the admin form.</summary>
+public sealed record SectionTypeDto(string Type, string DisplayName, IReadOnlyList<SectionParameterDto> Parameters)
+{
+    public static SectionTypeDto From(IHomeSectionProvider provider) =>
+        new(provider.Type, provider.DisplayName, provider.Parameters.Select(SectionParameterDto.From).ToList());
+}
