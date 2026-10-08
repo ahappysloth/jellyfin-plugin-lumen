@@ -6,6 +6,7 @@ import { useAutoFocus } from '../../components/useAutoFocus';
 import { playItem, resumeTicks } from '../../playback/play';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
+import { resolveSeriesPlayTarget } from '../details/smartPlay';
 import { Hero } from './Hero';
 import {
   fetchHome,
@@ -46,11 +47,18 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
     };
   }, [ctx.api, ctx.userId]);
 
+  const open = (item: BaseItem): void => ctx.navigate(detailsHash(item.Id, item.ServerId));
   const play = (item: BaseItem): void => {
     setError(null);
-    playItem(ctx.api, ctx.client, item.Id, resumeTicks(item)).catch(() => setError(strings.playbackFailed));
+    const started =
+      item.Type === 'Series'
+        ? resolveSeriesPlayTarget(ctx.api, item.Id).then((target) => {
+            if (!target) return open(item);
+            return playItem(ctx.api, ctx.client, target.episodeId, target.startTicks);
+          })
+        : playItem(ctx.api, ctx.client, item.Id, resumeTicks(item));
+    started.catch(() => setError(strings.playbackFailed));
   };
-  const open = (item: BaseItem): void => ctx.navigate(detailsHash(item.Id, item.ServerId));
   const select = (item: BaseItem, row: HomeRow): void => {
     rememberSelection(ctx.userId, item.Id, window.scrollY);
     if (item.Type === 'Episode' || row.Type === 'ContinueWatching') play(item);

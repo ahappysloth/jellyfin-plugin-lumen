@@ -118,4 +118,53 @@ describe('HomeView', () => {
 
     expect(getSelection('user1')?.itemId).toBe('m1');
   });
+
+  describe('hero Play on a series', () => {
+    const seriesHome: HomeResponse = {
+      ConfigVersion: 1,
+      Rows: [],
+      Hero: [{ Item: { Id: 'ser1', Name: 'The Show', Type: 'Series', ServerId: 's' }, TrailerItemId: null }],
+    };
+
+    it('plays the resumable episode with its ticks, not the series id', async () => {
+      const client = createFakeClient(
+        routes({
+          'Lumen/Home': seriesHome,
+          'UserItems/Resume': {
+            Items: [{ Id: 'ep9', Name: 'Nine', Type: 'Episode', UserData: { PlaybackPositionTicks: 555 } }],
+          },
+          'Shows/NextUp': { Items: [] },
+          Sessions: [{ Id: 's1', DeviceId: 'dev+ice' }],
+          'Sessions/s1/Playing': {},
+        }),
+      );
+      render(<HomeView ctx={makeContext(client)} />);
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Play' }));
+
+      await waitFor(() =>
+        expect(client.requests.at(-1)?.url).toContain(
+          'Sessions/s1/Playing?playCommand=PlayNow&itemIds=ep9&startPositionTicks=555',
+        ),
+      );
+    });
+
+    it('opens the details page when nothing is playable', async () => {
+      const client = createFakeClient(
+        routes({
+          'Lumen/Home': seriesHome,
+          'UserItems/Resume': { Items: [] },
+          'Shows/NextUp': { Items: [] },
+          'Shows/ser1/Seasons': { Items: [] },
+        }),
+      );
+      const ctx = makeContext(client);
+      render(<HomeView ctx={ctx} />);
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Play' }));
+
+      await waitFor(() => expect(ctx.navigate).toHaveBeenCalledWith('#/details?id=ser1&serverId=s'));
+      expect(client.requests.some((r) => r.url.includes('Sessions'))).toBe(false);
+    });
+  });
 });
