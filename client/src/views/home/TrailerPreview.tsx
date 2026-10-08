@@ -14,6 +14,7 @@ interface Props {
  */
 export function TrailerPreview({ trailerId, delaySeconds, client }: Props) {
   const wrapper = useRef<HTMLDivElement>(null);
+  const video = useRef<HTMLVideoElement>(null);
   const visible = useVisible(wrapper);
   const [state, setState] = useState<'waiting' | 'playing' | 'done'>('waiting');
 
@@ -22,6 +23,18 @@ export function TrailerPreview({ trailerId, delaySeconds, client }: Props) {
     const timer = setTimeout(() => setState('playing'), delaySeconds * 1000);
     return () => clearTimeout(timer);
   }, [state, visible, delaySeconds]);
+
+  // Removing a <video> from the DOM does not necessarily stop its download; release it explicitly.
+  useEffect(() => {
+    if (state !== 'playing') return;
+    const element = video.current;
+    return () => {
+      if (!element) return;
+      element.pause();
+      element.removeAttribute('src');
+      element.load();
+    };
+  }, [state]);
 
   useEffect(() => {
     if (!visible && state === 'playing') setState('waiting');
@@ -35,6 +48,7 @@ export function TrailerPreview({ trailerId, delaySeconds, client }: Props) {
     <div ref={wrapper} class="lmn-hero__trailer" aria-hidden="true">
       {state === 'playing' && (
         <video
+          ref={video}
           class="lmn-hero__video"
           src={src}
           muted

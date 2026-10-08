@@ -40,6 +40,28 @@ describe('TrailerPreview', () => {
     expect(container.querySelector('video')).toBeNull();
   });
 
+  it('pauses, unloads, and releases the video when it stops or unmounts', () => {
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    const { container, unmount } = render(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={createFakeClient()} />,
+    );
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+    const video = container.querySelector('video')!;
+
+    act(() => {
+      unmount();
+    });
+
+    expect(pause).toHaveBeenCalledTimes(1);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(video.hasAttribute('src')).toBe(false);
+    pause.mockRestore();
+    load.mockRestore();
+  });
+
   it('stops when the page becomes hidden', () => {
     const { container } = render(
       <TrailerPreview trailerId="t1" delaySeconds={0} client={createFakeClient()} />,
