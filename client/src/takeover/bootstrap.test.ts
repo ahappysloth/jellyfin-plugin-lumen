@@ -78,6 +78,9 @@ describe('startLumen', () => {
     client.respond = () => Promise.reject(new Error('down'));
     const { mount } = start();
 
+    await vi.waitFor(() =>
+      expect(client.requests.some((r) => r.url.endsWith('Lumen/ClientConfig'))).toBe(true),
+    );
     await new Promise((r) => setTimeout(r, 30));
     expect(mount).not.toHaveBeenCalled();
   });
@@ -86,8 +89,30 @@ describe('startLumen', () => {
     client.respond = routes({ 'Lumen/ClientConfig': { ...clientConfig, Enabled: false } });
     const { mount } = start();
 
+    await vi.waitFor(() =>
+      expect(client.requests.some((r) => r.url.endsWith('Lumen/ClientConfig'))).toBe(true),
+    );
     await new Promise((r) => setTimeout(r, 30));
     expect(mount).not.toHaveBeenCalled();
+  });
+
+  it('never installs a session for a user who signed out while it was loading', async () => {
+    let release: (value: unknown) => void = () => undefined;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    client.respond = routes({ 'Lumen/ClientConfig': () => gate.then(() => clientConfig) });
+    const { mount } = start();
+    await vi.waitFor(() =>
+      expect(client.requests.some((r) => r.url.endsWith('Lumen/ClientConfig'))).toBe(true),
+    );
+
+    client.userId = 'user2';
+    history.pushState(null, '', '#/home?tab=0');
+    release(undefined);
+
+    await vi.waitFor(() => expect(mount).toHaveBeenCalled());
+    expect(mount.mock.calls.every((call) => (call[2] as { userId: string }).userId === 'user2')).toBe(true);
   });
 
   it('reports compatibility failures to the server', async () => {

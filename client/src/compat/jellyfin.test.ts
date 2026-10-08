@@ -21,6 +21,12 @@ describe('compat', () => {
     expect(selfTest()).toEqual({ ok: true, failed: [] });
   });
 
+  it('accepts #!/ hash routing', () => {
+    window.location.hash = '#!/home';
+
+    expect(selfTest()).toEqual({ ok: true, failed: [] });
+  });
+
   it('names every failed check', () => {
     document.body.innerHTML = '';
     document.documentElement.className = '';

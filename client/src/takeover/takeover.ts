@@ -20,6 +20,7 @@ export class Takeover {
   private mountedKey: string | null = null;
   private compat: CompatReport | null = null;
   private suppressedHref: string | null = null;
+  private generation = 0;
 
   constructor(private readonly options: TakeoverOptions) {}
 
@@ -46,9 +47,10 @@ export class Takeover {
     const key = route.kind === 'home' ? 'home' : `details:${route.id}`;
     if (this.mountedKey !== key) {
       this.mountedKey = key;
+      const generation = ++this.generation;
       doc.documentElement.scrollTop = 0;
       doc.body.scrollTop = 0;
-      this.options.mount(route, root, () => this.fallback(href));
+      this.options.mount(route, root, () => this.fallback(href, generation));
     }
   }
 
@@ -58,7 +60,8 @@ export class Takeover {
     this.mountedKey = null;
   }
 
-  private fallback(href: string): void {
+  private fallback(href: string, generation: number): void {
+    if (generation !== this.generation || this.mountedKey === null) return;
     this.suppressedHref = href;
     this.release();
   }

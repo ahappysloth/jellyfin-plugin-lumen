@@ -77,7 +77,7 @@ export function selfTest(win: Window = window, doc: Document = document): Compat
       doc.documentElement.classList.contains(c),
     ),
     history: typeof win.history?.pushState === 'function' && typeof win.history?.replaceState === 'function',
-    hashRouting: win.location.hash.startsWith('#/'),
+    hashRouting: /^#!?\//.test(win.location.hash),
   };
   const failed = Object.entries(checks)
     .filter(([, ok]) => !ok)

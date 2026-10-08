@@ -96,4 +96,22 @@ describe('Takeover', () => {
     takeover.handle({ kind: 'home' });
     expect(options.mount).toHaveBeenCalledTimes(2);
   });
+
+  it('ignores a stale fallback from an earlier mount', () => {
+    const fallbacks: (() => void)[] = [];
+    const { takeover, options } = create({
+      config: { ...config, DetailsTakeover: true },
+      mount: vi.fn((_route, _root, fb: () => void) => {
+        fallbacks.push(fb);
+      }),
+    });
+    takeover.handle({ kind: 'home' });
+    takeover.handle({ kind: 'details', id: 'x' });
+    expect(options.mount).toHaveBeenCalledTimes(2);
+
+    fallbacks[0]!();
+
+    expect(options.unmount).not.toHaveBeenCalled();
+    expect(document.documentElement.classList.contains('lmn-active')).toBe(true);
+  });
 });
