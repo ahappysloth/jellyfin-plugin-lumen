@@ -1,0 +1,59 @@
+name: E2E
+on:
+  workflow_call:
+    inputs:
+      jellyfin-image:
+        type: string
+        required: true
+      report-name:
+        type: string
+        default: e2e-report
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: plugin
+          path: plugin
+      - name: Generate fixture media
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          FFMPEG=ffmpeg ./scripts/gen-test-media.sh "$PWD/media"
+      - name: Start Jellyfin with Lumen installed
+        run: |
+          mkdir -p config/plugins/Lumen_ci cache
+          cp plugin/Jellyfin.Plugin.Lumen.dll config/plugins/Lumen_ci/
+          docker run -d --name jellyfin -p 8096:8096 \
+            -v "$PWD/config:/config" -v "$PWD/cache:/cache" -v "$PWD/media:/media:ro" \
+            "${{ inputs.jellyfin-image }}"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npx playwright test
+        env:
+          CI: 'true'
+          LUMEN_E2E_BASE_URL: http://localhost:8096
+          LUMEN_E2E_MEDIA_PATH: /media
+      - if: failure()
+        run: docker logs jellyfin > jellyfin.log 2>&1 || true
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.report-name }}-${{ github.run_attempt }}
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+            jellyfin.log

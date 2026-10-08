@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule: { interval: weekly }
+    ignore:
+      # Jellyfin packages are bumped deliberately together with targetAbi.
+      - dependency-name: 'Jellyfin.*'
+  - package-ecosystem: npm
+    directory: /client
+    schedule: { interval: weekly }
+  - package-ecosystem: npm
+    directory: /e2e
+    schedule: { interval: weekly }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }

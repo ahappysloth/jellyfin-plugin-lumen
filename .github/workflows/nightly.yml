@@ -1,0 +1,36 @@
+name: Nightly compatibility
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet publish src/Jellyfin.Plugin.Lumen -c Release -o artifacts/plugin --nologo
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin
+          path: artifacts/plugin/Jellyfin.Plugin.Lumen.dll
+
+  e2e:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ['jellyfin/jellyfin:latest', 'jellyfin/jellyfin:unstable']
+    uses: ./.github/workflows/e2e.yml
+    with:
+      jellyfin-image: ${{ matrix.image }}
+      report-name: e2e-report-${{ strategy.job-index }}
