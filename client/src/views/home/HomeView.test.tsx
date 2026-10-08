@@ -93,6 +93,16 @@ describe('HomeView', () => {
     expect(ctx.onFallback).not.toHaveBeenCalled();
   });
 
+  it('falls back to stock when the cached home is empty and the refresh fails', async () => {
+    setCachedHome('user1', { ConfigVersion: 1, Hero: [], Rows: [] });
+    const ctx = makeContext(createFakeClient(() => Promise.reject(new Error('down'))));
+    const { container } = render(<HomeView ctx={ctx} />);
+
+    expect(container.querySelector('.lmn-home--loading')).not.toBeNull();
+    await waitFor(() => expect(ctx.onFallback).toHaveBeenCalled(), { timeout: 2000 });
+    expect(container.querySelector('.lmn-row')).toBeNull();
+  });
+
   it("does not show another user's cached home", () => {
     setCachedHome('someone-else', home);
     render(<HomeView ctx={makeContext(createFakeClient(() => new Promise(() => undefined)))} />);

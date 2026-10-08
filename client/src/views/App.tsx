@@ -6,7 +6,9 @@ import { HomeView } from './home/HomeView';
 
 /** Hands the route back to the stock UI. Task 25 replaces it with DetailsView for details routes. */
 function StockFallback({ ctx }: { ctx: ViewContext }) {
-  useEffect(() => ctx.onFallback(), [ctx]);
+  useEffect(() => {
+    ctx.onFallback();
+  }, [ctx]);
   return null;
 }
 

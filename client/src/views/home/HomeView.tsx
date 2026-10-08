@@ -6,11 +6,11 @@ import { playItem, resumeTicks } from '../../playback/play';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { Hero } from './Hero';
-import { fetchHome, getCachedHome, isEmptyHome, setCachedHome } from './homeStore';
+import { fetchHome, isEmptyHome, setCachedHome, usableCachedHome } from './homeStore';
 import { Row } from './Row';
 
 export function HomeView({ ctx }: { ctx: ViewContext }) {
-  const [home, setHome] = useState<HomeResponse | null>(() => getCachedHome(ctx.userId) ?? null);
+  const [home, setHome] = useState<HomeResponse | null>(() => usableCachedHome(ctx.userId) ?? null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -18,12 +18,14 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
     fetchHome(ctx.api)
       .then((fresh) => {
         if (cancelled) return;
-        setCachedHome(ctx.userId, fresh);
         if (isEmptyHome(fresh)) ctx.onFallback();
-        else setHome(fresh);
+        else {
+          setCachedHome(ctx.userId, fresh);
+          setHome(fresh);
+        }
       })
       .catch(() => {
-        if (!cancelled && !getCachedHome(ctx.userId)) ctx.onFallback();
+        if (!cancelled && !usableCachedHome(ctx.userId)) ctx.onFallback();
       });
     return () => {
       cancelled = true;

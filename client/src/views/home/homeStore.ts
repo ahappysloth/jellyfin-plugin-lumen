@@ -22,3 +22,9 @@ export async function fetchHome(api: LumenApi, retryDelayMs = 500): Promise<Home
 }
 
 export const isEmptyHome = (home: HomeResponse): boolean => home.Hero.length === 0 && home.Rows.length === 0;
+
+/** The cached home, unless it is empty (an empty home means "use stock", so it is never worth showing). */
+export function usableCachedHome(userId: string): HomeResponse | undefined {
+  const home = getCachedHome(userId);
+  return home && !isEmptyHome(home) ? home : undefined;
+}
