@@ -1,0 +1,12 @@
+[
+  {
+    "guid": "186f9cb8-ba8e-4555-a700-ffa619f48264",
+    "name": "Lumen",
+    "overview": "A cinematic home screen and details pages for Jellyfin.",
+    "description": "Lumen replaces Jellyfin's web home screen and movie/series details pages with a cinematic hero, personalized rows, and a redesigned details view. Works in browsers and the official mobile and desktop apps. Falls back to the stock UI automatically.",
+    "owner": "ahappysloth",
+    "category": "General",
+    "imageUrl": null,
+    "versions": []
+  }
+]

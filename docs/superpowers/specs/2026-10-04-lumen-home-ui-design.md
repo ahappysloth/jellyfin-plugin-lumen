@@ -336,14 +336,14 @@ src/Jellyfin.Plugin.Lumen/
   Injection/      LumenStartupFilter.cs, IndexHtmlMiddleware.cs, HtmlInjector.cs
   Api/            LumenController.cs
   Home/           HomeService.cs, HeroService.cs, HomeCache.cs, IHomeSectionProvider.cs, Models/, Providers/*.cs
-  Configuration/  PluginConfiguration.cs, SectionDefinition.cs, ConfigMigrator.cs, ConfigValidator.cs, configPage.html, configPage.js
+  Configuration/  PluginConfiguration.cs, SectionDefinition.cs, ConfigMigrator.cs, ConfigValidator.cs, configPage.html, (admin UI lives in client/src/admin)
   Diagnostics/    DiagnosticsStore.cs
 client/           package.json, vite.config.ts, tsconfig.json, src/{compat,takeover,api,views,components,styles}
 tests/Jellyfin.Plugin.Lumen.Tests/
 e2e/              playwright.config.ts, docker-compose.yml, fixtures/ (generated media), specs/
 scripts/          dev.sh, gen-test-media.sh
 docs/             superpowers/specs/, reference/jellyfin-openapi-12.1.0.json, manual-test-checklist.md
-build.yaml, manifest.json, README.md, LICENSE (GPL-3.0), CHANGELOG.md
+manifest.json, README.md, LICENSE (GPL-3.0), CHANGELOG.md
 ```
 
 The client is built by an MSBuild target before `dotnet build` and embedded as `EmbeddedResource`s. Build output is not committed.
@@ -359,7 +359,7 @@ The client is built by an MSBuild target before `dotnet build` and embedded as `
   - Preact, chosen for its roughly 4 KB size.
   - The bundle-size budget (≤ 60 KB gzipped JS+CSS) is enforced in CI.
 - **Pure logic is separated from I/O** (injector, genre selection, cache keys, migrations, badge derivation) for direct unit testing.
-- Conventional commits. `CHANGELOG.md` is generated at release.
+- Conventional commits. `CHANGELOG.md` is maintained by hand (see §7.6).
 
 ### 7.3 Testing
 
@@ -399,6 +399,20 @@ The author's WSL environment has no Docker and no sudo, so local development use
 3. Restarts the portable server on port 8097.
 
 `scripts/setup-dev.sh` performs the one-time downloads. Docker is used only in CI.
+
+## 7.6 Plan-time adjustments (2026-10-06)
+
+- No `build.yaml`. The release workflow builds the zip and `manifest.json` directly.
+- The dev server runs on Jellyfin's default port 8096.
+- The admin page logic is a second Vite bundle (`lumen-admin.js`, TypeScript + Preact, unit-tested). `configPage.html` is a thin shell that loads it from `/Lumen/Assets`.
+- Home is served by `HomeController`. `LumenController` serves assets, client config, and diagnostics; `AdminController` serves the admin endpoints.
+- Collection/playlist reading and trailer lookup sit behind small adapters (`ILinkedItemsReader`, `ITrailerLookup`), because Jellyfin implements them via static service locators. They are covered by end-to-end tests.
+- `CHANGELOG.md` is maintained by hand (Keep a Changelog style). The release workflow publishes the section matching the tag and fails if it's missing.
+- `HomeCache.Set` takes a `CacheStamp` captured before building, so responses built across an invalidation are dropped.
+- `HomeService` exposes an internal `Timeout` for tests.
+- New For You's episode query is scoped to watched series via `AncestorIds`.
+- The E2E/CI plugin folder is `Lumen_<Version>`.
+- StyleCop SA1402/SA1649 and CA1720 are disabled in `.editorconfig` because the plan groups small types per file and uses API names like `Integer`/`Single`.
 
 ## 8. Risks
 

@@ -1,0 +1,55 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Compute version
+        id: v
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          echo "semver=$TAG" >> "$GITHUB_OUTPUT"
+          echo "jellyfin=$TAG.0" >> "$GITHUB_OUTPUT"
+      - name: Build and test
+        run: |
+          git checkout "$GITHUB_REF_NAME"
+          (cd client && npm ci && npm run lint && npm test && npm run build && npm run size)
+          dotnet test --nologo -p:SkipClientBuild=true
+          dotnet publish src/Jellyfin.Plugin.Lumen -c Release -o artifacts/plugin --nologo -p:SkipClientBuild=true \
+            -p:Version=${{ steps.v.outputs.jellyfin }} -p:AssemblyVersion=${{ steps.v.outputs.jellyfin }} -p:FileVersion=${{ steps.v.outputs.jellyfin }}
+          (cd artifacts/plugin && zip -j "../lumen_${{ steps.v.outputs.jellyfin }}.zip" Jellyfin.Plugin.Lumen.dll)
+      - name: Extract changelog section
+        run: |
+          awk "/^## \\[${{ steps.v.outputs.semver }}\\]/{flag=1;next}/^## \\[/{flag=0}flag" CHANGELOG.md > release-notes.md
+          test -s release-notes.md || { echo "CHANGELOG.md has no section for ${{ steps.v.outputs.semver }}"; exit 1; }
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "artifacts/lumen_${{ steps.v.outputs.jellyfin }}.zip" --title "Lumen ${{ steps.v.outputs.semver }}" --notes-file release-notes.md
+      - name: Publish to the plugin repository manifest
+        run: |
+          git checkout main
+          node scripts/update-manifest.mjs --version "${{ steps.v.outputs.jellyfin }}" \
+            --zip "artifacts/lumen_${{ steps.v.outputs.jellyfin }}.zip" \
+            --url "https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/lumen_${{ steps.v.outputs.jellyfin }}.zip" \
+            --changelog "$(cat release-notes.md)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(release): publish ${{ steps.v.outputs.semver }} to manifest"
+          git push origin main
