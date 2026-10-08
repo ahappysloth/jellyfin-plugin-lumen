@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Jellyfin.Plugin.Lumen/Jellyfin.Plugin.Lumen.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Jellyfin.Plugin.Lumen.Tests/Jellyfin.Plugin.Lumen.Tests.csproj" />
+  </Folder>
+</Solution>

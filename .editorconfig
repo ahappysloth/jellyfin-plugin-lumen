@@ -1,0 +1,35 @@
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{json,yml,yaml,ts,tsx,js,mjs,css,html,md}]
+indent_size = 2
+
+[*.cs]
+csharp_style_namespace_declarations = file_scoped:warning
+dotnet_sort_system_directives_first = true
+# Rules disabled for this codebase (rationale in parentheses)
+dotnet_diagnostic.SA1101.severity = none   # (no `this.` prefix; we use _fields)
+dotnet_diagnostic.SA1309.severity = none   # (_field naming is our convention)
+dotnet_diagnostic.SA1633.severity = none   # (no per-file license headers; LICENSE covers the repo)
+dotnet_diagnostic.SA1600.severity = none   # (docs not required on every member)
+dotnet_diagnostic.SA1602.severity = none
+dotnet_diagnostic.SA1611.severity = none
+dotnet_diagnostic.SA1615.severity = none
+dotnet_diagnostic.SA1623.severity = none
+dotnet_diagnostic.SA1413.severity = none   # (trailing commas optional)
+dotnet_diagnostic.SA1200.severity = none   # (usings outside file-scoped namespace)
+dotnet_diagnostic.CS1591.severity = none   # (missing XML comment on public member)
+dotnet_diagnostic.CA1848.severity = none   # (LoggerMessage delegates are overkill for warn-level logs)
+dotnet_diagnostic.CA2007.severity = none   # (ASP.NET Core has no SynchronizationContext)
+dotnet_diagnostic.CA1515.severity = none   # (plugin types must be public for Jellyfin discovery)
+
+[tests/**.cs]
+dotnet_diagnostic.CA1707.severity = none   # (underscores in test names)
+dotnet_diagnostic.CA2000.severity = none
