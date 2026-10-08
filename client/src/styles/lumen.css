@@ -1,3 +1,473 @@
+/* Lumen theme. Every selector targets Lumen-owned elements or is scoped by html.lmn-active. */
 :root {
   --lmn-accent: #f5a524;
+  --lmn-bg: var(--jf-palette-background-default, #101010);
+  --lmn-surface: var(--jf-palette-background-paper, #202020);
+  --lmn-text: var(--jf-palette-text-primary, #fff);
+  --lmn-text-dim: var(--jf-palette-text-secondary, rgba(255, 255, 255, 0.7));
+  --lmn-radius: 6px;
+  --lmn-gutter: clamp(16px, 4vw, 56px);
+}
+
+/* Hide the stock page (both layouts) while Lumen owns the route. The stock page keeps running hidden. */
+html.lmn-active #reactRoot .skinBody,
+html.lmn-active .backdropContainer {
+  display: none !important;
+}
+
+/* Let the stock app bar float over Lumen's hero. */
+html.lmn-active .MuiAppBar-root,
+html.lmn-active .skinHeader {
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.75), transparent) !important;
+  box-shadow: none !important;
+}
+
+#lmn-root {
+  display: none;
+}
+
+html.lmn-active #lmn-root {
+  display: block;
+  position: relative;
+  min-height: 100vh;
+  padding-bottom: 96px; /* clears the now-playing bar */
+  background: var(--lmn-bg);
+  color: var(--lmn-text);
+}
+
+/* Buttons */
+.lmn-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  min-height: 40px;
+  padding: 0.6em 1.4em;
+  border: 0;
+  border-radius: var(--lmn-radius);
+  background: rgba(109, 109, 110, 0.7);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lmn-button:hover {
+  background: rgba(109, 109, 110, 0.5);
+}
+.lmn-button--primary {
+  background: #fff;
+  color: #000;
+}
+.lmn-button--primary:hover {
+  background: rgba(255, 255, 255, 0.8);
+}
+.lmn-button[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 2px var(--lmn-accent);
+}
+.lmn-button:focus-visible,
+.lmn-card:focus-visible,
+.lmn-episode:focus-visible,
+.lmn-person:focus-visible,
+.lmn-season-select:focus-visible {
+  outline: 3px solid var(--lmn-accent);
+  outline-offset: 2px;
+}
+
+/* Hero */
+.lmn-hero {
+  position: relative;
+  height: min(80vh, 56.25vw);
+  min-height: 420px;
+  overflow: hidden;
+}
+.lmn-hero__backdrop,
+.lmn-hero__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: lmn-fade 0.6s ease;
+}
+.lmn-hero__trailer {
+  position: absolute;
+  inset: 0;
+}
+.lmn-hero__scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(77deg, rgba(0, 0, 0, 0.75) 0%, transparent 60%),
+    linear-gradient(to top, var(--lmn-bg) 0%, transparent 30%);
+}
+.lmn-hero__content {
+  position: absolute;
+  left: var(--lmn-gutter);
+  bottom: 18%;
+  width: min(560px, 80vw);
+}
+.lmn-hero__logo {
+  display: block;
+  max-width: 100%;
+  max-height: 160px;
+  object-fit: contain;
+  object-position: left bottom;
+}
+.lmn-hero__title {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  line-height: 1.1;
+}
+.lmn-hero__overview {
+  display: -webkit-box;
+  margin: 1rem 0;
+  overflow: hidden;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+.lmn-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.lmn-hero__dots {
+  position: absolute;
+  right: var(--lmn-gutter);
+  bottom: 18%;
+  display: flex;
+  gap: 6px;
+}
+.lmn-hero__dot {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+}
+.lmn-hero__dot.is-active {
+  background: var(--lmn-accent);
+}
+
+/* Home */
+.lmn-home--no-hero {
+  padding-top: calc(var(--lmn-top-offset, 56px) + 16px);
+}
+.lmn-home--loading,
+.lmn-details--loading {
+  min-height: 100vh;
+}
+.lmn-row {
+  position: relative;
+  margin: 0 0 2rem;
+}
+.lmn-hero + .lmn-row {
+  margin-top: -4vw;
+}
+.lmn-row__title {
+  margin: 0 var(--lmn-gutter) 0.5rem;
+  font-size: clamp(1rem, 1.6vw, 1.4rem);
+  font-weight: 600;
+}
+.lmn-row__scroller {
+  display: flex;
+  gap: 8px;
+  padding: 4px var(--lmn-gutter) 12px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.lmn-row__scroller::-webkit-scrollbar {
+  display: none;
+}
+
+/* Cards */
+.lmn-card {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition: transform 0.2s ease;
+}
+.lmn-card:hover,
+.lmn-card:focus-visible {
+  transform: scale(1.05);
+  z-index: 1;
+}
+.lmn-card__art {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--lmn-radius);
+  background: var(--lmn-surface);
+}
+.lmn-card--poster .lmn-card__art {
+  width: 180px;
+  aspect-ratio: 2 / 3;
+}
+.lmn-card--thumb .lmn-card__art {
+  width: 320px;
+  aspect-ratio: 16 / 9;
+}
+.lmn-card__art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lmn-card__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  color: var(--lmn-text-dim);
+  font-size: 0.9rem;
+  text-align: center;
+}
+.lmn-card__caption {
+  display: block;
+  max-width: 320px;
+  margin-top: 0.35rem;
+  overflow: hidden;
+  color: var(--lmn-text-dim);
+  font-size: 0.85rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Progress */
+.lmn-progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: block;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.25);
+}
+.lmn-progress__fill {
+  display: block;
+  height: 100%;
+  background: var(--lmn-accent);
+}
+.lmn-button .lmn-progress {
+  position: static;
+  width: 60px;
+  height: 3px;
+}
+
+/* Details */
+.lmn-details__header {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: min(75vh, 56.25vw);
+}
+.lmn-details__backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lmn-details__scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(77deg, rgba(0, 0, 0, 0.85) 0%, transparent 70%),
+    linear-gradient(to top, var(--lmn-bg) 0%, transparent 40%);
+}
+.lmn-details__info {
+  position: relative;
+  max-width: 720px;
+  padding: calc(var(--lmn-top-offset, 56px) + 2rem) var(--lmn-gutter) 2rem;
+}
+.lmn-details__logo {
+  display: block;
+  max-width: min(480px, 100%);
+  max-height: 140px;
+  object-fit: contain;
+  object-position: left bottom;
+}
+.lmn-details__title {
+  margin: 0;
+  font-size: clamp(2rem, 4.5vw, 3.2rem);
+}
+.lmn-details__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.75rem 0;
+  color: var(--lmn-text-dim);
+}
+.lmn-badge {
+  padding: 0 0.4em;
+  border: 1px solid var(--lmn-text-dim);
+  border-radius: 3px;
+  font-size: 0.8em;
+}
+.lmn-details__overview {
+  line-height: 1.5;
+}
+.lmn-details__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.lmn-toast {
+  margin: 1rem var(--lmn-gutter);
+  padding: 0.75rem 1rem;
+  border-left: 4px solid var(--lmn-accent);
+  background: var(--lmn-surface);
+}
+
+/* Episodes */
+.lmn-episodes-section {
+  padding: 0 var(--lmn-gutter) 2rem;
+}
+.lmn-episodes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.lmn-season-select {
+  padding: 0.5em 1em;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--lmn-radius);
+  background: var(--lmn-surface);
+  color: var(--lmn-text);
+  font: inherit;
+}
+.lmn-episodes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lmn-episode {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+  padding: 1rem;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--lmn-radius);
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lmn-episode:hover {
+  background: var(--lmn-surface);
+}
+.lmn-episode__thumb {
+  position: relative;
+  flex: 0 0 240px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--lmn-radius);
+  background: var(--lmn-surface);
+}
+.lmn-episode__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lmn-episode__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.lmn-episode__title {
+  font-weight: 600;
+}
+.lmn-episode__runtime,
+.lmn-episode__overview {
+  color: var(--lmn-text-dim);
+  font-size: 0.9rem;
+}
+
+/* Cast */
+.lmn-person {
+  flex: 0 0 auto;
+  width: 120px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+.lmn-person__photo {
+  display: block;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: var(--lmn-surface);
+  object-fit: cover;
+}
+.lmn-person__name {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+}
+.lmn-person__role {
+  display: block;
+  color: var(--lmn-text-dim);
+  font-size: 0.75rem;
+}
+
+/* Small screens (official mobile apps) */
+@media (max-width: 600px) {
+  .lmn-hero {
+    height: 70vh;
+    min-height: 360px;
+  }
+  .lmn-hero__content {
+    bottom: 10%;
+  }
+  .lmn-card--poster .lmn-card__art {
+    width: 120px;
+  }
+  .lmn-card--thumb .lmn-card__art {
+    width: 220px;
+  }
+  .lmn-button {
+    min-height: 44px;
+  }
+  .lmn-episode {
+    flex-direction: column;
+  }
+  .lmn-episode__thumb {
+    flex-basis: auto;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lmn-card,
+  .lmn-hero__backdrop,
+  .lmn-hero__video {
+    transition: none;
+    animation: none;
+  }
+}
+
+@keyframes lmn-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
