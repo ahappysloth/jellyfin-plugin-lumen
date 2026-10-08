@@ -15,6 +15,22 @@ test('turning off home takeover restores the stock home', async ({ page }) => {
   await expect(page.locator('#lmn-root .lmn-home')).toHaveCount(0);
 });
 
+test('the master switch off shows the stock UI everywhere', async ({ page }) => {
+  const { admin, items } = loadState();
+  const config = await api<Record<string, unknown>>('/Lumen/Admin/Config', { token: admin.token });
+  await api('/Lumen/Admin/Config', { method: 'POST', token: admin.token, body: { ...config, Enabled: false } });
+
+  await login(page, ADMIN);
+
+  await expect(page.locator('#indexPage')).toBeVisible();
+  await expect(page.locator('#lmn-root .lmn-home')).toHaveCount(0);
+
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+
+  await expect(page.locator('#itemDetailPage:not(.hide)')).toBeVisible();
+  await expect(page.locator('#lmn-root .lmn-details')).toHaveCount(0);
+});
+
 test('a failed compatibility check shows the stock UI and is reported to admins', async ({ page }) => {
   const { admin } = loadState();
   await page.addInitScript(() => {

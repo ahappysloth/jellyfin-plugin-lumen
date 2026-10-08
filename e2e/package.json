@@ -1,15 +1,12 @@
 {
   "name": "lumen-e2e",
   "version": "1.0.0",
-  "description": "",
   "scripts": {
     "test": "playwright test"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "license": "GPL-3.0",
   "type": "module",
-  "private": "true",
+  "private": true,
   "devDependencies": {
     "@playwright/test": "^1.64.0",
     "@types/node": "^26.6.4",

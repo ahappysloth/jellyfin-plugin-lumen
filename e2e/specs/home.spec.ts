@@ -12,6 +12,16 @@ test('Lumen replaces the home screen with a hero and rows', async ({ page }) => 
   await expect(page.locator('#reactRoot .skinBody').first()).toBeHidden();
 });
 
+test.afterEach(async () => {
+  const { admin, items } = loadState();
+  await api(`/UserItems/${items['Lumen Beta']}/UserData`, {
+    method: 'POST',
+    token: admin.token,
+    query: { userId: admin.userId },
+    body: { PlaybackPositionTicks: 0 },
+  });
+});
+
 test('a partially watched movie appears in Continue Watching', async ({ page }) => {
   const { admin, items } = loadState();
   await api(`/UserItems/${items['Lumen Beta']}/UserData`, {
