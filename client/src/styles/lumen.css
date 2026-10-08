@@ -459,6 +459,7 @@ html.lmn-active #lmn-root {
     min-height: 44px;
   }
   .lmn-hero__dots {
+    right: max(var(--lmn-gutter), 17px);
     gap: 34px;
   }
   .lmn-hero__dot {
