@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/preact';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { makeContext } from '../../../test/viewContext';
 import type { BaseItem } from '../../api/types';
@@ -100,5 +100,20 @@ describe('DetailsView', () => {
     render(<DetailsView id="m1" ctx={ctx} />);
 
     await waitFor(() => expect(ctx.onFallback).toHaveBeenCalled());
+  });
+
+  describe('with a request that never answers', () => {
+    afterEach(() => vi.useRealTimers());
+
+    it('falls back to stock after 10 seconds', async () => {
+      vi.useFakeTimers();
+      const ctx = makeContext(createFakeClient(() => new Promise(() => undefined)));
+      render(<DetailsView id="m1" ctx={ctx} />);
+
+      await vi.advanceTimersByTimeAsync(9_999);
+      expect(ctx.onFallback).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(ctx.onFallback).toHaveBeenCalledTimes(1);
+    });
   });
 });

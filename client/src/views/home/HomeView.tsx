@@ -4,11 +4,13 @@ import { detailsHash } from '../../compat/jellyfin';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { playItem, resumeTicks } from '../../playback/play';
+import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { resolveSeriesPlayTarget } from '../details/smartPlay';
 import { Hero } from './Hero';
 import {
+  clearCachedHome,
   fetchHome,
   getSelection,
   isEmptyHome,
@@ -30,11 +32,13 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetchHome(ctx.api)
+    withTimeout(fetchHome(ctx.api), VIEW_TIMEOUT_MS)
       .then((fresh) => {
         if (cancelled) return;
-        if (isEmptyHome(fresh)) ctx.onFallback();
-        else {
+        if (isEmptyHome(fresh)) {
+          clearCachedHome(ctx.userId);
+          ctx.onFallback();
+        } else {
           setCachedHome(ctx.userId, fresh);
           setHome(fresh);
         }

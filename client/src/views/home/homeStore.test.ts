@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { LumenApi } from '../../api/lumenApi';
-import { fetchHome, getCachedHome, isEmptyHome, setCachedHome } from './homeStore';
+import { clearCachedHome, fetchHome, getCachedHome, isEmptyHome, setCachedHome } from './homeStore';
 
 const home = { ConfigVersion: 1, Hero: [], Rows: [] };
 
@@ -11,6 +11,14 @@ describe('homeStore', () => {
 
     expect(getCachedHome('a')).toBeUndefined();
     expect(getCachedHome('b')).toBe(home);
+  });
+
+  it('clears the cached home for that user only', () => {
+    setCachedHome('a', home);
+    clearCachedHome('b');
+    expect(getCachedHome('a')).toBe(home);
+    clearCachedHome('a');
+    expect(getCachedHome('a')).toBeUndefined();
   });
 
   it('retries once', async () => {

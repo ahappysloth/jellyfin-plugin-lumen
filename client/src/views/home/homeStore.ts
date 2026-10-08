@@ -12,6 +12,10 @@ export function setCachedHome(userId: string, home: HomeResponse): void {
   cached = { userId, home };
 }
 
+export function clearCachedHome(userId: string): void {
+  if (cached?.userId === userId) cached = null;
+}
+
 export async function fetchHome(api: LumenApi, retryDelayMs = 500): Promise<HomeResponse> {
   try {
     return await api.getHome();

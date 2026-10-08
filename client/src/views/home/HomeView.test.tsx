@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/preact';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { makeContext } from '../../../test/viewContext';
 import type { HomeResponse } from '../../api/types';
 import { HomeView } from './HomeView';
-import { getSelection, setCachedHome } from './homeStore';
+import { getCachedHome, getSelection, setCachedHome } from './homeStore';
 
 const home: HomeResponse = {
   ConfigVersion: 1,
@@ -74,6 +74,44 @@ describe('HomeView', () => {
     render(<HomeView ctx={ctx} />);
 
     await waitFor(() => expect(ctx.onFallback).toHaveBeenCalled());
+  });
+
+  it('drops a stale cached home when the fresh home is empty', async () => {
+    setCachedHome('user1', home);
+    const ctx = makeContext(
+      createFakeClient(routes({ 'Lumen/Home': { ConfigVersion: 2, Hero: [], Rows: [] } })),
+    );
+    render(<HomeView ctx={ctx} />);
+
+    await waitFor(() => expect(ctx.onFallback).toHaveBeenCalled());
+    expect(getCachedHome('user1')).toBeUndefined();
+  });
+
+  describe('with a request that never answers', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('falls back to stock after 10 seconds when nothing is cached', async () => {
+      setCachedHome('user1', { ConfigVersion: 0, Hero: [], Rows: [] });
+      const ctx = makeContext(createFakeClient(() => new Promise(() => undefined)));
+      render(<HomeView ctx={ctx} />);
+
+      await vi.advanceTimersByTimeAsync(9_999);
+      expect(ctx.onFallback).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(ctx.onFallback).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps showing a usable cached home instead of falling back', async () => {
+      setCachedHome('user1', home);
+      const ctx = makeContext(createFakeClient(() => new Promise(() => undefined)));
+      render(<HomeView ctx={ctx} />);
+
+      await vi.advanceTimersByTimeAsync(11_000);
+
+      expect(ctx.onFallback).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: 'Alpha' })).toBeInTheDocument();
+    });
   });
 
   it('falls back to stock when the request fails and nothing is cached', async () => {

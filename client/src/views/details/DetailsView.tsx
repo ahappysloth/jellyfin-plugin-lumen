@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { LumenApi } from '../../api/lumenApi';
 import type { BaseItem } from '../../api/types';
+import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import type { ViewContext } from '../context';
 import { MovieDetails } from './MovieDetails';
 import { SeriesDetails } from './SeriesDetails';
@@ -24,7 +25,7 @@ export function DetailsView({ id, ctx }: { id: string; ctx: ViewContext }) {
 
   useEffect(() => {
     let cancelled = false;
-    resolveDetails(ctx.api, id)
+    withTimeout(resolveDetails(ctx.api, id), VIEW_TIMEOUT_MS)
       .then((result) => {
         if (cancelled) return;
         if (result) setResolved(result);
