@@ -111,6 +111,46 @@ public class ConfigValidatorTests
         Assert.Contains(CreateValidator().Validate(Valid(sections)), e => e.Contains("at most 30", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void NullSections_IsAnError_NotAnException()
+    {
+        var config = Valid();
+        config.Sections = null!;
+
+        Assert.Contains("Sections are required.", CreateValidator().Validate(config));
+    }
+
+    [Fact]
+    public void NullParams_AreTreatedAsEmpty()
+    {
+        var section = TestData.Section("Plain");
+        section.Params = null!;
+
+        Assert.Empty(CreateValidator().Validate(Valid(section)));
+        Assert.Empty(section.Params);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void MissingSectionType_IsAnError(string? type)
+    {
+        var section = TestData.Section("Plain");
+        section.Type = type!;
+
+        Assert.Contains(CreateValidator().Validate(Valid(section)), e => e.Contains("type is required", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void NullSectionEntry_IsAnError()
+    {
+        var config = Valid();
+        config.Sections.Add(null!);
+
+        Assert.Contains(CreateValidator().Validate(config), e => e.Contains("is missing", StringComparison.Ordinal));
+    }
+
     private static PluginConfiguration Valid(params SectionDefinition[] sections) =>
         new() { SchemaVersion = 1, Sections = sections.ToList() };
 

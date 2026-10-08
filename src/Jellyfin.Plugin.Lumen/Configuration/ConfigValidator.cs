@@ -34,16 +34,37 @@ public sealed partial class ConfigValidator
             errors.Add("Hero source 'Collection' requires a collection.");
         }
 
-        if (config.Sections.Count > MaxSections)
+        // A POSTed config can carry JSON nulls that the non-nullable types do not rule out.
+        List<SectionDefinition?>? sections = config.Sections!;
+        if (sections is null)
+        {
+            errors.Add("Sections are required.");
+            return errors;
+        }
+
+        if (sections.Count > MaxSections)
         {
             errors.Add($"There can be at most {MaxSections} sections.");
         }
 
         var seenIds = new HashSet<Guid>();
-        for (var i = 0; i < config.Sections.Count; i++)
+        for (var i = 0; i < sections.Count; i++)
         {
-            var section = config.Sections[i];
+            var section = sections[i];
+            if (section is null)
+            {
+                errors.Add(string.Create(CultureInfo.InvariantCulture, $"Section {i + 1}: is missing."));
+                continue;
+            }
+
+            section.Params ??= [];
             var label = string.Create(CultureInfo.InvariantCulture, $"Section {i + 1} ({section.Type})");
+
+            if (string.IsNullOrWhiteSpace(section.Type))
+            {
+                errors.Add($"{label}: section type is required.");
+                continue;
+            }
 
             if (section.Id == Guid.Empty)
             {
