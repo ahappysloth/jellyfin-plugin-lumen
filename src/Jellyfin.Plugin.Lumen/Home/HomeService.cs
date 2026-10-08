@@ -70,18 +70,19 @@ public sealed class HomeService : IHomeService
         }
 
         var stamp = _cache.Stamp(user.Id);
-        var response = await BuildAsync(user, config, cancellationToken);
-        _cache.Set(user.Id, config.ConfigVersion, stamp, response);
+        var build = new BuildState();
+        var response = await BuildAsync(user, config, build, cancellationToken);
+        _cache.Set(user.Id, config.ConfigVersion, stamp, response, build.Degraded);
         return response;
     }
 
-    private async Task<HomeResponseDto> BuildAsync(User user, PluginConfiguration config, CancellationToken cancellationToken)
+    private async Task<HomeResponseDto> BuildAsync(User user, PluginConfiguration config, BuildState build, CancellationToken cancellationToken)
     {
         var now = _time.GetUtcNow();
         var context = new HomeContext(user, now, () => _history.GetAsync(user, now, cancellationToken));
 
-        var heroTask = RunGuardedAsync("hero", ct => _hero.GetHeroAsync(context, config, ct), (IReadOnlyList<HeroItem>)[], cancellationToken);
-        var sectionTasks = config.Sections.Where(s => s.Enabled).Select(s => RunSectionAsync(context, s, cancellationToken)).ToList();
+        var heroTask = RunGuardedAsync("hero", ct => _hero.GetHeroAsync(context, config, ct), (IReadOnlyList<HeroItem>)[], build, cancellationToken);
+        var sectionTasks = config.Sections.Where(s => s.Enabled).Select(s => RunSectionAsync(context, s, build, cancellationToken)).ToList();
 
         var sections = await Task.WhenAll(sectionTasks);
         var hero = await heroTask;
@@ -96,7 +97,7 @@ public sealed class HomeService : IHomeService
         return new HomeResponseDto(config.ConfigVersion, heroDtos, rows);
     }
 
-    private Task<IReadOnlyList<HomeRow>> RunSectionAsync(HomeContext context, SectionDefinition section, CancellationToken cancellationToken)
+    private Task<IReadOnlyList<HomeRow>> RunSectionAsync(HomeContext context, SectionDefinition section, BuildState build, CancellationToken cancellationToken)
     {
         if (!_providers.TryGetValue(section.Type, out var provider))
         {
@@ -111,10 +112,10 @@ public sealed class HomeService : IHomeService
             return Task.FromResult<IReadOnlyList<HomeRow>>([]);
         }
 
-        return RunGuardedAsync($"section {section.Id} ({section.Type})", ct => provider.GetRowsAsync(context, section, ct), (IReadOnlyList<HomeRow>)[], cancellationToken);
+        return RunGuardedAsync($"section {section.Id} ({section.Type})", ct => provider.GetRowsAsync(context, section, ct), (IReadOnlyList<HomeRow>)[], build, cancellationToken);
     }
 
-    private async Task<T> RunGuardedAsync<T>(string label, Func<CancellationToken, Task<T>> work, T fallback, CancellationToken cancellationToken)
+    private async Task<T> RunGuardedAsync<T>(string label, Func<CancellationToken, Task<T>> work, T fallback, BuildState build, CancellationToken cancellationToken)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
@@ -124,14 +125,26 @@ public sealed class HomeService : IHomeService
         }
         catch (TimeoutException)
         {
+            build.MarkDegraded();
             await linked.CancelAsync();
             _logger.LogWarning("Lumen {Label} timed out after {Timeout}", label, Timeout);
             return fallback;
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
+            build.MarkDegraded();
             _logger.LogWarning(ex, "Lumen {Label} failed", label);
             return fallback;
         }
+    }
+
+    /// <summary>Tracks whether any part of one build hit its failure or timeout fallback.</summary>
+    private sealed class BuildState
+    {
+        private int _degraded;
+
+        public bool Degraded => Volatile.Read(ref _degraded) != 0;
+
+        public void MarkDegraded() => Volatile.Write(ref _degraded, 1);
     }
 }

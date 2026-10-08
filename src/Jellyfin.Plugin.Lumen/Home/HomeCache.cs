@@ -13,6 +13,9 @@ namespace Jellyfin.Plugin.Lumen.Home;
 public sealed class HomeCache : IDisposable
 {
     public static readonly TimeSpan Ttl = TimeSpan.FromSeconds(60);
+
+    /// <summary>The shorter lifetime of a degraded response (a provider or the hero failed or timed out).</summary>
+    public static readonly TimeSpan DegradedTtl = TimeSpan.FromSeconds(10);
     public static readonly TimeSpan LibraryDebounce = TimeSpan.FromSeconds(30);
 
     private readonly ConcurrentDictionary<Guid, Entry> _entries = new();
@@ -58,16 +61,16 @@ public sealed class HomeCache : IDisposable
 
     /// <summary>
     /// Stores the response only if nothing relevant changed since <paramref name="stamp"/> was taken; otherwise the
-    /// response is silently dropped.
+    /// response is silently dropped. A <paramref name="degraded"/> response lives only <see cref="DegradedTtl"/>.
     /// </summary>
-    public void Set(Guid userId, int configVersion, CacheStamp stamp, HomeResponseDto value)
+    public void Set(Guid userId, int configVersion, CacheStamp stamp, HomeResponseDto value, bool degraded = false)
     {
         if (stamp != Stamp(userId))
         {
             return;
         }
 
-        _entries[userId] = new Entry(stamp.LibraryGeneration, configVersion, _time.GetUtcNow() + Ttl, value);
+        _entries[userId] = new Entry(stamp.LibraryGeneration, configVersion, _time.GetUtcNow() + (degraded ? DegradedTtl : Ttl), value);
 
         // An invalidation that raced with the store above would otherwise leave a stale entry behind.
         if (stamp != Stamp(userId))

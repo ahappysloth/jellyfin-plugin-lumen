@@ -168,6 +168,38 @@ public sealed class HomeServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task DegradedResponse_IsCachedOnlyBrieflyWhileHealthyOneIsCachedFully()
+    {
+        Add("Flaky");
+        var calls = 0;
+        var provider = new FakeSectionProvider("Flaky")
+        {
+            Rows = (_, def, _) =>
+            {
+                calls++;
+                return calls == 1
+                    ? throw new InvalidOperationException("boom")
+                    : Task.FromResult(HomeRow.Single(def, "Flaky", [TestData.Movie("f")]));
+            },
+        };
+        var service = Create(provider);
+
+        var degraded = await service.GetHomeAsync(_user, CancellationToken.None);
+        await service.GetHomeAsync(_user, CancellationToken.None);
+        Assert.Empty(degraded.Rows);
+        Assert.Equal(1, calls);
+
+        _time.Advance(HomeCache.DegradedTtl + TimeSpan.FromSeconds(1));
+        var healthy = await service.GetHomeAsync(_user, CancellationToken.None);
+        Assert.Single(healthy.Rows);
+        Assert.Equal(2, calls);
+
+        _time.Advance(HomeCache.DegradedTtl + TimeSpan.FromSeconds(1));
+        await service.GetHomeAsync(_user, CancellationToken.None);
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
     public async Task WatchHistory_IsComputedOncePerBuild()
     {
         Add("A");
