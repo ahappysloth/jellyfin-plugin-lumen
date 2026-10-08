@@ -34,7 +34,7 @@ export function newSection(type: SectionTypeDef, id: string): SectionDef {
     Type: type.Type,
     Enabled: true,
     Title: null,
-    Params: type.Parameters.filter((p) => p.DefaultValue !== null).map((p) => ({
+    Params: type.Parameters.filter((p) => p.DefaultValue != null).map((p) => ({
       Name: p.Name,
       Value: p.DefaultValue as string,
     })),

@@ -61,6 +61,18 @@ describe('configModel', () => {
     });
   });
 
+  it('treats a parameter whose DefaultValue is omitted (undefined) as having no default', () => {
+    const created = newSection(
+      {
+        Type: 'Genre',
+        DisplayName: 'Genre rows',
+        Parameters: [{ Name: 'x', Label: 'x', Kind: 'Text', Required: false, Min: null, Max: null } as never],
+      },
+      'id2',
+    );
+    expect(created.Params).toEqual([]);
+  });
+
   it('sets, replaces, and clears parameters case-insensitively', () => {
     let s = setParam(section('a'), 'libraryId', 'L1');
     s = setParam(s, 'LIBRARYID', 'L2');
