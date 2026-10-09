@@ -34,7 +34,7 @@ jobs:
           docker run -d --name jellyfin -p 8096:8096 \
             -v "$PWD/config:/config" -v "$PWD/cache:/cache" -v "$PWD/media:/media:ro" \
             "${{ inputs.jellyfin-image }}"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
