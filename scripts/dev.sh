@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Build the plugin, deploy it into the portable dev server, and (re)start the server on :8096.
+# Linux (including WSL2) and macOS. Run scripts/setup-dev.sh once first.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/env.sh"
 
-VERSION="$(grep -oP '(?<=<Version>)[^<]+' "$ROOT/Directory.Build.props")"
+VERSION="$(lumen_version)"
 dotnet publish "$ROOT/src/Jellyfin.Plugin.Lumen" -c Debug -o "$ROOT/artifacts/plugin" --nologo -v quiet
 
 rm -rf "$LUMEN_DEV_HOME/data/plugins"/Lumen_*
@@ -21,7 +22,9 @@ if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
 fi
 
 mkdir -p "$LUMEN_DEV_HOME/log"
-"$LUMEN_DEV_HOME/jellyfin/jellyfin" \
+PUBLISHED=()
+if [[ -n "$(lan_ip)" ]]; then PUBLISHED=(--published-server-url "http://$(lan_ip):8096"); fi
+"$LUMEN_DEV_HOME/jellyfin/jellyfin" ${PUBLISHED[@]+"${PUBLISHED[@]}"} \
   --datadir "$LUMEN_DEV_HOME/data" --configdir "$LUMEN_DEV_HOME/config" \
   --cachedir "$LUMEN_DEV_HOME/cache" --logdir "$LUMEN_DEV_HOME/log" \
   --ffmpeg "$LUMEN_DEV_HOME/ffmpeg/ffmpeg" > "$LUMEN_DEV_HOME/log/console.log" 2>&1 &
@@ -36,3 +39,4 @@ if ! healthy; then
   exit 1
 fi
 echo "Jellyfin dev server: http://localhost:8096  (plugin Lumen $VERSION)"
+if [[ -n "$(lan_ip)" ]]; then echo "On your network:     http://$(lan_ip):8096"; fi

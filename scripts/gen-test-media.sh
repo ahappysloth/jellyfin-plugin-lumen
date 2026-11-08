@@ -10,8 +10,19 @@ if [[ -z "${FFMPEG:-}" ]]; then
 fi
 OUT="${1-$ROOT/e2e/fixtures/media}"
 
+# Absolute, symlink-free path that need not exist yet (portable stand-in for GNU `realpath -m`).
+abspath() {
+  local p="$1" tail=""
+  [[ "$p" == /* ]] || p="$PWD/$p"
+  while [[ ! -d "$p" ]]; do tail="/$(basename "$p")$tail"; p="$(dirname "$p")"; done
+  p="$(cd "$p" && pwd -P)"
+  [[ "$p" == / ]] && p=""
+  p="$p$tail"
+  echo "${p:-/}"
+}
+
 # OUT is wiped and regenerated, so only ever delete something that is recognisably a previous fixture tree.
-if [[ -z "$OUT" || "$(realpath -m "$OUT")" == "/" || "$(realpath -m "$OUT")" == "$(realpath -m "$HOME")" ]]; then
+if [[ -z "$OUT" || "$(abspath "$OUT")" == "/" || "$(abspath "$OUT")" == "$(abspath "$HOME")" ]]; then
   echo "gen-test-media: refusing to use '$OUT' as the output directory" >&2
   exit 1
 fi

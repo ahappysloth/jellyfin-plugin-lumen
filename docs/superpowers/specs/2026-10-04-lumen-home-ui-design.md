@@ -1,7 +1,7 @@
 # Lumen — Foundation + Home & Details UI (Sub-project 1)
 
 - **Date:** 2026-10-04
-- **Status:** Draft, awaiting review
+- **Status:** Implemented (0.1.0). §7.6 lists the changes made while planning; where this spec and the code disagree, the code is right.
 - **Target:** Jellyfin Server / jellyfin-web 12.1+ (built against `Jellyfin.Controller` 12.1.0, plugin `targetAbi` 12.1.0.0; latest stable is 12.2, a bugfix release with no plugin-relevant changes)
 - **Repo:** `ahappysloth/jellyfin-plugin-lumen` (GPL-3.0)
 
@@ -69,12 +69,13 @@ These apply to every decision in this and later sub-projects:
 │                                                                      │
 │  LumenController                                                     │
 │    GET  /Lumen/ClientConfig  → enable flags + UI settings            │
-│    GET  /Lumen/Home          → HomeService → IHomeSectionProvider[]  │
 │    GET  /Lumen/Assets/{file} → embedded client bundle                │
 │    POST /Lumen/Diagnostics   → DiagnosticsStore                      │
+│  HomeController                                                      │
+│    GET  /Lumen/Home          → HomeService → IHomeSectionProvider[]  │
 │  AdminController (RequiresElevation)                                 │
-│    GET/POST /Lumen/Admin/Config, GET /Lumen/Admin/SectionTypes,      │
-│    GET /Lumen/Admin/Diagnostics                                      │
+│    GET/POST /Lumen/Admin/Config, POST /Lumen/Admin/Config/Reset,     │
+│    GET /Lumen/Admin/SectionTypes, GET /Lumen/Admin/Diagnostics       │
 │                                                                      │
 │  HomeService ── HomeCache (IMemoryCache)                             │
 │  Configuration: PluginConfiguration, ConfigMigrator, ConfigValidator │
@@ -95,12 +96,12 @@ These apply to every decision in this and later sub-projects:
 
 | Unit | Responsibility | Depends on |
 |---|---|---|
-| `Plugin` | Plugin metadata, config holder, `IHasWebPages` for the admin page | Jellyfin `BasePlugin<T>` |
+| `LumenPlugin` | Plugin metadata, config holder, `IHasWebPages` for the admin page | Jellyfin `BasePlugin<T>` |
 | `ServiceRegistrator` | Registers all services, providers, startup filter | `IPluginServiceRegistrator` |
 | `LumenStartupFilter` | Adds `IndexHtmlMiddleware` to the pipeline | `IStartupFilter` |
 | `IndexHtmlMiddleware` | Intercepts only `GET …/web/` and `…/web/index.html` (the path still includes any BaseUrl, because the filter runs before `Map(BaseUrl)`). Strips `Accept-Encoding`, `If-None-Match`, `If-Modified-Since`, and `Range` from the request so the inner static-file middleware returns a full, uncompressed 200. Buffers the response, calls `HtmlInjector`, resets `Content-Length`, and replaces `ETag`/`Last-Modified` with a content-hash ETag. Serves the original on any error. | `HtmlInjector`, `AssetCatalog` |
 | `HtmlInjector` | Pure function: `string Inject(string html, AssetVersion v)`. Inserts `<!-- lumen -->` marker, `<link>`, and `<script defer>` before `</head>`. No-op if marker present or `</head>` missing. | none |
-| `LumenController` | HTTP endpoints. `/ClientConfig`, `/Home`, and `/Diagnostics` require an authenticated user. Assets are anonymous. | services below |
+| `LumenController`, `HomeController` | HTTP endpoints. `/ClientConfig`, `/Home`, and `/Diagnostics` require an authenticated user. Assets are anonymous. | services below |
 | `HomeService` | Resolves the user, runs enabled section providers in parallel with per-provider timeout and exception isolation, assembles the response | providers, `HomeCache`, `HeroService` |
 | `HeroService` | Selects hero items from the configured source and resolves local trailer IDs | `ILibraryManager` |
 | `IHomeSectionProvider` (×7) | One row type each (§3.2) | Jellyfin managers |
@@ -129,11 +130,11 @@ Stored in `PluginConfiguration.Sections` as an ordered list:
 
 ```jsonc
 {
-  "id": "6f1c…",                 // stable GUID
-  "type": "RecentlyAdded",       // provider key
-  "enabled": true,
-  "title": null,                 // null → provider default title
-  "params": { "libraryId": "…" } // provider-specific, validated
+  "Id": "6f1c…",                 // stable GUID
+  "Type": "RecentlyAdded",       // provider key
+  "Enabled": true,
+  "Title": null,                 // null → provider default title
+  "Params": [{ "Name": "libraryId", "Value": "…" }] // provider-specific, validated
 }
 ```
 
@@ -226,8 +227,8 @@ UI settings are not repeated here. They come from `GET /Lumen/ClientConfig`:
 
 All live in `compat/` and are checked by `selfTest()`:
 
-- `window.ApiClient`: auth, base URL, `getCurrentUserId()`, `deviceId()`, `getItem`, `getUrl`, `ajax`
-- `window.Emby.Page`: optional, for `showItem` navigation. The hash fallback is always available.
+- `window.ApiClient`: `accessToken()`, `getCurrentUserId()`, `deviceId()`, `getUrl`, `ajax` (items are fetched through `ajax`)
+- Navigation uses hash routes only. `window.Emby.Page` turned out to be unnecessary and is not used.
 - Hash routes `#/home` and `#/details?id=`
 - `#reactRoot .skinBody` and `.backdropContainer` (used only in CSS to hide them)
 - App bar: `.MuiAppBar-root` (Modern) or `.skinHeader` (Legacy), read only to measure its height
@@ -285,12 +286,13 @@ An embedded HTML/JS page registered via `IHasWebPages`, using the stock dashboar
 - **Sections:** the ordered list with up/down buttons, enabled toggle, and title override.
   - Each section's parameter inputs are generated from the provider's `Parameters`.
   - Also: "Add section" (type picker) and "Reset to defaults" (with confirm).
-- **Diagnostics:** the latest compatibility reports (client name, jellyfin-web version, failed checks, timestamp).
+- **Diagnostics:** the latest compatibility reports (client name, server version, failed checks, last seen).
 
 The page talks to admin-only endpoints (`Policies.RequiresElevation`):
 
 - `GET /Lumen/Admin/Config`
 - `POST /Lumen/Admin/Config`: runs `ConfigValidator`. Returns 400 with `{ Errors: [...] }` and persists nothing if invalid. Otherwise saves and increments `ConfigVersion`.
+- `POST /Lumen/Admin/Config/Reset`: restores the default configuration ("Reset to defaults")
 - `GET /Lumen/Admin/SectionTypes`: each provider's `Type`, `DisplayName`, and `Parameters`
 - `GET /Lumen/Admin/Diagnostics`
 
@@ -315,7 +317,7 @@ Library, collection, and playlist pickers use the stock `/Library/VirtualFolders
 ### 6.2 Caching
 
 - **Server home response:**
-  - Stored in `IMemoryCache` under key `(userId, libraryGeneration, configVersion)` with a 60 s absolute TTL.
+  - Stored in `IMemoryCache` under key `(userId, libraryGeneration, configVersion)` with a 60 s absolute TTL. A degraded response (a section or the hero failed or timed out) is cached for only 10 s.
   - `IUserDataManager.UserDataSaved` for a user evicts that user's entries (a per-user `CancellationChangeToken`).
   - `ILibraryManager` `ItemAdded` / `ItemRemoved` / `ItemUpdated` increment `libraryGeneration`, debounced to at most once per 30 s.
 - **Assets:**
@@ -332,17 +334,18 @@ Library, collection, and playlist pickers use the stock `/Library/VirtualFolders
 
 ```
 src/Jellyfin.Plugin.Lumen/
-  Plugin.cs, ServiceRegistrator.cs
+  LumenPlugin.cs, ServiceRegistrator.cs
   Injection/      LumenStartupFilter.cs, IndexHtmlMiddleware.cs, HtmlInjector.cs
-  Api/            LumenController.cs
-  Home/           HomeService.cs, HeroService.cs, HomeCache.cs, IHomeSectionProvider.cs, Models/, Providers/*.cs
+  Assets/         AssetCatalog.cs
+  Api/            LumenController.cs, HomeController.cs, AdminController.cs, Dtos.cs, ClaimsPrincipalExtensions.cs
+  Home/           HomeService.cs, HeroService.cs, HomeCache.cs, IHomeSectionProvider.cs, HomeRow.cs, Providers/*.cs, …
   Configuration/  PluginConfiguration.cs, SectionDefinition.cs, ConfigMigrator.cs, ConfigValidator.cs, configPage.html, (admin UI lives in client/src/admin)
   Diagnostics/    DiagnosticsStore.cs
-client/           package.json, vite.config.ts, tsconfig.json, src/{compat,takeover,api,views,components,styles}
+client/           package.json, vite.config.ts, vite.admin.config.ts, tsconfig.json, src/{compat,takeover,api,views,components,styles,admin}
 tests/Jellyfin.Plugin.Lumen.Tests/
-e2e/              playwright.config.ts, docker-compose.yml, fixtures/ (generated media), specs/
-scripts/          dev.sh, gen-test-media.sh
-docs/             superpowers/specs/, reference/jellyfin-openapi-12.1.0.json, manual-test-checklist.md
+e2e/              playwright.config.ts, support/ (global setup, API helpers), fixtures/ (generated media), specs/
+scripts/          setup-dev.sh, env.sh, dev.sh, docker-dev.sh, gen-test-media.sh, e2e-local.sh, update-manifest.mjs
+docs/             development.md, superpowers/{specs,plans}/, reference/ (web + server API notes, jellyfin-openapi-12.1.0.json), manual-test-checklist.md
 manifest.json, README.md, LICENSE (GPL-3.0), CHANGELOG.md
 ```
 
@@ -388,19 +391,19 @@ The client is built by an MSBuild target before `dotnet build` and embedded as `
 
 ### 7.5 Local development
 
-The author's WSL environment has no Docker and no sudo, so local development uses user-level installs:
+The original development environment (WSL2) had no Docker and no sudo, so local development uses user-level installs. These now work on both Linux and macOS, and there is also a Docker-only loop (`scripts/docker-dev.sh`). See `docs/development.md`.
 
 - .NET 10 SDK via Microsoft's `dotnet-install.sh` into `~/.dotnet`.
-- Jellyfin portable tarball (`jellyfin_<ver>-amd64.tar.gz`) plus jellyfin-ffmpeg portable, under `~/.local/share/lumen-dev/`, with its own data/config/cache directories.
+- Jellyfin portable tarball (`jellyfin_<ver>-<arch>.tar.gz` on Linux, `.tar.xz` on macOS) plus jellyfin-ffmpeg portable, under `~/.local/share/lumen-dev/`, with its own data/config/cache directories.
 
 `scripts/dev.sh`:
 1. Builds the plugin.
 2. Copies it into `~/.local/share/lumen-dev/data/plugins/Lumen_<ver>/`.
-3. Restarts the portable server on port 8097.
+3. Restarts the portable server on port 8096 (Jellyfin's default).
 
-`scripts/setup-dev.sh` performs the one-time downloads. Docker is used only in CI.
+`scripts/setup-dev.sh` performs the one-time downloads. CI uses Docker, and `scripts/docker-dev.sh` does the same locally.
 
-## 7.6 Plan-time adjustments (2026-10-06)
+### 7.6 Plan-time adjustments (2026-10-06)
 
 - No `build.yaml`. The release workflow builds the zip and `manifest.json` directly.
 - The dev server runs on Jellyfin's default port 8096.

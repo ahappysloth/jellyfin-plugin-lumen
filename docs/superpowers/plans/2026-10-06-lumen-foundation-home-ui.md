@@ -1,5 +1,7 @@
 # Lumen Foundation + Home & Details UI Implementation Plan
 
+> **Historical document.** This plan was carried out for 0.1.0 and is kept for reference. Its code snippets and checkboxes have not been kept up to date. The code, `README.md`, `docs/development.md` and the design spec are the source of truth.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build Lumen sub-project 1. It is a self-contained Jellyfin 12.1+ plugin that injects a Preact client into jellyfin-web and replaces the Home and Movie/Series details pages with a cinematic hero, admin-configurable personalized rows, and a redesigned details page. Any failure falls back to the stock UI.
