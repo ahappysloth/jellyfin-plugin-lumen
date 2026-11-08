@@ -18,7 +18,7 @@ export interface JellyfinApiClient {
   deviceId(): string;
   getUrl(name: string, params?: Record<string, unknown>): string;
   ajax(request: AjaxRequest): Promise<unknown>;
-  getPublicSystemInfo?(): Promise<{ Version?: string }>;
+  getPublicSystemInfo?(): Promise<{ Version?: string; ServerName?: string }>;
 }
 
 export const SELECTORS = {
@@ -93,6 +93,42 @@ export function navigateTo(hash: string, win: Window = window): void {
 export function detailsHash(itemId: string, serverId?: string): string {
   const server = serverId ? `&serverId=${encodeURIComponent(serverId)}` : '';
   return `#/details?id=${encodeURIComponent(itemId)}${server}`;
+}
+
+/** jellyfin-web's own library page for a user view (mirrors appRouter.getRouteUrl in 12.x). */
+export function libraryHash(view: { Id: string; CollectionType?: string; ServerId?: string }): string {
+  const id = encodeURIComponent(view.Id);
+  const routes: Record<string, string> = {
+    movies: 'movies',
+    tvshows: 'tv',
+    music: 'music',
+    musicvideos: 'musicvideos',
+    books: 'books',
+    playlists: 'playlists',
+  };
+  const route = view.CollectionType ? routes[view.CollectionType] : undefined;
+  if (route) return `#/${route}?topParentId=${id}&collectionType=${view.CollectionType}`;
+  const server = view.ServerId ? `&serverId=${encodeURIComponent(view.ServerId)}` : '';
+  return `#/list?parentId=${id}${server}`;
+}
+
+/** jellyfin-web's item list filtered to one genre. */
+export function genreHash(genreId: string, serverId?: string): string {
+  const server = serverId ? `&serverId=${encodeURIComponent(serverId)}` : '';
+  return `#/list?genreId=${encodeURIComponent(genreId)}${server}`;
+}
+
+export const HOME_HASH = '#/home';
+export const SEARCH_HASH = '#/search';
+export const PREFERENCES_HASH = '#/mypreferencesmenu';
+
+/** The server's display name for the nav, or null. */
+export async function getServerName(client: JellyfinApiClient): Promise<string | null> {
+  try {
+    return (await client.getPublicSystemInfo?.())?.ServerName ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Server version; the served web client matches it. ApiClient.appVersion() reports the native app's version, so it isn't used. */

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createFakeClient } from '../../test/fakeClient';
 import type { BaseItem } from '../api/types';
-import { cardImage, imageUrl, resolveImage } from './images';
+import { cardArt, imageUrl, resolveImage } from './images';
 
 const episode: BaseItem = {
   Id: 'ep',
@@ -33,11 +33,29 @@ describe('images', () => {
     expect(url).toBe('http://jf/Items/i/Images/Primary?fillWidth=270&fillHeight=405&quality=90&tag=t');
   });
 
-  it('uses episode stills for thumb cards and posters for poster cards', () => {
-    expect(cardImage(episode, 'thumb')?.type).toBe('Primary');
-    expect(cardImage({ Id: 'm', Name: 'm', Type: 'Movie', BackdropImageTags: ['b'] }, 'thumb')?.type).toBe(
-      'Backdrop',
-    );
-    expect(cardImage({ Id: 'm', Name: 'm', Type: 'Movie', BackdropImageTags: ['b'] }, 'poster')).toBeNull();
+  it('picks landscape art: episode stills, then thumbs, then backdrop + logo, then the poster', () => {
+    expect(cardArt(episode, 'landscape')).toEqual({
+      image: { itemId: 'ep', type: 'Primary', tag: 'p1' },
+      logo: null,
+    });
+    const movie: BaseItem = {
+      Id: 'm',
+      Name: 'm',
+      Type: 'Movie',
+      BackdropImageTags: ['b'],
+      ImageTags: { Logo: 'l' },
+    };
+    expect(cardArt(movie, 'landscape')).toEqual({
+      image: { itemId: 'm', type: 'Backdrop', tag: 'b' },
+      logo: { itemId: 'm', type: 'Logo', tag: 'l' },
+    });
+    expect(cardArt({ ...movie, ImageTags: { Thumb: 't', Logo: 'l' } }, 'landscape')).toEqual({
+      image: { itemId: 'm', type: 'Thumb', tag: 't' },
+      logo: null,
+    });
+    expect(
+      cardArt({ Id: 'p', Name: 'p', Type: 'Movie', ImageTags: { Primary: 'p' } }, 'landscape').image?.type,
+    ).toBe('Primary');
+    expect(cardArt(movie, 'poster').image).toBeNull();
   });
 });

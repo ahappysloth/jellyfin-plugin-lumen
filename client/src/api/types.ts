@@ -56,6 +56,9 @@ export interface BaseItem {
   MediaStreams?: MediaStream[];
   People?: Person[];
   Genres?: string[];
+  /** Library views only: `movies`, `tvshows`, `music`, … (absent for mixed folders). */
+  CollectionType?: string;
+  ChildCount?: number;
 }
 
 export interface ItemsResult {
@@ -75,10 +78,15 @@ export interface HeroItem {
   TrailerItemId: string | null;
 }
 
+/** Card badges the server computes for home items (see BadgeService). */
+export type BadgeKey = 'RecentlyAdded' | 'NewEpisode' | 'NewSeason';
+
 export interface HomeResponse {
   ConfigVersion: number;
   Hero: HeroItem[];
   Rows: HomeRow[];
+  /** Item id → badge. Absent from older servers. */
+  Badges?: Record<string, BadgeKey>;
 }
 
 export interface ClientConfig {

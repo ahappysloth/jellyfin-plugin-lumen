@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveBadges, formatRuntime, metaFor } from './badges';
+import { deriveBadges, formatRuntime } from './badges';
 
 describe('badges', () => {
   it('derives resolution, dynamic range, and audio badges', () => {
@@ -22,18 +22,5 @@ describe('badges', () => {
     expect(formatRuntime(67_200_000_000)).toBe('1h 52m');
     expect(formatRuntime(27_000_000_000)).toBe('45m');
     expect(formatRuntime(undefined)).toBeNull();
-  });
-
-  it('builds the metadata line', () => {
-    expect(
-      metaFor({
-        Id: 'a',
-        Name: 'a',
-        Type: 'Movie',
-        ProductionYear: 2001,
-        OfficialRating: 'PG-13',
-        RunTimeTicks: 27_000_000_000,
-      }),
-    ).toEqual(['2001', 'PG-13', '45m']);
   });
 });

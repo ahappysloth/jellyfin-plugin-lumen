@@ -1,4 +1,5 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
+import { HOME_HASH } from '../../compat/jellyfin';
 import type { BaseItem } from '../../api/types';
 import { playItem } from '../../playback/play';
 import { strings } from '../../strings';
@@ -26,4 +27,29 @@ export function useItemActions(item: BaseItem, ctx: ViewContext) {
   };
 
   return { played, favorite, error, toggleWatched, toggleFavorite, play };
+}
+
+/** The item's first local trailer, if it has one. */
+export function useLocalTrailer(item: BaseItem, ctx: ViewContext): string | null {
+  const [trailerId, setTrailerId] = useState<string | null>(null);
+  useEffect(() => {
+    if ((item.LocalTrailerCount ?? 0) === 0) return;
+    let cancelled = false;
+    ctx.api
+      .getLocalTrailers(item.Id)
+      .then((trailers) => {
+        if (!cancelled) setTrailerId(trailers[0]?.Id ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [item.Id]);
+  return trailerId;
+}
+
+/** Back to wherever the user came from; home when the details page was opened directly. */
+export function goBack(ctx: ViewContext): void {
+  if (window.history.length > 1) window.history.back();
+  else ctx.navigate(HOME_HASH);
 }

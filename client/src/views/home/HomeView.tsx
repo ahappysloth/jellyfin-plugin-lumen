@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { BaseItem, HomeResponse, HomeRow } from '../../api/types';
-import { detailsHash } from '../../compat/jellyfin';
+import { detailsHash, genreHash } from '../../compat/jellyfin';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { playItem, resumeTicks } from '../../playback/play';
@@ -65,6 +65,7 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
   };
   const select = (item: BaseItem, row: HomeRow): void => {
     rememberSelection(ctx.userId, item.Id, window.scrollY);
+    if (item.Type === 'Genre') return ctx.navigate(genreHash(item.Id, item.ServerId));
     if (item.Type === 'Episode' || row.Type === 'ContinueWatching') play(item);
     else open(item);
   };
@@ -75,7 +76,14 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
     <div ref={rootRef} class={`lmn-home${home.Hero.length === 0 ? ' lmn-home--no-hero' : ''}`}>
       {home.Hero.length > 0 && (
         <ErrorBoundary fallback={null}>
-          <Hero items={home.Hero} client={ctx.client} config={ctx.config} onPlay={play} onInfo={open} />
+          <Hero
+            items={home.Hero}
+            client={ctx.client}
+            config={ctx.config}
+            badges={home.Badges}
+            onPlay={play}
+            onInfo={open}
+          />
         </ErrorBoundary>
       )}
       {error && (
@@ -85,7 +93,7 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
       )}
       {home.Rows.map((row) => (
         <ErrorBoundary key={row.Id} fallback={null}>
-          <Row row={row} client={ctx.client} onSelect={select} />
+          <Row row={row} client={ctx.client} badges={home.Badges} onSelect={select} />
         </ErrorBoundary>
       ))}
     </div>
