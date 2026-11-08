@@ -2,14 +2,14 @@
 
 Lumen gives Jellyfin a cinematic home screen and redesigned movie/series details pages:
 - a rotating hero with optional muted trailer previews
-- personalized rows: Because You Watched, daily genre picks, New For You, curated collections
+- personalized rows: Because You Watched, daily genre picks, New For You, curated collections, playlists, or tags
 - details pages built around one-click play and resume
 
 It is a single, self-contained server plugin, with no other plugins required. Whenever anything goes wrong, Jellyfin's stock UI takes over automatically.
 
 ## Requirements
 
-- Jellyfin **12.1 or newer**
+- Jellyfin **12.1 or newer** (tested on 12.2, plus nightly runs against the latest and unstable builds)
 
 ## Install
 
@@ -51,9 +51,11 @@ Privacy note: trailer previews (like stock Jellyfin media URLs) carry your acces
 
 ## Development
 
-- Prerequisites: Node 24 and `./scripts/setup-dev.sh`. It installs the .NET 10 SDK and a portable Jellyfin into your home directory; no sudo or Docker needed.
-- `./scripts/dev.sh` builds the plugin and (re)starts a dev server at http://localhost:8096.
-- Client tests: `cd client && npm test`. Server tests: `dotnet test`. End-to-end tests: `./scripts/e2e-local.sh`.
+Works on macOS and Linux, including WSL2. See [docs/development.md](docs/development.md) for the full guide.
+
+- **Docker only:** `./scripts/docker-dev.sh` builds everything in containers and starts Jellyfin with Lumen at http://localhost:8096, which other devices on your network can also reach. Use `docker-dev.sh e2e` to also run the end-to-end tests, or `docker-dev.sh test` for the unit tests.
+- **Native:** with Node 24 installed, run `./scripts/setup-dev.sh` once. It installs the .NET 10 SDK, a portable Jellyfin and ffmpeg into your home directory, with no sudo or Docker needed. Then `./scripts/dev.sh` builds the plugin and (re)starts the dev server at http://localhost:8096.
+- Client tests: `cd client && npm ci && npm test`. Server tests: `source scripts/env.sh && dotnet test`. End-to-end tests: `./scripts/e2e-local.sh`.
 
 ## License
 

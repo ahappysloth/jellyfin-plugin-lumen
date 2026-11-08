@@ -75,7 +75,7 @@ body > .appfooter (now playing bar), dialogs (.dialogContainer) also live outsid
 ```
 There is no `main` element in the legacy layout.
 
-- **Page hide selector.** Use **`.skinBody`**. It hides both the legacy view host and the React page host, in both layouts, and leaves the header and app bar alone. Scope it to our routes, for example `html.lumen-active #reactRoot .skinBody { display: none !important; }`, toggled when the route is ours.
+- **Page hide selector.** Use **`.skinBody`**. It hides both the legacy view host and the React page host, in both layouts, and leaves the header and app bar alone. Scope it to our routes, for example `html.lmn-active #reactRoot .skinBody { display: none !important; }`, toggled when the route is ours.
   - Narrower alternative: `#indexPage, #itemDetailPage`. Both ids are the same in both layouts. JE targets `#itemDetailPage:not(.hide)` and `#indexPage`.
   - `display:none` also makes `focusManager` skip the hidden elements, because it checks `offsetParent !== null`.
 - **App bar selectors:**
