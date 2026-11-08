@@ -31,6 +31,7 @@ public static class DefaultSections
         }
 
         sections.Add(New(SectionTypes.Genre, ("genreCount", "3")));
+        sections.Add(New(SectionTypes.Genres));
         return sections;
     }
 

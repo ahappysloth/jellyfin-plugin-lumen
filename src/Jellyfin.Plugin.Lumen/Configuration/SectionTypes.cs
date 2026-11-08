@@ -10,4 +10,5 @@ public static class SectionTypes
     public const string Genre = "Genre";
     public const string NewForYou = "NewForYou";
     public const string Curated = "Curated";
+    public const string Genres = "Genres";
 }

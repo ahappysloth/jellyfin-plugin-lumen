@@ -9,7 +9,7 @@ namespace Jellyfin.Plugin.Lumen.Tests.Home;
 
 public sealed class HomeCacheTests : IDisposable
 {
-    private static readonly HomeResponseDto Response = new(1, [], []);
+    private static readonly HomeResponseDto Response = new(1, [], [], new Dictionary<string, string>());
     private readonly IUserDataManager _userData = Substitute.For<IUserDataManager>();
     private readonly ILibraryManager _library = Substitute.For<ILibraryManager>();
     private readonly FakeTimeProvider _time = new(TestData.Now);

@@ -33,6 +33,7 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ITrailerLookup, TrailerLookup>();
         serviceCollection.AddSingleton<IHeroService, HeroService>();
         serviceCollection.AddSingleton<IHomeDtoMapper, HomeDtoMapper>();
+        serviceCollection.AddSingleton<IBadgeService, BadgeService>();
         serviceCollection.AddSingleton<IHomeService, HomeService>();
 
         serviceCollection.AddSingleton<IHomeSectionProvider, ContinueWatchingProvider>();
@@ -42,5 +43,6 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IHomeSectionProvider, GenreProvider>();
         serviceCollection.AddSingleton<IHomeSectionProvider, NewForYouProvider>();
         serviceCollection.AddSingleton<IHomeSectionProvider, CuratedProvider>();
+        serviceCollection.AddSingleton<IHomeSectionProvider, GenresProvider>();
     }
 }

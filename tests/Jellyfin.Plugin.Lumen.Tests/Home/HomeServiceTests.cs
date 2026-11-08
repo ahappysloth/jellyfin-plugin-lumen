@@ -1,3 +1,4 @@
+using System.Globalization;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.Lumen.Configuration;
 using Jellyfin.Plugin.Lumen.Home;
@@ -17,6 +18,7 @@ public sealed class HomeServiceTests : IDisposable
     private readonly ILumenConfigStore _store = Substitute.For<ILumenConfigStore>();
     private readonly IHeroService _hero = Substitute.For<IHeroService>();
     private readonly IWatchHistoryService _history = Substitute.For<IWatchHistoryService>();
+    private readonly IBadgeService _badges = Substitute.For<IBadgeService>();
     private readonly HomeCache _cache;
     private readonly User _user = TestData.User();
     private readonly PluginConfiguration _config = new() { SchemaVersion = 1, ConfigVersion = 1 };
@@ -27,6 +29,7 @@ public sealed class HomeServiceTests : IDisposable
         _store.Current.Returns(_ => _config);
         _hero.GetHeroAsync(default!, default!, default).ReturnsForAnyArgs(Task.FromResult<IReadOnlyList<HeroItem>>([]));
         _history.GetAsync(default!, default, default).ReturnsForAnyArgs(Task.FromResult(WatchHistory.Empty));
+        _badges.GetBadges(default!, default!).ReturnsForAnyArgs(new Dictionary<string, string>());
     }
 
     public void Dispose() => _cache.Dispose();
@@ -93,6 +96,7 @@ public sealed class HomeServiceTests : IDisposable
             _hero,
             _history,
             new FakeMapper(),
+            _badges,
             _cache,
             TimeProvider.System,
             NullLogger<HomeService>.Instance)
@@ -218,13 +222,65 @@ public sealed class HomeServiceTests : IDisposable
         await _history.ReceivedWithAnyArgs(1).GetAsync(default!, default, default);
     }
 
+    [Fact]
+    public async Task Badges_CoverHeroAndRowItems_ButNotGenreTiles()
+    {
+        var hero = TestData.Movie("hero");
+        var movie = TestData.Movie("m");
+        var genre = new Genre { Id = Guid.NewGuid(), Name = "Drama" };
+        _hero.GetHeroAsync(default!, default!, default).ReturnsForAnyArgs(Task.FromResult<IReadOnlyList<HeroItem>>([new HeroItem(hero, null)]));
+        IReadOnlyList<BaseItem>? seen = null;
+        _badges.GetBadges(Arg.Any<HomeContext>(), Arg.Do<IEnumerable<BaseItem>>(i => seen = i.ToList()))
+            .Returns(new Dictionary<string, string> { [movie.Id.ToString("N", CultureInfo.InvariantCulture)] = CardBadges.RecentlyAdded });
+        Add("A");
+        Add(SectionTypes.Genres);
+
+        var home = await Create(Returning("A", movie), Returning(SectionTypes.Genres, genre)).GetHomeAsync(_user, CancellationToken.None);
+
+        Assert.Equal([hero, movie], seen);
+        Assert.Equal(CardBadges.RecentlyAdded, Assert.Single(home.Badges).Value);
+        Assert.Equal(2, home.Rows.Count);
+    }
+
+    [Fact]
+    public async Task BadgeFailure_LeavesBadgesEmpty_AndKeepsRows()
+    {
+        Add("A");
+        _badges.GetBadges(default!, default!).ReturnsForAnyArgs(_ => throw new InvalidOperationException("boom"));
+
+        var home = await Create(Returning("A", TestData.Movie("a"))).GetHomeAsync(_user, CancellationToken.None);
+
+        Assert.NotNull(home.Badges);
+        Assert.Empty(home.Badges);
+        Assert.Single(home.Rows);
+    }
+
+    [Fact]
+    public async Task RowBackdropSources_AreAppliedToCards()
+    {
+        var genre = new Genre { Id = Guid.NewGuid(), Name = "Drama" };
+        var source = TestData.Movie("src");
+        Add(SectionTypes.Genres);
+        var provider = new FakeSectionProvider(SectionTypes.Genres)
+        {
+            Rows = (_, d, _) => Task.FromResult<IReadOnlyList<HomeRow>>(
+                [new HomeRow(HomeRow.RowId(d, 0), SectionTypes.Genres, "Popular Genres", [genre]) { BackdropSources = new Dictionary<Guid, BaseItem> { [genre.Id] = source } }]),
+        };
+
+        var home = await Create(provider).GetHomeAsync(_user, CancellationToken.None);
+
+        var card = Assert.Single(Assert.Single(home.Rows).Items);
+        Assert.Equal(source.Id, card.ParentBackdropItemId);
+        Assert.Equal(["tag-src"], card.ParentBackdropImageTags);
+    }
+
     private static FakeSectionProvider Returning(string type, params BaseItem[] items) => new(type)
     {
         Rows = (_, def, _) => Task.FromResult(HomeRow.Single(def, type, items)),
     };
 
     private HomeService Create(params IHomeSectionProvider[] providers) =>
-        new(providers, _store, _hero, _history, new FakeMapper(), _cache, _time, NullLogger<HomeService>.Instance);
+        new(providers, _store, _hero, _history, new FakeMapper(), _badges, _cache, _time, NullLogger<HomeService>.Instance);
 
     private SectionDefinition Add(string type, bool enabled = true)
     {
@@ -240,5 +296,14 @@ public sealed class HomeServiceTests : IDisposable
             items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList();
 
         public BaseItemDto MapHero(BaseItem item, User user) => new() { Id = item.Id, Name = item.Name };
+
+        public void ApplyBackdropSources(IReadOnlyList<BaseItemDto> cards, IReadOnlyDictionary<Guid, BaseItem> sources, User user)
+        {
+            foreach (var card in cards.Where(c => sources.ContainsKey(c.Id)))
+            {
+                card.ParentBackdropItemId = sources[card.Id].Id;
+                card.ParentBackdropImageTags = ["tag-" + sources[card.Id].Name];
+            }
+        }
     }
 }

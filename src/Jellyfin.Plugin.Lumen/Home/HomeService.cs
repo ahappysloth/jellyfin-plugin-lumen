@@ -2,6 +2,7 @@ using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.Lumen.Api;
 using Jellyfin.Plugin.Lumen.Configuration;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Model.Dto;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.Lumen.Home;
@@ -23,7 +24,8 @@ public sealed record HeroItem(BaseItem Item, Guid? TrailerItemId);
 
 /// <summary>
 /// Runs the enabled section providers in parallel, each with its own timeout and exception boundary, and assembles the
-/// response in configured order. Results are cached per user in <see cref="HomeCache"/>.
+/// response in configured order, then adds card badges (also guarded; a failure leaves them empty). Results are cached
+/// per user in <see cref="HomeCache"/>.
 /// </summary>
 public sealed class HomeService : IHomeService
 {
@@ -34,6 +36,7 @@ public sealed class HomeService : IHomeService
     private readonly IHeroService _hero;
     private readonly IWatchHistoryService _history;
     private readonly IHomeDtoMapper _mapper;
+    private readonly IBadgeService _badges;
     private readonly HomeCache _cache;
     private readonly TimeProvider _time;
     private readonly ILogger<HomeService> _logger;
@@ -44,6 +47,7 @@ public sealed class HomeService : IHomeService
         IHeroService hero,
         IWatchHistoryService history,
         IHomeDtoMapper mapper,
+        IBadgeService badges,
         HomeCache cache,
         TimeProvider time,
         ILogger<HomeService> logger)
@@ -53,6 +57,7 @@ public sealed class HomeService : IHomeService
         _hero = hero;
         _history = history;
         _mapper = mapper;
+        _badges = badges;
         _cache = cache;
         _time = time;
         _logger = logger;
@@ -87,14 +92,31 @@ public sealed class HomeService : IHomeService
         var sections = await Task.WhenAll(sectionTasks);
         var hero = await heroTask;
 
-        var rows = sections
-            .SelectMany(r => r)
-            .Where(r => r.Items.Count > 0)
-            .Select(r => new HomeRowDto(r.Id, r.Type, r.Title, _mapper.MapCards(r.Items, user)))
-            .ToList();
+        var rows = sections.SelectMany(r => r).Where(r => r.Items.Count > 0).ToList();
+        var rowDtos = rows.Select(r => new HomeRowDto(r.Id, r.Type, r.Title, MapRow(r, user))).ToList();
         var heroDtos = hero.Select(h => new HeroItemDto(_mapper.MapHero(h.Item, user), h.TrailerItemId)).ToList();
 
-        return new HomeResponseDto(config.ConfigVersion, heroDtos, rows);
+        // Genre tiles are not titles, so they never get a badge.
+        var badged = hero.Select(h => h.Item).Concat(rows.Where(r => r.Type != SectionTypes.Genres).SelectMany(r => r.Items)).ToList();
+        var badges = await RunGuardedAsync(
+            "badges",
+            _ => Task.FromResult(_badges.GetBadges(context, badged)),
+            (IReadOnlyDictionary<string, string>)new Dictionary<string, string>(),
+            build,
+            cancellationToken);
+
+        return new HomeResponseDto(config.ConfigVersion, heroDtos, rowDtos, badges);
+    }
+
+    private IReadOnlyList<BaseItemDto> MapRow(HomeRow row, User user)
+    {
+        var cards = _mapper.MapCards(row.Items, user);
+        if (row.BackdropSources is { Count: > 0 } sources)
+        {
+            _mapper.ApplyBackdropSources(cards, sources, user);
+        }
+
+        return cards;
     }
 
     private Task<IReadOnlyList<HomeRow>> RunSectionAsync(HomeContext context, SectionDefinition section, BuildState build, CancellationToken cancellationToken)

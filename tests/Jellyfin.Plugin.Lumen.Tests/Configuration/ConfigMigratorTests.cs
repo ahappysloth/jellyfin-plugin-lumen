@@ -20,7 +20,7 @@ public class ConfigMigratorTests
         Assert.Equal(PluginConfiguration.CurrentSchemaVersion, config.SchemaVersion);
         Assert.Equal(
             [SectionTypes.ContinueWatching, SectionTypes.NextUp, SectionTypes.BecauseYouWatched, SectionTypes.NewForYou,
-             SectionTypes.RecentlyAdded, SectionTypes.RecentlyAdded, SectionTypes.Genre],
+             SectionTypes.RecentlyAdded, SectionTypes.RecentlyAdded, SectionTypes.Genre, SectionTypes.Genres],
             config.Sections.Select(s => s.Type));
         var recent = config.Sections.Where(s => s.Type == SectionTypes.RecentlyAdded).ToList();
         Assert.Equal(Movies.Id, recent[0].GetGuidParam("libraryId"));
@@ -71,7 +71,7 @@ public class ConfigMigratorTests
         Assert.True(config.Enabled);
         Assert.True(config.HomeTakeover);
         Assert.True(config.DetailsTakeover);
-        Assert.Equal("#f5a524", config.AccentColor);
+        Assert.Equal("#e12d39", config.AccentColor);
         Assert.Equal(HeroSource.RecentlyAdded, config.HeroSource);
         Assert.Equal(5, config.HeroCount);
         Assert.Equal(8, config.HeroIntervalSeconds);
