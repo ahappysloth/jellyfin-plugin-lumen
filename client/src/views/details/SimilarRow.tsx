@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { BaseItem } from '../../api/types';
 import { detailsHash } from '../../compat/jellyfin';
+import { Card } from '../../components/Card';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
-import { Row } from '../home/Row';
 
+/** "You may like": a wrapping grid of landscape cards (two rows on a desktop screen). */
 export function SimilarRow({ itemId, ctx }: { itemId: string; ctx: ViewContext }) {
   const [items, setItems] = useState<BaseItem[]>([]);
 
@@ -23,10 +24,19 @@ export function SimilarRow({ itemId, ctx }: { itemId: string; ctx: ViewContext }
 
   if (items.length === 0) return null;
   return (
-    <Row
-      row={{ Id: `similar-${itemId}`, Type: 'Similar', Title: strings.moreLikeThis, Items: items }}
-      client={ctx.client}
-      onSelect={(item) => ctx.navigate(detailsHash(item.Id, item.ServerId))}
-    />
+    <section class="lmn-row lmn-similar" aria-label={strings.moreLikeThis}>
+      <h2 class="lmn-row__title">{strings.moreLikeThis}</h2>
+      <div class="lmn-grid focuscontainer">
+        {items.map((item) => (
+          <Card
+            key={item.Id}
+            item={item}
+            client={ctx.client}
+            variant="landscape"
+            onSelect={(selected) => ctx.navigate(detailsHash(selected.Id, selected.ServerId))}
+          />
+        ))}
+      </div>
+    </section>
   );
 }

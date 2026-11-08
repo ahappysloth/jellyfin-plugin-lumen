@@ -9,11 +9,11 @@ export interface ImageRef {
   tag: string;
 }
 
-export type CardVariant = 'poster' | 'thumb';
+export type CardVariant = 'landscape' | 'poster';
 
 export const CARD_SIZES: Record<CardVariant, { width: number; height: number }> = {
+  landscape: { width: 320, height: 180 },
   poster: { width: 180, height: 270 },
-  thumb: { width: 320, height: 180 },
 };
 
 /** The first available image among `preferred`, using the item's own image or its parent's (series). */
@@ -60,9 +60,23 @@ export function imageUrl(
   });
 }
 
-export function cardImage(item: BaseItem, variant: CardVariant): ImageRef | null {
-  if (variant === 'poster') return resolveImage(item, ['Primary']);
-  return item.Type === 'Episode'
-    ? resolveImage(item, ['Primary', 'Thumb', 'Backdrop'])
-    : resolveImage(item, ['Thumb', 'Backdrop', 'Primary']);
+export interface CardArt {
+  image: ImageRef | null;
+  /** Title logo laid over a plain backdrop (Thumb art and episode stills already carry their own). */
+  logo: ImageRef | null;
+}
+
+/**
+ * Landscape cards use, in order: an episode's still; a Thumb (key art that usually includes the title); a backdrop
+ * with the title logo on top; the poster. Poster cards use the poster only.
+ */
+export function cardArt(item: BaseItem, variant: CardVariant): CardArt {
+  if (variant === 'poster') return { image: resolveImage(item, ['Primary']), logo: null };
+  if (item.Type === 'Episode')
+    return { image: resolveImage(item, ['Primary', 'Thumb', 'Backdrop']), logo: null };
+  const thumb = resolveImage(item, ['Thumb']);
+  if (thumb) return { image: thumb, logo: null };
+  const backdrop = resolveImage(item, ['Backdrop']);
+  if (backdrop) return { image: backdrop, logo: resolveImage(item, ['Logo']) };
+  return { image: resolveImage(item, ['Primary']), logo: null };
 }

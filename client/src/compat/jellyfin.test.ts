@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createFakeClient } from '../../test/fakeClient';
-import { detailsHash, getAppBarHeight, getLayout, selfTest } from './jellyfin';
+import { detailsHash, genreHash, getAppBarHeight, getLayout, libraryHash, selfTest } from './jellyfin';
 
 function stockDom(): void {
   document.body.innerHTML =
@@ -58,5 +58,18 @@ describe('compat', () => {
   it('builds details hashes', () => {
     expect(detailsHash('abc', 's1')).toBe('#/details?id=abc&serverId=s1');
     expect(detailsHash('abc')).toBe('#/details?id=abc');
+  });
+
+  it('builds jellyfin-web library and genre routes', () => {
+    expect(libraryHash({ Id: 'a', CollectionType: 'movies' })).toBe(
+      '#/movies?topParentId=a&collectionType=movies',
+    );
+    expect(libraryHash({ Id: 'b', CollectionType: 'tvshows' })).toBe(
+      '#/tv?topParentId=b&collectionType=tvshows',
+    );
+    expect(libraryHash({ Id: 'c', CollectionType: 'homevideos', ServerId: 's' })).toBe(
+      '#/list?parentId=c&serverId=s',
+    );
+    expect(genreHash('g', 's')).toBe('#/list?genreId=g&serverId=s');
   });
 });

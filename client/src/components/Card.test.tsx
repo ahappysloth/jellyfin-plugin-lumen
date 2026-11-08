@@ -19,6 +19,39 @@ describe('Card', () => {
     expect(onSelect).toHaveBeenCalledWith(movie);
   });
 
+  it('shows a badge, the title and a rating · year · type meta line', () => {
+    const item: BaseItem = { ...movie, CommunityRating: 7.36, ProductionYear: 2021 };
+    render(
+      <Card
+        item={item}
+        client={createFakeClient()}
+        variant="landscape"
+        badge="NewEpisode"
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('New episode')).toBeInTheDocument();
+    expect(screen.getByText('7.4')).toBeInTheDocument();
+    expect(screen.getByText('2021')).toBeInTheDocument();
+    expect(screen.getByText('Movie')).toBeInTheDocument();
+  });
+
+  it('lays the title logo over a backdrop', () => {
+    const item: BaseItem = {
+      Id: 'b',
+      Name: 'B',
+      Type: 'Movie',
+      BackdropImageTags: ['bd'],
+      ImageTags: { Logo: 'lg' },
+    };
+    render(<Card item={item} client={createFakeClient()} variant="landscape" onSelect={vi.fn()} />);
+
+    const sources = [...screen.getByRole('button').querySelectorAll('img')].map((i) => i.getAttribute('src'));
+    expect(sources[0]).toContain('Images/Backdrop');
+    expect(sources[1]).toContain('Images/Logo');
+  });
+
   it('renders a title placeholder when the item has no image', () => {
     render(
       <Card
@@ -30,13 +63,13 @@ describe('Card', () => {
     );
 
     expect(screen.getByRole('button').querySelector('img')).toBeNull();
-    expect(screen.getByText('No Art')).toBeInTheDocument();
+    expect(screen.getAllByText('No Art').length).toBeGreaterThan(0);
   });
 
   it('shows progress for partially watched items and includes the caption in its label', () => {
     const item: BaseItem = { ...movie, RunTimeTicks: 100, UserData: { PlaybackPositionTicks: 40 } };
     render(
-      <Card item={item} client={createFakeClient()} variant="thumb" caption="S1:E2" onSelect={vi.fn()} />,
+      <Card item={item} client={createFakeClient()} variant="landscape" caption="S1:E2" onSelect={vi.fn()} />,
     );
 
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '40');

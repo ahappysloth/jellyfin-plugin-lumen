@@ -38,6 +38,39 @@ const home: HomeResponse = {
 describe('HomeView', () => {
   beforeEach(() => setCachedHome('nobody', { ConfigVersion: 0, Hero: [], Rows: [] }));
 
+  it('shows server badges on cards and opens a genre tile in the stock genre list', async () => {
+    const withExtras: HomeResponse = {
+      ...home,
+      Rows: [
+        ...home.Rows,
+        {
+          Id: 'g',
+          Type: 'Genres',
+          Title: 'Popular Genres',
+          Items: [
+            {
+              Id: 'gid',
+              Name: 'Drama',
+              Type: 'Genre',
+              ServerId: 's',
+              ParentBackdropItemId: 'm1',
+              ParentBackdropImageTags: ['bt'],
+            },
+          ],
+        },
+      ],
+      Badges: { m1: 'RecentlyAdded' },
+    };
+    const ctx = makeContext(createFakeClient(routes({ 'Lumen/Home': withExtras })));
+    render(<HomeView ctx={ctx} />);
+
+    expect(await screen.findByText('Recently added')).toBeInTheDocument();
+    const tile = screen.getByRole('button', { name: 'Drama' });
+    expect(tile.querySelector('img')!.getAttribute('src')).toContain('Items/m1/Images/Backdrop');
+    fireEvent.click(tile);
+    expect(ctx.navigate).toHaveBeenCalledWith('#/list?genreId=gid&serverId=s');
+  });
+
   it('renders rows and opens details for movies', async () => {
     const ctx = makeContext(createFakeClient(routes({ 'Lumen/Home': home })));
     render(<HomeView ctx={ctx} />);

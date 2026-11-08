@@ -64,9 +64,14 @@ export class LumenApi {
   getSimilar(id: string): Promise<ItemsResult> {
     return this.get(`Items/${id}/Similar`, () => ({
       userId: this.userId(),
-      limit: 16,
-      fields: 'PrimaryImageAspectRatio',
+      limit: 12,
+      fields: 'PrimaryImageAspectRatio,Genres',
     }));
+  }
+
+  /** The user's libraries, in their configured order. */
+  getUserViews(): Promise<ItemsResult> {
+    return this.get('UserViews', () => ({ userId: this.userId() }));
   }
 
   getLocalTrailers(id: string): Promise<BaseItem[]> {

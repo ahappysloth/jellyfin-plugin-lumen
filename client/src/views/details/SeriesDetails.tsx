@@ -5,13 +5,12 @@ import { useAutoFocus } from '../../components/useAutoFocus';
 import { resumeTicks } from '../../playback/play';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
-import { metaFor } from './badges';
 import { CastRow } from './CastRow';
 import { DetailsHeader } from './DetailsHeader';
 import { EpisodeList } from './EpisodeList';
 import { SimilarRow } from './SimilarRow';
 import { computeSmartPlay, type SmartPlay } from './smartPlay';
-import { useItemActions } from './useItemActions';
+import { goBack, useItemActions, useLocalTrailer } from './useItemActions';
 
 const seasonLabel = (season: BaseItem): string => (season.IndexNumber === 0 ? strings.specials : season.Name);
 
@@ -23,6 +22,7 @@ interface Props {
 
 export function SeriesDetails({ series, initialSeasonId, ctx }: Props) {
   const actions = useItemActions(series, ctx);
+  const trailerId = useLocalTrailer(series, ctx);
   const [seasons, setSeasons] = useState<BaseItem[]>([]);
   const [seasonId, setSeasonId] = useState<string | undefined>(initialSeasonId);
   const [episodesBySeason, setEpisodesBySeason] = useState<Record<string, BaseItem[]>>({});
@@ -79,6 +79,7 @@ export function SeriesDetails({ series, initialSeasonId, ctx }: Props) {
       <DetailsHeader
         item={series}
         client={ctx.client}
+        config={ctx.config}
         primary={
           smartPlay
             ? {
@@ -88,7 +89,9 @@ export function SeriesDetails({ series, initialSeasonId, ctx }: Props) {
               }
             : null
         }
-        meta={metaFor(series)}
+        trailerId={trailerId}
+        onTrailer={trailerId ? () => actions.play(trailerId) : undefined}
+        onBack={() => goBack(ctx)}
         badges={[]}
         {...actions}
       />

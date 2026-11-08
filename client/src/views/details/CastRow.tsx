@@ -4,6 +4,15 @@ import { imageUrl } from '../../components/images';
 import { strings } from '../../strings';
 
 const MAX_CAST = 15;
+const PHOTO = { width: 116, height: 154 };
+
+const initials = (name: string): string =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]!.toUpperCase())
+    .join('');
 
 interface Props {
   people: Person[];
@@ -26,13 +35,17 @@ export function CastRow({ people, client, onSelect }: Props) {
                 src={imageUrl(
                   client,
                   { itemId: person.Id, type: 'Primary', tag: person.PrimaryImageTag },
-                  { width: 120, height: 120 },
+                  PHOTO,
                 )}
                 alt=""
                 loading="lazy"
+                width={PHOTO.width}
+                height={PHOTO.height}
               />
             ) : (
-              <span class="lmn-person__photo" />
+              <span class="lmn-person__photo lmn-person__photo--empty" aria-hidden="true">
+                {initials(person.Name)}
+              </span>
             )}
             <span class="lmn-person__name">{person.Name}</span>
             {person.Role && <span class="lmn-person__role">{person.Role}</span>}

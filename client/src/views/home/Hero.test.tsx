@@ -47,7 +47,7 @@ describe('Hero', () => {
     expect(screen.getByRole('img', { name: 'Alpha' })).toBeInTheDocument();
     expect(screen.getByText('First')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
-    fireEvent.click(screen.getByRole('button', { name: 'More Info' }));
+    fireEvent.click(screen.getByRole('button', { name: 'More info' }));
     expect(onPlay).toHaveBeenCalledWith(items[0]!.Item);
     expect(onInfo).toHaveBeenCalledWith(items[0]!.Item);
   });
