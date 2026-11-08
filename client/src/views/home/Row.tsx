@@ -40,7 +40,7 @@ export function Row({ row, client, badges, onSelect }: Props) {
   };
   const genres = row.Type === 'Genres';
   return (
-    <section class={`lmn-row${genres ? ' lmn-row--genres' : ''}`} aria-label={row.Title}>
+    <section class={`lmn-row${genres ? ' lmn-row--genres' : ''}`} aria-label={row.Title} data-row-id={row.Id}>
       <h2 class="lmn-row__title">{row.Title}</h2>
       <div class="lmn-row__viewport">
         <button

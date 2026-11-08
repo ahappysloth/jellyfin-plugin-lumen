@@ -33,12 +33,38 @@ export function usableCachedHome(userId: string): HomeResponse | undefined {
   return home && !isEmptyHome(home) ? home : undefined;
 }
 
-let selection: { userId: string; itemId: string; scrollY: number } | null = null;
-
-export function rememberSelection(userId: string, itemId: string, scrollY: number): void {
-  selection = { userId, itemId, scrollY };
+/** The card the user last opened from home, and where it was on screen, so Back can put it back in the same place. */
+export interface Selection {
+  itemId: string;
+  scrollY: number;
+  rowId?: string;
+  /** The card's distance from the top of the viewport when it was selected. */
+  top?: number;
 }
 
-export function getSelection(userId: string): { itemId: string; scrollY: number } | undefined {
-  return selection?.userId === userId ? { itemId: selection.itemId, scrollY: selection.scrollY } : undefined;
+let selection: (Selection & { userId: string }) | null = null;
+
+export function rememberSelection(userId: string, item: Selection): void {
+  selection = { userId, ...item };
+}
+
+export function getSelection(userId: string): Selection | undefined {
+  if (selection?.userId !== userId) return undefined;
+  const { itemId, scrollY, rowId, top } = selection;
+  return { itemId, scrollY, rowId, top };
+}
+
+const SAFE_ID = /^[\w-]+$/;
+
+/**
+ * Where to scroll so the selected card sits where it was, even if rows above it changed while the user was away
+ * (e.g. a new "Because you watched" row). Falls back to the old scroll offset when the card is gone.
+ */
+export function restoreScrollTop(root: ParentNode, sel: Selection, scrollY: number): number {
+  if (sel.top !== undefined && SAFE_ID.test(sel.itemId) && (!sel.rowId || SAFE_ID.test(sel.rowId))) {
+    const scope = sel.rowId ? `[data-row-id="${sel.rowId}"] ` : '';
+    const card = root.querySelector(`${scope}[data-item-id="${sel.itemId}"]`);
+    if (card) return Math.max(0, Math.round(card.getBoundingClientRect().top + scrollY - sel.top));
+  }
+  return sel.scrollY;
 }

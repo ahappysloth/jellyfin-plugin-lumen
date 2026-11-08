@@ -15,6 +15,7 @@ import {
   getSelection,
   isEmptyHome,
   rememberSelection,
+  restoreScrollTop,
   setCachedHome,
   usableCachedHome,
 } from './homeStore';
@@ -26,9 +27,13 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const previous = getSelection(ctx.userId);
   useAutoFocus(rootRef, home !== null, ctx.layout, previous?.itemId);
+  // Restore on the first render (cached home) and once more when fresh data lands, then leave scrolling to the user.
+  const restores = useRef(0);
   useLayoutEffect(() => {
-    if (home && previous) window.scrollTo({ top: previous.scrollY });
-  }, [home !== null]);
+    if (!home || !previous || !rootRef.current || restores.current >= 2) return;
+    restores.current += 1;
+    window.scrollTo({ top: restoreScrollTop(rootRef.current, previous, window.scrollY) });
+  }, [home]);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,7 +69,13 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
     started.catch(() => setError(strings.playbackFailed));
   };
   const select = (item: BaseItem, row: HomeRow): void => {
-    rememberSelection(ctx.userId, item.Id, window.scrollY);
+    const card = rootRef.current?.querySelector(`[data-row-id="${row.Id}"] [data-item-id="${item.Id}"]`);
+    rememberSelection(ctx.userId, {
+      itemId: item.Id,
+      rowId: row.Id,
+      scrollY: window.scrollY,
+      top: card?.getBoundingClientRect().top,
+    });
     if (item.Type === 'Genre') return ctx.navigate(genreHash(item.Id, item.ServerId));
     if (item.Type === 'Episode' || row.Type === 'ContinueWatching') play(item);
     else open(item);
