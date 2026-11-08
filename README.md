@@ -1,9 +1,10 @@
 # Lumen for Jellyfin
 
 Lumen gives Jellyfin a cinematic home screen and redesigned movie/series details pages:
-- a rotating hero with optional muted trailer previews
-- personalized rows: Because You Watched, daily genre picks, New For You, curated collections, playlists, or tags
-- details pages built around one-click play and resume
+- a rotating hero with optional muted trailer previews, under a floating pill nav to your libraries, search and settings
+- personalized rows of landscape cards: Because You Watched, daily genre picks, New For You, curated collections, playlists, or tags, plus Popular Genres tiles
+- "Recently added", "New episode" and "New season" badges on cards
+- details pages built around one-click play and resume, with the local trailer playing behind them
 
 It is a single, self-contained server plugin, with no other plugins required. Whenever anything goes wrong, Jellyfin's stock UI takes over automatically.
 

@@ -4,9 +4,13 @@ Run against the release build on the latest stable Jellyfin.
 
 ## Desktop browser (Chrome or Firefox)
 
-- [ ] Home: hero rotates, a trailer preview plays after the delay, and the rows load.
+- [ ] Home: hero rotates (and the pause button stops it), a trailer preview plays after the delay, and the rows load.
+- [ ] The pill nav's Home, library, search and settings links open the right pages; the header turns solid on scroll.
+- [ ] Popular Genres tiles show artwork and open the stock list for that genre.
+- [ ] New titles show a "Recently added" badge; a series with a new episode shows "New episode".
 - [ ] Clicking a Continue Watching card resumes playback in the stock player.
-- [ ] Movie details: Play/Resume, Trailer, Watched, and Favorite all work, and More Like This opens another title.
+- [ ] Movie details: the trailer plays muted behind the header and the mute toggle works; Back returns to the previous
+      page; Play/Resume, Trailer, My List, and Watched all work; You may like opens another title.
 - [ ] Series details: smart play label is correct, switching seasons works, and clicking an episode plays it.
 - [ ] Back from details returns to home at the same scroll position.
 - [ ] Unticking "Replace the home screen" in the dashboard restores the stock home after a reload.
