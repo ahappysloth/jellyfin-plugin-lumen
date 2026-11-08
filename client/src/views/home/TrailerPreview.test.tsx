@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/preact';
+import { act, cleanup, render } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient } from '../../../test/fakeClient';
 import { TrailerPreview } from './TrailerPreview';
@@ -6,6 +6,10 @@ import { TrailerPreview } from './TrailerPreview';
 describe('TrailerPreview', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => {
+    // Unmount while timers are still fake: Preact flushes effects on a timer, and one scheduled on a real timer can
+    // fire after Vitest tears down jsdom ("document is not defined").
+    cleanup();
+    vi.clearAllTimers();
     vi.useRealTimers();
     Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
   });
