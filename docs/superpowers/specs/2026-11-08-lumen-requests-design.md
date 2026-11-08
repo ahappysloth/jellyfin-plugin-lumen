@@ -51,7 +51,7 @@ Same as sub-project 1: desktop and mobile browsers, the official iOS/Android mob
 | `CatalogMapper` | Turns Seerr results into `CatalogItemDto` (§3) and, for titles Seerr marks available with a `jellyfinMediaId` the user can see in Jellyfin, swaps in the real Jellyfin item so the card plays like any other. |
 | `DiscoverProviders` | New `IHomeSectionProvider`s (§5.1). Same timeout/isolation/caching as existing providers. |
 | `RequestsController` | `/Lumen/Requests/*` (§4.1), authenticated users only; 404s the whole surface when Seerr isn't configured. |
-| `TmdbImageProxy` | `GET /Lumen/Requests/Image/{size}/{file}`: fetches TMDB artwork server-side so clients only ever talk to the Jellyfin server (works over LAN/Tailscale, no third-party requests from viewers). Strict allowlist: `size ∈ {w300,w780,w1280,original}`, `file` matches `^[A-Za-z0-9]+\.(jpg|png)$`. Disk-cached under the plugin's cache dir, LRU-capped (default 500 MB), `Cache-Control: max-age=604800`. |
+| `TmdbImageProxy` | `GET /Lumen/Requests/Image/{size}/{file}`: fetches TMDB artwork server-side so clients only ever talk to the Jellyfin server (works over LAN/Tailscale, no third-party requests from viewers). Strict allowlist: `size ∈ {w185,w300,w780,w1280,original}`, `file` matches `^[A-Za-z0-9]{1,64}\.(jpg|png)$`. Requires an authenticated user with catalog access (the client appends `ApiKey`, as trailer previews already do). Disk-cached under Jellyfin's cache dir, oldest-first trimmed to the configured cap (default 500 MB), `Cache-Control: private, max-age=604800`. `LUMEN_TMDB_IMAGE_BASE` redirects it to the E2E stub. |
 
 ### 2.2 Client components (new)
 

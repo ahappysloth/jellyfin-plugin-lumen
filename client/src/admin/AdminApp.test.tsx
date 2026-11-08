@@ -53,11 +53,69 @@ function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     getLibraries: vi.fn(async () => [{ id: 'lib1', name: 'Movies' }]),
     getCollections: vi.fn(async () => [{ id: 'col1', name: 'Holiday' }]),
     getPlaylists: vi.fn(async () => []),
+    testSeerr: vi.fn(async () => ({ Ok: true, Version: '3.5.1', Error: null })),
+    getUnmappedUsers: vi.fn(async () => []),
     ...overrides,
   };
 }
 
 describe('AdminApp', () => {
+  it('never shows the Seerr key, keeps it on save, and sends a newly typed one', async () => {
+    const api = fakeApi({
+      getConfig: vi.fn(async () => ({
+        ...config(),
+        RequestsEnabled: true,
+        SeerrUrl: 'http://seerr:5055',
+        SeerrApiKeySet: true,
+      })),
+    });
+    render(<AdminApp api={api} />);
+
+    const key = await screen.findByLabelText('Seerr API key');
+    expect(key).toHaveValue('');
+    expect(key).toHaveAttribute('placeholder', 'Saved (leave blank to keep it)');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(api.saveConfig).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(api.saveConfig).mock.calls[0]![0].SeerrApiKey ?? '').toBe('');
+
+    fireEvent.input(screen.getByLabelText('Seerr API key'), { target: { value: 'new-key' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(api.saveConfig).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(api.saveConfig).mock.calls[1]![0].SeerrApiKey).toBe('new-key');
+  });
+
+  it('tests the Seerr connection with the typed address and key', async () => {
+    const api = fakeApi({
+      testSeerr: vi.fn(async () => ({ Ok: false, Version: null, Error: 'Seerr rejected the API key.' })),
+    });
+    render(<AdminApp api={api} />);
+
+    fireEvent.input(await screen.findByLabelText('Seerr address'), {
+      target: { value: 'http://seerr:5055' },
+    });
+    fireEvent.input(screen.getByLabelText('Seerr API key'), { target: { value: 'k1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }));
+
+    expect(await screen.findByText('Seerr rejected the API key.')).toBeInTheDocument();
+    expect(api.testSeerr).toHaveBeenCalledWith('http://seerr:5055', 'k1');
+  });
+
+  it('lists users without a Seerr account once requests are set up', async () => {
+    const api = fakeApi({
+      getConfig: vi.fn(async () => ({
+        ...config(),
+        RequestsEnabled: true,
+        SeerrUrl: 'http://seerr:5055',
+        SeerrApiKeySet: true,
+      })),
+      getUnmappedUsers: vi.fn(async () => [{ Id: 'u2', Name: 'kid' }]),
+    });
+    render(<AdminApp api={api} />);
+
+    expect(await screen.findByText('kid')).toBeInTheDocument();
+    expect(screen.getByText(/have no Seerr account/)).toBeInTheDocument();
+  });
+
   it('lists sections in order and saves a reordered list', async () => {
     const api = fakeApi();
     render(<AdminApp api={api} />);

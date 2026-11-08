@@ -12,6 +12,30 @@ public class ConfigValidatorTests
         new SectionParameter("libraryId", "Library", SectionParameterKind.Library));
 
     [Fact]
+    public void Requests_NeedAnAddressAndKey_OnlyWhenEnabled()
+    {
+        var validator = new ConfigValidator([]);
+
+        Assert.DoesNotContain(validator.Validate(new PluginConfiguration { RequestsEnabled = false }), e => e.Contains("Seerr", StringComparison.Ordinal));
+        var errors = validator.Validate(new PluginConfiguration { RequestsEnabled = true, SeerrUrl = "seerr:5055" });
+        Assert.Contains(errors, e => e.Contains("Seerr's address", StringComparison.Ordinal));
+        Assert.Contains(errors, e => e.Contains("Seerr's API key", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            validator.Validate(new PluginConfiguration { RequestsEnabled = true, SeerrUrl = "https://seerr.example/", SeerrApiKey = "k" }),
+            e => e.Contains("Seerr", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("http://seerr:5055", true)]
+    [InlineData("https://seerr.example/base/", true)]
+    [InlineData("ftp://seerr", false)]
+    [InlineData("http://user:pass@seerr", false)]
+    [InlineData("http://seerr?x=1", false)]
+    [InlineData("seerr:5055", false)]
+    [InlineData(null, false)]
+    public void IsHttpUrl(string? value, bool expected) => Assert.Equal(expected, ConfigValidator.IsHttpUrl(value));
+
+    [Fact]
     public void ValidConfig_HasNoErrors()
     {
         var errors = CreateValidator().Validate(Valid(TestData.Section("Counted", ("count", "3")), TestData.Section("Plain")));

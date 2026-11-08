@@ -16,6 +16,14 @@ public sealed partial class ConfigValidator
         _providers = providers.ToDictionary(p => p.Type, StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>True for an absolute http(s) URL without credentials, query or fragment.</summary>
+    public static bool IsHttpUrl(string? value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri)
+        && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+        && string.IsNullOrEmpty(uri.UserInfo)
+        && string.IsNullOrEmpty(uri.Query)
+        && string.IsNullOrEmpty(uri.Fragment);
+
     public IReadOnlyList<string> Validate(PluginConfiguration config)
     {
         var errors = new List<string>();
@@ -32,6 +40,20 @@ public sealed partial class ConfigValidator
         if (config.HeroSource == HeroSource.Collection && config.HeroCollectionId is null)
         {
             errors.Add("Hero source 'Collection' requires a collection.");
+        }
+
+        CheckRange(errors, "Image cache size", config.ImageCacheMb, 50, 10_000);
+        if (config.RequestsEnabled)
+        {
+            if (!IsHttpUrl(config.SeerrUrl))
+            {
+                errors.Add("Requests need Seerr's address, like http://seerr:5055.");
+            }
+
+            if (string.IsNullOrWhiteSpace(config.SeerrApiKey))
+            {
+                errors.Add("Requests need Seerr's API key (Seerr → Settings → General).");
+            }
         }
 
         // A POSTed config can carry JSON nulls that the non-nullable types do not rule out.

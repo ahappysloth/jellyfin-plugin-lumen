@@ -80,3 +80,15 @@ public sealed record SectionTypeDto(string Type, string DisplayName, IReadOnlyLi
     public static SectionTypeDto From(IHomeSectionProvider provider) =>
         new(provider.Type, provider.DisplayName, provider.Parameters.Select(SectionParameterDto.From).ToList());
 }
+
+/// <summary>Response of GET /Lumen/Requests/Status.</summary>
+public sealed record RequestStatusDto(bool Enabled, bool CanRequestMovies, bool CanRequestTv);
+
+/// <summary>Body of POST /Lumen/Admin/Seerr/Test. A null or empty key means "use the stored key".</summary>
+public sealed record SeerrTestRequestDto(string? Url, string? ApiKey);
+
+/// <summary>Result of a Seerr connection test.</summary>
+public sealed record SeerrTestResultDto(bool Ok, string? Version, string? Error);
+
+/// <summary>A Jellyfin user without a Seerr account (they get no catalog until imported in Seerr).</summary>
+public sealed record UnmappedUserDto(Guid Id, string Name);

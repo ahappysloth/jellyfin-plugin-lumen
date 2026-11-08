@@ -4,6 +4,9 @@ export const BASE_URL = process.env.LUMEN_E2E_BASE_URL ?? 'http://localhost:8096
 export const MEDIA_PATH = process.env.LUMEN_E2E_MEDIA_PATH ?? '/media';
 export const ADMIN = { name: 'admin', password: 'lumen-admin' };
 export const KID = { name: 'kid', password: 'kid-pass' };
+/** How the Jellyfin server reaches the stub Seerr (host.docker.internal when Jellyfin runs in Docker). */
+export const SEERR_URL = process.env.LUMEN_E2E_SEERR_URL ?? 'http://localhost:5055';
+export const STUB_SEERR = 'http://localhost:5055';
 
 const STATE_FILE = new URL('../.state.json', import.meta.url);
 const CLIENT_HEADER = 'MediaBrowser Client="Lumen E2E", Device="Playwright", DeviceId="lumen-e2e", Version="1.0.0"';

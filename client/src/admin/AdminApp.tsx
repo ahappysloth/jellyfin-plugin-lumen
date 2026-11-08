@@ -8,6 +8,8 @@ import type {
   SectionDef,
   SectionParamDef,
   SectionTypeDef,
+  SeerrTestResult,
+  UnmappedUser,
 } from './adminApi';
 import { newUuid } from '../util/uuid';
 import {
@@ -235,6 +237,8 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
         />
       </fieldset>
 
+      <RequestsSettings api={api} config={config} update={update} />
+
       <fieldset>
         <legend>Diagnostics</legend>
         {diagnostics.length === 0 ? (
@@ -273,6 +277,114 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
         {status === 'saved' && <p role="status">Settings saved.</p>}
       </div>
     </form>
+  );
+}
+
+/** Seerr connection for catalog browsing and requests. The API key is write-only: the server never sends it back. */
+function RequestsSettings({
+  api,
+  config,
+  update,
+}: {
+  api: AdminApi;
+  config: LumenConfig;
+  update: (patch: Partial<LumenConfig>) => void;
+}) {
+  const [test, setTest] = useState<SeerrTestResult | 'testing' | null>(null);
+  const [unmapped, setUnmapped] = useState<UnmappedUser[] | null>(null);
+  const savedAndEnabled = config.RequestsEnabled && config.SeerrApiKeySet && !config.SeerrApiKey;
+
+  useEffect(() => {
+    if (!savedAndEnabled) return setUnmapped(null);
+    let cancelled = false;
+    api
+      .getUnmappedUsers()
+      .then((users) => !cancelled && setUnmapped(users))
+      .catch(() => !cancelled && setUnmapped(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [savedAndEnabled, config.SeerrUrl]);
+
+  const runTest = async (): Promise<void> => {
+    setTest('testing');
+    try {
+      setTest(await api.testSeerr(config.SeerrUrl ?? '', config.SeerrApiKey ?? ''));
+    } catch {
+      setTest({ Ok: false, Version: null, Error: 'The test request failed. Check the server log.' });
+    }
+  };
+
+  return (
+    <fieldset>
+      <legend>Requests</legend>
+      <p class="fieldDescription">
+        Browse and request titles you don't have yet, through Seerr. Requests are filed as the signed-in user,
+        so their Seerr permissions and quotas apply.
+      </p>
+      <Checkbox
+        label="Enable catalog browsing and requests"
+        checked={!!config.RequestsEnabled}
+        onChange={(v) => update({ RequestsEnabled: v })}
+      />
+      <Field label="Seerr address">
+        <input
+          type="url"
+          placeholder="http://seerr:5055"
+          value={config.SeerrUrl ?? ''}
+          onInput={(e) => update({ SeerrUrl: inputValue(e) })}
+        />
+      </Field>
+      <Field label="Seerr API key">
+        <input
+          type="password"
+          autoComplete="off"
+          placeholder={
+            config.SeerrApiKeySet ? 'Saved (leave blank to keep it)' : 'Seerr → Settings → General → API Key'
+          }
+          value={config.SeerrApiKey ?? ''}
+          onInput={(e) => update({ SeerrApiKey: inputValue(e) })}
+        />
+      </Field>
+      <div
+        class="lmn-admin__row"
+        style={{ display: 'flex', alignItems: 'center', gap: '1em', margin: '0.5em 0 1em' }}
+      >
+        <button
+          type="button"
+          class="raised emby-button"
+          disabled={test === 'testing'}
+          onClick={() => void runTest()}
+        >
+          Test connection
+        </button>
+        {test && test !== 'testing' && (
+          <span role="status" class={test.Ok ? 'lmn-admin__ok' : 'lmn-admin__error'}>
+            {test.Ok ? `Connected to Seerr ${test.Version ?? ''}` : test.Error}
+          </span>
+        )}
+      </div>
+      <NumberField
+        label="Artwork cache size (MB)"
+        value={config.ImageCacheMb ?? 500}
+        min={50}
+        max={10000}
+        onChange={(v) => update({ ImageCacheMb: v })}
+      />
+      {unmapped && unmapped.length > 0 && (
+        <div class="lmn-admin__unmapped">
+          <p>
+            These users have no Seerr account, so they won't see the catalog. Import them in Seerr (Users →
+            Import Jellyfin Users):
+          </p>
+          <ul>
+            {unmapped.map((u) => (
+              <li key={u.Id}>{u.Name}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </fieldset>
   );
 }
 

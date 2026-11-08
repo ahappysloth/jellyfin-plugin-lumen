@@ -28,6 +28,7 @@ Prerequisites: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - The first `up` generates fixture media into `artifacts/docker/media`, mounted at `/media` in the container. If you skip `e2e`, Jellyfin opens on its setup wizard; when it asks for libraries, add `/media/movies` (Movies) and `/media/tv` (Shows).
 - After `e2e`, sign in as `admin` / `lumen-admin` or as the restricted user `kid` / `kid-pass`. E2E hides the admin from the login screen, so type the name in by hand.
 - `JELLYFIN_IMAGE=jellyfin/jellyfin:unstable ./scripts/docker-dev.sh` tests against another server version (the nightly CI job runs `latest` and `unstable`).
+- The Jellyfin container can reach services on your machine at `host.docker.internal`, e.g. a local Seerr at `http://host.docker.internal:5055`.
 - To start fresh, run `./scripts/docker-dev.sh down && rm -rf artifacts/docker`.
 
 ## Native loop
@@ -58,6 +59,10 @@ Day to day:
 - The first time, Jellyfin's setup wizard may ask for a metadata language. Any choice works, because the fixtures carry their own NFO metadata.
 - macOS: the first time Jellyfin starts, macOS may ask whether to allow incoming connections. Allow them if you want other devices to reach it.
 - WSL2: the global-setup and dev scripts expect to run *inside* WSL. The repo should live on the Linux filesystem (e.g. `~/src`), not `/mnt/c`, because builds are much faster there.
+
+## Seerr in tests
+
+The request features talk to Seerr. End-to-end tests never use a real one: Playwright starts `e2e/support/stub-seerr.mjs` on port 5055, which fakes the few Seerr endpoints Lumen calls and TMDB's image CDN. The Jellyfin server reaches it at `LUMEN_E2E_SEERR_URL` (`host.docker.internal:5055` when Jellyfin runs in Docker), and `LUMEN_TMDB_IMAGE_BASE` points Lumen's image proxy at it. `docker-dev.sh e2e` and `e2e-local.sh` set both, and `docker-dev.sh` restarts the server without the image override afterwards. Port 5055 must be free while the tests run.
 
 ## Unit tests, lint and formatting
 

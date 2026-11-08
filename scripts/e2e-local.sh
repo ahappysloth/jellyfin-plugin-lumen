@@ -4,7 +4,8 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 [[ -d "$ROOT/e2e/fixtures/media/movies" ]] || "$ROOT/scripts/gen-test-media.sh"
-"$ROOT/scripts/dev.sh"
+# The tests' stub Seerr (started by Playwright on :5055) also stands in for TMDB's image CDN.
+LUMEN_TMDB_IMAGE_BASE=http://localhost:5055/t/p "$ROOT/scripts/dev.sh"
 cd "$ROOT/e2e"
 [[ -d node_modules ]] || npm ci --no-audit --no-fund
 npx playwright install chromium
