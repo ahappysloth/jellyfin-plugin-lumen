@@ -7,6 +7,8 @@ test('Lumen replaces the home screen with a hero and rows', async ({ page }) => 
 
   await expect(page.locator('#lmn-root .lmn-home')).toBeVisible();
   await expect(page.locator('#lmn-root .lmn-hero')).toBeVisible();
+  // toBeVisible() passes for off-screen elements; the hero must be on screen, not pushed below the stock layout.
+  await expect(page.locator('#lmn-root .lmn-hero .lmn-button--primary')).toBeInViewport();
   await expect(page.getByRole('region', { name: 'Recently Added in Movies' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Recently Added in Shows' })).toBeVisible();
   await expect(page.locator('#reactRoot .skinBody').first()).toBeHidden();

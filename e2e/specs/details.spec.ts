@@ -10,6 +10,7 @@ test('movie details are rendered by Lumen, including the local trailer', async (
 
   const details = page.locator('#lmn-root .lmn-details--movie');
   await expect(details.getByRole('img', { name: 'Lumen Alpha' })).toBeVisible();
+  await expect(details.getByRole('img', { name: 'Lumen Alpha' })).toBeInViewport();
   await expect(details.getByText('2001')).toBeVisible();
   await expect(details.getByRole('button', { name: 'Trailer' })).toBeVisible();
 });
