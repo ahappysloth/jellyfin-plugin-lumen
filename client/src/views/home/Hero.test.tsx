@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/preact';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient } from '../../../test/fakeClient';
 import type { ClientConfig, HeroItem } from '../../api/types';
@@ -33,6 +33,9 @@ const items: HeroItem[] = [
 describe('Hero', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => {
+    // Unmount under fake timers so no Preact effect flush lands after jsdom is torn down (see TrailerPreview.test).
+    cleanup();
+    vi.clearAllTimers();
     vi.useRealTimers();
     Reflect.deleteProperty(window, 'matchMedia');
   });
