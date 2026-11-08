@@ -25,6 +25,15 @@ public class AuthorizationAttributeTests
         Assert.Null(attribute.Policy);
     }
 
+    [Fact]
+    public void RequestsController_RequiresAuthentication_IncludingImages()
+    {
+        var attribute = Assert.Single(typeof(RequestsController).GetCustomAttributes<AuthorizeAttribute>());
+
+        Assert.Null(attribute.Policy);
+        Assert.All(typeof(RequestsController).GetMethods(), m => Assert.Empty(m.GetCustomAttributes<AllowAnonymousAttribute>()));
+    }
+
     [Theory]
     [InlineData(nameof(LumenController.GetClientConfig))]
     [InlineData(nameof(LumenController.PostDiagnostics))]

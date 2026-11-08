@@ -73,6 +73,24 @@ wait_healthy() {
   return 1
 }
 
+# (Re)starts the Jellyfin container. TMDB_BASE (end-to-end tests only) points the image proxy at the stub Seerr.
+start_server() {
+  local ip url
+  ip="$(lan_ip)"
+  url="${LUMEN_PUBLISHED_URL:-${ip:+http://$ip:8096}}"
+  echo "==> Starting $JELLYFIN_IMAGE"
+  docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+  # Port 7359/udp lets Jellyfin apps on the LAN auto-discover the server; the published URL is what it advertises.
+  # host.docker.internal lets it reach services on this machine (e.g. a local Seerr, or the tests' stub).
+  docker run -d --name "$CONTAINER" --hostname lumen-dev --restart unless-stopped \
+    ${USER_ARGS[@]+"${USER_ARGS[@]}"} --add-host=host.docker.internal:host-gateway \
+    -p 8096:8096 -p 7359:7359/udp ${url:+-e JELLYFIN_PublishedServerUrl="$url"} \
+    ${TMDB_BASE:+-e LUMEN_TMDB_IMAGE_BASE="$TMDB_BASE"} \
+    -v "$DATA/config:/config" -v "$DATA/cache:/cache" -v "$DATA/media:/media:ro" \
+    "$JELLYFIN_IMAGE" >/dev/null
+  wait_healthy
+}
+
 up() {
   build_client
   build_plugin
@@ -81,38 +99,35 @@ up() {
   mkdir -p "$DATA/config/plugins/Lumen_$VERSION" "$DATA/cache"
   cp "$ROOT/artifacts/plugin/Jellyfin.Plugin.Lumen.dll" "$DATA/config/plugins/Lumen_$VERSION/"
 
-  local ip url
+  start_server
+  local ip
   ip="$(lan_ip)"
-  url="${LUMEN_PUBLISHED_URL:-${ip:+http://$ip:8096}}"
-  echo "==> Starting $JELLYFIN_IMAGE"
-  docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
-  # Port 7359/udp lets Jellyfin apps on the LAN auto-discover the server; the published URL is what it advertises.
-  docker run -d --name "$CONTAINER" --hostname lumen-dev --restart unless-stopped \
-    ${USER_ARGS[@]+"${USER_ARGS[@]}"} \
-    -p 8096:8096 -p 7359:7359/udp ${url:+-e JELLYFIN_PublishedServerUrl="$url"} \
-    -v "$DATA/config:/config" -v "$DATA/cache:/cache" -v "$DATA/media:/media:ro" \
-    "$JELLYFIN_IMAGE" >/dev/null
-  wait_healthy
   echo "Jellyfin with Lumen $VERSION: http://localhost:8096"
   if [[ -n "$ip" ]]; then echo "On your network:            http://$ip:8096"; fi
   echo "Media library folders (inside the container): /media/movies, /media/tv"
 }
 
 e2e() {
-  up
+  TMDB_BASE=http://host.docker.internal:5055/t/p up
   local pw
   pw="$(node -p "require('$ROOT/e2e/package-lock.json').packages['node_modules/@playwright/test'].version" 2>/dev/null \
     || sed -n '/"node_modules\/@playwright\/test"/,/}/s/.*"version": "\(.*\)".*/\1/p' "$ROOT/e2e/package-lock.json")"
   echo "==> Running E2E (Playwright $pw)"
   mkdir -p "$ROOT/e2e/test-results" "$ROOT/e2e/playwright-report"
-  run --ipc=host --add-host=host.docker.internal:host-gateway \
+  # The stub Seerr runs in this container (Playwright webServer); publish it so Jellyfin can reach it.
+  local rc=0
+  run --ipc=host --add-host=host.docker.internal:host-gateway -p 5055:5055 \
     -v "$ROOT/e2e:/src:ro" -v "$ROOT/e2e/test-results:/out/test-results" -v "$ROOT/e2e/playwright-report:/out/playwright-report" \
     -e LUMEN_E2E_BASE_URL=http://host.docker.internal:8096 -e LUMEN_E2E_MEDIA_PATH=/media \
+    -e LUMEN_E2E_SEERR_URL=http://host.docker.internal:5055 \
     "mcr.microsoft.com/playwright:v$pw-noble" bash -c '
       mkdir /tmp/w && cd /src && tar --exclude=node_modules --exclude=test-results --exclude=playwright-report -cf - . | tar -xf - -C /tmp/w
       cd /tmp/w && npm ci --no-audit --no-fund --loglevel=error && npx playwright test "$@"; rc=$?
       cp -r test-results/. /out/test-results/ 2>/dev/null; cp -r playwright-report/. /out/playwright-report/ 2>/dev/null
-      exit $rc' bash "$@"
+      exit $rc' bash "$@" || rc=$?
+  # Back to real TMDB artwork for normal use.
+  TMDB_BASE='' start_server
+  return $rc
 }
 
 cmd="${1:-up}"

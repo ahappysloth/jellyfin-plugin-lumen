@@ -39,6 +39,23 @@ export interface LumenConfig {
   TrailerPreview: boolean;
   TrailerDelaySeconds: number;
   Sections: SectionDef[];
+  RequestsEnabled?: boolean;
+  SeerrUrl?: string | null;
+  /** Never sent by the server; set only when the admin types a new key. Empty on save keeps the stored key. */
+  SeerrApiKey?: string | null;
+  SeerrApiKeySet?: boolean;
+  ImageCacheMb?: number;
+}
+
+export interface SeerrTestResult {
+  Ok: boolean;
+  Version: string | null;
+  Error: string | null;
+}
+
+export interface UnmappedUser {
+  Id: string;
+  Name: string;
 }
 
 export interface Option {
@@ -64,6 +81,8 @@ export interface AdminApi {
   getLibraries(): Promise<Option[]>;
   getCollections(): Promise<Option[]>;
   getPlaylists(): Promise<Option[]>;
+  testSeerr(url: string, apiKey: string): Promise<SeerrTestResult>;
+  getUnmappedUsers(): Promise<UnmappedUser[]>;
 }
 
 const isResponse = (value: unknown): value is Response =>
@@ -115,5 +134,14 @@ export function createAdminApi(client: JellyfinApiClient): AdminApi {
       })),
     getCollections: () => items('BoxSet'),
     getPlaylists: () => items('Playlist'),
+    testSeerr: async (url, apiKey) =>
+      (await client.ajax({
+        type: 'POST',
+        url: client.getUrl('Lumen/Admin/Seerr/Test'),
+        data: JSON.stringify({ Url: url, ApiKey: apiKey || null }),
+        contentType: 'application/json',
+        dataType: 'json',
+      })) as SeerrTestResult,
+    getUnmappedUsers: () => getJson('Lumen/Admin/Seerr/UnmappedUsers'),
   };
 }

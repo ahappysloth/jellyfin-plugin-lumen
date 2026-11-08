@@ -14,4 +14,11 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  // Stub Seerr + TMDB images. The Jellyfin server reaches it at LUMEN_E2E_SEERR_URL (see support/stub-seerr.mjs).
+  webServer: {
+    command: 'node support/stub-seerr.mjs',
+    url: 'http://localhost:5055/__stub/health',
+    reuseExistingServer: !process.env.CI,
+    stdout: 'ignore',
+  },
 });

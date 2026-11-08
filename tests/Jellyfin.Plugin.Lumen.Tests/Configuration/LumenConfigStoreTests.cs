@@ -66,6 +66,20 @@ public class LumenConfigStoreTests
         Assert.Equal(before + 2, store.Current.ConfigVersion);
     }
 
+    [Fact]
+    public void Save_WithoutAKey_KeepsTheStoredSeerrKey()
+    {
+        var store = CreateStore();
+        Assert.True(store.Save(new PluginConfiguration { SeerrApiKey = "stored" }).Success);
+
+        var fromAdminPage = new PluginConfiguration { SeerrApiKey = "stored" }.WithoutSecrets();
+        fromAdminPage.AccentColor = "#123456";
+        Assert.True(store.Save(fromAdminPage).Success);
+
+        Assert.Equal("stored", _persistence.Stored.SeerrApiKey);
+        Assert.Equal("#123456", _persistence.Stored.AccentColor);
+    }
+
     private LumenConfigStore CreateStore() => new(
         _persistence,
         _libraries,

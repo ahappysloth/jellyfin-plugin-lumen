@@ -4,6 +4,7 @@ using Jellyfin.Plugin.Lumen.Diagnostics;
 using Jellyfin.Plugin.Lumen.Home;
 using Jellyfin.Plugin.Lumen.Home.Providers;
 using Jellyfin.Plugin.Lumen.Injection;
+using Jellyfin.Plugin.Lumen.Requests;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.AspNetCore.Hosting;
@@ -35,6 +36,10 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IHomeDtoMapper, HomeDtoMapper>();
         serviceCollection.AddSingleton<IBadgeService, BadgeService>();
         serviceCollection.AddSingleton<IHomeService, HomeService>();
+
+        serviceCollection.AddSingleton<ISeerrClient, SeerrClient>();
+        serviceCollection.AddSingleton<ISeerrUserMap, SeerrUserMap>();
+        serviceCollection.AddSingleton<ITmdbImageCache, TmdbImageCache>();
 
         serviceCollection.AddSingleton<IHomeSectionProvider, ContinueWatchingProvider>();
         serviceCollection.AddSingleton<IHomeSectionProvider, NextUpProvider>();

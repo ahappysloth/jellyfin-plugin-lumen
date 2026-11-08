@@ -2,6 +2,8 @@ using Jellyfin.Plugin.Lumen.Assets;
 using Jellyfin.Plugin.Lumen.Configuration;
 using Jellyfin.Plugin.Lumen.Home;
 using Jellyfin.Plugin.Lumen.Injection;
+using Jellyfin.Plugin.Lumen.Requests;
+using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Library;
@@ -26,6 +28,8 @@ public class ServiceRegistratorTests
         services.AddSingleton(Substitute.For<ITVSeriesManager>());
         services.AddSingleton(Substitute.For<ISimilarItemsManager>());
         services.AddSingleton(Substitute.For<IDtoService>());
+        services.AddSingleton(Substitute.For<IHttpClientFactory>());
+        services.AddSingleton(Substitute.For<IApplicationPaths>());
 
         new ServiceRegistrator().RegisterServices(services, Substitute.For<IServerApplicationHost>());
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
@@ -33,6 +37,8 @@ public class ServiceRegistratorTests
         Assert.NotNull(provider.GetRequiredService<IHomeService>());
         Assert.NotNull(provider.GetRequiredService<ILumenConfigStore>());
         Assert.NotNull(provider.GetRequiredService<AssetCatalog>());
+        Assert.NotNull(provider.GetRequiredService<ISeerrUserMap>());
+        Assert.NotNull(provider.GetRequiredService<ITmdbImageCache>());
         Assert.Contains(provider.GetServices<IStartupFilter>(), f => f is LumenStartupFilter);
         Assert.Equal(
             [SectionTypes.BecauseYouWatched, SectionTypes.ContinueWatching, SectionTypes.Curated, SectionTypes.Genre, SectionTypes.Genres, SectionTypes.NewForYou, SectionTypes.NextUp, SectionTypes.RecentlyAdded],
