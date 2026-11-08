@@ -28,7 +28,7 @@ public class PluginConfiguration : BasePluginConfiguration
 
     public bool DetailsTakeover { get; set; } = true;
 
-    public string AccentColor { get; set; } = "#f5a524";
+    public string AccentColor { get; set; } = "#e12d39";
 
     public HeroSource HeroSource { get; set; } = HeroSource.RecentlyAdded;
 

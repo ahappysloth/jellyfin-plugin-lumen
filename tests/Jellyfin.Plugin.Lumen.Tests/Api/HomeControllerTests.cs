@@ -27,7 +27,7 @@ public class HomeControllerTests
     public async Task ReturnsHomeForClaimedUser()
     {
         var user = TestData.User();
-        var response = new HomeResponseDto(3, [], []);
+        var response = new HomeResponseDto(3, [], [], new Dictionary<string, string>());
         _users.GetUserById(user.Id).Returns(user);
         _home.GetHomeAsync(user, Arg.Any<CancellationToken>()).Returns(response);
 

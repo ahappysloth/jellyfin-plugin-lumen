@@ -55,8 +55,15 @@ public sealed record HeroItemDto(BaseItemDto Item, Guid? TrailerItemId);
 /// <summary>One home row.</summary>
 public sealed record HomeRowDto(string Id, string Type, string Title, IReadOnlyList<BaseItemDto> Items);
 
-/// <summary>Response of GET /Lumen/Home.</summary>
-public sealed record HomeResponseDto(int ConfigVersion, IReadOnlyList<HeroItemDto> Hero, IReadOnlyList<HomeRowDto> Rows);
+/// <summary>
+/// Response of GET /Lumen/Home. <c>Badges</c> maps a hero or row item id (Guid "N" format, as in
+/// <see cref="BaseItemDto.Id"/>) to a card badge key (see <see cref="CardBadges"/>); items without a badge are omitted.
+/// </summary>
+public sealed record HomeResponseDto(
+    int ConfigVersion,
+    IReadOnlyList<HeroItemDto> Hero,
+    IReadOnlyList<HomeRowDto> Rows,
+    IReadOnlyDictionary<string, string> Badges);
 
 /// <summary>400 body for an invalid configuration.</summary>
 public sealed record ValidationErrorsDto(IReadOnlyList<string> Errors);

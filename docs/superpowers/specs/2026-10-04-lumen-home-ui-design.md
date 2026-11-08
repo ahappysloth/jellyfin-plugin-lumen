@@ -154,7 +154,7 @@ A section yields zero or more rows. An empty list means it is omitted. `BecauseY
 - `HomeContext` carries the `User`, a `DtoOptions` with minimal fields, the current date (injected `TimeProvider`), and the shared item limit (20).
 - `SectionParameter` declares `Name`, `Label`, `Kind` (`Library`, `Collection`, `Playlist`, `Text`, `Integer`), `Required`, `DefaultValue`, and for integers `Min`/`Max`. The admin page renders inputs from this, and `ConfigValidator` validates against it.
 
-**Default sections** on first install: Continue Watching, Next Up, Because You Watched, New For You, Recently Added (one per movie/TV library), Genre.
+**Default sections** on first install: Continue Watching, Next Up, Because You Watched, New For You, Recently Added (one per movie/TV library), Genre, Popular Genres (`Genres`). Existing installs are not migrated; admins add new section types themselves.
 
 ### 3.2 Section providers
 
@@ -167,6 +167,7 @@ A section yields zero or more rows. An empty list means it is omitted. `BecauseY
 | `Genre` | `genreCount` (default 3) | Genre weights = count of the user's plays per genre over the last 90 days (+1 smoothing for all genres present in the user's libraries). Pick `genreCount` genres by weighted sampling with an RNG seeded by `hash(userId, UTC date)`, so the selection is stable within a day and rotates daily. Items: unplayed, ordered by `CommunityRating` desc, top 40, then a seeded shuffle down to 20. One row per genre. |
 | `NewForYou` | `days` (default 14) | Union of (a) episodes created within `days` whose series has at least one played episode for this user, grouped to series, and (b) movies created within `days` in the user's top-3 genres (same weights as `Genre`). Unplayed only, ordered by `DateCreated` desc. |
 | `Curated` | `collectionId` \| `playlistId` \| `tag` (exactly one) | Items from the source, in source order (tag: `SortName`) |
+| `Genres` | `libraryId` (optional; empty = all of the user's libraries) | "Popular Genres": one row of up to 12 `Genre` items, ranked by the number of the user's movies and shows in each (desc, ties by name). Each tile gets `ParentBackdropItemId`/`ParentBackdropImageTags` from the genre's highest-`CommunityRating` movie/show with a backdrop (fallback: any item in the genre with one; else none). |
 
 All queries run as the requesting user, so library access and parental controls are enforced by Jellyfin. Providers that emit multiple rows (`BecauseYouWatched`, `Genre`) return them in order. The response is a flat list of rows.
 
@@ -193,16 +194,19 @@ Lumen's API uses Jellyfin's default PascalCase JSON, matching `BaseItemDto`.
 {
   "ConfigVersion": 7,
   "Hero": [ { "Item": BaseItemDto, "TrailerItemId": "…" | null } ],
-  "Rows": [ { "Id": "…", "Type": "Genre", "Title": "Sci-Fi", "Items": [BaseItemDto] } ]
+  "Rows": [ { "Id": "…", "Type": "Genre", "Title": "Sci-Fi", "Items": [BaseItemDto] } ],
+  "Badges": { "<item Id>": "RecentlyAdded" | "NewEpisode" | "NewSeason" }   // always present; {} when none
 }
 ```
+
+`Badges` covers hero and row items (not `Genres` tiles), keyed by the item's DTO `Id`; unbadged items are omitted. Window: 7 days (`BadgeService.Window`). Movies and episodes created in the window are `RecentlyAdded`; so are series. A series whose `DateLastMediaAdded` is in the window is `NewSeason` when its most recently added episode (user-scoped) is episode 1 of season 2+, else `NewEpisode`. Badge failures are isolated like providers: logged, `{}` returned.
 
 UI settings are not repeated here. They come from `GET /Lumen/ClientConfig`:
 
 ```jsonc
 {
   "Enabled": true, "HomeTakeover": true, "DetailsTakeover": true,
-  "AccentColor": "#f5a524",   // default: warm amber
+  "AccentColor": "#e12d39",   // default: cinema red
   "HeroIntervalSeconds": 8, "TrailerPreview": true, "TrailerDelaySeconds": 4,
   "BuildHash": "…"
 }
@@ -317,7 +321,7 @@ Library, collection, and playlist pickers use the stock `/Library/VirtualFolders
 ### 6.2 Caching
 
 - **Server home response:**
-  - Stored in `IMemoryCache` under key `(userId, libraryGeneration, configVersion)` with a 60 s absolute TTL. A degraded response (a section or the hero failed or timed out) is cached for only 10 s.
+  - Stored in `IMemoryCache` under key `(userId, libraryGeneration, configVersion)` with a 60 s absolute TTL. Badges are computed during the build and cached with the response. A degraded response (a section or the hero failed or timed out) is cached for only 10 s.
   - `IUserDataManager.UserDataSaved` for a user evicts that user's entries (a per-user `CancellationChangeToken`).
   - `ILibraryManager` `ItemAdded` / `ItemRemoved` / `ItemUpdated` increment `libraryGeneration`, debounced to at most once per 30 s.
 - **Assets:**

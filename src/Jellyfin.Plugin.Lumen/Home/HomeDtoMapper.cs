@@ -13,6 +13,13 @@ public interface IHomeDtoMapper
     IReadOnlyList<BaseItemDto> MapCards(IReadOnlyList<BaseItem> items, User user);
 
     BaseItemDto MapHero(BaseItem item, User user);
+
+    /// <summary>
+    /// Points each card in <paramref name="cards"/> whose id is a key of <paramref name="sources"/> at that source
+    /// item's first backdrop (<c>ParentBackdropItemId</c> + <c>ParentBackdropImageTags</c>). Cards whose source has no
+    /// backdrop are left unchanged.
+    /// </summary>
+    void ApplyBackdropSources(IReadOnlyList<BaseItemDto> cards, IReadOnlyDictionary<Guid, BaseItem> sources, User user);
 }
 
 /// <summary><see cref="IHomeDtoMapper"/> backed by Jellyfin's DTO service.</summary>
@@ -30,6 +37,27 @@ public sealed class HomeDtoMapper : IHomeDtoMapper
 
     public BaseItemDto MapHero(BaseItem item, User user) => _dtoService.GetBaseItemDto(item, HeroOptions(), user);
 
+    public void ApplyBackdropSources(IReadOnlyList<BaseItemDto> cards, IReadOnlyDictionary<Guid, BaseItem> sources, User user)
+    {
+        var distinct = sources.Values.DistinctBy(s => s.Id).ToList();
+        if (distinct.Count == 0)
+        {
+            return;
+        }
+
+        var tags = _dtoService.GetBaseItemDtos(distinct, BackdropOptions(), user)
+            .Where(d => d.BackdropImageTags is { Length: > 0 })
+            .ToDictionary(d => d.Id, d => d.BackdropImageTags[0]);
+        foreach (var card in cards)
+        {
+            if (sources.TryGetValue(card.Id, out var source) && tags.TryGetValue(source.Id, out var tag))
+            {
+                card.ParentBackdropItemId = source.Id;
+                card.ParentBackdropImageTags = [tag];
+            }
+        }
+    }
+
     private static DtoOptions CardOptions() => new(false)
     {
         Fields = [ItemFields.PrimaryImageAspectRatio],
@@ -37,6 +65,15 @@ public sealed class HomeDtoMapper : IHomeDtoMapper
         ImageTypeLimit = 1,
         EnableImages = true,
         EnableUserData = true,
+    };
+
+    private static DtoOptions BackdropOptions() => new(false)
+    {
+        Fields = [],
+        ImageTypes = [ImageType.Backdrop],
+        ImageTypeLimit = 1,
+        EnableImages = true,
+        EnableUserData = false,
     };
 
     private static DtoOptions HeroOptions() => new(false)
