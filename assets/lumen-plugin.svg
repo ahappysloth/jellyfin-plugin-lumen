@@ -83,9 +83,9 @@
 
   <!-- mark -->
   <g transform="translate(66 164) scale(5.6)">
-    <path fill="url(#lpJBack)" d="M39 3h14v38H39Z"/>
+    <path fill="url(#lpJBack)" d="M39 3.6Q46 2.6 53 3.6V41H39Z"/>
     <path fill="url(#lpJShade)" d="M39 31l14 7V20L39 13Z"/>
-    <path fill="url(#lpJFront)" d="M39 31l14 7v3a21 21 0 0 1-42 0v-7h14v7a7 7 0 0 0 14 0Z"/>
+    <path fill="url(#lpJFront)" d="M39 31l14 7v3a21 21 0 0 1-42 0v-6.4Q18 33.6 25 34.6V41a7 7 0 0 0 14 0Z"/>
   </g>
 
   <!-- wordmark -->
