@@ -9,6 +9,8 @@ public static class DefaultSections
     {
         var sections = new List<SectionDefinition>
         {
+            // Renders nothing until Seerr is set up and the user has requests (requests design spec, §10 decision 1).
+            New(SectionTypes.MyRequests),
             New(SectionTypes.ContinueWatching),
             New(SectionTypes.NextUp),
             New(SectionTypes.BecauseYouWatched, ("maxRows", "2")),

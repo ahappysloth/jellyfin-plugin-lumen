@@ -190,6 +190,12 @@ public sealed partial class CatalogMapper
         };
     }
 
+    /// <summary>The Jellyfin item with this id ("N" or any Guid format), or null if there is none or the user can't see it.</summary>
+    public BaseItem? VisibleItem(string? jellyfinMediaId, User? user) =>
+        user is not null && Guid.TryParse(jellyfinMediaId, out var id) && id != Guid.Empty
+            ? _library.GetItemById<BaseItem>(id, user)
+            : null;
+
     private static int? Year(string? date) =>
         date is { Length: >= 4 } && int.TryParse(date.AsSpan(0, 4), NumberStyles.None, CultureInfo.InvariantCulture, out var year) && year > 0 ? year : null;
 
@@ -197,10 +203,5 @@ public sealed partial class CatalogMapper
     private static partial Regex YouTubeKey();
 
     private string? VisibleItemId(string? jellyfinMediaId, User? user) =>
-        user is not null
-        && Guid.TryParse(jellyfinMediaId, out var id)
-        && id != Guid.Empty
-        && _library.GetItemById<BaseItem>(id, user) is not null
-            ? id.ToString("N", CultureInfo.InvariantCulture)
-            : null;
+        VisibleItem(jellyfinMediaId, user) is not null ? Guid.Parse(jellyfinMediaId!).ToString("N", CultureInfo.InvariantCulture) : null;
 }

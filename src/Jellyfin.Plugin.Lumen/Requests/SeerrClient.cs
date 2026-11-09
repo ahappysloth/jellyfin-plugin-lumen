@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Jellyfin.Plugin.Lumen.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.Lumen.Requests;
 
@@ -37,6 +38,18 @@ public interface ISeerrClient
     /// null or empty <paramref name="seasons"/> requests all seasons; it is ignored for movies.
     /// </summary>
     Task<SeerrRequestResult> CreateRequestAsync(SeerrEndpoint endpoint, int seerrUserId, string mediaType, int tmdbId, IReadOnlyList<int>? seasons, CancellationToken cancellationToken);
+
+    /// <summary>The first page of a discover list. Shared by all users, so cached server-wide for 10 minutes.</summary>
+    Task<SeerrPage> DiscoverAsync(SeerrEndpoint endpoint, int seerrUserId, SeerrDiscoverList list, CancellationToken cancellationToken);
+
+    /// <summary>The user's 20 most recent requests, newest first (no title or art; see <see cref="GetTitleSummaryAsync"/>).</summary>
+    Task<IReadOnlyList<SeerrUserRequest>> GetUserRequestsAsync(SeerrEndpoint endpoint, int seerrUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A title's details for a card (title, year, art, rating, genres), cached server-wide for 10 minutes per title. Its
+    /// <c>MediaInfo</c> may be stale, so never read the request state from it.
+    /// </summary>
+    Task<SeerrTitle> GetTitleSummaryAsync(SeerrEndpoint endpoint, int seerrUserId, string mediaType, int tmdbId, CancellationToken cancellationToken);
 }
 
 /// <summary>Where and how to reach Seerr: base URL plus the admin API key.</summary>
@@ -84,31 +97,46 @@ public sealed class SeerrException : Exception
 
     /// <summary>The <c>message</c> from Seerr's error body (e.g. a quota or permission explanation), if it sent one.</summary>
     public string? SeerrMessage { get; }
+
+    /// <summary>Gets a value indicating whether the call was refused by the circuit breaker without contacting Seerr.</summary>
+    public bool IsCircuitOpen { get; init; }
 }
 
-/// <summary><see cref="ISeerrClient"/> over <see cref="IHttpClientFactory"/>, with a per-call timeout.</summary>
+/// <summary>
+/// <see cref="ISeerrClient"/> over <see cref="IHttpClientFactory"/>, with a per-call timeout. User-facing calls (and the
+/// user lookup) go through a <see cref="SeerrCircuitBreaker"/>; the admin calls (<see cref="GetStatusAsync"/>,
+/// <see cref="GetJellyfinServerAsync"/>) bypass it so the dashboard's Test connection always really tries. Discover lists
+/// and title summaries are cached in a <see cref="SeerrResponseCache"/>.
+/// </summary>
 public sealed class SeerrClient : ISeerrClient
 {
     public const string HttpClientName = "Lumen.Seerr";
+    public const int RequestsTake = 20;
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly IHttpClientFactory _http;
 
-    public SeerrClient(IHttpClientFactory http)
+    public SeerrClient(IHttpClientFactory http, TimeProvider time, ILogger<SeerrClient> logger)
     {
         _http = http;
+        Breaker = new SeerrCircuitBreaker(time, logger);
+        Cache = new SeerrResponseCache(time);
     }
+
+    internal SeerrCircuitBreaker Breaker { get; }
+
+    internal SeerrResponseCache Cache { get; }
 
     public async Task<SeerrStatus> GetStatusAsync(SeerrEndpoint endpoint, CancellationToken cancellationToken)
     {
-        var status = await GetAsync<StatusBody>(endpoint, "api/v1/status", null, cancellationToken).ConfigureAwait(false);
+        var status = await SendAsync<StatusBody>(endpoint, HttpMethod.Get, "api/v1/status", null, null, false, cancellationToken).ConfigureAwait(false);
         return new SeerrStatus(status?.Version ?? "unknown");
     }
 
     public async Task<SeerrJellyfinServer?> GetJellyfinServerAsync(SeerrEndpoint endpoint, CancellationToken cancellationToken)
     {
-        var settings = await GetAsync<JellyfinSettingsBody>(endpoint, "api/v1/settings/jellyfin", null, cancellationToken).ConfigureAwait(false);
+        var settings = await SendAsync<JellyfinSettingsBody>(endpoint, HttpMethod.Get, "api/v1/settings/jellyfin", null, null, false, cancellationToken).ConfigureAwait(false);
         return string.IsNullOrEmpty(settings?.ServerId) ? null : new SeerrJellyfinServer(settings.Name ?? "Jellyfin", settings.ServerId);
     }
 
@@ -161,10 +189,35 @@ public sealed class SeerrClient : ISeerrClient
             body["seasons"] = seasons is { Count: > 0 } ? new JsonArray(seasons.Select(n => (JsonNode)n).ToArray()) : "all";
         }
 
-        var created = await SendAsync<RequestBody>(endpoint, HttpMethod.Post, "api/v1/request", seerrUserId, body, cancellationToken).ConfigureAwait(false)
+        var created = await SendAsync<RequestBody>(endpoint, HttpMethod.Post, "api/v1/request", seerrUserId, body, true, cancellationToken).ConfigureAwait(false)
             ?? throw Unexpected();
         return new SeerrRequestResult(created.Id, created.Status, created.Media?.Status);
     }
+
+    public async Task<SeerrPage> DiscoverAsync(SeerrEndpoint endpoint, int seerrUserId, SeerrDiscoverList list, CancellationToken cancellationToken)
+    {
+        var resource = list switch
+        {
+            SeerrDiscoverList.Trending => "api/v1/discover/trending",
+            SeerrDiscoverList.PopularMovies => "api/v1/discover/movies",
+            SeerrDiscoverList.PopularTv => "api/v1/discover/tv",
+            SeerrDiscoverList.UpcomingMovies => "api/v1/discover/movies/upcoming",
+            SeerrDiscoverList.UpcomingTv => "api/v1/discover/tv/upcoming",
+            _ => throw new ArgumentOutOfRangeException(nameof(list)),
+        };
+        return await GetCachedAsync<SeerrPage>(endpoint, resource + "?page=1", seerrUserId, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<SeerrUserRequest>> GetUserRequestsAsync(SeerrEndpoint endpoint, int seerrUserId, CancellationToken cancellationToken)
+    {
+        var path = string.Create(CultureInfo.InvariantCulture, $"api/v1/user/{seerrUserId}/requests?take={RequestsTake}&skip=0&sort=added");
+        var page = await GetAsync<SeerrUserRequestPage>(endpoint, path, seerrUserId, cancellationToken).ConfigureAwait(false) ?? throw Unexpected();
+        return page.Results ?? [];
+    }
+
+    public async Task<SeerrTitle> GetTitleSummaryAsync(SeerrEndpoint endpoint, int seerrUserId, string mediaType, int tmdbId, CancellationToken cancellationToken) =>
+        await GetCachedAsync<SeerrTitle>(endpoint, "api/v1/" + ValidMediaType(mediaType) + "/" + tmdbId.ToString(CultureInfo.InvariantCulture), seerrUserId, cancellationToken)
+            .ConfigureAwait(false);
 
     private static string ValidMediaType(string mediaType) =>
         CatalogMediaType.IsValid(mediaType) ? mediaType : throw new ArgumentException("Unknown media type.", nameof(mediaType));
@@ -206,14 +259,64 @@ public sealed class SeerrClient : ISeerrClient
         _ => string.Create(CultureInfo.InvariantCulture, $"Seerr returned HTTP {(int)status}."),
     };
 
+    /// <summary>Whether a failed call counts against the breaker: Seerr unreachable, too slow, a 5xx, or not JSON.</summary>
+    private static bool IsOutage(SeerrException e) => e.Status is null || (int)e.Status >= 500;
+
     private Task<T?> GetAsync<T>(SeerrEndpoint endpoint, string path, int? actAsUser, CancellationToken cancellationToken) =>
-        SendAsync<T>(endpoint, HttpMethod.Get, path, actAsUser, null, cancellationToken);
+        SendAsync<T>(endpoint, HttpMethod.Get, path, actAsUser, null, true, cancellationToken);
+
+    /// <summary>A GET whose (non-null) result is shared by all users of <paramref name="endpoint"/> for <see cref="SeerrResponseCache.Ttl"/>.</summary>
+    private async Task<T> GetCachedAsync<T>(SeerrEndpoint endpoint, string path, int actAsUser, CancellationToken cancellationToken)
+        where T : class
+    {
+        // Keyed by endpoint (address + key) so changing either in the dashboard takes effect immediately.
+        var key = endpoint.BaseUrl + "#" + endpoint.ApiKey.GetHashCode(StringComparison.Ordinal).ToString(CultureInfo.InvariantCulture) + "|" + path;
+        if (Cache.TryGet<T>(key, out var cached))
+        {
+            return cached;
+        }
+
+        var value = await GetAsync<T>(endpoint, path, actAsUser, cancellationToken).ConfigureAwait(false) ?? throw Unexpected();
+        Cache.Set(key, value);
+        return value;
+    }
 
     /// <summary>
-    /// One Seerr call. Error statuses (and 202 to a POST, Seerr's "nothing to request") become a
-    /// <see cref="SeerrException"/> carrying Seerr's <c>message</c>.
+    /// One Seerr call through the breaker when <paramref name="guarded"/>. Error statuses (and 202 to a POST, Seerr's
+    /// "nothing to request") become a <see cref="SeerrException"/> carrying Seerr's <c>message</c>.
     /// </summary>
-    private async Task<T?> SendAsync<T>(SeerrEndpoint endpoint, HttpMethod method, string path, int? actAsUser, JsonNode? body, CancellationToken cancellationToken)
+    private async Task<T?> SendAsync<T>(SeerrEndpoint endpoint, HttpMethod method, string path, int? actAsUser, JsonNode? body, bool guarded, CancellationToken cancellationToken)
+    {
+        if (!guarded)
+        {
+            return await SendCoreAsync<T>(endpoint, method, path, actAsUser, body, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (Breaker.IsOpen)
+        {
+            throw new SeerrException("Seerr is temporarily unavailable.") { IsCircuitOpen = true };
+        }
+
+        try
+        {
+            var result = await SendCoreAsync<T>(endpoint, method, path, actAsUser, body, cancellationToken).ConfigureAwait(false);
+            Breaker.RecordSuccess();
+            return result;
+        }
+        catch (SeerrException e) when (IsOutage(e))
+        {
+            Breaker.RecordFailure();
+            throw;
+        }
+        catch (SeerrException)
+        {
+            // Seerr answered (a 4xx): it's up.
+            Breaker.RecordSuccess();
+            throw;
+        }
+    }
+
+    private async Task<T?> SendCoreAsync<T>(SeerrEndpoint endpoint, HttpMethod method, string path, int? actAsUser, JsonNode? body, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(Timeout);

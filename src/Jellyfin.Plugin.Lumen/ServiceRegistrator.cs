@@ -41,6 +41,7 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ISeerrUserMap, SeerrUserMap>();
         serviceCollection.AddSingleton<ITmdbImageCache, TmdbImageCache>();
         serviceCollection.AddSingleton<CatalogMapper>();
+        serviceCollection.AddSingleton<CatalogRowAccess>();
 
         serviceCollection.AddSingleton<IHomeSectionProvider, ContinueWatchingProvider>();
         serviceCollection.AddSingleton<IHomeSectionProvider, NextUpProvider>();
@@ -50,5 +51,10 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IHomeSectionProvider, NewForYouProvider>();
         serviceCollection.AddSingleton<IHomeSectionProvider, CuratedProvider>();
         serviceCollection.AddSingleton<IHomeSectionProvider, GenresProvider>();
+        serviceCollection.AddSingleton<IHomeSectionProvider, CatalogTrendingProvider>();
+        serviceCollection.AddSingleton<IHomeSectionProvider, CatalogPopularMoviesProvider>();
+        serviceCollection.AddSingleton<IHomeSectionProvider, CatalogPopularShowsProvider>();
+        serviceCollection.AddSingleton<IHomeSectionProvider, CatalogUpcomingProvider>();
+        serviceCollection.AddSingleton<IHomeSectionProvider, MyRequestsProvider>();
     }
 }

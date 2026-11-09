@@ -1,6 +1,8 @@
+using System.Text.Json;
 using Jellyfin.Plugin.Lumen.Assets;
 using Jellyfin.Plugin.Lumen.Configuration;
 using Jellyfin.Plugin.Lumen.Diagnostics;
+using MediaBrowser.Controller;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,17 +13,22 @@ namespace Jellyfin.Plugin.Lumen.Api;
 [Route("Lumen")]
 public sealed class LumenController : ControllerBase
 {
+    /// <summary>The installed app's background and status-bar colour (Lumen's page background).</summary>
+    public const string PwaColor = "#0f0f0f";
+
     private readonly AssetCatalog _assets;
     private readonly ILumenConfigStore _config;
     private readonly DiagnosticsStore _diagnostics;
     private readonly TimeProvider _time;
+    private readonly IServerApplicationHost _host;
 
-    public LumenController(AssetCatalog assets, ILumenConfigStore config, DiagnosticsStore diagnostics, TimeProvider time)
+    public LumenController(AssetCatalog assets, ILumenConfigStore config, DiagnosticsStore diagnostics, TimeProvider time, IServerApplicationHost host)
     {
         _assets = assets;
         _config = config;
         _diagnostics = diagnostics;
         _time = time;
+        _host = host;
     }
 
     [HttpGet("Assets/{name}")]
@@ -37,6 +44,37 @@ public sealed class LumenController : ControllerBase
             ? "public, max-age=31536000, immutable"
             : "no-cache";
         return File(asset.Content, asset.ContentType);
+    }
+
+    /// <summary>
+    /// The web app manifest (index.html points here instead of jellyfin-web's): the server's name and Lumen's icons, so
+    /// "Add to Home Screen" gets the J. Paths are relative to <c>/Lumen/</c>; the app itself still lives under /web/.
+    /// </summary>
+    [HttpGet("Manifest")]
+    [AllowAnonymous]
+    public IActionResult GetManifest()
+    {
+        var name = string.IsNullOrWhiteSpace(_host.FriendlyName) ? "Jellyfin" : _host.FriendlyName;
+        var version = Uri.EscapeDataString(_assets.BuildHash);
+        var manifest = new
+        {
+            name,
+            short_name = name,
+            description = "Your Jellyfin server, by Lumen",
+            start_url = "../web/index.html#/home",
+            scope = "../web/",
+            display = "standalone",
+            theme_color = PwaColor,
+            background_color = PwaColor,
+            icons = new object[]
+            {
+                new { src = $"Assets/lumen-icon-192.png?v={version}", sizes = "192x192", type = "image/png", purpose = "any" },
+                new { src = $"Assets/lumen-icon-512.png?v={version}", sizes = "512x512", type = "image/png", purpose = "any" },
+                new { src = $"Assets/lumen-icon-maskable-512.png?v={version}", sizes = "512x512", type = "image/png", purpose = "maskable" },
+            },
+        };
+        Response.Headers.CacheControl = "no-cache";
+        return Content(JsonSerializer.Serialize(manifest), "application/manifest+json");
     }
 
     [HttpGet("ClientConfig")]

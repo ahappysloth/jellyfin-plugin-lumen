@@ -1,5 +1,6 @@
 using System.Globalization;
 using Jellyfin.Database.Implementations.Entities;
+using Jellyfin.Plugin.Lumen.Api;
 using Jellyfin.Plugin.Lumen.Configuration;
 using Jellyfin.Plugin.Lumen.Home;
 using MediaBrowser.Controller.Entities;
@@ -274,13 +275,89 @@ public sealed class HomeServiceTests : IDisposable
         Assert.Equal(["tag-src"], card.ParentBackdropImageTags);
     }
 
+    [Fact]
+    public async Task CatalogRows_MapEntriesInOrder_InOneBatch_AndExistingRowsHaveNoEntries()
+    {
+        var owned1 = TestData.Movie("owned1");
+        var owned2 = TestData.Series("owned2");
+        var catalog = new CatalogItemDto("movie-605", "movie", 605, "Lumen Future", 2027, null, null, [], null, null, "None", null);
+        var batches = new List<IReadOnlyList<BaseItem>>();
+        IReadOnlyList<BaseItem>? badged = null;
+        _badges.GetBadges(Arg.Any<HomeContext>(), Arg.Do<IEnumerable<BaseItem>>(i => badged = i.ToList())).Returns(new Dictionary<string, string>());
+        Add("A");
+        Add(SectionTypes.CatalogTrending);
+        var provider = new FakeSectionProvider(SectionTypes.CatalogTrending)
+        {
+            Rows = (_, d, _) => Task.FromResult(HomeRow.Catalog(d, "Trending", [HomeRowEntry.ForItem(owned1), HomeRowEntry.ForCatalog(catalog), HomeRowEntry.ForItem(owned2)])),
+        };
+        var movie = TestData.Movie("a");
+
+        var home = await Create(new FakeMapper(batches), Returning("A", movie), provider).GetHomeAsync(_user, CancellationToken.None);
+
+        Assert.Equal(2, home.Rows.Count);
+        Assert.Null(home.Rows[0].Entries);
+        Assert.Equal("a", Assert.Single(home.Rows[0].Items).Name);
+        var row = home.Rows[1];
+        Assert.Equal(SectionTypes.CatalogTrending, row.Type);
+        Assert.Empty(row.Items);
+        Assert.Equal(3, row.Entries!.Count);
+        Assert.Equal(("owned1", null), (row.Entries[0].Item!.Name, row.Entries[0].Catalog));
+        Assert.Equal((null, catalog), (row.Entries[1].Item, row.Entries[1].Catalog));
+        Assert.Equal(("owned2", null), (row.Entries[2].Item!.Name, row.Entries[2].Catalog));
+        Assert.Contains(batches, b => b.SequenceEqual([owned1, owned2]));
+        Assert.Equal([movie, owned1, owned2], badged);
+    }
+
+    [Fact]
+    public async Task CatalogRow_WithOnlyCatalogEntries_IsKept_AndEmptyCatalogRowIsOmitted()
+    {
+        var catalog = new CatalogItemDto("tv-1", "tv", 1, "T", null, null, null, [], null, null, "None", null);
+        Add("Full");
+        Add("Empty");
+        var full = new FakeSectionProvider("Full") { Rows = (_, d, _) => Task.FromResult(HomeRow.Catalog(d, "Full", [HomeRowEntry.ForCatalog(catalog)])) };
+        var empty = new FakeSectionProvider("Empty")
+        {
+            Rows = (_, d, _) => Task.FromResult<IReadOnlyList<HomeRow>>([new HomeRow(HomeRow.RowId(d, 0), "Empty", "t", []) { Entries = [] }]),
+        };
+
+        var home = await Create(full, empty).GetHomeAsync(_user, CancellationToken.None);
+
+        var row = Assert.Single(home.Rows);
+        Assert.Equal(catalog, Assert.Single(row.Entries!).Catalog);
+    }
+
+    [Fact]
+    public async Task ProviderTimeoutOverride_IsUsed()
+    {
+        Add("Patient");
+        var provider = new FakeSectionProvider("Patient")
+        {
+            TimeoutOverride = TimeSpan.FromSeconds(30),
+            Rows = async (_, d, ct) =>
+            {
+                await Task.Delay(400, ct);
+                return HomeRow.Single(d, "Patient", [TestData.Movie("p")]);
+            },
+        };
+        var service = new HomeService([provider], _store, _hero, _history, new FakeMapper(), _badges, _cache, TimeProvider.System, NullLogger<HomeService>.Instance)
+        {
+            Timeout = TimeSpan.FromMilliseconds(100),
+        };
+
+        var home = await service.GetHomeAsync(_user, CancellationToken.None);
+
+        Assert.Equal(["Patient"], home.Rows.Select(r => r.Type));
+    }
+
     private static FakeSectionProvider Returning(string type, params BaseItem[] items) => new(type)
     {
         Rows = (_, def, _) => Task.FromResult(HomeRow.Single(def, type, items)),
     };
 
-    private HomeService Create(params IHomeSectionProvider[] providers) =>
-        new(providers, _store, _hero, _history, new FakeMapper(), _badges, _cache, _time, NullLogger<HomeService>.Instance);
+    private HomeService Create(params IHomeSectionProvider[] providers) => Create(new FakeMapper(), providers);
+
+    private HomeService Create(FakeMapper mapper, params IHomeSectionProvider[] providers) =>
+        new(providers, _store, _hero, _history, mapper, _badges, _cache, _time, NullLogger<HomeService>.Instance);
 
     private SectionDefinition Add(string type, bool enabled = true)
     {
@@ -292,8 +369,18 @@ public sealed class HomeServiceTests : IDisposable
 
     private sealed class FakeMapper : IHomeDtoMapper
     {
-        public IReadOnlyList<BaseItemDto> MapCards(IReadOnlyList<BaseItem> items, User user) =>
-            items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList();
+        private readonly List<IReadOnlyList<BaseItem>>? _batches;
+
+        public FakeMapper(List<IReadOnlyList<BaseItem>>? batches = null)
+        {
+            _batches = batches;
+        }
+
+        public IReadOnlyList<BaseItemDto> MapCards(IReadOnlyList<BaseItem> items, User user)
+        {
+            _batches?.Add(items.ToList());
+            return items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList();
+        }
 
         public BaseItemDto MapHero(BaseItem item, User user) => new() { Id = item.Id, Name = item.Name };
 

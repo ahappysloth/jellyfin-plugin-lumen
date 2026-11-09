@@ -62,7 +62,8 @@ public sealed class IndexHtmlMiddleware
         var guard = assets.TryGet(HtmlInjector.GuardAsset, out var guardAsset) ? Encoding.UTF8.GetString(guardAsset.Content) : null;
         var config = context.RequestServices.GetService(typeof(ILumenConfigStore)) as ILumenConfigStore;
         var skin = config?.Current is { Enabled: true, StyleStockPages: true };
-        var output = Transform(buffer.ToArray(), assets.BuildHash, guard, skin);
+        var appIdentity = config?.Current is { Enabled: true };
+        var output = Transform(buffer.ToArray(), assets.BuildHash, guard, skin, appIdentity);
         var etag = "\"lmn-" + Convert.ToHexStringLower(SHA256.HashData(output))[..16] + "\"";
 
         context.Response.Headers.Remove(HeaderNames.LastModified);
@@ -91,12 +92,12 @@ public sealed class IndexHtmlMiddleware
             || path.EndsWith("/web/index.html", StringComparison.OrdinalIgnoreCase);
     }
 
-    private byte[] Transform(byte[] original, string buildHash, string? guard, bool skin)
+    private byte[] Transform(byte[] original, string buildHash, string? guard, bool skin, bool appIdentity)
     {
         try
         {
             var html = Encoding.UTF8.GetString(original);
-            var injected = HtmlInjector.Inject(html, buildHash, guard, skin);
+            var injected = HtmlInjector.Inject(html, buildHash, guard, skin, appIdentity);
             if (ReferenceEquals(injected, html) && !html.Contains(HtmlInjector.Marker, StringComparison.Ordinal)
                 && Interlocked.Exchange(ref _warnedNoHead, 1) == 0)
             {

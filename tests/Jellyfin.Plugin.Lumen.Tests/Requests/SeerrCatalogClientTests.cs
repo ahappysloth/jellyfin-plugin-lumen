@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Jellyfin.Plugin.Lumen.Requests;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Jellyfin.Plugin.Lumen.Tests.Requests;
@@ -145,5 +146,5 @@ public sealed class SeerrCatalogClientTests : IDisposable
             return FakeHttp.Json(json, status);
         };
 
-    private SeerrClient Client() => new(_http.Factory);
+    private SeerrClient Client() => new(_http.Factory, TimeProvider.System, NullLogger<SeerrClient>.Instance);
 }

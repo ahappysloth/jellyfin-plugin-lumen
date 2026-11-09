@@ -1,5 +1,6 @@
 using System.Net;
 using Jellyfin.Plugin.Lumen.Requests;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Jellyfin.Plugin.Lumen.Tests.Requests;
@@ -89,5 +90,5 @@ public sealed class SeerrClientTests : IDisposable
 
     public void Dispose() => _http.Dispose();
 
-    private SeerrClient Client() => new(_http.Factory);
+    private SeerrClient Client() => new(_http.Factory, TimeProvider.System, NullLogger<SeerrClient>.Instance);
 }

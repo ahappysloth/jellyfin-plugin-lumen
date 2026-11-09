@@ -47,6 +47,7 @@ public sealed class AssetCatalog
     {
         ".js" => "text/javascript; charset=utf-8",
         ".css" => "text/css; charset=utf-8",
+        ".png" => "image/png",
         _ => "application/octet-stream",
     };
 

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/preact';
+import { render, screen, waitFor, within } from '@testing-library/preact';
 import { describe, expect, it } from 'vitest';
 import { createFakeClient, routes } from '../../test/fakeClient';
 import { makeContext } from '../../test/viewContext';
@@ -22,32 +22,43 @@ describe('Nav', () => {
     render(<Nav ctx={makeContext(client)} />);
 
     expect(await screen.findByText('Den')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole('link', { name: 'Movies' })).toBeInTheDocument());
-    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: 'Movies' })).toHaveAttribute(
+    const main = screen.getByRole('navigation', { name: 'Main' });
+    await waitFor(() => expect(within(main).getByRole('link', { name: 'Movies' })).toBeInTheDocument());
+    expect(within(main).getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
+    expect(within(main).getByRole('link', { name: 'Movies' })).toHaveAttribute(
       'href',
       '#/movies?topParentId=lm&collectionType=movies',
     );
-    expect(screen.getByRole('link', { name: 'Shows' })).toHaveAttribute(
+    expect(within(main).getByRole('link', { name: 'Shows' })).toHaveAttribute(
       'href',
       '#/tv?topParentId=lt&collectionType=tvshows',
     );
-    expect(screen.getByRole('link', { name: 'Mixed' })).toHaveAttribute(
+    expect(within(main).getByRole('link', { name: 'Mixed' })).toHaveAttribute(
       'href',
       '#/list?parentId=lx&serverId=s',
     );
-    expect(screen.getByRole('link', { name: 'Search' })).toHaveAttribute('href', '#/search');
-    expect(screen.getByRole('link', { name: 'Settings and profile' })).toHaveAttribute(
+    expect(within(main).getByRole('link', { name: 'Search' })).toHaveAttribute('href', '#/search');
+    expect(within(main).getByRole('link', { name: 'Settings and profile' })).toHaveAttribute(
       'href',
       '#/mypreferencesmenu',
     );
+
+    // Phones: up to two libraries as tabs, plus Home, Favorites and Me; search on its own at the top.
+    const tabs = screen.getByRole('navigation', { name: 'Tabs' });
+    expect(
+      within(tabs)
+        .getAllByRole('link')
+        .map((l) => l.textContent),
+    ).toEqual(['Home', 'Movies', 'Shows', 'Favorites', 'Me']);
+    expect(within(tabs).getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('still renders when the libraries cannot be loaded', async () => {
     const client = createFakeClient(() => Promise.reject(new Error('offline')), 'nav-offline');
     render(<Nav ctx={makeContext(client)} />);
 
-    expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Search' })).toBeInTheDocument();
+    const main = screen.getByRole('navigation', { name: 'Main' });
+    expect(within(main).getByRole('link', { name: 'Home' })).toBeInTheDocument();
+    expect(within(main).getByRole('link', { name: 'Search' })).toBeInTheDocument();
   });
 });
