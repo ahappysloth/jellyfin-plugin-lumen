@@ -47,6 +47,28 @@ describe('DetailsView', () => {
     expect(await screen.findByRole('button', { name: 'Lumen Beta' })).toBeInTheDocument();
   });
 
+  it('shows Starting… on the Resume button until the player has started', async () => {
+    let started: (value: unknown) => void = () => {};
+    const c = createFakeClient(
+      routes({
+        'Items/m1': movie,
+        'Items/m1/LocalTrailers': [],
+        'Items/m1/Similar': { Items: [] },
+        Sessions: [{ Id: 's1', DeviceId: 'dev+ice' }],
+        'Sessions/s1/Playing': () => new Promise((resolve) => (started = resolve)),
+      }),
+    );
+    render(<DetailsView id="m1" ctx={makeContext(c)} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /Resume/ }));
+
+    const busy = await screen.findByRole('button', { name: /Starting/ });
+    expect(busy).toBeDisabled();
+    expect(busy).toHaveAttribute('aria-busy', 'true');
+    started({});
+    expect(await screen.findByRole('button', { name: /Resume/ })).toBeEnabled();
+  });
+
   it('resumes from the saved position', async () => {
     const c = client();
     render(<DetailsView id="m1" ctx={makeContext(c)} />);

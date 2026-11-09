@@ -488,3 +488,8 @@ html.lmn-skin-player .upNextContainer {
   font-size: 13px;
   font-weight: 600;
 }
+
+/* jellyfin-web's volume card pops up top right on every volume change; Lumen's controls show the volume. */
+html.lmn-skin-player .volumeOsd {
+  display: none !important;
+}

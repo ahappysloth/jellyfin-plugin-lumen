@@ -37,6 +37,8 @@ export const STOCK_SELECTORS = {
   spinner: { selector: '.docspinner', probe: null, css: 'base.css' },
   /** The player's own controls, hidden under Lumen's. */
   videoOsd: { selector: '.videoOsdBottom', probe: 'player', css: 'player.css' },
+  /** jellyfin-web's volume card (components/playback/volumeosd.js); Lumen's controls show the volume instead. */
+  volumeOsd: { selector: '.volumeOsd', probe: null, css: 'player.css' },
   /** Prompts that stay clickable above Lumen's player (only shown with intro segments / near the end). */
   skipIntro: { selector: '.skip-button-container', probe: null, css: 'player.css' },
   upNext: { selector: '.upNextContainer', probe: null, css: 'player.css' },

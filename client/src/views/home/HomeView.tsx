@@ -67,10 +67,22 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
   }, [ctx.api, ctx.userId]);
 
   const open = (item: BaseItem): void => ctx.navigate(detailsHash(item.Id, item.ServerId));
+  // The hero's Play shows "Starting…" while jellyfin-web opens the player (Lumen hides jellyfin-web's spinner).
+  const [startingId, setStartingId] = useState<string | null>(null);
+  const mounted = useRef(true);
+  useEffect(
+    () => () => {
+      mounted.current = false;
+    },
+    [],
+  );
   const play = (item: BaseItem): void => {
+    if (startingId) return;
+    setStartingId(item.Id);
     startPlayback(ctx, item)
       .then((played) => played || open(item))
-      .catch(() => showToast(strings.playbackFailed));
+      .catch(() => showToast(strings.playbackFailed))
+      .finally(() => mounted.current && setStartingId(null));
   };
   const onMenu = cardMenuHandler(ctx);
   const select = (item: BaseItem, row: HomeRow): void => {
@@ -98,6 +110,7 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
             badges={home.Badges}
             onPlay={play}
             onInfo={open}
+            startingId={startingId}
           />
         </ErrorBoundary>
       )}

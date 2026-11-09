@@ -87,6 +87,7 @@ export function SeriesDetails({ series, initialSeasonId, ctx }: Props) {
                 label: smartPlay.label,
                 progress: smartPlay.progress,
                 onClick: () => actions.play(smartPlay.episodeId, smartPlay.startTicks),
+                busy: actions.starting,
               }
             : null
         }
