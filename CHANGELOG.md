@@ -2,7 +2,7 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
-## [Unreleased]
+## [0.2.2] - 2026-11-09
 
 ### Added
 - Lumen pages for the genre list (home genre tiles: All / Movies / Shows and a sort menu), people (portrait, born and
@@ -10,6 +10,9 @@ All notable changes to Lumen are documented here. Versions follow SemVer; Jellyf
   oldest first) and the Collections library.
 
 ### Changed
+- A refined J mark: one ribbon width round a true semicircle bowl, purer reds, a back ribbon that darkens toward the
+  fold, a soft cast shadow at the crease and gently curved ribbon ends. The nav, loading veil, tab icon, sign-in page,
+  settings page, PWA icons (now without the glow) and plugin image all use it.
 - One red throughout: the UI accent is now the logo's red (`#e30b17`). Servers still on the old default red move to it;
   a custom accent is kept.
 - Player: redrawn ±10 s buttons, and the quality menu shows each preset's bitrate (Jellyfin caps the bitrate and keeps
