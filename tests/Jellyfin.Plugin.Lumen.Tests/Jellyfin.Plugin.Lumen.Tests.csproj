@@ -19,6 +19,10 @@
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Real jellyfin-web index.html files (Injection/HtmlInjectorRealPageTests.cs). -->
+    <None Include="Injection/Fixtures/**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../src/Jellyfin.Plugin.Lumen/Jellyfin.Plugin.Lumen.csproj" />
   </ItemGroup>
 </Project>
