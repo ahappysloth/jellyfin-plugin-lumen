@@ -24,6 +24,11 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): void {
     };
     const onMove = (e: PointerEvent): void => {
       if (!start || e.pointerId !== start.id) return;
+      // The button was released somewhere we didn't hear about (outside the row, before capture): forget the press.
+      if (!dragging && (e.buttons & 1) === 0) {
+        start = null;
+        return;
+      }
       const dx = e.clientX - start.x;
       if (!dragging) {
         if (Math.abs(dx) < SLOP) return;
@@ -52,6 +57,11 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): void {
     // Stop the browser dragging images/links out of the row.
     const onDragStart = (e: DragEvent): void => e.preventDefault();
 
+    // A release anywhere ends a pending press (capture only starts once the drag does).
+    const onWindowUp = (e: PointerEvent): void => {
+      if (start && e.pointerId === start.id && !dragging) start = null;
+    };
+    window.addEventListener('pointerup', onWindowUp);
     el.addEventListener('pointerdown', onDown);
     el.addEventListener('pointermove', onMove);
     el.addEventListener('pointerup', onUp);
@@ -59,6 +69,7 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): void {
     el.addEventListener('click', onClick, true);
     el.addEventListener('dragstart', onDragStart);
     return () => {
+      window.removeEventListener('pointerup', onWindowUp);
       el.removeEventListener('pointerdown', onDown);
       el.removeEventListener('pointermove', onMove);
       el.removeEventListener('pointerup', onUp);

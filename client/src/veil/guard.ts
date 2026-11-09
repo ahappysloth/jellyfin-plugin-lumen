@@ -11,6 +11,8 @@ const SAFETY_MS = 8000;
 
 try {
   applySignInSkin(document, location.hash);
+  // Follow navigation on our own too, so the sign-in look comes off even if lumen.js never loads.
+  window.addEventListener('hashchange', () => applySignInSkin(document, location.hash));
   if (shouldVeil(location.hash)) {
     document.documentElement.classList.add(PENDING_CLASS);
     showVeil(document, MARK_SVG);

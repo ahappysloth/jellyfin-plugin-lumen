@@ -191,6 +191,9 @@ public sealed class SeerrClient : ISeerrClient
 
         var created = await SendAsync<RequestBody>(endpoint, HttpMethod.Post, "api/v1/request", seerrUserId, body, true, cancellationToken).ConfigureAwait(false)
             ?? throw Unexpected();
+
+        // Cached discover lists and summaries carry request states; drop them so rows show the new request.
+        Cache.Clear();
         return new SeerrRequestResult(created.Id, created.Status, created.Media?.Status);
     }
 
@@ -292,27 +295,38 @@ public sealed class SeerrClient : ISeerrClient
             return await SendCoreAsync<T>(endpoint, method, path, actAsUser, body, cancellationToken).ConfigureAwait(false);
         }
 
-        if (Breaker.IsOpen)
+        if (Breaker.TryEnter() is not { } generation)
         {
             throw new SeerrException("Seerr is temporarily unavailable.") { IsCircuitOpen = true };
         }
 
+        var reported = false;
         try
         {
             var result = await SendCoreAsync<T>(endpoint, method, path, actAsUser, body, cancellationToken).ConfigureAwait(false);
-            Breaker.RecordSuccess();
+            Breaker.RecordSuccess(generation);
+            reported = true;
             return result;
         }
         catch (SeerrException e) when (IsOutage(e))
         {
-            Breaker.RecordFailure();
+            Breaker.RecordFailure(generation);
+            reported = true;
             throw;
         }
         catch (SeerrException)
         {
             // Seerr answered (a 4xx): it's up.
-            Breaker.RecordSuccess();
+            Breaker.RecordSuccess(generation);
+            reported = true;
             throw;
+        }
+        finally
+        {
+            if (!reported)
+            {
+                Breaker.Abandon(generation);
+            }
         }
     }
 

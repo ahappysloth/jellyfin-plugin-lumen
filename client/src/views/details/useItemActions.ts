@@ -1,26 +1,24 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import { HOME_HASH } from '../../compat/jellyfin';
 import type { BaseItem } from '../../api/types';
 import { playItem } from '../../playback/play';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
+import { reconcileUserData, setUserData, useUserData } from '../userDataStore';
 
-/** Watched/favorite toggles (optimistic, reverted on failure) and playback with an inline error. */
+/**
+ * Watched/favorite toggles and playback with an inline error. Toggles go through the shared user-data store, so the
+ * card menus and the player agree with this page.
+ */
 export function useItemActions(item: BaseItem, ctx: ViewContext) {
-  const [played, setPlayed] = useState(!!item.UserData?.Played);
-  const [favorite, setFavorite] = useState(!!item.UserData?.IsFavorite);
+  // This item was just fetched: its values are authoritative over older changes made elsewhere this session.
+  useMemo(() => reconcileUserData(item), [item.Id]);
+  const played = useUserData(item, 'Played');
+  const favorite = useUserData(item, 'IsFavorite');
   const [error, setError] = useState<string | null>(null);
 
-  const toggleWatched = (): void => {
-    const next = !played;
-    setPlayed(next);
-    ctx.api.setPlayed(item.Id, next).catch(() => setPlayed(!next));
-  };
-  const toggleFavorite = (): void => {
-    const next = !favorite;
-    setFavorite(next);
-    ctx.api.setFavorite(item.Id, next).catch(() => setFavorite(!next));
-  };
+  const toggleWatched = (): void => void setUserData(ctx, item, 'Played', !played);
+  const toggleFavorite = (): void => void setUserData(ctx, item, 'IsFavorite', !favorite);
   const play = (itemId: string, startTicks?: number): void => {
     setError(null);
     playItem(ctx.api, ctx.client, itemId, startTicks).catch(() => setError(strings.playbackFailed));

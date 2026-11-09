@@ -17,6 +17,7 @@ interface Props<T extends string> {
   options: readonly DropdownOption<T>[];
   onChange: (value: T) => void;
   class?: string;
+  disabled?: boolean;
 }
 
 /**
@@ -30,6 +31,7 @@ export function Dropdown<T extends string>({
   options,
   onChange,
   class: extra,
+  disabled,
 }: Props<T>) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -48,6 +50,7 @@ export function Dropdown<T extends string>({
   const selected = options[selectedIndex];
 
   const openList = (): void => {
+    if (disabled) return;
     setActive(selectedIndex);
     setOpen(true);
   };
@@ -139,6 +142,7 @@ export function Dropdown<T extends string>({
         aria-expanded={open}
         aria-controls={open ? `${id}-list` : undefined}
         aria-label={`${label}: ${selected?.label ?? ''}`}
+        disabled={disabled}
         onClick={() => (open ? close(false) : openList())}
         onKeyDown={(e) => {
           if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {

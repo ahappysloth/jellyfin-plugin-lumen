@@ -27,6 +27,11 @@ public sealed partial class TmdbImageCache : ITmdbImageCache
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
     private const int TrimEveryWrites = 25;
+
+    /// <summary>A TMDB image larger than this is refused rather than cached ("original" posters are a few MB).</summary>
+    private const long MaxImageBytes = 25L * 1024 * 1024;
+
+    private static readonly TimeSpan StaleTempAge = TimeSpan.FromHours(1);
     private readonly IHttpClientFactory _http;
     private readonly ILumenConfigStore _config;
     private readonly ILogger<TmdbImageCache> _logger;
@@ -34,6 +39,8 @@ public sealed partial class TmdbImageCache : ITmdbImageCache
     private readonly Uri _baseUrl;
     private int _trimming;
     private int _writes;
+    private long _bytesSinceTrim;
+    private int _startupTrimDone;
 
     public TmdbImageCache(IHttpClientFactory http, ILumenConfigStore config, IApplicationPaths paths, ILogger<TmdbImageCache> logger)
     {
@@ -56,6 +63,13 @@ public sealed partial class TmdbImageCache : ITmdbImageCache
 
         var contentType = file.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "image/png" : "image/jpeg";
         var path = Path.Combine(_directory, size, file);
+
+        // Once per process: enforce the cap (it may have been lowered) and sweep temp files from interrupted runs.
+        if (Interlocked.Exchange(ref _startupTrimDone, 1) == 0)
+        {
+            _ = Task.Run(Trim, CancellationToken.None);
+        }
+
         if (File.Exists(path))
         {
             TouchQuietly(path);
@@ -67,20 +81,34 @@ public sealed partial class TmdbImageCache : ITmdbImageCache
         using var response = await _http.CreateClient(HttpClientName)
             .GetAsync(new Uri(_baseUrl, size + "/" + file), HttpCompletionOption.ResponseHeadersRead, timeout.Token)
             .ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
+        if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > MaxImageBytes)
         {
             return null;
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        await using (var output = File.Create(temp))
+        long written;
+        try
         {
-            await response.Content.CopyToAsync(output, timeout.Token).ConfigureAwait(false);
+            await using (var output = File.Create(temp))
+            {
+                await response.Content.CopyToAsync(output, timeout.Token).ConfigureAwait(false);
+                written = output.Length;
+            }
+
+            File.Move(temp, path, overwrite: true);
+        }
+        finally
+        {
+            // Cancelled, timed out, or a failed move: never leave the partial file behind (Trim skips .tmp files).
+            DeleteQuietly(temp);
         }
 
-        File.Move(temp, path, overwrite: true);
-        if (Interlocked.Increment(ref _writes) % TrimEveryWrites == 0)
+        // Trim every few writes, or sooner when the writes since the last trim add up (large "original" images).
+        var cap = (long)_config.Current.ImageCacheMb * 1024 * 1024;
+        var pending = Interlocked.Add(ref _bytesSinceTrim, written);
+        if (Interlocked.Increment(ref _writes) % TrimEveryWrites == 0 || pending > cap / 20)
         {
             _ = Task.Run(Trim, CancellationToken.None);
         }
@@ -103,8 +131,17 @@ public sealed partial class TmdbImageCache : ITmdbImageCache
                 return;
             }
 
+            Interlocked.Exchange(ref _bytesSinceTrim, 0);
             var cap = (long)_config.Current.ImageCacheMb * 1024 * 1024;
-            var files = new DirectoryInfo(_directory).EnumerateFiles("*", SearchOption.AllDirectories)
+            var all = new DirectoryInfo(_directory).EnumerateFiles("*", SearchOption.AllDirectories).ToList();
+
+            // Temp files from downloads interrupted by a crash or restart (live downloads are much younger).
+            foreach (var stale in all.Where(f => f.Name.EndsWith(".tmp", StringComparison.Ordinal) && f.LastWriteTimeUtc < DateTime.UtcNow - StaleTempAge))
+            {
+                DeleteQuietly(stale.FullName);
+            }
+
+            var files = all
                 .Where(f => !f.Name.EndsWith(".tmp", StringComparison.Ordinal))
                 .OrderBy(f => f.LastWriteTimeUtc)
                 .ToList();
@@ -127,6 +164,22 @@ public sealed partial class TmdbImageCache : ITmdbImageCache
         finally
         {
             Volatile.Write(ref _trimming, 0);
+        }
+    }
+
+    private static void DeleteQuietly(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (IOException)
+        {
+            // Swept by the next Trim.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Swept by the next Trim.
         }
     }
 

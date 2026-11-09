@@ -16,6 +16,14 @@ public sealed partial class ConfigValidator
         _providers = providers.ToDictionary(p => p.Type, StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>True when two Seerr addresses are the same (ignoring a trailing slash and the scheme/host's case).</summary>
+    public static bool SameSeerr(string? a, string? b) =>
+        string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b)
+            ? string.IsNullOrWhiteSpace(a) && string.IsNullOrWhiteSpace(b)
+            : Uri.TryCreate(a.Trim().TrimEnd('/') + "/", UriKind.Absolute, out var ua)
+              && Uri.TryCreate(b.Trim().TrimEnd('/') + "/", UriKind.Absolute, out var ub)
+              && Uri.Compare(ua, ub, UriComponents.SchemeAndServer | UriComponents.PathAndQuery, UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) == 0;
+
     /// <summary>True for an absolute http(s) URL without credentials, query or fragment.</summary>
     public static bool IsHttpUrl(string? value) =>
         Uri.TryCreate(value, UriKind.Absolute, out var uri)

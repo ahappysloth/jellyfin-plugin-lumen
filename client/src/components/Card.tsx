@@ -1,4 +1,4 @@
-import { useRef } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
 import type { BadgeKey, BaseItem } from '../api/types';
 import type { JellyfinApiClient } from '../compat/jellyfin';
 import { strings } from '../strings';
@@ -27,6 +27,8 @@ export function useLongPress(onLongPress: (point: { x: number; y: number }, el: 
   const cancel = (): void => {
     if (press.current) clearTimeout(press.current.timer);
   };
+  // A card that goes away mid-press must not open a menu for an item that's no longer on screen.
+  useEffect(() => cancel, []);
   return {
     onPointerDown: (e: PointerEvent) => {
       if (e.pointerType !== 'touch') return;

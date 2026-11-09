@@ -16,6 +16,8 @@ namespace Jellyfin.Plugin.Lumen.Tests.Requests;
 
 public class RequestsControllerTests
 {
+    private static readonly SeerrEndpoint Endpoint = new(new Uri("http://seerr:5055/"), "key123");
+
     private readonly ISeerrUserMap _users = Substitute.For<ISeerrUserMap>();
     private readonly ITmdbImageCache _images = Substitute.For<ITmdbImageCache>();
     private readonly ISeerrClient _seerr = Substitute.For<ISeerrClient>();
@@ -41,7 +43,7 @@ public class RequestsControllerTests
     [Fact]
     public async Task Status_ReportsTheUsersAccess_WithoutTheirSeerrId()
     {
-        _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, true, false, 9));
+        _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, true, false, 9, Endpoint));
 
         var status = (await Create().GetStatus(CancellationToken.None)).Value;
 
@@ -67,7 +69,7 @@ public class RequestsControllerTests
     [Fact]
     public async Task Image_ServesTheCachedFile_WithLongCaching()
     {
-        _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, false, false, 1));
+        _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, false, false, 1, Endpoint));
         _images.GetAsync("w780", "abc.jpg", Arg.Any<CancellationToken>()).Returns(new CachedImage("/tmp/abc.jpg", "image/jpeg"));
         var controller = Create();
 
@@ -259,7 +261,7 @@ public class RequestsControllerTests
     [InlineData("tv", true, false)]
     public async Task Request_WithoutPermissionForTheMediaType_Is403(string mediaType, bool movies, bool tv)
     {
-        _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, movies, tv, 9));
+        _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, movies, tv, 9, Endpoint));
 
         var result = Assert.IsType<ObjectResult>((await Create().CreateRequest(new CatalogRequestDto(mediaType, 603, null), CancellationToken.None)).Result);
 
@@ -326,7 +328,7 @@ public class RequestsControllerTests
         Assert.IsType<ErrorDto>(Assert.IsType<T>(result).Value);
 
     private void GrantAccess() =>
-        _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, true, true, 9));
+        _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, true, true, 9, Endpoint));
 
     private RequestsController Create(bool signedIn = true) => new(_users, _images, _seerr, _config, _userManager, new CatalogMapper(_library), NullLogger<RequestsController>.Instance)
     {

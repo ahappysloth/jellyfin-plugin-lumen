@@ -78,6 +78,17 @@ describe('startLumen', () => {
     expect(document.documentElement.classList.contains('lmn-active')).toBe(false);
   });
 
+  it('leaves a details link for another server to jellyfin-web', async () => {
+    Object.assign(client, { serverId: () => 'thisServer' });
+    history.replaceState(null, '', '#/details?id=0123456789abcdef0123456789abcdef&serverId=otherServer');
+    const { mount } = start();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mount).not.toHaveBeenCalled();
+
+    history.pushState(null, '', '#/details?id=0123456789abcdef0123456789abcdef&serverId=thisServer');
+    await vi.waitFor(() => expect(mount).toHaveBeenCalled());
+  });
+
   it('releases takeover when the user signs out', async () => {
     const { mount, unmount } = start();
     await vi.waitFor(() => expect(mount).toHaveBeenCalled());

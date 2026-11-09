@@ -67,9 +67,9 @@ public class AdminControllerTests
     }
 
     [Fact]
-    public async Task TestSeerr_UsesTheStoredKeyWhenNoneIsGiven()
+    public async Task TestSeerr_UsesTheStoredKeyWhenNoneIsGiven_ForTheStoredAddress()
     {
-        _store.Current.Returns(new PluginConfiguration { SeerrApiKey = "stored" });
+        _store.Current.Returns(new PluginConfiguration { SeerrUrl = "http://seerr:5055", SeerrApiKey = "stored" });
         _seerr.GetStatusAsync(Arg.Any<SeerrEndpoint>(), Arg.Any<CancellationToken>()).Returns(new SeerrStatus("3.5.1"));
 
         var result = (await Create().TestSeerr(new SeerrTestRequestDto("http://seerr:5055/", null), CancellationToken.None)).Value!;
@@ -78,6 +78,19 @@ public class AdminControllerTests
         Assert.Equal("3.5.1", result.Version);
         await _seerr.Received().GetUserByJellyfinIdAsync(
             Arg.Is<SeerrEndpoint>(e => e.ApiKey == "stored" && e.BaseUrl == new Uri("http://seerr:5055/")), Guid.Empty, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task TestSeerr_NeverSendsTheStoredKeyToANewAddress()
+    {
+        _store.Current.Returns(new PluginConfiguration { SeerrUrl = "http://seerr:5055", SeerrApiKey = "stored" });
+
+        var result = (await Create().TestSeerr(new SeerrTestRequestDto("http://typo-seerr:5055/", null), CancellationToken.None)).Value!;
+
+        Assert.False(result.Ok);
+        Assert.Contains("new address", result.Error, StringComparison.Ordinal);
+        await _seerr.DidNotReceiveWithAnyArgs().GetStatusAsync(default!, default);
+        await _seerr.DidNotReceiveWithAnyArgs().GetUserByJellyfinIdAsync(default!, default, default);
     }
 
     [Theory]

@@ -9,7 +9,14 @@ import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import type { ViewContext } from '../context';
 import { initials } from '../details/CastRow';
 import { goBack } from '../details/useItemActions';
-import { catalogHash, catalogImageUrl, setCatalogState, stateLabel, useCatalogState } from './catalog';
+import {
+  catalogHash,
+  catalogImageUrl,
+  forgetCatalogState,
+  setCatalogState,
+  stateLabel,
+  useCatalogState,
+} from './catalog';
 import { CatalogCard } from './CatalogCard';
 import { RequestDialog } from './RequestDialog';
 
@@ -37,7 +44,11 @@ export function TitleView({
     setTitle(null);
     setFailed(false);
     withTimeout(ctx.api.getCatalogTitle(mediaType, tmdbId), VIEW_TIMEOUT_MS)
-      .then((t) => !cancelled && setTitle(t))
+      .then((t) => {
+        if (cancelled) return;
+        forgetCatalogState(t.Key);
+        setTitle(t);
+      })
       .catch(() => !cancelled && setFailed(true))
       .finally(() => liftVeil());
     return () => {

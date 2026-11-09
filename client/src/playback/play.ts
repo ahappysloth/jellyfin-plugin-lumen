@@ -38,8 +38,11 @@ export async function playItem(
   itemId: string,
   startPositionTicks?: number,
 ): Promise<void> {
+  const userId = client.getCurrentUserId();
   const session = await findOwnSession(api, client);
   if (!session) throw new PlaybackError(strings.playbackFailed);
+  // Signed out (or switched user) while looking up the session: don't start anything in the new session.
+  if (!userId || client.getCurrentUserId() !== userId) throw new PlaybackError(strings.playbackFailed);
   await api.playNow(
     session.Id,
     [itemId],

@@ -22,6 +22,23 @@ All notable changes to Lumen are documented here. Versions follow SemVer; Jellyf
 - The bottom tab bar is used below 910px wide (phones, small tablets, narrow windows); the centred pill from 910px.
 
 ### Fixed
+- Security: the stored Seerr API key is only reused for the saved Seerr address (testing or saving a new address
+  needs its key typed again), and it's no longer readable through Jellyfin's own plugin-configuration endpoint.
+- Seerr calls use the endpoint the user was mapped against, so a settings change mid-request can't send one Seerr's
+  user id to another.
+- Seerr resilience: a late success can't close the circuit breaker early; after the pause one probe call decides;
+  cached catalog lists are dropped after a request; My Requests returns the titles it has instead of timing out.
+- TMDB image cache: interrupted downloads no longer leave temp files; the size cap is enforced on startup and after
+  large writes.
+- Favorite/watched state is shared by the details page, card menus and the player, sent in order per item, and
+  saved grids refresh after a change; a fresh title page replaces an old "Requested" state.
+- Library grids keep paging when the library changes mid-scroll; More info from a card menu keeps the grid position.
+- Sign-out mid-play can't start playback in the next user's session; per-user caches are cleared on sign-out; a
+  details link for another server is left to Jellyfin.
+- Phones with more than two libraries get a More tab; the hero's slide dots and pause button work by keyboard (and
+  pause shows on phones); drag-scroll and long-press can't get stuck; settings dropdowns respect disabled settings.
+- Admin page: edits can't be lost to an in-flight save; the sign-in look comes off even if lumen.js fails to load;
+  the loading veil isn't shown when Lumen is switched off; hero images are sized to the screen.
 - Route classes on `<html>` are now `lmn-route-*`, so a page's own classes (e.g. the Settings page's `.lmn-profile`)
   no longer also style the whole document.
 - A long server name truncates instead of running under the centred nav pill.

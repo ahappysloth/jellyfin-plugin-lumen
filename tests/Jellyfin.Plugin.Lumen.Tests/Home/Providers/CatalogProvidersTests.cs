@@ -15,6 +15,7 @@ namespace Jellyfin.Plugin.Lumen.Tests.Home.Providers;
 public class CatalogProvidersTests
 {
     private const int SeerrUserId = 7;
+    private static readonly SeerrEndpoint Endpoint = new(new Uri("http://seerr:5055/"), "k");
     private static readonly string[] Types =
     [
         SectionTypes.CatalogTrending, SectionTypes.CatalogPopularMovies, SectionTypes.CatalogPopularShows, SectionTypes.CatalogUpcoming, SectionTypes.MyRequests,
@@ -29,7 +30,7 @@ public class CatalogProvidersTests
     public CatalogProvidersTests()
     {
         _config.Current.Returns(new PluginConfiguration { RequestsEnabled = true, SeerrUrl = "http://seerr:5055", SeerrApiKey = "k" });
-        _users.GetAccessAsync(_user.Id, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, true, true, SeerrUserId));
+        _users.GetAccessAsync(_user.Id, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, true, true, SeerrUserId, Endpoint));
         _seerr.DiscoverAsync(default!, default, default, default).ReturnsForAnyArgs(Page());
     }
 

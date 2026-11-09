@@ -39,6 +39,12 @@ test('an admin connects Seerr from the dashboard; the key is never sent back', a
   const config = await api<Record<string, unknown>>('/Lumen/Admin/Config', { token: admin.token });
   expect(config.SeerrApiKey ?? null).toBeNull();
   expect(config.SeerrApiKeySet).toBe(true);
+  // Jellyfin's own plugin configuration endpoint returns the stored config object: the key must not be in it.
+  const raw = await api<Record<string, unknown>>('/Plugins/186f9cb8-ba8e-4555-a700-ffa619f48264/Configuration', {
+    token: admin.token,
+  });
+  expect(raw.SeerrApiKey ?? null).toBeNull();
+  expect(JSON.stringify(raw)).not.toContain('stub-key');
   await expect(page.getByLabel('Seerr API key')).toHaveAttribute('placeholder', 'Saved (leave blank to keep it)');
   await expect(page.getByText('Users without a Seerr account')).toBeVisible();
   await expect(page.locator('.lmn-admin__unmapped li', { hasText: 'kid' })).toBeVisible();

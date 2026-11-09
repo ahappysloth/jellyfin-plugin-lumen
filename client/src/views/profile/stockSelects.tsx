@@ -78,6 +78,8 @@ function StockSelect({ select }: { select: HTMLSelectElement }) {
     <Dropdown
       label={labelFor(select)}
       hideLabel
+      // A disabled <select> (or one in a disabled fieldset) can't be changed through Lumen either.
+      disabled={select.disabled || !!select.closest('fieldset:disabled')}
       value={select.value}
       options={options}
       onChange={(value) => {

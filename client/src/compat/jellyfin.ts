@@ -19,6 +19,8 @@ export interface JellyfinApiClient {
   getUrl(name: string, params?: Record<string, unknown>): string;
   ajax(request: AjaxRequest): Promise<unknown>;
   getPublicSystemInfo?(): Promise<{ Version?: string; ServerName?: string }>;
+  /** The connected server's id (jellyfin-web's ApiClient has it; absent in older or test clients). */
+  serverId?(): string | null;
 }
 
 export const SELECTORS = {

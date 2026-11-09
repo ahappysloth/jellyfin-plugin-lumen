@@ -23,6 +23,8 @@ export const strings = {
   loading: 'Loading…',
   home: 'Home',
   tabs: 'Tabs',
+  more: 'More',
+  moreLibraries: 'More libraries',
   me: 'Me',
   search: 'Search',
   profile: 'Settings and profile',

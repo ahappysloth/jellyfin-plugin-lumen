@@ -15,7 +15,7 @@ function Scroller({ onClick }: { onClick: () => void }) {
   );
 }
 
-const mouse = { pointerId: 1, pointerType: 'mouse', button: 0 };
+const mouse = { pointerId: 1, pointerType: 'mouse', button: 0, buttons: 1 };
 
 describe('useDragScroll', () => {
   it('scrolls with a mouse drag and swallows the click that ends it', () => {
@@ -32,6 +32,19 @@ describe('useDragScroll', () => {
     fireEvent.click(screen.getByRole('button'));
 
     expect(onClick).not.toHaveBeenCalled();
+    expect(scroller.classList.contains('is-dragging')).toBe(false);
+  });
+
+  it('forgets a press released outside the row', () => {
+    render(<Scroller onClick={vi.fn()} />);
+    const scroller = screen.getByTestId('scroller');
+    scroller.scrollLeft = 300;
+
+    fireEvent.pointerDown(scroller, { ...mouse, clientX: 500 });
+    fireEvent.pointerUp(window, { ...mouse, buttons: 0 });
+    fireEvent.pointerMove(scroller, { ...mouse, buttons: 0, clientX: 300 });
+
+    expect(scroller.scrollLeft).toBe(300);
     expect(scroller.classList.contains('is-dragging')).toBe(false);
   });
 

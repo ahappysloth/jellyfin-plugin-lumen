@@ -15,6 +15,8 @@ export interface BrowseState {
   /** Restored from a snapshot: the caller should scroll back to where the user was. */
   restoredScrollY: number | null;
   hasMore: boolean;
+  /** Server offset for the next page, for snapshots. */
+  offset: number;
   loadMore: () => void;
   retry: () => void;
 }
@@ -33,17 +35,21 @@ export function useBrowseItems(key: string, fetchPage: Fetch): BrowseState {
   const [error, setError] = useState(false);
   const [restoredScrollY, setRestoredScrollY] = useState<number | null>(initial?.scrollY ?? null);
   const generation = useRef(0);
-  const state = useRef({ items, total, loading });
-  state.current = { items, total, loading };
+  /** Where the next page starts on the server. Not items.length: de-duplication can make that stall. */
+  const offset = useRef(initial?.offset ?? initial?.items.length ?? 0);
+  const [done, setDone] = useState(
+    initial ? (initial.offset ?? initial.items.length) >= initial.total : false,
+  );
+  const state = useRef({ items, total, loading, done });
+  state.current = { items, total, loading, done };
   const fetchRef = useRef(fetchPage);
   fetchRef.current = fetchPage;
 
   const load = (reset: boolean): void => {
     const current = state.current;
-    if (!reset && (current.loading || (current.total !== null && current.items.length >= current.total)))
-      return;
+    if (!reset && (current.loading || current.done)) return;
     const gen = reset ? ++generation.current : generation.current;
-    const startIndex = reset ? 0 : current.items.length;
+    const startIndex = reset ? 0 : offset.current;
     setLoading(true);
     setError(false);
     state.current = { ...current, loading: true };
@@ -54,8 +60,12 @@ export function useBrowseItems(key: string, fetchPage: Fetch): BrowseState {
         // Drop repeats: the library can change between pages.
         const seen = new Set(base.map((i) => i.Id));
         const next = [...base, ...page.Items.filter((i) => !seen.has(i.Id))];
+        offset.current = startIndex + page.Items.length;
         setItems(next);
-        setTotal(page.Items.length < PAGE_SIZE ? next.length : (page.TotalRecordCount ?? next.length));
+        // The end: a short page, or the server's offset reaching its count (shown as "N titles").
+        const count = page.Items.length < PAGE_SIZE ? next.length : (page.TotalRecordCount ?? next.length);
+        setDone(page.Items.length < PAGE_SIZE || offset.current >= count);
+        setTotal(count);
         setLoading(false);
       })
       .catch(() => {
@@ -77,6 +87,8 @@ export function useBrowseItems(key: string, fetchPage: Fetch): BrowseState {
         generation.current++;
         setItems(snapshot.items);
         setTotal(snapshot.total);
+        offset.current = snapshot.offset ?? snapshot.items.length;
+        setDone(offset.current >= snapshot.total);
         setLoading(false);
         setError(false);
         setRestoredScrollY(snapshot.scrollY);
@@ -84,6 +96,8 @@ export function useBrowseItems(key: string, fetchPage: Fetch): BrowseState {
       }
       setItems([]);
       setTotal(null);
+      setDone(false);
+      offset.current = 0;
       setRestoredScrollY(null);
     }
     load(true);
@@ -95,7 +109,8 @@ export function useBrowseItems(key: string, fetchPage: Fetch): BrowseState {
     loading,
     error,
     restoredScrollY,
-    hasMore: total === null || items.length < total,
+    hasMore: !done,
+    offset: offset.current,
     loadMore: () => load(false),
     retry: () => load(state.current.items.length === 0),
   };

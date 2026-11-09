@@ -59,8 +59,12 @@ public sealed class IndexHtmlMiddleware
             return;
         }
 
-        var guard = assets.TryGet(HtmlInjector.GuardAsset, out var guardAsset) ? Encoding.UTF8.GetString(guardAsset.Content) : null;
         var config = context.RequestServices.GetService(typeof(ILumenConfigStore)) as ILumenConfigStore;
+
+        // With Lumen switched off nothing will lift the loading veil quickly, so don't put it up.
+        var guard = config?.Current.Enabled != false && assets.TryGet(HtmlInjector.GuardAsset, out var guardAsset)
+            ? Encoding.UTF8.GetString(guardAsset.Content)
+            : null;
         var skin = config?.Current is { Enabled: true, StyleStockPages: true };
         var appIdentity = config?.Current is { Enabled: true };
         var output = Transform(buffer.ToArray(), assets.BuildHash, guard, skin, appIdentity);

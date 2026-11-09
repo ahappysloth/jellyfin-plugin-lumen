@@ -48,8 +48,10 @@ public sealed class LumenConfigStore : ILumenConfigStore
 
     public ConfigSaveResult Save(PluginConfiguration configuration)
     {
-        // The admin page never sees the Seerr key, so an empty key on save means "keep the stored one".
-        if (string.IsNullOrEmpty(configuration.SeerrApiKey))
+        // The admin page never sees the Seerr key, so an empty key on save means "keep the stored one", but only for
+        // the same Seerr: a new address needs its key typed again, so the stored key is never sent somewhere new.
+        if (string.IsNullOrEmpty(configuration.SeerrApiKey)
+            && ConfigValidator.SameSeerr(configuration.SeerrUrl, Current.SeerrUrl))
         {
             configuration.SeerrApiKey = Current.SeerrApiKey;
         }

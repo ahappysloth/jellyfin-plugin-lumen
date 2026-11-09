@@ -66,15 +66,21 @@ public sealed class AdminController : ControllerBase
     [HttpPost("Seerr/Test")]
     public async Task<ActionResult<SeerrTestResultDto>> TestSeerr([FromBody] SeerrTestRequestDto body, CancellationToken cancellationToken)
     {
-        var key = string.IsNullOrEmpty(body.ApiKey) ? _store.Current.SeerrApiKey : body.ApiKey;
         if (!ConfigValidator.IsHttpUrl(body.Url))
         {
             return new SeerrTestResultDto(false, null, "Enter Seerr's address, like http://seerr:5055.");
         }
 
+        // The stored key is only reused for the stored address: testing a new (maybe mistyped) address must never send
+        // the saved key to it.
+        var reuse = string.IsNullOrEmpty(body.ApiKey) && ConfigValidator.SameSeerr(body.Url, _store.Current.SeerrUrl);
+        var key = reuse ? _store.Current.SeerrApiKey : body.ApiKey;
         if (string.IsNullOrWhiteSpace(key))
         {
-            return new SeerrTestResultDto(false, null, "Enter Seerr's API key.");
+            return new SeerrTestResultDto(
+                false,
+                null,
+                string.IsNullOrEmpty(_store.Current.SeerrApiKey) ? "Enter Seerr's API key." : "Enter the API key for this new address.");
         }
 
         var endpoint = new SeerrEndpoint(new Uri(body.Url!.TrimEnd('/') + "/"), key);
