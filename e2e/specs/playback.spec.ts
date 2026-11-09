@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { ADMIN, loadState } from '../support/api';
 import { login } from '../support/login';
+import { expectPresentButHidden } from '../support/stock';
 
 test("Play hands off to jellyfin-web's own player", async ({ page }) => {
   const { items } = loadState();
@@ -22,7 +23,7 @@ test("Lumen's player controls drive jellyfin-web's player, including subtitle tr
 
   // Lumen's controls replace jellyfin-web's (which stay in the DOM, hidden).
   await expect(page.getByRole('heading', { name: 'Lumen Alpha' })).toBeVisible();
-  await expect(page.locator('.videoOsdBottom')).toBeHidden();
+  await expectPresentButHidden(page.locator('.videoOsdBottom'));
 
   await page.getByRole('button', { name: 'Pause' }).click();
   await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();

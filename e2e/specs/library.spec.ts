@@ -1,13 +1,14 @@
 import { expect, test } from '@playwright/test';
 import { ADMIN, api, loadState } from '../support/api';
 import { login } from '../support/login';
+import { expectPresentButHidden } from '../support/stock';
 
 test('the Movies page lists the library as a poster grid with filters and sort', async ({ page }) => {
   await login(page, ADMIN);
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Movies' }).click();
 
   await expect(page.getByRole('heading', { name: 'Movies', level: 1 })).toBeVisible();
-  await expect(page.locator('#reactRoot .skinBody').first()).toBeHidden();
+  await expectPresentButHidden(page.locator('#reactRoot .skinBody'));
   const grid = page.getByRole('list', { name: 'Movies' });
   await expect(grid.getByRole('button', { name: 'Lumen Alpha' })).toBeVisible();
   await expect(page.getByText(/\d+ titles/)).toBeVisible();

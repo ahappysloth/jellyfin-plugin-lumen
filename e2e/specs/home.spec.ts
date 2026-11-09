@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { ADMIN, api, loadState } from '../support/api';
 import { login } from '../support/login';
+import { expectPresentButHidden } from '../support/stock';
 
 test('Lumen replaces the home screen with a hero and rows', async ({ page }) => {
   await login(page, ADMIN);
@@ -11,7 +12,7 @@ test('Lumen replaces the home screen with a hero and rows', async ({ page }) => 
   await expect(page.locator('#lmn-root .lmn-hero__slide.is-current .lmn-button--primary')).toBeInViewport();
   await expect(page.getByRole('region', { name: 'Recently Added in Movies' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Recently Added in Shows' })).toBeVisible();
-  await expect(page.locator('#reactRoot .skinBody').first()).toBeHidden();
+  await expectPresentButHidden(page.locator('#reactRoot .skinBody'));
 });
 
 test('a cold load with a remembered sign-in still shows the Lumen home', async ({ page }) => {
