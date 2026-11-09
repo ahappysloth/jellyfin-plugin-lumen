@@ -365,3 +365,78 @@ html.lmn-signin #divUsers .cardText {
   color: var(--lmn-text);
   font-family: var(--lmn-font);
 }
+
+/* ---- Selects: Lumen's dropdown over the stock <select> (views/profile/stockSelects.tsx) ----------------------- */
+html.lmn-skin-settings select.lmn-hidden-select,
+html.lmn-skin-settings .selectContainer.lmn-has-dropdown .selectArrowContainer {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden;
+  opacity: 0;
+  clip-path: inset(50%);
+  pointer-events: none;
+}
+html.lmn-skin-settings .lmn-stock-select .lmn-dropdown {
+  display: flex;
+  width: 100%;
+}
+html.lmn-skin-settings .lmn-stock-select .lmn-dropdown__button {
+  height: 46px;
+  padding: 0 14px;
+  border-color: var(--lmn-line-strong);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* MUI selects (Display page): their pop-up menu dressed like Lumen's dropdown list. */
+html.lmn-skin-settings .MuiPopover-paper,
+html.lmn-skin-settings .MuiMenu-paper {
+  margin-top: 6px;
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 14px !important;
+  background: rgba(28, 28, 28, 0.96) !important;
+  background-image: none !important;
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.8) !important;
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+html.lmn-skin-settings .MuiMenu-list {
+  padding: 6px !important;
+}
+html.lmn-skin-settings .MuiMenuItem-root {
+  min-height: 36px;
+  margin: 0;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: var(--lmn-text-2);
+  font-family: var(--lmn-font);
+  font-size: 13px;
+  font-weight: 500;
+}
+html.lmn-skin-settings .MuiMenuItem-root:hover,
+html.lmn-skin-settings .MuiMenuItem-root.Mui-focusVisible {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #fff;
+}
+html.lmn-skin-settings .MuiMenuItem-root.Mui-selected {
+  background: transparent !important;
+  color: #fff;
+  font-weight: 600;
+}
+html.lmn-skin-settings .MuiMenuItem-root.Mui-selected::after {
+  content: '';
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  background: var(--lmn-accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+html.lmn-skin-settings .MuiSelect-icon {
+  color: var(--lmn-text-2);
+}

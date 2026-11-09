@@ -9,6 +9,11 @@ All notable changes to Lumen are documented here. Versions follow SemVer; Jellyf
   bar reads status on the left and Reset to defaults then Save on the right; browsers and password managers no longer
   fill the Seerr address and API key.
 - The plugin catalog image drops the glow behind the mark.
+- Jellyfin's settings pages (Playback, Subtitles, Home, Quick Connect, …) use Lumen's dropdown over their own selects,
+  which stay in charge of the value; the Display page's menus are restyled to match.
+
+### Fixed
+- A dropdown near the left edge (Genre on phones) no longer opens off screen; lists open toward the side with room.
 
 ## [0.2.0] - 2026-11-08
 

@@ -1,6 +1,9 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from './icons';
 
+/** Space kept between an open list and the edge of the screen. */
+const VIEWPORT_MARGIN = 8;
+
 export interface DropdownOption<T extends string> {
   value: T;
   label: string;
@@ -31,6 +34,8 @@ export function Dropdown<T extends string>({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const [placement, setPlacement] = useState<'down' | 'up'>('down');
+  /** Which edge of the button the list lines up with: whichever keeps it on screen. */
+  const [align, setAlign] = useState<'start' | 'end'>('start');
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLUListElement>(null);
@@ -62,6 +67,12 @@ export function Dropdown<T extends string>({
     const rect = button.current.getBoundingClientRect();
     const below = window.innerHeight - rect.bottom;
     setPlacement(below < 280 && rect.top > below ? 'up' : 'down');
+    const width = list.current?.offsetWidth ?? 0;
+    setAlign(
+      rect.left + width > window.innerWidth - VIEWPORT_MARGIN && rect.right - width >= VIEWPORT_MARGIN
+        ? 'end'
+        : 'start',
+    );
     list.current?.focus({ preventScroll: true });
   }, [open]);
   useEffect(() => {
@@ -144,7 +155,7 @@ export function Dropdown<T extends string>({
         <ul
           ref={list}
           id={`${id}-list`}
-          class={`lmn-dropdown__list lmn-dropdown__list--${placement}`}
+          class={`lmn-dropdown__list lmn-dropdown__list--${placement} lmn-dropdown__list--${align}`}
           role="listbox"
           aria-label={label}
           tabIndex={-1}

@@ -502,10 +502,6 @@
   height: 40px;
   font-weight: 500;
 }
-.lmn-admin .lmn-dropdown__list {
-  left: 0;
-  right: auto;
-}
 
 /* What a home section shows (from the server), under its name. */
 .lmn-admin .lmna-section__about,
