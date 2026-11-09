@@ -31,7 +31,7 @@
   cursor: pointer;
 }
 .lmn-menu__item.is-active {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--lmn-fill-3);
   color: #fff;
 }
 .lmn-menu__item:focus {

@@ -108,7 +108,14 @@ export function RequestDialog({ title, ctx, onClose, onRequested }: Props) {
         aria-labelledby={headingId}
         onKeyDown={onKeyDown}
       >
-        <button type="button" class="lmn-dialog__close" aria-label={strings.close} onClick={onClose}>
+        {/* Like Escape and the backdrop, closing waits for an in-flight request to settle. */}
+        <button
+          type="button"
+          class="lmn-dialog__close"
+          aria-label={strings.close}
+          disabled={phase.kind === 'sending'}
+          onClick={onClose}
+        >
           <Icon name="close" size={18} />
         </button>
         <h2 id={headingId} class="lmn-dialog__title">
@@ -177,7 +184,12 @@ export function RequestDialog({ title, ctx, onClose, onRequested }: Props) {
               </div>
             )}
             <div class="lmn-dialog__actions">
-              <button type="button" class="lmn-button lmn-button--secondary" onClick={onClose}>
+              <button
+                type="button"
+                class="lmn-button lmn-button--secondary"
+                disabled={phase.kind === 'sending'}
+                onClick={onClose}
+              >
                 {strings.cancel}
               </button>
               <button

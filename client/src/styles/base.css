@@ -9,8 +9,16 @@
   --lmn-text-2: #b3b3b3;
   --lmn-text-3: #8c8c8c;
   --lmn-text-4: #4d4d4d;
+  /* Translucent white for text and marks that sit on artwork or tinted surfaces. */
+  --lmn-text-dim: rgba(255, 255, 255, 0.55);
+  --lmn-text-faint: rgba(255, 255, 255, 0.35);
+  --lmn-line-subtle: rgba(255, 255, 255, 0.06);
   --lmn-line: rgba(255, 255, 255, 0.08);
   --lmn-line-strong: rgba(255, 255, 255, 0.16);
+  /* Light washes over the page background: rows and hovers, inputs and icon tiles, buttons and highlights. */
+  --lmn-fill: rgba(255, 255, 255, 0.04);
+  --lmn-fill-2: rgba(255, 255, 255, 0.06);
+  --lmn-fill-3: rgba(255, 255, 255, 0.08);
   --lmn-focus: #fff;
   --lmn-radius: 10px;
   --lmn-gutter: clamp(16px, 6.25vw, 96px);

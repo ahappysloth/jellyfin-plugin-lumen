@@ -89,6 +89,22 @@ describe('TitleView', () => {
     expect(screen.queryByRole('button', { name: 'Request' })).toBeNull();
   });
 
+  it("can't be closed while the request is sending", async () => {
+    let finish: (value: unknown) => void = () => {};
+    setup(movie, () => new Promise((resolve) => (finish = resolve)));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Request' }));
+    const dialog = screen.getByRole('dialog', { name: 'Request The Matrix' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Request' }));
+
+    expect(await within(dialog).findByRole('button', { name: 'Requesting…' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Close' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+
+    finish({ State: 'Requested', NeedsApproval: false });
+    expect(await within(dialog).findByRole('button', { name: 'Close' })).toBeEnabled();
+  });
+
   it('requests only the chosen seasons of a show, with available and requested ones locked', async () => {
     const { client } = setup(show, () => ({ State: 'PartlyAvailable', NeedsApproval: false }));
 
