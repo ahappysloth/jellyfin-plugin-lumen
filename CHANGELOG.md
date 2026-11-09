@@ -2,7 +2,7 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
-## [Unreleased]
+## [0.2.0] - 2026-11-08
 
 ### Added
 - Movies and Shows library pages: a poster grid that loads as you scroll, with All / Unwatched / Watched, genre and
