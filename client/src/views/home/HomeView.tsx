@@ -8,6 +8,7 @@ import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { cardMenuHandler, infoHash } from '../cardMenu';
+import { catalogHash } from '../catalog/catalog';
 import { Hero } from './Hero';
 import {
   clearCachedHome,
@@ -104,7 +105,14 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
       )}
       {home.Rows.map((row) => (
         <ErrorBoundary key={row.Id} fallback={null}>
-          <Row row={row} client={ctx.client} badges={home.Badges} onSelect={select} onMenu={onMenu} />
+          <Row
+            row={row}
+            client={ctx.client}
+            badges={home.Badges}
+            onSelect={select}
+            onMenu={onMenu}
+            onSelectCatalog={(item) => ctx.navigate(catalogHash(item))}
+          />
         </ErrorBoundary>
       ))}
     </div>

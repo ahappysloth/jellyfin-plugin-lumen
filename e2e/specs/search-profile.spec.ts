@@ -62,3 +62,18 @@ test('settings pages keep working inside Lumen’s frame', async ({ page }) => {
   await expect(page).toHaveURL(/#\/mypreferencesmenu$/);
   await expect(page.locator('html')).not.toHaveClass(/lmn-skin-settings/);
 });
+
+test('installing to a home screen uses Lumen’s icon and the server’s name', async ({ page }) => {
+  await page.goto('/web/#/login');
+
+  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', /lumen-icon-180\.png/);
+  const manifestUrl = await page.locator('link[rel="manifest"]').evaluate((l) => (l as HTMLLinkElement).href);
+  const manifest = (await (await page.request.get(manifestUrl)).json()) as {
+    name: string;
+    icons: { src: string }[];
+  };
+  expect(manifest.name).toBe((await (await page.request.get('/System/Info/Public')).json()).ServerName);
+  for (const icon of manifest.icons) {
+    expect((await page.request.get(new URL(icon.src, manifestUrl).href)).headers()['content-type']).toBe('image/png');
+  }
+});

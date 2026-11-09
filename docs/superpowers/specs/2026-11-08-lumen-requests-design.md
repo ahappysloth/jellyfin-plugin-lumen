@@ -176,8 +176,9 @@ Section types from §5.1 appear in the existing section editor automatically (da
 2. ✅ Title page + request dialog (reachable from search first).
 3. ✅ Search takeover (Lumen's search page shipped first for the library; catalog results added with step 2). TV
    requests always name their seasons rather than sending "all", so seasons Seerr adds later aren't requested.
-4. Discover and My Requests home rows with mixed cards. Still to do with it: the shared 10-minute discover cache and
-   the circuit breaker (§7); today every catalog call goes straight to Seerr.
+4. ✅ Discover and My Requests home rows with mixed cards, the shared 10-minute discover cache, and the circuit
+   breaker (§7). Catalog sections get a 6 s provider timeout (longer than Seerr's 5 s) so a hung Seerr trips the
+   breaker instead of being cancelled first.
 
 ## 10. Decisions (owner, 2026-11-08)
 

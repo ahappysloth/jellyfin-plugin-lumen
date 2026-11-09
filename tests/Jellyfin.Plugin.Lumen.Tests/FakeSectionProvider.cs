@@ -18,6 +18,10 @@ internal sealed class FakeSectionProvider : IHomeSectionProvider
 
     public IReadOnlyList<SectionParameter> Parameters { get; }
 
+    public TimeSpan? TimeoutOverride { get; set; }
+
+    public TimeSpan? Timeout => TimeoutOverride;
+
     public Func<SectionDefinition, IReadOnlyList<string>> ValidateRule { get; set; } = _ => [];
 
     public Func<HomeContext, SectionDefinition, CancellationToken, Task<IReadOnlyList<HomeRow>>> Rows { get; set; } =

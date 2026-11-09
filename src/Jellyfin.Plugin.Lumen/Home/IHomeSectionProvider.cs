@@ -12,6 +12,12 @@ public interface IHomeSectionProvider
     /// <summary>Gets the parameters; these drive the admin form and generic validation.</summary>
     IReadOnlyList<SectionParameter> Parameters { get; }
 
+    /// <summary>
+    /// Gets how long this provider may run before its section is dropped, or null for
+    /// <see cref="HomeService.ProviderTimeout"/>.
+    /// </summary>
+    TimeSpan? Timeout => null;
+
     /// <summary>Provider-specific rules beyond <see cref="Parameters"/>; returns human-readable errors.</summary>
     IReadOnlyList<string> Validate(SectionDefinition definition);
 

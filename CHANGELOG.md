@@ -25,11 +25,19 @@ All notable changes to Lumen are documented here. Versions follow SemVer; Jellyf
   Connect, Display, Home, Playback, Subtitles, Controls) wear Lumen's look; the settings pages get Lumen's nav and a
   back link to the settings menu. CSS only: the forms stay Jellyfin's. Admin switch: "Restyle Jellyfin's sign-in and
   settings pages".
+- Catalog home rows (Seerr): My Requests (in the defaults for new installs), and opt-in Trending, Popular Movies,
+  Popular Shows and Coming Soon. They mix titles the server has (normal cards) with request cards. Seerr's discover
+  lists are cached server-wide for 10 minutes, and a circuit breaker hides request features for a minute after three
+  Seerr failures in a row, so home stays fast when Seerr is down.
+- Phones: a bottom tab bar (Home, up to two libraries, Favorites, Me) with search as its own button at the top.
+- Home rows scroll by click-and-drag with a mouse; their arrows are glass buttons.
+- "Add to Home Screen" installs with Lumen's icon and the server's name (Lumen's web app manifest and touch icon).
 - Settings page (the profile button): your avatar and name, grouped links to Jellyfin's settings pages, admin links for
   administrators, and Sign out.
 
 ### Changed
 - Sign out spans the full width on phones.
+- A card's title turns the accent colour on hover.
 - The nav pill is centred at the top of the page on wider screens.
 - The hero keeps rotating while hovered or focused by the page; only keyboard navigation inside it pauses it.
 - Popular Genres keeps the most popular genres but lists them alphabetically.

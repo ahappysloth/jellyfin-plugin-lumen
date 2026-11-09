@@ -86,22 +86,26 @@ public sealed class HomeService : IHomeService
         var now = _time.GetUtcNow();
         var context = new HomeContext(user, now, () => _history.GetAsync(user, now, cancellationToken));
 
-        var heroTask = RunGuardedAsync("hero", ct => _hero.GetHeroAsync(context, config, ct), (IReadOnlyList<HeroItem>)[], build, cancellationToken);
+        var heroTask = RunGuardedAsync("hero", ct => _hero.GetHeroAsync(context, config, ct), (IReadOnlyList<HeroItem>)[], Timeout, build, cancellationToken);
         var sectionTasks = config.Sections.Where(s => s.Enabled).Select(s => RunSectionAsync(context, s, build, cancellationToken)).ToList();
 
         var sections = await Task.WhenAll(sectionTasks);
         var hero = await heroTask;
 
-        var rows = sections.SelectMany(r => r).Where(r => r.Items.Count > 0).ToList();
-        var rowDtos = rows.Select(r => new HomeRowDto(r.Id, r.Type, r.Title, MapRow(r, user))).ToList();
+        var rows = sections.SelectMany(r => r).Where(r => r.HasContent).ToList();
+        var rowDtos = rows.Select(r => new HomeRowDto(r.Id, r.Type, r.Title, MapRow(r, user)) { Entries = MapEntries(r, user) }).ToList();
         var heroDtos = hero.Select(h => new HeroItemDto(_mapper.MapHero(h.Item, user), h.TrailerItemId)).ToList();
 
         // Genre tiles are not titles, so they never get a badge.
-        var badged = hero.Select(h => h.Item).Concat(rows.Where(r => r.Type != SectionTypes.Genres).SelectMany(r => r.Items)).ToList();
+        var badged = hero.Select(h => h.Item)
+            .Concat(rows.Where(r => r.Type != SectionTypes.Genres).SelectMany(r => r.Items))
+            .Concat(rows.SelectMany(r => r.Entries ?? []).Select(e => e.Item).OfType<BaseItem>())
+            .ToList();
         var badges = await RunGuardedAsync(
             "badges",
             _ => Task.FromResult(_badges.GetBadges(context, badged)),
             (IReadOnlyDictionary<string, string>)new Dictionary<string, string>(),
+            Timeout,
             build,
             cancellationToken);
 
@@ -119,6 +123,36 @@ public sealed class HomeService : IHomeService
         return cards;
     }
 
+    /// <summary>A catalog row's entries in order, their library items mapped in one batch; null for other rows.</summary>
+    private List<HomeRowEntryDto>? MapEntries(HomeRow row, User user)
+    {
+        if (row.Entries is null)
+        {
+            return null;
+        }
+
+        var items = row.Entries.Select(e => e.Item).OfType<BaseItem>().ToList();
+        IReadOnlyList<BaseItemDto> mapped = items.Count == 0 ? [] : _mapper.MapCards(items, user);
+        using var cards = mapped.GetEnumerator();
+        var entries = new List<HomeRowEntryDto>(row.Entries.Count);
+        foreach (var entry in row.Entries)
+        {
+            if (entry.Item is not null)
+            {
+                if (cards.MoveNext())
+                {
+                    entries.Add(new HomeRowEntryDto(cards.Current, null));
+                }
+            }
+            else if (entry.Catalog is not null)
+            {
+                entries.Add(new HomeRowEntryDto(null, entry.Catalog));
+            }
+        }
+
+        return entries;
+    }
+
     private Task<IReadOnlyList<HomeRow>> RunSectionAsync(HomeContext context, SectionDefinition section, BuildState build, CancellationToken cancellationToken)
     {
         if (!_providers.TryGetValue(section.Type, out var provider))
@@ -134,22 +168,22 @@ public sealed class HomeService : IHomeService
             return Task.FromResult<IReadOnlyList<HomeRow>>([]);
         }
 
-        return RunGuardedAsync($"section {section.Id} ({section.Type})", ct => provider.GetRowsAsync(context, section, ct), (IReadOnlyList<HomeRow>)[], build, cancellationToken);
+        return RunGuardedAsync($"section {section.Id} ({section.Type})", ct => provider.GetRowsAsync(context, section, ct), (IReadOnlyList<HomeRow>)[], provider.Timeout ?? Timeout, build, cancellationToken);
     }
 
-    private async Task<T> RunGuardedAsync<T>(string label, Func<CancellationToken, Task<T>> work, T fallback, BuildState build, CancellationToken cancellationToken)
+    private async Task<T> RunGuardedAsync<T>(string label, Func<CancellationToken, Task<T>> work, T fallback, TimeSpan timeout, BuildState build, CancellationToken cancellationToken)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
         {
             // Task.Run: providers make synchronous library calls; this lets them run in parallel and be abandoned on timeout.
-            return await Task.Run(() => work(linked.Token), linked.Token).WaitAsync(Timeout, _time, cancellationToken);
+            return await Task.Run(() => work(linked.Token), linked.Token).WaitAsync(timeout, _time, cancellationToken);
         }
         catch (TimeoutException)
         {
             build.MarkDegraded();
             await linked.CancelAsync();
-            _logger.LogWarning("Lumen {Label} timed out after {Timeout}", label, Timeout);
+            _logger.LogWarning("Lumen {Label} timed out after {Timeout}", label, timeout);
             return fallback;
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)

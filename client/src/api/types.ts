@@ -71,6 +71,16 @@ export interface HomeRow {
   Type: string;
   Title: string;
   Items: BaseItem[];
+  /**
+   * Catalog rows (Trending, My Requests, …; requests spec §3): one ordered list mixing library titles (Item) and
+   * titles the server doesn't have (Catalog). Their Items is empty; other rows leave this out.
+   */
+  Entries?: HomeRowEntry[] | null;
+}
+
+export interface HomeRowEntry {
+  Item?: BaseItem | null;
+  Catalog?: CatalogItem | null;
 }
 
 export interface HeroItem {

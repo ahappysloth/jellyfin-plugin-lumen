@@ -43,6 +43,12 @@ async function loadNavData(ctx: ViewContext): Promise<NavData> {
 export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavActive }) {
   const [data, setData] = useState<NavData | null>(() => cache.get(ctx.userId) ?? null);
 
+  // While the nav shows, phones get the tab bar: lumen.css pads pages and lifts jellyfin-web's now-playing bar.
+  useEffect(() => {
+    document.documentElement.classList.add('lmn-has-tabbar');
+    return () => document.documentElement.classList.remove('lmn-has-tabbar');
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     loadNavData(ctx)
@@ -98,7 +104,56 @@ export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavAc
           <Icon name="user" size={18} />
         </a>
       </nav>
+      {/* Phones: search sits alone at the top right; the destinations move to the tab bar below. */}
+      <a
+        class={`lmn-nav__search${active === 'search' ? ' is-active' : ''}`}
+        href={SEARCH_HASH}
+        aria-label={strings.search}
+        aria-current={active === 'search' ? 'page' : undefined}
+      >
+        <Icon name="search" size={20} />
+      </a>
+      <nav class="lmn-tabbar" aria-label={strings.tabs}>
+        <Tab href={HOME_HASH} icon="home" label={strings.home} current={active === 'home'} />
+        {data?.libraries.slice(0, MAX_TAB_LIBRARIES).map((view) => (
+          <Tab
+            key={view.Id}
+            href={libraryHash(view)}
+            icon={LIBRARY_ICONS[view.CollectionType ?? ''] ?? 'folder'}
+            label={view.Name}
+            current={active === view.Id}
+          />
+        ))}
+        <Tab href={FAVORITES_HASH} icon="heart" label={strings.favorites} current={active === 'favorites'} />
+        <Tab href={PREFERENCES_HASH} icon="user" label={strings.me} current={active === 'profile'} />
+      </nav>
     </header>
+  );
+}
+
+/** Home, up to two libraries, Favorites and Me: five tabs at most fit a phone. */
+const MAX_TAB_LIBRARIES = 2;
+
+function Tab({
+  href,
+  icon,
+  label,
+  current,
+}: {
+  href: string;
+  icon: IconName;
+  label: string;
+  current: boolean;
+}) {
+  return (
+    <a
+      class={`lmn-tab${current ? ' is-active' : ''}`}
+      href={href}
+      aria-current={current ? 'page' : undefined}
+    >
+      <Icon name={icon} size={22} />
+      <span class="lmn-tab__label">{label}</span>
+    </a>
   );
 }
 

@@ -42,7 +42,11 @@ public class ServiceRegistratorTests
         Assert.NotNull(provider.GetRequiredService<CatalogMapper>());
         Assert.Contains(provider.GetServices<IStartupFilter>(), f => f is LumenStartupFilter);
         Assert.Equal(
-            [SectionTypes.BecauseYouWatched, SectionTypes.ContinueWatching, SectionTypes.Curated, SectionTypes.Genre, SectionTypes.Genres, SectionTypes.NewForYou, SectionTypes.NextUp, SectionTypes.RecentlyAdded],
-            provider.GetServices<IHomeSectionProvider>().Select(p => p.Type).Order());
+            [
+                SectionTypes.BecauseYouWatched, SectionTypes.CatalogPopularMovies, SectionTypes.CatalogPopularShows, SectionTypes.CatalogTrending,
+                SectionTypes.CatalogUpcoming, SectionTypes.ContinueWatching, SectionTypes.Curated, SectionTypes.Genre, SectionTypes.Genres,
+                SectionTypes.MyRequests, SectionTypes.NewForYou, SectionTypes.NextUp, SectionTypes.RecentlyAdded,
+            ],
+            provider.GetServices<IHomeSectionProvider>().Select(p => p.Type).Order(StringComparer.Ordinal));
     }
 }

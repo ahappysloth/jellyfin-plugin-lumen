@@ -40,6 +40,22 @@ public class HtmlInjectorTests
     }
 
     [Fact]
+    public void InstallsAsLumen_SwappingManifestTouchIconAndThemeColor()
+    {
+        const string page = "<html><head><meta id=\"themeColor\" name=\"theme-color\" content=\"#202020\">"
+            + "<link rel=\"manifest\" href=\"manifest.json\"><link rel=\"apple-touch-icon\" sizes=\"180x180\" href=\"touchicon.png\">"
+            + "</head><body></body></html>";
+
+        var result = HtmlInjector.Inject(page, "h", installAsLumen: true);
+
+        Assert.Contains("<link rel=\"manifest\" href=\"../Lumen/Manifest\">", result, StringComparison.Ordinal);
+        Assert.DoesNotContain("touchicon.png", result, StringComparison.Ordinal);
+        Assert.Contains("href=\"../Lumen/Assets/lumen-icon-180.png?v=h\"", result, StringComparison.Ordinal);
+        Assert.Contains("content=\"#0f0f0f\"", result, StringComparison.Ordinal);
+        Assert.Contains("manifest.json", HtmlInjector.Inject(page, "h"), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void OmitsTheGuard_WhenNoneIsGiven()
     {
         var result = HtmlInjector.Inject(Page, "h");

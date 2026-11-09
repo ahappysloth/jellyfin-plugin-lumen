@@ -72,6 +72,15 @@ public class SeerrUserMapTests
     }
 
     [Fact]
+    public async Task OpenBreaker_MeansNoAccess()
+    {
+        _seerr.GetUserByJellyfinIdAsync(Arg.Any<SeerrEndpoint>(), _user, Arg.Any<CancellationToken>())
+            .Throws(new SeerrException("Seerr is temporarily unavailable.") { IsCircuitOpen = true });
+
+        Assert.Equal(RequestAccess.None, await Map().GetAccessAsync(_user, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task ChangingSeerrSettings_BypassesTheCache()
     {
         _seerr.GetUserByJellyfinIdAsync(Arg.Any<SeerrEndpoint>(), _user, Arg.Any<CancellationToken>()).Returns(new SeerrUser(4, 32));

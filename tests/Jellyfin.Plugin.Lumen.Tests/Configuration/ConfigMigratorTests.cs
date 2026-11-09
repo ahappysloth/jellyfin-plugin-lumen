@@ -19,7 +19,7 @@ public class ConfigMigratorTests
         Assert.True(changed);
         Assert.Equal(PluginConfiguration.CurrentSchemaVersion, config.SchemaVersion);
         Assert.Equal(
-            [SectionTypes.ContinueWatching, SectionTypes.NextUp, SectionTypes.BecauseYouWatched, SectionTypes.NewForYou,
+            [SectionTypes.MyRequests, SectionTypes.ContinueWatching, SectionTypes.NextUp, SectionTypes.BecauseYouWatched, SectionTypes.NewForYou,
              SectionTypes.RecentlyAdded, SectionTypes.RecentlyAdded, SectionTypes.Genre, SectionTypes.Genres],
             config.Sections.Select(s => s.Type));
         var recent = config.Sections.Where(s => s.Type == SectionTypes.RecentlyAdded).ToList();

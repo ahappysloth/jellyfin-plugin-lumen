@@ -1,7 +1,9 @@
+using System.Text.RegularExpressions;
+
 namespace Jellyfin.Plugin.Lumen.Injection;
 
 /// <summary>Adds Lumen's stylesheet and script to jellyfin-web's index.html. Pure and idempotent.</summary>
-public static class HtmlInjector
+public static partial class HtmlInjector
 {
     public const string Marker = "<!-- lumen:injected -->";
 
@@ -22,7 +24,10 @@ public static class HtmlInjector
     /// Marks the page (<c>data-lmn-skin</c> on &lt;html&gt;) so Lumen restyles the sign-in page, which loads before
     /// anyone is signed in and so can't read Lumen's per-user client config.
     /// </param>
-    public static string Inject(string html, string buildHash, string? guardScript = null, bool styleStockPages = false)
+    /// <param name="installAsLumen">
+    /// Points the web app manifest, Apple touch icon and theme colour at Lumen's, so a home-screen install gets the J.
+    /// </param>
+    public static string Inject(string html, string buildHash, string? guardScript = null, bool styleStockPages = false, bool installAsLumen = false)
     {
         if (html.Contains(Marker, StringComparison.Ordinal))
         {
@@ -44,6 +49,27 @@ public static class HtmlInjector
         var tags = $"{Marker}{guard}<link rel=\"stylesheet\" href=\"{AssetBase}lumen.css?v={version}\">"
             + $"<script defer src=\"{AssetBase}lumen.js?v={version}\"></script>";
 
-        return string.Concat(html.AsSpan(0, headClose), tags, html.AsSpan(headClose));
+        var page = string.Concat(html.AsSpan(0, headClose), tags, html.AsSpan(headClose));
+        return installAsLumen ? UseLumenAppIdentity(page, version) : page;
     }
+
+    /// <summary>Swaps jellyfin-web's manifest, touch icons and theme colour for Lumen's (only those tags).</summary>
+    internal static string UseLumenAppIdentity(string html, string version)
+    {
+        html = ManifestLink().Replace(html, "<link rel=\"manifest\" href=\"../Lumen/Manifest\">", 1);
+        html = TouchIconLink().Replace(html, string.Empty);
+        html = ThemeColorMeta().Replace(html, $"<meta id=\"themeColor\" name=\"theme-color\" content=\"{Api.LumenController.PwaColor}\">", 1);
+        var touchIcon = $"<link rel=\"apple-touch-icon\" sizes=\"180x180\" href=\"{AssetBase}lumen-icon-180.png?v={version}\">";
+        var marker = html.IndexOf(Marker, StringComparison.Ordinal);
+        return marker < 0 ? html : html.Insert(marker + Marker.Length, touchIcon);
+    }
+
+    [GeneratedRegex("<link\\s+rel=\"manifest\"[^>]*>", RegexOptions.IgnoreCase)]
+    private static partial Regex ManifestLink();
+
+    [GeneratedRegex("<link\\s+rel=\"apple-touch-icon\"[^>]*>", RegexOptions.IgnoreCase)]
+    private static partial Regex TouchIconLink();
+
+    [GeneratedRegex("<meta\\s+id=\"themeColor\"[^>]*>", RegexOptions.IgnoreCase)]
+    private static partial Regex ThemeColorMeta();
 }

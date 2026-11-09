@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/preact';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { makeContext } from '../../../test/viewContext';
@@ -110,6 +110,42 @@ describe('HomeView', () => {
         'Sessions/s1/Playing?playCommand=PlayNow&itemIds=e1&startPositionTicks=77',
       ),
     );
+  });
+
+  it('renders catalog rows mixing library cards and request cards', async () => {
+    const withCatalog: HomeResponse = {
+      ConfigVersion: 1,
+      Hero: [],
+      Rows: [
+        {
+          Id: 'r9',
+          Type: 'CatalogTrending',
+          Title: 'Trending',
+          Items: [],
+          Entries: [
+            { Item: { Id: 'm1', Name: 'Alpha', Type: 'Movie', ServerId: 's' } },
+            {
+              Catalog: {
+                Key: 'movie-603',
+                MediaType: 'movie',
+                TmdbId: 603,
+                Title: 'The Matrix',
+                GenreNames: [],
+                State: 'None',
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const ctx = makeContext(createFakeClient(routes({ 'Lumen/Home': withCatalog })));
+    render(<HomeView ctx={ctx} />);
+
+    const row = await screen.findByRole('region', { name: 'Trending' });
+    fireEvent.click(within(row).getByRole('button', { name: 'The Matrix, Request' }));
+    expect(ctx.navigate).toHaveBeenCalledWith('#/home?title=movie-603');
+    fireEvent.click(within(row).getByRole('button', { name: 'Alpha' }));
+    expect(ctx.navigate).toHaveBeenCalledWith('#/details?id=m1&serverId=s');
   });
 
   it('falls back to stock when home is empty', async () => {

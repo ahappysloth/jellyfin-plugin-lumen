@@ -3,6 +3,7 @@ using Jellyfin.Plugin.Lumen.Api;
 using Jellyfin.Plugin.Lumen.Assets;
 using Jellyfin.Plugin.Lumen.Configuration;
 using Jellyfin.Plugin.Lumen.Diagnostics;
+using MediaBrowser.Controller;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Time.Testing;
@@ -16,6 +17,23 @@ public class LumenControllerTests
     private readonly AssetCatalog _assets = new(new Dictionary<string, byte[]> { ["lumen.js"] = Encoding.UTF8.GetBytes("x") });
     private readonly ILumenConfigStore _config = Substitute.For<ILumenConfigStore>();
     private readonly DiagnosticsStore _diagnostics = new();
+    private readonly IServerApplicationHost _host = Substitute.For<IServerApplicationHost>();
+
+    [Fact]
+    public void Manifest_UsesTheServerName_AndLumensIcons_UnderWebScope()
+    {
+        _host.FriendlyName.Returns("Den");
+
+        var result = Assert.IsType<ContentResult>(Create().GetManifest());
+
+        Assert.Equal("application/manifest+json", result.ContentType);
+        using var json = System.Text.Json.JsonDocument.Parse(result.Content!);
+        var root = json.RootElement;
+        Assert.Equal("Den", root.GetProperty("name").GetString());
+        Assert.Equal("../web/", root.GetProperty("scope").GetString());
+        Assert.StartsWith("../web/", root.GetProperty("start_url").GetString(), StringComparison.Ordinal);
+        Assert.Contains(root.GetProperty("icons").EnumerateArray(), i => i.GetProperty("purpose").GetString() == "maskable");
+    }
 
     [Fact]
     public void Asset_IsImmutable_WhenVersionMatches()
@@ -67,7 +85,7 @@ public class LumenControllerTests
         Assert.Equal(TestData.Now, Assert.Single(_diagnostics.GetAll()).LastSeen);
     }
 
-    private LumenController Create() => new(_assets, _config, _diagnostics, new FakeTimeProvider(TestData.Now))
+    private LumenController Create() => new(_assets, _config, _diagnostics, new FakeTimeProvider(TestData.Now), _host)
     {
         ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
     };

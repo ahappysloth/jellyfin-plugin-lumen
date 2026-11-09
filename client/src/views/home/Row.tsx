@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { BadgeKey, BaseItem, HomeRow } from '../../api/types';
+import type { BadgeKey, BaseItem, CatalogItem, HomeRow } from '../../api/types';
 import type { JellyfinApiClient } from '../../compat/jellyfin';
 import { Card, useMenuHandlers } from '../../components/Card';
 import { Icon } from '../../components/icons';
+import { useDragScroll } from '../../components/useDragScroll';
 import { imageUrl, resolveImage } from '../../components/images';
 import { strings } from '../../strings';
 import type { CardMenuHandler } from '../cardMenu';
+import { CatalogCard } from '../catalog/CatalogCard';
 
 export function captionFor(item: BaseItem): string | undefined {
   if (item.Type !== 'Episode') return undefined;
@@ -14,15 +16,18 @@ export function captionFor(item: BaseItem): string | undefined {
 
 interface Props {
   row: HomeRow;
-  client: Pick<JellyfinApiClient, 'getUrl'>;
+  client: Pick<JellyfinApiClient, 'getUrl' | 'accessToken'>;
   badges?: Record<string, BadgeKey>;
   onSelect: (item: BaseItem, row: HomeRow) => void;
   onMenu?: CardMenuHandler;
+  /** A title from Seerr's catalog (only in catalog rows). */
+  onSelectCatalog?: (item: CatalogItem) => void;
 }
 
-export function Row({ row, client, badges, onSelect, onMenu }: Props) {
+export function Row({ row, client, badges, onSelect, onMenu, onSelectCatalog }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ start: true, end: true });
+  useDragScroll(scroller);
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
@@ -35,7 +40,7 @@ export function Row({ row, client, badges, onSelect, onMenu }: Props) {
       el.removeEventListener('scroll', update);
       window.removeEventListener('resize', update);
     };
-  }, [row.Items.length]);
+  }, [row.Items.length, row.Entries?.length]);
   const scroll = (direction: 1 | -1): void => {
     const el = scroller.current;
     el?.scrollBy({ left: direction * el.clientWidth * 0.85, behavior: 'smooth' });
@@ -53,31 +58,56 @@ export function Row({ row, client, badges, onSelect, onMenu }: Props) {
           aria-label={strings.scrollLeft}
           onClick={() => scroll(-1)}
         >
-          <Icon name="chevronLeft" size={28} />
+          <span class="lmn-row__disc">
+            <Icon name="chevronLeft" size={22} />
+          </span>
         </button>
         <div ref={scroller} class="lmn-row__scroller focuscontainer-x">
-          {row.Items.map((item) =>
-            genres ? (
-              <GenreTile
-                key={item.Id}
-                item={item}
-                client={client}
-                onSelect={(g) => onSelect(g, row)}
-                onMenu={onMenu}
-              />
-            ) : (
-              <Card
-                key={item.Id}
-                item={item}
-                client={client}
-                variant="landscape"
-                caption={captionFor(item)}
-                badge={badges?.[item.Id]}
-                onSelect={(selected) => onSelect(selected, row)}
-                onMenu={onMenu}
-              />
-            ),
-          )}
+          {row.Entries
+            ? row.Entries.map((entry) =>
+                entry.Catalog ? (
+                  <CatalogCard
+                    key={entry.Catalog.Key}
+                    item={entry.Catalog}
+                    client={client}
+                    variant="landscape"
+                    onSelect={(c) => onSelectCatalog?.(c)}
+                  />
+                ) : entry.Item ? (
+                  <Card
+                    key={entry.Item.Id}
+                    item={entry.Item}
+                    client={client}
+                    variant="landscape"
+                    caption={captionFor(entry.Item)}
+                    badge={badges?.[entry.Item.Id]}
+                    onSelect={(selected) => onSelect(selected, row)}
+                    onMenu={onMenu}
+                  />
+                ) : null,
+              )
+            : row.Items.map((item) =>
+                genres ? (
+                  <GenreTile
+                    key={item.Id}
+                    item={item}
+                    client={client}
+                    onSelect={(g) => onSelect(g, row)}
+                    onMenu={onMenu}
+                  />
+                ) : (
+                  <Card
+                    key={item.Id}
+                    item={item}
+                    client={client}
+                    variant="landscape"
+                    caption={captionFor(item)}
+                    badge={badges?.[item.Id]}
+                    onSelect={(selected) => onSelect(selected, row)}
+                    onMenu={onMenu}
+                  />
+                ),
+              )}
         </div>
         <button
           type="button"
@@ -87,7 +117,9 @@ export function Row({ row, client, badges, onSelect, onMenu }: Props) {
           aria-label={strings.scrollRight}
           onClick={() => scroll(1)}
         >
-          <Icon name="chevronRight" size={28} />
+          <span class="lmn-row__disc">
+            <Icon name="chevronRight" size={22} />
+          </span>
         </button>
       </div>
     </section>

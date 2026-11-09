@@ -11,4 +11,9 @@ public static class SectionTypes
     public const string NewForYou = "NewForYou";
     public const string Curated = "Curated";
     public const string Genres = "Genres";
+    public const string CatalogTrending = "CatalogTrending";
+    public const string CatalogPopularMovies = "CatalogPopularMovies";
+    public const string CatalogPopularShows = "CatalogPopularShows";
+    public const string CatalogUpcoming = "CatalogUpcoming";
+    public const string MyRequests = "MyRequests";
 }

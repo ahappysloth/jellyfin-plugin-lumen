@@ -22,6 +22,8 @@ export const strings = {
   playbackFailed: "Couldn't start playback. Try again from the stock player.",
   loading: 'Loading…',
   home: 'Home',
+  tabs: 'Tabs',
+  me: 'Me',
   search: 'Search',
   profile: 'Settings and profile',
   back: 'Back',

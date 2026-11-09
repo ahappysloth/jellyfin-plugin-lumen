@@ -1,5 +1,24 @@
 namespace Jellyfin.Plugin.Lumen.Requests;
 
+/// <summary>The discover lists Lumen shows as home rows (Seerr's <c>/discover/*</c> endpoints).</summary>
+public enum SeerrDiscoverList
+{
+    /// <summary><c>/discover/trending</c>: movies, shows and people.</summary>
+    Trending,
+
+    /// <summary><c>/discover/movies</c>.</summary>
+    PopularMovies,
+
+    /// <summary><c>/discover/tv</c>.</summary>
+    PopularTv,
+
+    /// <summary><c>/discover/movies/upcoming</c>.</summary>
+    UpcomingMovies,
+
+    /// <summary><c>/discover/tv/upcoming</c>.</summary>
+    UpcomingTv,
+}
+
 /// <summary>The media types the catalog handles (Seerr's own names).</summary>
 public static class CatalogMediaType
 {
@@ -150,3 +169,37 @@ public sealed class SeerrSeason
 
 /// <summary>Seerr's answer to <c>POST /request</c>: the request's status (1 = needs approval) and the title's MediaStatus.</summary>
 public sealed record SeerrRequestResult(int Id, int? RequestStatus, int? MediaStatus);
+
+/// <summary>A page of <c>GET /user/{id}/requests</c>. These results carry no title or art.</summary>
+public sealed class SeerrUserRequestPage
+{
+    public IReadOnlyList<SeerrUserRequest>? Results { get; init; }
+}
+
+/// <summary>One of a user's requests. Status 1 pending, 2 approved, 3 declined.</summary>
+public sealed class SeerrUserRequest
+{
+    public int Id { get; init; }
+
+    public int? Status { get; init; }
+
+    public DateTimeOffset? CreatedAt { get; init; }
+
+    /// <summary>"movie" or "tv".</summary>
+    public string? Type { get; init; }
+
+    public SeerrRequestMedia? Media { get; init; }
+}
+
+/// <summary>The title a request is for: its TMDB id, MediaStatus and linked Jellyfin item.</summary>
+public sealed class SeerrRequestMedia
+{
+    public int TmdbId { get; init; }
+
+    public string? MediaType { get; init; }
+
+    /// <summary>Seerr's MediaStatus (1 Unknown … 7 Deleted).</summary>
+    public int? Status { get; init; }
+
+    public string? JellyfinMediaId { get; init; }
+}

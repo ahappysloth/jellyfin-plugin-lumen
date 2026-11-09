@@ -63,6 +63,11 @@ public sealed class SeerrUserMap : ISeerrUserMap
             _cache[key] = (access, now + (user is null ? MissTtl : HitTtl));
             return access;
         }
+        catch (SeerrException e) when (e.IsCircuitOpen)
+        {
+            // Seerr is known to be down (the breaker logged that once); hide request features quietly.
+            return RequestAccess.None;
+        }
         catch (SeerrException e)
         {
             _logger.LogWarning("Lumen couldn't look up the Seerr account for a user: {Message}", e.Message);

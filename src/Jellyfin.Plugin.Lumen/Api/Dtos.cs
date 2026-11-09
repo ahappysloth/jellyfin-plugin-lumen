@@ -58,8 +58,17 @@ public sealed class CompatReportDto
 /// <summary>One hero slide.</summary>
 public sealed record HeroItemDto(BaseItemDto Item, Guid? TrailerItemId);
 
-/// <summary>One home row.</summary>
-public sealed record HomeRowDto(string Id, string Type, string Title, IReadOnlyList<BaseItemDto> Items);
+/// <summary>
+/// One home row. Catalog rows (discover lists, My Requests) have an empty <c>Items</c> and set <c>Entries</c>, one ordered
+/// list mixing library cards and catalog cards (requests design spec, §3); other rows leave <c>Entries</c> null.
+/// </summary>
+public sealed record HomeRowDto(string Id, string Type, string Title, IReadOnlyList<BaseItemDto> Items)
+{
+    public IReadOnlyList<HomeRowEntryDto>? Entries { get; init; }
+}
+
+/// <summary>One card of a catalog row: exactly one of <c>Item</c> (a title in the library) or <c>Catalog</c> is set.</summary>
+public sealed record HomeRowEntryDto(BaseItemDto? Item, CatalogItemDto? Catalog);
 
 /// <summary>
 /// Response of GET /Lumen/Home. <c>Badges</c> maps a hero or row item id (Guid "N" format, as in
