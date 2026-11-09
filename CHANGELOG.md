@@ -2,7 +2,7 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
-## [Unreleased]
+## [0.2.1] - 2026-11-09
 
 ### Added
 - Lumen's video player controls, over jellyfin-web's player: title and episode top left; **Quality** (Auto or a
