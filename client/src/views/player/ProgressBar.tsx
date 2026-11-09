@@ -29,7 +29,7 @@ export function ProgressBar({ positionMs, durationMs, bufferedMs, disabled, onSe
   return (
     <div
       ref={track}
-      class={`lmn-progress${drag !== null ? ' is-dragging' : ''}${disabled ? ' is-disabled' : ''}`}
+      class={`lmn-seek${drag !== null ? ' is-dragging' : ''}${disabled ? ' is-disabled' : ''}`}
       role="slider"
       tabIndex={disabled ? -1 : 0}
       aria-label={strings.player.seek}
@@ -65,13 +65,13 @@ export function ProgressBar({ positionMs, durationMs, bufferedMs, disabled, onSe
         onSeek(Math.min(durationMs, Math.max(0, positionMs + step)));
       }}
     >
-      <div class="lmn-progress__rail">
-        <div class="lmn-progress__buffered" style={{ width: pct(bufferedMs) }} />
-        <div class="lmn-progress__played" style={{ width: pct(shown) }} />
+      <div class="lmn-seek__rail">
+        <div class="lmn-seek__buffered" style={{ width: pct(bufferedMs) }} />
+        <div class="lmn-seek__played" style={{ width: pct(shown) }} />
       </div>
-      <div class="lmn-progress__thumb" style={{ left: pct(shown) }} />
+      <div class="lmn-seek__thumb" style={{ left: pct(shown) }} />
       {(hover ?? drag) !== null && (
-        <div class="lmn-progress__tip" style={{ left: pct((drag ?? hover)!) }}>
+        <div class="lmn-seek__tip" style={{ left: pct((drag ?? hover)!) }}>
           {formatClock((drag ?? hover)!, durationMs)}
         </div>
       )}
