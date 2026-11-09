@@ -99,8 +99,11 @@ public sealed record SectionTypeDto(string Type, string DisplayName, string Desc
         new(provider.Type, provider.DisplayName, provider.Description, provider.Parameters.Select(SectionParameterDto.From).ToList());
 }
 
-/// <summary>Response of GET /Lumen/Requests/Status.</summary>
-public sealed record RequestStatusDto(bool Enabled, bool CanRequestMovies, bool CanRequestTv);
+/// <summary>
+/// Response of GET /Lumen/Requests/Status. <c>ImageToken</c> goes in catalog image URLs (<see cref="Requests.CatalogImageToken"/>);
+/// null without catalog access.
+/// </summary>
+public sealed record RequestStatusDto(bool Enabled, bool CanRequestMovies, bool CanRequestTv, string? ImageToken = null);
 
 /// <summary>Body of POST /Lumen/Admin/Seerr/Test. A null or empty key means "use the stored key".</summary>
 public sealed record SeerrTestRequestDto(string? Url, string? ApiKey);

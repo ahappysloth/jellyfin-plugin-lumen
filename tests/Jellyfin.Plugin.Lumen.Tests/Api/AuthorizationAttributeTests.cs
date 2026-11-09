@@ -26,12 +26,16 @@ public class AuthorizationAttributeTests
     }
 
     [Fact]
-    public void RequestsController_RequiresAuthentication_IncludingImages()
+    public void RequestsController_RequiresAuthentication_ExceptImagesWhichCheckTheirImageToken()
     {
         var attribute = Assert.Single(typeof(RequestsController).GetCustomAttributes<AuthorizeAttribute>());
 
         Assert.Null(attribute.Policy);
-        Assert.All(typeof(RequestsController).GetMethods(), m => Assert.Empty(m.GetCustomAttributes<AllowAnonymousAttribute>()));
+
+        // GetImage authorizes itself (signed-in user or image token; see RequestsControllerTests.Image_*).
+        Assert.All(
+            typeof(RequestsController).GetMethods().Where(m => m.Name != nameof(RequestsController.GetImage)),
+            m => Assert.Empty(m.GetCustomAttributes<AllowAnonymousAttribute>()));
     }
 
     [Theory]

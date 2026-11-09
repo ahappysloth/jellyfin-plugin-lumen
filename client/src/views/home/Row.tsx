@@ -17,6 +17,8 @@ export function captionFor(item: BaseItem): string | undefined {
 interface Props {
   row: HomeRow;
   client: Pick<JellyfinApiClient, 'getUrl' | 'accessToken'>;
+  /** For catalog cards' art (useCatalogImageToken). */
+  catalogImageToken?: string | null;
   badges?: Record<string, BadgeKey>;
   onSelect: (item: BaseItem, row: HomeRow) => void;
   onMenu?: CardMenuHandler;
@@ -24,7 +26,7 @@ interface Props {
   onSelectCatalog?: (item: CatalogItem) => void;
 }
 
-export function Row({ row, client, badges, onSelect, onMenu, onSelectCatalog }: Props) {
+export function Row({ row, client, catalogImageToken, badges, onSelect, onMenu, onSelectCatalog }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ start: true, end: true });
   useDragScroll(scroller);
@@ -74,6 +76,7 @@ export function Row({ row, client, badges, onSelect, onMenu, onSelectCatalog }: 
                     key={entry.Catalog.Key}
                     item={entry.Catalog}
                     client={client}
+                    imageToken={catalogImageToken}
                     variant="landscape"
                     onSelect={(c) => onSelectCatalog?.(c)}
                   />

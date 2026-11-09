@@ -9,7 +9,7 @@ import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { cardMenuHandler, infoHash } from '../cardMenu';
-import { catalogHash } from '../catalog/catalog';
+import { catalogHash, useCatalogImageToken } from '../catalog/catalog';
 import { Hero } from './Hero';
 import {
   clearCachedHome,
@@ -26,6 +26,10 @@ import { Row } from './Row';
 
 export function HomeView({ ctx }: { ctx: ViewContext }) {
   const [home, setHome] = useState<HomeResponse | null>(() => usableCachedHome(ctx.userId) ?? null);
+  const catalogImageToken = useCatalogImageToken(
+    ctx,
+    !!home?.Rows.some((row) => row.Entries?.some((entry) => entry.Catalog)),
+  );
   const rootRef = useRef<HTMLDivElement>(null);
   const previous = getSelection(ctx.userId);
   useAutoFocus(rootRef, home !== null, ctx.layout, previous?.itemId);
@@ -102,6 +106,7 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
           <Row
             row={row}
             client={ctx.client}
+            catalogImageToken={catalogImageToken}
             badges={home.Badges}
             onSelect={select}
             onMenu={onMenu}

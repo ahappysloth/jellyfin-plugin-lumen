@@ -74,6 +74,27 @@ describe('TitleView', () => {
     expect(screen.getByRole('button', { name: 'Reloaded, Requested' })).toBeInTheDocument();
   });
 
+  it("loads art with the user's image token, never the access token", async () => {
+    const client = createFakeClient(
+      routes({
+        [`Lumen/Requests/Title/movie/603`]: movie,
+        'Lumen/Requests/Status': {
+          Enabled: true,
+          CanRequestMovies: true,
+          CanRequestTv: true,
+          ImageToken: 'img1',
+        },
+      }),
+    );
+    const { container } = render(<TitleView mediaType="movie" tmdbId={603} ctx={makeContext(client)} />);
+
+    await waitFor(() => expect(container.querySelector('.lmn-details__backdrop')).not.toBeNull());
+    const sources = [...container.querySelectorAll('img')].map((img) => img.getAttribute('src'));
+    expect(sources).toContain('http://jf/Lumen/Requests/Image/w1280/b.jpg?t=img1');
+    expect(sources).toContain('http://jf/Lumen/Requests/Image/w185/k.jpg?t=img1');
+    expect(sources.join(' ')).not.toContain('token1');
+  });
+
   it('requests a movie and shows the outcome and the new state', async () => {
     const { client } = setup(movie, () => ({ State: 'Requested', NeedsApproval: true }));
 

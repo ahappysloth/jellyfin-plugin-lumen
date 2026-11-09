@@ -13,13 +13,20 @@ const NO_ACCESS: RequestStatus = { Enabled: false, CanRequestMovies: false, CanR
 /** One status lookup per user per page load; request features stay hidden until (and unless) it says yes. */
 const statusByUser = new Map<string, Promise<RequestStatus>>();
 
-export function loadRequestStatus(ctx: ViewContext): Promise<RequestStatus> {
+export function loadRequestStatus(ctx: Pick<ViewContext, 'api' | 'userId'>): Promise<RequestStatus> {
   let status = statusByUser.get(ctx.userId);
   if (!status) {
-    status = ctx.api.getRequestStatus().catch(() => {
-      statusByUser.delete(ctx.userId); // a transient failure is retried next time, not remembered
-      return NO_ACCESS;
-    });
+    const userId = ctx.userId;
+    status = ctx.api.getRequestStatus().then(
+      (s) => {
+        setImageToken(userId, s.ImageToken ?? null);
+        return s;
+      },
+      () => {
+        statusByUser.delete(userId); // a transient failure is retried next time, not remembered
+        return NO_ACCESS;
+      },
+    );
     statusByUser.set(ctx.userId, status);
   }
   return status;
@@ -40,17 +47,48 @@ export function useRequestStatus(ctx: ViewContext): RequestStatus {
 export function clearRequestStatus(): void {
   statusByUser.clear();
   stateOverrides.clear();
+  imageTokens.clear();
 }
 
-/** TMDB artwork through Lumen's proxy. <img> can't send headers, so the token rides along as ApiKey. */
+/** Each user's catalog image token, from their request status. */
+const imageTokens = new Map<string, string | null>();
+const tokenListeners = new Set<() => void>();
+
+function setImageToken(userId: string, token: string | null): void {
+  imageTokens.set(userId, token);
+  tokenListeners.forEach((l) => l());
+}
+
+/**
+ * The signed-in user's catalog image token, loading their request status if needed; undefined until it arrives.
+ * Re-renders when it does.
+ */
+export function useCatalogImageToken(
+  ctx: Pick<ViewContext, 'api' | 'userId'>,
+  enabled = true,
+): string | null | undefined {
+  const [, rerender] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    const listener = () => rerender((n) => n + 1);
+    tokenListeners.add(listener);
+    void loadRequestStatus(ctx);
+    return () => void tokenListeners.delete(listener);
+  }, [ctx.userId, enabled]);
+  return imageTokens.get(ctx.userId);
+}
+
+/**
+ * TMDB artwork through Lumen's proxy. <img> can't send headers, so the URL carries the user's image token, which
+ * only opens catalog artwork: never the Jellyfin access token, which would end up in logs and the browser history.
+ */
 export function catalogImageUrl(
-  client: Pick<JellyfinApiClient, 'getUrl' | 'accessToken'>,
+  client: Pick<JellyfinApiClient, 'getUrl'>,
   file: string,
   size: CatalogImageSize,
+  token: string,
 ): string {
-  return client.getUrl(`Lumen/Requests/Image/${size}/${encodeURIComponent(file)}`, {
-    ApiKey: client.accessToken() ?? undefined,
-  });
+  return client.getUrl(`Lumen/Requests/Image/${size}/${encodeURIComponent(file)}`, { t: token });
 }
 
 /** States changed by requests made this session, so every card for the title updates in place. */

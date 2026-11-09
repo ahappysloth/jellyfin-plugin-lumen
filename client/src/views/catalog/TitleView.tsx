@@ -16,6 +16,7 @@ import {
   forgetCatalogState,
   setCatalogState,
   stateLabel,
+  useCatalogImageToken,
   useCatalogState,
 } from './catalog';
 import { CatalogCard } from './CatalogCard';
@@ -35,6 +36,7 @@ export function TitleView({
   ctx: ViewContext;
 }) {
   const [title, setTitle] = useState<CatalogTitle | null>(null);
+  const imageToken = useCatalogImageToken(ctx);
   const [failed, setFailed] = useState(false);
   const [dialog, setDialog] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -97,17 +99,17 @@ export function TitleView({
 
   return (
     <article ref={rootRef} class="lmn-details lmn-title">
-      <TitleHeader title={title} ctx={ctx} onRequest={() => setDialog(true)} />
+      <TitleHeader title={title} ctx={ctx} imageToken={imageToken} onRequest={() => setDialog(true)} />
       {title.Cast.length > 0 && (
         <section class="lmn-row lmn-cast" aria-label={strings.cast}>
           <h2 class="lmn-row__title">{strings.cast}</h2>
           <div class="lmn-row__scroller focuscontainer-x">
             {title.Cast.map((person) => (
               <div key={person.TmdbId} class="lmn-person">
-                {person.Photo ? (
+                {person.Photo && imageToken ? (
                   <img
                     class="lmn-person__photo"
-                    src={catalogImageUrl(ctx.client, person.Photo, 'w185')}
+                    src={catalogImageUrl(ctx.client, person.Photo, 'w185', imageToken)}
                     alt=""
                     loading="lazy"
                   />
@@ -132,6 +134,7 @@ export function TitleView({
                 key={item.Key}
                 item={item}
                 client={ctx.client}
+                imageToken={imageToken}
                 variant="landscape"
                 onSelect={(i) => ctx.navigate(catalogHash(i))}
               />
@@ -149,10 +152,12 @@ export function TitleView({
 function TitleHeader({
   title,
   ctx,
+  imageToken,
   onRequest,
 }: {
   title: CatalogTitle;
   ctx: ViewContext;
+  imageToken: string | null | undefined;
   onRequest: () => void;
 }) {
   const state = useCatalogState(title);
@@ -173,10 +178,10 @@ function TitleHeader({
 
   return (
     <header class="lmn-details__header">
-      {title.Backdrop && (
+      {title.Backdrop && imageToken && (
         <img
           class="lmn-details__backdrop"
-          src={catalogImageUrl(ctx.client, title.Backdrop, 'w1280')}
+          src={catalogImageUrl(ctx.client, title.Backdrop, 'w1280', imageToken)}
           alt=""
         />
       )}
