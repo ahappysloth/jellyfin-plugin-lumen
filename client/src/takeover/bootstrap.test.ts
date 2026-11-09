@@ -6,6 +6,7 @@ const clientConfig = {
   Enabled: true,
   HomeTakeover: true,
   DetailsTakeover: true,
+  LibraryTakeover: true,
   AccentColor: '#112233',
   HeroIntervalSeconds: 8,
   TrailerPreview: true,
@@ -52,6 +53,27 @@ describe('startLumen', () => {
     expect(document.getElementById('lmn-root')?.style.getPropertyValue('--lmn-accent')).toBe('#112233');
     expect(document.documentElement.style.getPropertyValue('--lmn-accent')).toBe('');
     expect(document.documentElement.getAttribute('style')).toBeNull();
+  });
+
+  it('keeps the pending guard until the takeover decides, then swaps it for lmn-active', async () => {
+    document.documentElement.classList.add('lmn-pending');
+    client.userId = null;
+    const { mount } = start();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(document.documentElement.classList.contains('lmn-pending')).toBe(true);
+
+    client.userId = 'user1';
+    await vi.waitFor(() => expect(mount).toHaveBeenCalled());
+    expect(document.documentElement.classList.contains('lmn-pending')).toBe(false);
+    expect(document.documentElement.classList.contains('lmn-active')).toBe(true);
+  });
+
+  it('drops the pending guard when Lumen is disabled for the user', async () => {
+    document.documentElement.classList.add('lmn-pending');
+    client.respond = () => Promise.resolve({ ...clientConfig, Enabled: false });
+    start();
+    await vi.waitFor(() => expect(document.documentElement.classList.contains('lmn-pending')).toBe(false));
+    expect(document.documentElement.classList.contains('lmn-active')).toBe(false);
   });
 
   it('releases takeover when the user signs out', async () => {

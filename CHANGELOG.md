@@ -2,6 +2,24 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [Unreleased]
+
+### Added
+- Movies and Shows library pages: a poster grid that loads as you scroll, with All / Unwatched / Watched, genre and
+  sort (recently added, title, release date, rating). Back from a title returns to the same spot.
+- Favorites page (Movies, Shows and Episodes tabs) and a Favorites link in the nav.
+- "Replace the Movies, Shows and Favorites pages" admin switch.
+- The hero can be swiped (touch) or dragged (mouse) between slides.
+- The ribbon "J" mark in the header and as the browser tab icon.
+
+### Changed
+- The nav pill is centred at the top of the page on wider screens.
+- The hero keeps rotating while hovered or focused by the page; only keyboard navigation inside it pauses it.
+- Popular Genres keeps the most popular genres but lists them alphabetically.
+
+### Fixed
+- jellyfin-web's own header no longer flashes for a moment before Lumen loads.
+
 ## [0.1.0]
 
 ### Added

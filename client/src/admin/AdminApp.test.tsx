@@ -29,6 +29,7 @@ function config(): LumenConfig {
     Enabled: true,
     HomeTakeover: true,
     DetailsTakeover: true,
+    LibraryTakeover: true,
     AccentColor: '#f5a524',
     HeroSource: 0,
     HeroCollectionId: null,

@@ -30,6 +30,7 @@ export interface LumenConfig {
   Enabled: boolean;
   HomeTakeover: boolean;
   DetailsTakeover: boolean;
+  LibraryTakeover: boolean;
   AccentColor: string;
   /** Jellyfin may serialize the enum as a name or a number; normalizeConfig converts it to a name. */
   HeroSource: string | number;

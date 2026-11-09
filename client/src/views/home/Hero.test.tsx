@@ -8,6 +8,7 @@ const config: ClientConfig = {
   Enabled: true,
   HomeTakeover: true,
   DetailsTakeover: true,
+  LibraryTakeover: true,
   AccentColor: '#f5a524',
   HeroIntervalSeconds: 8,
   TrailerPreview: true,
@@ -55,21 +56,75 @@ describe('Hero', () => {
     expect(onInfo).toHaveBeenCalledWith(items[0]!.Item);
   });
 
-  it('rotates on the configured interval and pauses while hovered', () => {
-    const { container } = render(
+  const renderHero = () =>
+    render(
       <Hero items={items} client={createFakeClient()} config={config} onPlay={vi.fn()} onInfo={vi.fn()} />,
     );
-
+  const advance = (ms: number) =>
     act(() => {
-      vi.advanceTimersByTime(8000);
+      vi.advanceTimersByTime(ms);
     });
+
+  it('rotates on the configured interval, even while hovered or after autofocus', () => {
+    const { container } = renderHero();
+    const hero = container.querySelector('.lmn-hero')!;
+    fireEvent.mouseEnter(hero);
+    screen.getByRole('button', { name: 'Play' }).focus();
+
+    advance(8000);
+    expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument();
+    advance(8000);
+    expect(screen.getByRole('img', { name: 'Alpha' })).toBeInTheDocument();
+  });
+
+  it('pauses while the user navigates inside it with the keyboard', () => {
+    const { container } = renderHero();
+    fireEvent.keyDown(container.querySelector('.lmn-hero')!, { key: 'Tab' });
+
+    advance(20000);
+    expect(screen.getByRole('img', { name: 'Alpha' })).toBeInTheDocument();
+  });
+
+  const swipe = (el: Element, dx: number) => {
+    fireEvent.pointerDown(el, { pointerId: 1, pointerType: 'touch', clientX: 300, clientY: 100 });
+    fireEvent.pointerMove(el, { pointerId: 1, pointerType: 'touch', clientX: 300 + dx / 2, clientY: 102 });
+    fireEvent.pointerMove(el, { pointerId: 1, pointerType: 'touch', clientX: 300 + dx, clientY: 104 });
+    fireEvent.pointerUp(el, { pointerId: 1, pointerType: 'touch', clientX: 300 + dx, clientY: 104 });
+  };
+
+  it('swipes to the next and previous slide, and restarts the timer', () => {
+    const { container } = renderHero();
+    const hero = container.querySelector('.lmn-hero')!;
+
+    advance(6000);
+    swipe(hero, -200);
+    expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument();
+    advance(6000); // would have flipped at 8s on the old timer
     expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument();
 
-    fireEvent.mouseEnter(container.querySelector('.lmn-hero')!);
-    act(() => {
-      vi.advanceTimersByTime(20000);
-    });
-    expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument();
+    swipe(hero, 200);
+    expect(screen.getByRole('img', { name: 'Alpha' })).toBeInTheDocument();
+  });
+
+  it('ignores short drags and vertical scrolls, and does not click through after a swipe', () => {
+    const onPlay = vi.fn();
+    const { container } = render(
+      <Hero items={items} client={createFakeClient()} config={config} onPlay={onPlay} onInfo={vi.fn()} />,
+    );
+    const hero = container.querySelector('.lmn-hero')!;
+
+    swipe(hero, -20);
+    expect(screen.getByRole('img', { name: 'Alpha' })).toBeInTheDocument();
+
+    fireEvent.pointerDown(hero, { pointerId: 2, pointerType: 'touch', clientX: 300, clientY: 100 });
+    fireEvent.pointerMove(hero, { pointerId: 2, pointerType: 'touch', clientX: 200, clientY: 400 });
+    fireEvent.pointerUp(hero, { pointerId: 2, pointerType: 'touch', clientX: 200, clientY: 400 });
+    expect(screen.getByRole('img', { name: 'Alpha' })).toBeInTheDocument();
+
+    const play = screen.getByRole('button', { name: 'Play' });
+    swipe(play, -200);
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    expect(onPlay).not.toHaveBeenCalled();
   });
 
   it('renders a trailer slot only when enabled and the item has a trailer', () => {

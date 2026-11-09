@@ -9,6 +9,19 @@ export interface DiagnosticsReport {
 
 type Params = () => Record<string, unknown>;
 
+/** One page of a library or favorites grid (Jellyfin's /Items query, PascalCase values as the server expects). */
+export interface BrowseQuery {
+  parentId?: string;
+  includeItemTypes: string;
+  sortBy: string;
+  sortOrder: 'Ascending' | 'Descending';
+  /** Jellyfin ItemFilter names, e.g. IsUnplayed, IsFavorite. */
+  filters?: string[];
+  genreIds?: string[];
+  startIndex: number;
+  limit: number;
+}
+
 /** Typed access to Lumen's and Jellyfin's HTTP APIs through jellyfin-web's authenticated ApiClient. */
 export class LumenApi {
   constructor(private readonly client: JellyfinApiClient) {}
@@ -72,6 +85,39 @@ export class LumenApi {
   /** The user's libraries, in their configured order. */
   getUserViews(): Promise<ItemsResult> {
     return this.get('UserViews', () => ({ userId: this.userId() }));
+  }
+
+  /** A page of titles for the library and favorites grids, with the total for "N titles" and paging. */
+  getBrowseItems(query: BrowseQuery): Promise<ItemsResult> {
+    return this.get('Items', () => ({
+      userId: this.userId(),
+      parentId: query.parentId,
+      includeItemTypes: query.includeItemTypes,
+      recursive: true,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+      filters: query.filters?.length ? query.filters.join(',') : undefined,
+      genreIds: query.genreIds?.length ? query.genreIds.join('|') : undefined,
+      startIndex: query.startIndex,
+      limit: query.limit,
+      fields: 'PrimaryImageAspectRatio,Genres',
+      enableUserData: true,
+      imageTypeLimit: 1,
+      enableImageTypes: 'Primary,Backdrop,Thumb,Logo',
+      enableTotalRecordCount: true,
+    }));
+  }
+
+  /** Genres that have titles of the given types in a library, A to Z. */
+  getGenres(parentId: string, includeItemTypes: string): Promise<ItemsResult> {
+    return this.get('Genres', () => ({
+      userId: this.userId(),
+      parentId,
+      includeItemTypes,
+      sortBy: 'SortName',
+      sortOrder: 'Ascending',
+      enableImages: false,
+    }));
   }
 
   getLocalTrailers(id: string): Promise<BaseItem[]> {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { BadgeKey, BaseItem, ClientConfig, HeroItem } from '../../api/types';
 import type { JellyfinApiClient } from '../../compat/jellyfin';
 import { cardMeta } from '../../components/Card';
@@ -17,21 +17,73 @@ interface Props {
   onInfo: (item: BaseItem) => void;
 }
 
+/** Horizontal travel (px) before a press counts as a swipe rather than a tap; and the share of width that flips. */
+const DRAG_SLOP = 8;
+const SWIPE_FRACTION = 0.12;
+
+type HeroPointerEvent = PointerEvent & { currentTarget: HTMLElement };
+
+interface DragState {
+  pointerId: number;
+  x: number;
+  y: number;
+  dx: number;
+  swiping: boolean;
+}
+
 export function Hero({ items, client, config, badges, onPlay, onInfo }: Props) {
   const [index, setIndex] = useState(0);
-  const [hovered, setHovered] = useState(false);
   const [stopped, setStopped] = useState(false);
+  // Only keyboard navigation inside the hero pauses it; hovering or the initial autofocus must not.
+  const [keyboardInside, setKeyboardInside] = useState(false);
+  const [dragX, setDragX] = useState(0);
+  const drag = useRef<DragState | null>(null);
+  const suppressClick = useRef(false);
   const reducedMotion = usePrefersReducedMotion();
-  const paused = hovered || stopped;
+  const count = items.length;
+  const paused = stopped || keyboardInside || dragX !== 0;
 
+  const go = (delta: number): void => setIndex((i) => (((i + delta) % count) + count) % count);
+
+  // A fresh timer per slide, so a manual swipe or dot click gets a full interval before the next auto-advance.
   useEffect(() => {
-    if (items.length < 2 || paused) return;
-    const timer = setInterval(
-      () => setIndex((i) => (i + 1) % items.length),
-      config.HeroIntervalSeconds * 1000,
-    );
-    return () => clearInterval(timer);
-  }, [items.length, paused, config.HeroIntervalSeconds]);
+    if (count < 2 || paused) return;
+    const timer = setTimeout(() => setIndex((i) => (i + 1) % count), config.HeroIntervalSeconds * 1000);
+    return () => clearTimeout(timer);
+  }, [index, count, paused, config.HeroIntervalSeconds]);
+
+  const onPointerDown = (e: HeroPointerEvent): void => {
+    if (count < 2 || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    drag.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, swiping: false };
+  };
+  const onPointerMove = (e: HeroPointerEvent): void => {
+    const d = drag.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    if (!d.swiping) {
+      if (Math.abs(dx) < DRAG_SLOP && Math.abs(dy) < DRAG_SLOP) return;
+      if (Math.abs(dy) > Math.abs(dx)) {
+        drag.current = null; // a vertical scroll, not a swipe
+        return;
+      }
+      d.swiping = true;
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+    }
+    d.dx = dx;
+    setDragX(dx);
+  };
+  const endDrag = (e: HeroPointerEvent, cancelled: boolean): void => {
+    const d = drag.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    drag.current = null;
+    setDragX(0);
+    if (!d.swiping) return;
+    suppressClick.current = true; // the click that follows a drag must not press Play or More info
+    setTimeout(() => (suppressClick.current = false), 0);
+    const width = e.currentTarget.clientWidth || window.innerWidth;
+    if (!cancelled && Math.abs(d.dx) > Math.max(40, width * SWIPE_FRACTION)) go(d.dx < 0 ? 1 : -1);
+  };
 
   const current = items[index % items.length];
   if (!current) return null;
@@ -44,13 +96,26 @@ export function Hero({ items, client, config, badges, onPlay, onInfo }: Props) {
 
   return (
     <section
-      class="lmn-hero"
       aria-roledescription="carousel"
       aria-label="Featured"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocusIn={() => setHovered(true)}
-      onFocusOut={() => setHovered(false)}
+      class={`lmn-hero${dragX !== 0 ? ' is-dragging' : ''}`}
+      style={dragX !== 0 ? { '--lmn-drag': `${dragX}px` } : undefined}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={(e) => endDrag(e, false)}
+      onPointerCancel={(e) => endDrag(e, true)}
+      onClickCapture={(e) => {
+        if (!suppressClick.current) return;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Tab' || e.key.startsWith('Arrow')) setKeyboardInside(true);
+      }}
+      onFocusOut={(e) => {
+        const next = e.relatedTarget as Node | null;
+        if (!next || !e.currentTarget.contains(next)) setKeyboardInside(false);
+      }}
     >
       {backdrop && (
         <img
@@ -58,6 +123,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo }: Props) {
           class="lmn-hero__backdrop"
           src={imageUrl(client, backdrop, { width: 1920 })}
           alt=""
+          draggable={false}
         />
       )}
       {trailerId && (
@@ -71,7 +137,12 @@ export function Hero({ items, client, config, badges, onPlay, onInfo }: Props) {
       <div class="lmn-hero__scrim" />
       <div class="lmn-hero__content" key={`content-${item.Id}`}>
         {logo ? (
-          <img class="lmn-hero__logo" src={imageUrl(client, logo, { width: 840 })} alt={item.Name} />
+          <img
+            class="lmn-hero__logo"
+            src={imageUrl(client, logo, { width: 840 })}
+            alt={item.Name}
+            draggable={false}
+          />
         ) : (
           <h2 class="lmn-hero__title">{item.Name}</h2>
         )}

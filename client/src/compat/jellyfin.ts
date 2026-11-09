@@ -119,6 +119,8 @@ export function genreHash(genreId: string, serverId?: string): string {
 }
 
 export const HOME_HASH = '#/home';
+/** jellyfin-web's Favorites tab of home, which Lumen takes over. */
+export const FAVORITES_HASH = '#/home?tab=1';
 export const SEARCH_HASH = '#/search';
 export const PREFERENCES_HASH = '#/mypreferencesmenu';
 
@@ -137,5 +139,24 @@ export async function getServerVersion(client: JellyfinApiClient): Promise<strin
     return (await client.getPublicSystemInfo?.())?.Version ?? 'unknown';
   } catch {
     return 'unknown';
+  }
+}
+
+/**
+ * Points the tab icon at Lumen's mark. jellyfin-web ships `<link rel="shortcut icon">`; it is updated in place (or
+ * added) so browsers pick up the change without a reload.
+ */
+export function setFavicon(svg: string, doc: Document = document): void {
+  const href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  const links = Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]'));
+  if (links.length === 0) {
+    const link = doc.createElement('link');
+    link.rel = 'icon';
+    doc.head.appendChild(link);
+    links.push(link);
+  }
+  for (const link of links) {
+    link.type = 'image/svg+xml';
+    link.href = href;
   }
 }

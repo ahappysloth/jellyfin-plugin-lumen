@@ -9,7 +9,8 @@ using MediaBrowser.Model.Entities;
 namespace Jellyfin.Plugin.Lumen.Home.Providers;
 
 /// <summary>
-/// One row of genre tiles: the genres with the most of the user's movies and shows, optionally limited to one library.
+/// One row of genre tiles: the genres with the most of the user's movies and shows (optionally limited to one
+/// library), listed alphabetically.
 /// Each tile borrows the backdrop of the genre's top-rated movie or show (see <see cref="HomeRow.BackdropSources"/>).
 /// </summary>
 public sealed class GenresProvider : IHomeSectionProvider
@@ -54,6 +55,7 @@ public sealed class GenresProvider : IHomeSectionProvider
             .ThenBy(g => g.Genre.Name, StringComparer.OrdinalIgnoreCase)
             .Take(MaxGenres)
             .Select(g => g.Genre)
+            .OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase) // the most popular genres, shown A to Z
             .ToList();
         if (genres.Count == 0)
         {

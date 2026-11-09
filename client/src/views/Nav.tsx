@@ -1,12 +1,23 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { BaseItem } from '../api/types';
-import { getServerName, HOME_HASH, libraryHash, PREFERENCES_HASH, SEARCH_HASH } from '../compat/jellyfin';
+import markSvg from '../assets/lumen-j.svg?raw';
+import {
+  FAVORITES_HASH,
+  getServerName,
+  HOME_HASH,
+  libraryHash,
+  PREFERENCES_HASH,
+  SEARCH_HASH,
+} from '../compat/jellyfin';
 import { Icon, type IconName } from '../components/icons';
 import { strings } from '../strings';
 import type { ViewContext } from './context';
 
 const MAX_LIBRARIES = 4;
 const LIBRARY_ICONS: Record<string, IconName> = { movies: 'film', tvshows: 'tv', music: 'music' };
+
+/** Which pill item is current: 'home', 'favorites', or a library's id. */
+export type NavActive = string;
 
 interface NavData {
   serverName: string | null;
@@ -37,10 +48,10 @@ function useScrolled(threshold = 24): boolean {
 }
 
 /**
- * Lumen's floating header on its own pages: the server name on the left, a pill with Home, the user's libraries,
- * search and settings on the right. jellyfin-web's app bar is hidden while it shows (see lumen.css).
+ * Lumen's floating header on its own pages: the server name on the left, and centred, a pill with Home, the user's
+ * libraries, Favorites, search and settings. jellyfin-web's app bar is hidden while it shows (see lumen.css).
  */
-export function Nav({ ctx }: { ctx: ViewContext }) {
+export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavActive }) {
   const [data, setData] = useState<NavData | null>(() => cache.get(ctx.userId) ?? null);
   const scrolled = useScrolled();
 
@@ -60,20 +71,26 @@ export function Nav({ ctx }: { ctx: ViewContext }) {
   return (
     <header class={`lmn-nav${scrolled ? ' is-scrolled' : ''}`}>
       <a class="lmn-nav__brand" href={HOME_HASH}>
-        <span class="lmn-nav__mark" aria-hidden="true" />
+        <span class="lmn-nav__mark" aria-hidden="true" dangerouslySetInnerHTML={{ __html: markSvg }} />
         <span class="lmn-nav__name">{data?.serverName ?? 'Lumen'}</span>
       </a>
       <nav class="lmn-nav__pill focuscontainer-x" aria-label="Main">
-        <a class="lmn-nav__item is-active" href={HOME_HASH} aria-current="page">
-          <Icon name="home" size={15} />
-          <span class="lmn-nav__label">{strings.home}</span>
-        </a>
+        <NavItem href={HOME_HASH} icon="home" label={strings.home} current={active === 'home'} />
         {data?.libraries.map((view) => (
-          <a key={view.Id} class="lmn-nav__item" href={libraryHash(view)}>
-            <Icon name={LIBRARY_ICONS[view.CollectionType ?? ''] ?? 'folder'} size={15} />
-            <span class="lmn-nav__label">{view.Name}</span>
-          </a>
+          <NavItem
+            key={view.Id}
+            href={libraryHash(view)}
+            icon={LIBRARY_ICONS[view.CollectionType ?? ''] ?? 'folder'}
+            label={view.Name}
+            current={active === view.Id}
+          />
         ))}
+        <NavItem
+          href={FAVORITES_HASH}
+          icon="heart"
+          label={strings.favorites}
+          current={active === 'favorites'}
+        />
         <span class="lmn-nav__divider" aria-hidden="true" />
         <a class="lmn-nav__item lmn-nav__item--icon" href={SEARCH_HASH} aria-label={strings.search}>
           <Icon name="search" size={16} />
@@ -83,5 +100,32 @@ export function Nav({ ctx }: { ctx: ViewContext }) {
         </a>
       </nav>
     </header>
+  );
+}
+
+function NavItem({
+  href,
+  icon,
+  label,
+  current,
+}: {
+  href: string;
+  icon: IconName;
+  label: string;
+  current: boolean;
+}) {
+  return (
+    <a
+      class={`lmn-nav__item${current ? ' is-active' : ''}`}
+      href={href}
+      aria-current={current ? 'page' : undefined}
+      aria-label={label}
+      title={label}
+    >
+      <Icon name={icon} size={15} />
+      <span class="lmn-nav__label" aria-hidden="true">
+        {label}
+      </span>
+    </a>
   );
 }

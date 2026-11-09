@@ -93,6 +93,7 @@ export interface ClientConfig {
   Enabled: boolean;
   HomeTakeover: boolean;
   DetailsTakeover: boolean;
+  LibraryTakeover: boolean;
   AccentColor: string;
   HeroIntervalSeconds: number;
   TrailerPreview: boolean;
