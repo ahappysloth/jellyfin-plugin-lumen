@@ -8,5 +8,6 @@ public sealed class LumenPluginPersistence : IPluginConfigPersistence
 
     public PluginConfiguration Load() => Plugin.Configuration;
 
-    public void Save(PluginConfiguration configuration) => Plugin.UpdateConfiguration(configuration);
+    /// <summary>Writes as-is: <see cref="LumenConfigStore"/> has already applied Lumen's save rules.</summary>
+    public void Save(PluginConfiguration configuration) => Plugin.SaveValidatedConfiguration(configuration);
 }

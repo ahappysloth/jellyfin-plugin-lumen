@@ -45,7 +45,11 @@ public sealed partial class ConfigValidator
         CheckRange(errors, "Hero rotation interval", config.HeroIntervalSeconds, 3, 60);
         CheckRange(errors, "Trailer delay", config.TrailerDelaySeconds, 0, 30);
 
-        if (config.HeroSource == HeroSource.Collection && config.HeroCollectionId is null)
+        if (!Enum.IsDefined(config.HeroSource))
+        {
+            errors.Add("Hero source must be Recently added, Top rated unplayed or Collection.");
+        }
+        else if (config.HeroSource == HeroSource.Collection && config.HeroCollectionId is null)
         {
             errors.Add("Hero source 'Collection' requires a collection.");
         }

@@ -55,6 +55,41 @@ public class HtmlInjectorTests
         Assert.Contains("manifest.json", HtmlInjector.Inject(page, "h"), StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("<link href=\"manifest.json\" rel=\"manifest\"><link sizes=\"180x180\" rel=\"apple-touch-icon\" href=\"touchicon.png\"><meta content=\"#202020\" id=\"themeColor\">")]
+    [InlineData("<LINK crossorigin rel='manifest' href='manifest.json'/><link\nrel=apple-touch-icon href=touchicon.png><meta name=\"theme-color\" content=\"#202020\">")]
+    [InlineData("<meta name=\"theme-color\" content=\"#202020\"><meta id=\"themeColor\" content=\"#202020\"><link rel=\"manifest\" href=\"manifest.json\"><link rel=\"apple-touch-icon\" href=\"touchicon.png\">")]
+    public void InstallsAsLumen_WhateverTheAttributeOrderAndQuoting(string tags)
+    {
+        var notFound = new List<string>();
+
+        var result = HtmlInjector.Inject("<html><head>" + tags + "</head><body></body></html>", "h", installAsLumen: true, notFound: notFound);
+
+        Assert.Empty(notFound);
+        Assert.DoesNotContain("manifest.json", result, StringComparison.Ordinal);
+        Assert.DoesNotContain("touchicon.png", result, StringComparison.Ordinal);
+        Assert.DoesNotContain("#202020", result, StringComparison.Ordinal);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(result, "theme-color"));
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(result, "rel=\"manifest\""));
+    }
+
+    [Fact]
+    public void ReportsTheTagsItCouldNotFind_AndLeavesLookalikesAlone()
+    {
+        var notFound = new List<string>();
+        const string page = "<html><head><link data-rel=\"manifest\" href=\"a.json\"><link rel=\"manifest-x\" href=\"b.json\"></head></html>";
+
+        var result = HtmlInjector.Inject(page, "h", installAsLumen: true, notFound: notFound);
+
+        Assert.Equal(["manifest link", "apple-touch-icon link", "theme-color meta"], notFound);
+        Assert.Contains("<link data-rel=\"manifest\" href=\"a.json\">", result, StringComparison.Ordinal);
+        Assert.Contains("<link rel=\"manifest-x\" href=\"b.json\">", result, StringComparison.Ordinal);
+
+        var notInstalling = new List<string>();
+        HtmlInjector.Inject(page, "h", notFound: notInstalling);
+        Assert.Empty(notInstalling);
+    }
+
     [Fact]
     public void OmitsTheGuard_WhenNoneIsGiven()
     {

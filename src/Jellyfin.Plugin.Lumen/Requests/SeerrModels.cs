@@ -1,32 +1,25 @@
 namespace Jellyfin.Plugin.Lumen.Requests;
 
-/// <summary>The discover lists Lumen shows as home rows (Seerr's <c>/discover/*</c> endpoints).</summary>
-public enum SeerrDiscoverList
+/// <summary>Seerr's version, from <c>GET /api/v1/status</c>.</summary>
+public sealed record SeerrStatus(string Version);
+
+/// <summary>
+/// The Jellyfin server Seerr is linked to. Seerr's settings response also contains its Jellyfin API key, so only the
+/// name and server id are kept.
+/// </summary>
+public sealed record SeerrJellyfinServer(string Name, string ServerId)
 {
-    /// <summary><c>/discover/trending</c>: movies, shows and people.</summary>
-    Trending,
+    /// <summary>True when <paramref name="systemId"/> (this server's id) is the server Seerr is linked to.</summary>
+    public bool Is(string systemId) => Normalize(ServerId) == Normalize(systemId);
 
-    /// <summary><c>/discover/movies</c>.</summary>
-    PopularMovies,
-
-    /// <summary><c>/discover/tv</c>.</summary>
-    PopularTv,
-
-    /// <summary><c>/discover/movies/upcoming</c>.</summary>
-    UpcomingMovies,
-
-    /// <summary><c>/discover/tv/upcoming</c>.</summary>
-    UpcomingTv,
+    private static string Normalize(string id) => id.Replace("-", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
 }
 
-/// <summary>The media types the catalog handles (Seerr's own names).</summary>
-public static class CatalogMediaType
-{
-    public const string Movie = "movie";
-    public const string Tv = "tv";
-
-    public static bool IsValid(string? mediaType) => mediaType is Movie or Tv;
-}
+/// <summary>
+/// The only parts of a Seerr user Lumen keeps. Seerr's user object (fetched with the admin key) also carries the user's
+/// Jellyfin and Plex tokens, so it is never stored or passed on whole.
+/// </summary>
+public sealed record SeerrUser(int Id, long Permissions);
 
 /// <summary>
 /// A page of Seerr results (<c>/search</c>, <c>/movie/{id}/recommendations</c>, ...). Only the fields Lumen reads are
@@ -37,8 +30,6 @@ public sealed class SeerrPage
     public int Page { get; init; }
 
     public int TotalPages { get; init; }
-
-    public int TotalResults { get; init; }
 
     public IReadOnlyList<SeerrMedia>? Results { get; init; }
 }
@@ -114,7 +105,7 @@ public sealed class SeerrSeasonStatus
     public int? Status { get; init; }
 }
 
-/// <summary>A request for a title. Status 1 pending, 2 approved, 3 declined.</summary>
+/// <summary>A request for a title; <see cref="Status"/> is a <see cref="SeerrRequestStatus"/>.</summary>
 public sealed class SeerrMediaRequest
 {
     public int? Status { get; init; }
@@ -147,11 +138,7 @@ public sealed class SeerrCastMember
 
 public sealed class SeerrVideo
 {
-    public string? Url { get; init; }
-
     public string? Key { get; init; }
-
-    public string? Name { get; init; }
 
     public string? Type { get; init; }
 
@@ -176,7 +163,7 @@ public sealed class SeerrUserRequestPage
     public IReadOnlyList<SeerrUserRequest>? Results { get; init; }
 }
 
-/// <summary>One of a user's requests. Status 1 pending, 2 approved, 3 declined.</summary>
+/// <summary>One of a user's requests; <see cref="Status"/> is a <see cref="SeerrRequestStatus"/>.</summary>
 public sealed class SeerrUserRequest
 {
     public int Id { get; init; }

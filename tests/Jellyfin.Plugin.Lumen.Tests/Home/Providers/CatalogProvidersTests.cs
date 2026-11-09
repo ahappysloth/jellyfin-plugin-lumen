@@ -289,7 +289,7 @@ public class CatalogProvidersTests
     private IHomeSectionProvider Provider(string type)
     {
         var mapper = new CatalogMapper(_library);
-        var access = new CatalogRowAccess(_users, _config);
+        var access = new CatalogRowAccess(_users);
         return type switch
         {
             SectionTypes.CatalogTrending => new CatalogTrendingProvider(access, _seerr, mapper, NullLogger<CatalogTrendingProvider>.Instance),

@@ -31,6 +31,7 @@ public sealed class HeroService : IHeroService
             _ => Query(context, config, isPlayed: null, (ItemSortBy.DateCreated, SortOrder.Descending)),
         };
 
+        cancellationToken.ThrowIfCancellationRequested();
         IReadOnlyList<HeroItem> hero = Rank(candidates, config.HeroCount)
             .Select(item => new HeroItem(item, _trailers.GetLocalTrailerId(item, context.User)))
             .ToList();

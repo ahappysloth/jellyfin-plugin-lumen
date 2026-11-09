@@ -17,12 +17,12 @@ public sealed class LumenController : ControllerBase
     public const string PwaColor = "#0f0f0f";
 
     private readonly AssetCatalog _assets;
-    private readonly ILumenConfigStore _config;
+    private readonly ILumenConfigReader _config;
     private readonly DiagnosticsStore _diagnostics;
     private readonly TimeProvider _time;
     private readonly IServerApplicationHost _host;
 
-    public LumenController(AssetCatalog assets, ILumenConfigStore config, DiagnosticsStore diagnostics, TimeProvider time, IServerApplicationHost host)
+    public LumenController(AssetCatalog assets, ILumenConfigReader config, DiagnosticsStore diagnostics, TimeProvider time, IServerApplicationHost host)
     {
         _assets = assets;
         _config = config;

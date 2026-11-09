@@ -82,6 +82,12 @@ public sealed partial class CatalogMapper
     public static IReadOnlyList<string> GenreNames(IEnumerable<int>? ids) =>
         ids?.Select(id => GenreTable.GetValueOrDefault(id)).OfType<string>().Distinct(StringComparer.Ordinal).ToList() ?? [];
 
+    /// <summary>A title's genre names: its named genres when Seerr sent them, else names for its TMDB genre ids.</summary>
+    public static IReadOnlyList<string> TitleGenreNames(SeerrTitle title) =>
+        title.Genres is { Count: > 0 }
+            ? title.Genres.Select(g => g.Name).OfType<string>().Where(n => n.Length > 0).ToList()
+            : GenreNames(title.GenreIds);
+
     /// <summary>The first YouTube trailer as a watch URL, or null. Keys are validated so only a plain video id is ever used.</summary>
     public static string? TrailerUrl(IEnumerable<SeerrVideo>? videos) =>
         videos?
@@ -99,7 +105,7 @@ public sealed partial class CatalogMapper
     {
         var info = title.MediaInfo;
         var requested = (info?.Requests ?? [])
-            .Where(r => r.Status != 3)
+            .Where(r => r.Status != SeerrRequestStatus.Declined)
             .SelectMany(r => r.Seasons ?? [])
             .Select(s => s.SeasonNumber)
             .ToHashSet();
@@ -163,10 +169,7 @@ public sealed partial class CatalogMapper
     /// <summary>The title page DTO. <paramref name="access"/> decides <see cref="CatalogTitleDto.CanRequest"/>.</summary>
     public CatalogTitleDto ToTitle(string mediaType, SeerrTitle title, IReadOnlyList<CatalogItemDto> recommendations, RequestAccess access, User? user)
     {
-        var genres = title.Genres is { Count: > 0 }
-            ? title.Genres.Select(g => g.Name).OfType<string>().Where(n => n.Length > 0).ToList()
-            : GenreNames(title.GenreIds);
-        var item = ToItem(mediaType, title, user, genres)
+        var item = ToItem(mediaType, title, user, TitleGenreNames(title))
             ?? throw new SeerrException("Seerr returned a title without an id.");
         var tv = mediaType == CatalogMediaType.Tv;
         var seasons = tv ? Seasons(title) : [];

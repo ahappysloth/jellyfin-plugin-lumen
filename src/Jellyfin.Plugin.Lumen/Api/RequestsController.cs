@@ -1,6 +1,6 @@
 using System.Net;
 using Jellyfin.Database.Implementations.Entities;
-using Jellyfin.Plugin.Lumen.Configuration;
+using Jellyfin.Plugin.Lumen.Home;
 using Jellyfin.Plugin.Lumen.Requests;
 using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authorization;
@@ -10,7 +10,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.Lumen.Api;
 
-/// <summary>Catalog browsing and requests via Seerr, for the signed-in user (requests design spec, §4.1).</summary>
+/// <summary>
+/// Catalog browsing and requests via Seerr, for the signed-in user (requests design spec, §4.1). Every action goes
+/// through <see cref="ISeerrUserMap"/>, which grants no access while Lumen or requests are switched off.
+/// </summary>
 [ApiController]
 [Route("Lumen/Requests")]
 [Authorize]
@@ -24,7 +27,7 @@ public sealed class RequestsController : ControllerBase
     private readonly ISeerrUserMap _users;
     private readonly ITmdbImageCache _images;
     private readonly ISeerrClient _seerr;
-    private readonly ILumenConfigStore _config;
+    private readonly HomeCache _home;
     private readonly IUserManager _userManager;
     private readonly CatalogMapper _mapper;
     private readonly ILogger<RequestsController> _logger;
@@ -33,7 +36,7 @@ public sealed class RequestsController : ControllerBase
         ISeerrUserMap users,
         ITmdbImageCache images,
         ISeerrClient seerr,
-        ILumenConfigStore config,
+        HomeCache home,
         IUserManager userManager,
         CatalogMapper mapper,
         ILogger<RequestsController> logger)
@@ -41,7 +44,7 @@ public sealed class RequestsController : ControllerBase
         _users = users;
         _images = images;
         _seerr = seerr;
-        _config = config;
+        _home = home;
         _userManager = userManager;
         _mapper = mapper;
         _logger = logger;
@@ -51,7 +54,7 @@ public sealed class RequestsController : ControllerBase
     [HttpGet("Status")]
     public async Task<ActionResult<RequestStatusDto>> GetStatus(CancellationToken cancellationToken)
     {
-        if (User.GetJellyfinUserId() is not { } userId)
+        if (User.GetJellyfinUserId(_logger) is not { } userId)
         {
             return Unauthorized();
         }
@@ -69,28 +72,38 @@ public sealed class RequestsController : ControllerBase
             return BadRequest();
         }
 
-        if (User.GetJellyfinUserId() is not { } userId || !(await _users.GetAccessAsync(userId, cancellationToken).ConfigureAwait(false)).Enabled)
+        if (User.GetJellyfinUserId(_logger) is not { } userId || !(await _users.GetAccessAsync(userId, cancellationToken).ConfigureAwait(false)).Enabled)
         {
             return NotFound();
         }
 
-        CachedImage? image;
-        try
+        // A trim can delete the file between the lookup and opening it; the second lookup downloads it again.
+        for (var attempt = 0; attempt < 2; attempt++)
         {
-            image = await _images.GetAsync(size, file, cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception e) when (e is HttpRequestException or OperationCanceledException or IOException)
-        {
-            return StatusCode(StatusCodes.Status502BadGateway);
+            CachedImage? image;
+            try
+            {
+                image = await _images.GetAsync(size, file, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception e) when (e is HttpRequestException or OperationCanceledException or IOException or UnauthorizedAccessException)
+            {
+                return StatusCode(StatusCodes.Status502BadGateway);
+            }
+
+            if (image is null)
+            {
+                return NotFound();
+            }
+
+            // Opened here rather than served by path, so a trim after this point can't turn the response into a 500.
+            if (TmdbImageCache.TryOpen(image.Path) is { } stream)
+            {
+                Response.Headers.CacheControl = "private, max-age=604800, immutable";
+                return File(stream, image.ContentType);
+            }
         }
 
-        if (image is null)
-        {
-            return NotFound();
-        }
-
-        Response.Headers.CacheControl = "private, max-age=604800, immutable";
-        return PhysicalFile(image.Path, image.ContentType);
+        return StatusCode(StatusCodes.Status502BadGateway);
     }
 
     /// <summary>Catalog titles (movies and shows) matching <paramref name="query"/>, with their request state.</summary>
@@ -190,8 +203,11 @@ public sealed class RequestsController : ControllerBase
         try
         {
             var result = await _seerr.CreateRequestAsync(caller.Endpoint!, caller.SeerrUserId, body.MediaType!, body.TmdbId, seasons, cancellationToken).ConfigureAwait(false);
+
+            // The cached home (My Requests, catalog rows) still shows the title as requestable.
+            _home.InvalidateUser(caller.UserId);
             var state = result.MediaStatus is { } status ? CatalogMapper.MapStatus(status) : CatalogState.Requested;
-            return new RequestResultDto(state == CatalogState.None ? CatalogState.Requested : state, result.RequestStatus == 1);
+            return new RequestResultDto(state == CatalogState.None ? CatalogState.Requested : state, result.RequestStatus == SeerrRequestStatus.Pending);
         }
         catch (SeerrException e) when (e.Status == HttpStatusCode.Forbidden)
         {
@@ -233,7 +249,7 @@ public sealed class RequestsController : ControllerBase
     /// <summary>The signed-in user with catalog access, or the result to return instead (401, or 404 when they have no access).</summary>
     private async Task<Caller> GetCallerAsync(CancellationToken cancellationToken)
     {
-        if (User.GetJellyfinUserId() is not { } userId)
+        if (User.GetJellyfinUserId(_logger) is not { } userId)
         {
             return new Caller(Unauthorized());
         }
@@ -244,7 +260,7 @@ public sealed class RequestsController : ControllerBase
             return new Caller(NotFound());
         }
 
-        return new Caller(null, access, endpoint, seerrUserId, _userManager.GetUserById(userId));
+        return new Caller(null, userId, access, endpoint, seerrUserId, _userManager.GetUserById(userId));
     }
 
     private ObjectResult SeerrUnavailable(SeerrException e, string what)
@@ -254,5 +270,7 @@ public sealed class RequestsController : ControllerBase
         return StatusCode(StatusCodes.Status502BadGateway, new ErrorDto(Unavailable));
     }
 
-    private sealed record Caller(ActionResult? Failure, RequestAccess? Access = null, SeerrEndpoint? Endpoint = null, int SeerrUserId = 0, User? User = null);
+    /// <summary>The signed-in caller. Its <c>ToString</c> never prints the API key (see <see cref="SeerrEndpoint.ToString"/>).</summary>
+    private sealed record Caller(
+        ActionResult? Failure, Guid UserId = default, RequestAccess? Access = null, SeerrEndpoint? Endpoint = null, int SeerrUserId = 0, User? User = null);
 }

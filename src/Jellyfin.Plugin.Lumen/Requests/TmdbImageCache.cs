@@ -1,3 +1,5 @@
+using System.Buffers;
+using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using Jellyfin.Plugin.Lumen.Configuration;
 using MediaBrowser.Common.Configuration;
@@ -18,7 +20,9 @@ public sealed record CachedImage(string Path, string ContentType);
 /// <summary>
 /// Disk cache of TMDB images under Jellyfin's cache directory, trimmed to the configured size (oldest first). Only
 /// <see cref="Sizes"/> and file names matching <see cref="FileName"/> are accepted, so it can't be used to fetch
-/// anything else. Set <c>LUMEN_TMDB_IMAGE_BASE</c> to point it at a stub (end-to-end tests).
+/// anything else. Concurrent requests for an image that isn't cached yet share one download; a download is refused
+/// past <see cref="MaxImageBytes"/>, whether or not TMDB says how big it is. Set <c>LUMEN_TMDB_IMAGE_BASE</c> to point
+/// it at a stub (end-to-end tests).
 /// </summary>
 public sealed partial class TmdbImageCache : ITmdbImageCache
 {
@@ -28,12 +32,10 @@ public sealed partial class TmdbImageCache : ITmdbImageCache
 
     private const int TrimEveryWrites = 25;
 
-    /// <summary>A TMDB image larger than this is refused rather than cached ("original" posters are a few MB).</summary>
-    private const long MaxImageBytes = 25L * 1024 * 1024;
-
     private static readonly TimeSpan StaleTempAge = TimeSpan.FromHours(1);
+    private readonly ConcurrentDictionary<string, Lazy<Task<CachedImage?>>> _downloads = new(StringComparer.Ordinal);
     private readonly IHttpClientFactory _http;
-    private readonly ILumenConfigStore _config;
+    private readonly ILumenConfigReader _config;
     private readonly ILogger<TmdbImageCache> _logger;
     private readonly string _directory;
     private readonly Uri _baseUrl;
@@ -42,7 +44,7 @@ public sealed partial class TmdbImageCache : ITmdbImageCache
     private long _bytesSinceTrim;
     private int _startupTrimDone;
 
-    public TmdbImageCache(IHttpClientFactory http, ILumenConfigStore config, IApplicationPaths paths, ILogger<TmdbImageCache> logger)
+    public TmdbImageCache(IHttpClientFactory http, ILumenConfigReader config, IApplicationPaths paths, ILogger<TmdbImageCache> logger)
     {
         _http = http;
         _config = config;
@@ -52,7 +54,36 @@ public sealed partial class TmdbImageCache : ITmdbImageCache
         _baseUrl = new Uri((ConfigValidator.IsHttpUrl(overrideBase) ? overrideBase! : "https://image.tmdb.org/t/p").TrimEnd('/') + "/");
     }
 
+    /// <summary>Gets a TMDB image larger than this is refused rather than cached ("original" posters are a few MB).</summary>
+    internal long MaxImageBytes { get; init; } = 25L * 1024 * 1024;
+
     public static bool IsAllowed(string size, string file) => Sizes.Contains(size) && FileName().IsMatch(file);
+
+    /// <summary>
+    /// Opens a cached image for reading, or returns null if it is gone (a trim deleted it). The file may still be deleted
+    /// or replaced while it is open; the open handle keeps reading the old content.
+    /// </summary>
+    public static FileStream? TryOpen(string path)
+    {
+        try
+        {
+            return new FileStream(path, new FileStreamOptions
+            {
+                Mode = FileMode.Open,
+                Access = FileAccess.Read,
+                Share = FileShare.Read | FileShare.Delete,
+                Options = FileOptions.Asynchronous,
+            });
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return null;
+        }
+    }
 
     public async Task<CachedImage?> GetAsync(string size, string file, CancellationToken cancellationToken)
     {
@@ -76,47 +107,25 @@ public sealed partial class TmdbImageCache : ITmdbImageCache
             return new CachedImage(path, contentType);
         }
 
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(Timeout);
-        using var response = await _http.CreateClient(HttpClientName)
-            .GetAsync(new Uri(_baseUrl, size + "/" + file), HttpCompletionOption.ResponseHeadersRead, timeout.Token)
-            .ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > MaxImageBytes)
+        // Concurrent misses share one download. It isn't tied to any one caller's cancellation (others may be waiting),
+        // only to its own timeout; each caller stops waiting when it is cancelled.
+        Lazy<Task<CachedImage?>>? created = null;
+        var download = _downloads.GetOrAdd(
+            path,
+            _ => created = new Lazy<Task<CachedImage?>>(() => DownloadAsync(size, file, path, contentType), LazyThreadSafetyMode.ExecutionAndPublication));
+        if (ReferenceEquals(download, created))
         {
-            return null;
+            _ = download.Value.ContinueWith(
+                _ => _downloads.TryRemove(KeyValuePair.Create(path, download)),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        long written;
-        try
-        {
-            await using (var output = File.Create(temp))
-            {
-                await response.Content.CopyToAsync(output, timeout.Token).ConfigureAwait(false);
-                written = output.Length;
-            }
-
-            File.Move(temp, path, overwrite: true);
-        }
-        finally
-        {
-            // Cancelled, timed out, or a failed move: never leave the partial file behind (Trim skips .tmp files).
-            DeleteQuietly(temp);
-        }
-
-        // Trim every few writes, or sooner when the writes since the last trim add up (large "original" images).
-        var cap = (long)_config.Current.ImageCacheMb * 1024 * 1024;
-        var pending = Interlocked.Add(ref _bytesSinceTrim, written);
-        if (Interlocked.Increment(ref _writes) % TrimEveryWrites == 0 || pending > cap / 20)
-        {
-            _ = Task.Run(Trim, CancellationToken.None);
-        }
-
-        return new CachedImage(path, contentType);
+        return await download.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Deletes the least recently used images until the cache is under 90% of its cap.</summary>
+    /// <summary>Deletes the least recently used images until the cache is under 90% of its cap. Never throws.</summary>
     public void Trim()
     {
         if (Interlocked.Exchange(ref _trimming, 1) == 1)
@@ -153,11 +162,14 @@ public sealed partial class TmdbImageCache : ITmdbImageCache
                     break;
                 }
 
-                total -= file.Length;
-                file.Delete();
+                // A file that can't be deleted (locked while it is being served, say) is skipped, not the whole pass.
+                if (DeleteQuietly(file.FullName))
+                {
+                    total -= file.Length;
+                }
             }
         }
-        catch (IOException e)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             _logger.LogWarning(e, "Lumen couldn't trim its TMDB image cache");
         }
@@ -167,19 +179,44 @@ public sealed partial class TmdbImageCache : ITmdbImageCache
         }
     }
 
-    private static void DeleteQuietly(string path)
+    /// <summary>Copies at most <paramref name="max"/> bytes; returns the count, or -1 (and stops) once there are more.</summary>
+    internal static async Task<long> CopyBoundedAsync(Stream input, Stream output, long max, CancellationToken cancellationToken)
+    {
+        var buffer = ArrayPool<byte>.Shared.Rent(81920);
+        try
+        {
+            long total = 0;
+            int read;
+            while ((read = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+            {
+                total += read;
+                if (total > max)
+                {
+                    return -1;
+                }
+
+                await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+            }
+
+            return total;
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    private static bool DeleteQuietly(string path)
     {
         try
         {
             File.Delete(path);
+            return true;
         }
-        catch (IOException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             // Swept by the next Trim.
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // Swept by the next Trim.
+            return false;
         }
     }
 
@@ -189,7 +226,7 @@ public sealed partial class TmdbImageCache : ITmdbImageCache
         {
             File.SetLastWriteTimeUtc(path, DateTime.UtcNow);
         }
-        catch (IOException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             // Recency is best-effort; a stale timestamp only makes the image an earlier trim candidate.
         }
@@ -197,4 +234,56 @@ public sealed partial class TmdbImageCache : ITmdbImageCache
 
     [GeneratedRegex("^[A-Za-z0-9]{1,64}\\.(jpg|png)$")]
     private static partial Regex FileName();
+
+    private async Task<CachedImage?> DownloadAsync(string size, string file, string path, string contentType)
+    {
+        // Return to the caller (and out of the Lazy's lock) at once, so other callers start waiting rather than block.
+        await Task.Yield();
+        using var timeout = new CancellationTokenSource(Timeout);
+        using var response = await _http.CreateClient(HttpClientName)
+            .GetAsync(new Uri(_baseUrl, size + "/" + file), HttpCompletionOption.ResponseHeadersRead, timeout.Token)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > MaxImageBytes)
+        {
+            return null;
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        long written;
+        try
+        {
+            await using (var output = File.Create(temp))
+            {
+                var input = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
+                await using (input.ConfigureAwait(false))
+                {
+                    written = await CopyBoundedAsync(input, output, MaxImageBytes, timeout.Token).ConfigureAwait(false);
+                }
+            }
+
+            if (written < 0)
+            {
+                // TMDB didn't say how big it was, and it was too big.
+                return null;
+            }
+
+            File.Move(temp, path, overwrite: true);
+        }
+        finally
+        {
+            // Cancelled, timed out, too big, or a failed move: never leave the partial file behind (Trim skips .tmp files).
+            DeleteQuietly(temp);
+        }
+
+        // Trim every few writes, or sooner when the writes since the last trim add up (large "original" images).
+        var cap = (long)_config.Current.ImageCacheMb * 1024 * 1024;
+        var pending = Interlocked.Add(ref _bytesSinceTrim, written);
+        if (Interlocked.Increment(ref _writes) % TrimEveryWrites == 0 || pending > cap / 20)
+        {
+            _ = Task.Run(Trim, CancellationToken.None);
+        }
+
+        return new CachedImage(path, contentType);
+    }
 }

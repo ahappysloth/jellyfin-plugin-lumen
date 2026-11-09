@@ -36,6 +36,7 @@ public class ServiceRegistratorTests
 
         Assert.NotNull(provider.GetRequiredService<IHomeService>());
         Assert.NotNull(provider.GetRequiredService<ILumenConfigStore>());
+        Assert.Same(provider.GetRequiredService<LumenConfigReader>(), provider.GetRequiredService<ILumenConfigReader>());
         Assert.NotNull(provider.GetRequiredService<AssetCatalog>());
         Assert.NotNull(provider.GetRequiredService<ISeerrUserMap>());
         Assert.NotNull(provider.GetRequiredService<ITmdbImageCache>());
