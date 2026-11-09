@@ -10,6 +10,8 @@ export type Route =
   | { kind: 'profile' }
   /** A stock settings page Lumen restyles and frames with its own nav; the page itself stays jellyfin-web's. */
   | { kind: 'settings'; page: SettingsPage }
+  /** jellyfin-web's video player: Lumen draws its controls over it; playback stays jellyfin-web's. */
+  | { kind: 'player' }
   | { kind: 'other' };
 export type TakeoverRoute = Exclude<Route, { kind: 'other' }>;
 
@@ -64,6 +66,7 @@ export function parseRoute(hash: string): Route {
   }
   if (path === '/search') return { kind: 'search', query: query.get('query') ?? '' };
   if (path === '/mypreferencesmenu') return { kind: 'profile' };
+  if (path === '/video') return { kind: 'player' };
   const settings = SETTINGS_PATHS[path];
   if (settings) return { kind: 'settings', page: settings };
   const collection = LIBRARY_PATHS[path];

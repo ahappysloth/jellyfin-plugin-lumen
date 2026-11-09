@@ -13,18 +13,30 @@ export interface TakeoverOptions {
   report: (report: CompatReport) => void;
 }
 
+/** Routes where jellyfin-web's page stays and Lumen draws over it (instead of replacing it: lmn-active). */
+const OVERLAY_CLASS: Partial<Record<TakeoverRoute['kind'], string>> = {
+  settings: 'lmn-skin-settings',
+  player: 'lmn-skin-player',
+};
+
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+/** Kinds whose `lmn-route-<kind>` class may be on <html>. Prefixed so component classes (.lmn-profile, …) never match <html>. */
+const ROUTE_KINDS: TakeoverRoute['kind'][] = [
+  'home',
+  'details',
+  'library',
+  'favorites',
+  'search',
+  'profile',
+  'title',
+  'settings',
+  'player',
+];
 const ROUTE_CLASSES = [
   'lmn-active',
-  'lmn-home',
-  'lmn-details',
-  'lmn-library',
-  'lmn-favorites',
-  'lmn-search',
-  'lmn-profile',
-  'lmn-title',
-  'lmn-settings',
   'lmn-skin-settings',
+  'lmn-skin-player',
+  ...ROUTE_KINDS.map((kind) => `lmn-route-${kind}`),
 ];
 
 /** Owns #lmn-root and the <html> classes that hide the stock page. Never touches jellyfin-web's own DOM. */
@@ -55,11 +67,8 @@ export class Takeover {
 
     const root = this.ensureRoot();
     doc.documentElement.classList.remove(...ROUTE_CLASSES);
-    // Settings pages stay jellyfin-web's (restyled, with Lumen's nav over them); every other route replaces the page.
-    doc.documentElement.classList.add(
-      route.kind === 'settings' ? 'lmn-skin-settings' : 'lmn-active',
-      `lmn-${route.kind}`,
-    );
+    // Settings pages and the player stay jellyfin-web's (Lumen draws over them); every other route replaces the page.
+    doc.documentElement.classList.add(OVERLAY_CLASS[route.kind] ?? 'lmn-active', `lmn-route-${route.kind}`);
     const { AccentColor } = this.options.config;
     if (HEX_COLOR.test(AccentColor)) root.style.setProperty('--lmn-accent', AccentColor);
     root.style.setProperty('--lmn-top-offset', `${getAppBarHeight(doc)}px`);
@@ -97,6 +106,8 @@ export class Takeover {
         return config.DetailsTakeover;
       case 'settings':
         return config.StyleStockPages;
+      case 'player':
+        return config.StyleVideoPlayer;
       default:
         return config.LibraryTakeover;
     }

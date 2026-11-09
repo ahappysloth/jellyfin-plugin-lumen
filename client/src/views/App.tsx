@@ -9,6 +9,7 @@ import type { ViewContext } from './context';
 import { TitleView } from './catalog/TitleView';
 import { DetailsView } from './details/DetailsView';
 import { HomeView } from './home/HomeView';
+import { PlayerView } from './player/PlayerView';
 import { ProfileView } from './profile/ProfileView';
 import { SettingsFrame } from './profile/SettingsFrame';
 import { SearchView } from './search/SearchView';
@@ -34,6 +35,8 @@ function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
       return <ProfileView ctx={ctx} />;
     case 'settings':
       return <SettingsFrame page={route.page} />;
+    case 'player':
+      return <PlayerView ctx={ctx} />;
     case 'details':
       return <DetailsView key={route.id} id={route.id} ctx={ctx} />;
     case 'title':
@@ -55,7 +58,7 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
   }, [route.kind]);
   return (
     <ErrorBoundary fallback={null} onError={ctx.onFallback}>
-      {route.kind !== 'details' && route.kind !== 'title' && (
+      {route.kind !== 'details' && route.kind !== 'title' && route.kind !== 'player' && (
         <ErrorBoundary fallback={null}>
           <Nav ctx={ctx} active={navActive(route)} />
         </ErrorBoundary>

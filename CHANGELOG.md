@@ -4,6 +4,13 @@ All notable changes to Lumen are documented here. Versions follow SemVer; Jellyf
 
 ## [Unreleased]
 
+### Added
+- Lumen's video player controls, over jellyfin-web's player: title and episode top left; **Quality** (Auto or a
+  preset, aspect ratio, speed) and **Audio & Subtitles** (tracks side by side, subtitle timing) panels top right; a
+  slim scrubber with the time above it; play, ±10 s and volume bottom left; next episode, favorite, picture in
+  picture, AirPlay and full screen bottom right. Playback, subtitles, keyboard shortcuts and the skip-intro / up-next
+  prompts stay Jellyfin's. Admin switch: "Use Lumen's video player controls".
+
 ### Changed
 - Settings page: every dropdown uses Lumen's dropdown; each home section explains in a sentence what it shows; the save
   bar reads status on the left and Reset to defaults then Save on the right; browsers and password managers no longer
@@ -15,6 +22,8 @@ All notable changes to Lumen are documented here. Versions follow SemVer; Jellyf
 - The bottom tab bar is used below 910px wide (phones, small tablets, narrow windows); the centred pill from 910px.
 
 ### Fixed
+- Route classes on `<html>` are now `lmn-route-*`, so a page's own classes (e.g. the Settings page's `.lmn-profile`)
+  no longer also style the whole document.
 - A long server name truncates instead of running under the centred nav pill.
 - A dropdown near the left edge (Genre on phones) no longer opens off screen; lists open toward the side with room.
 

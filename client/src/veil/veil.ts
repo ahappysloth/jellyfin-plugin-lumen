@@ -13,7 +13,9 @@ const LIFT_MS = 900;
 /** Routes Lumen may own, plus the bare app URL (jellyfin-web redirects it to home). */
 export function shouldVeil(hash: string): boolean {
   if (/^#?!?\/?$/.test(hash)) return true;
-  return parseRoute(hash).kind !== 'other';
+  const kind = parseRoute(hash).kind;
+  // A reload on the player lands wherever jellyfin-web sends it; nothing of Lumen's to wait for.
+  return kind !== 'other' && kind !== 'player';
 }
 
 export function rememberVeilName(name: string): void {

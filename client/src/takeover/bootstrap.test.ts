@@ -8,6 +8,7 @@ const clientConfig = {
   DetailsTakeover: true,
   LibraryTakeover: true,
   StyleStockPages: true,
+  StyleVideoPlayer: true,
   AccentColor: '#112233',
   HeroIntervalSeconds: 8,
   TrailerPreview: true,
