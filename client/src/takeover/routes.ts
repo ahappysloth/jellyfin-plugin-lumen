@@ -1,10 +1,11 @@
-export type LibraryCollection = 'movies' | 'tvshows';
+export type LibraryCollection = 'movies' | 'tvshows' | 'boxsets';
 
 export type Route =
   | { kind: 'home' }
   | { kind: 'details'; id: string; serverId?: string }
   | { kind: 'library'; id: string; collection: LibraryCollection }
   | { kind: 'favorites' }
+  | { kind: 'genre'; id: string; parentId?: string }
   | { kind: 'search'; query: string }
   | { kind: 'title'; mediaType: 'movie' | 'tv'; tmdbId: number }
   | { kind: 'profile' }
@@ -70,6 +71,24 @@ export function parseRoute(hash: string): Route {
   if (path === '/video') return { kind: 'player' };
   const settings = SETTINGS_PATHS[path];
   if (settings) return { kind: 'settings', page: settings };
+  if (path === '/list') {
+    // jellyfin-web's item list filtered to one genre (home genre tiles, a library's Genres tab).
+    const genreId = query.get('genreId');
+    const parentId = query.get('parentId');
+    if (genreId && ITEM_ID.test(genreId))
+      return parentId && ITEM_ID.test(parentId)
+        ? { kind: 'genre', id: genreId, parentId }
+        : { kind: 'genre', id: genreId };
+    // A Collections library (Lumen's own links tag it; jellyfin-web ignores the extra parameter).
+    if (
+      query.get('collectionType') === 'boxsets' &&
+      parentId &&
+      ITEM_ID.test(parentId) &&
+      (tab === null || tab === '0')
+    )
+      return { kind: 'library', id: parentId, collection: 'boxsets' };
+    return { kind: 'other' };
+  }
   const collection = LIBRARY_PATHS[path];
   if (collection && (tab === null || tab === '0')) {
     const id = query.get('topParentId');
@@ -84,6 +103,8 @@ export function routeKey(route: TakeoverRoute): string {
     case 'details':
     case 'library':
       return `${route.kind}:${route.id}`;
+    case 'genre':
+      return `genre:${route.id}:${route.parentId ?? ''}`;
     case 'title':
       return `title:${route.mediaType}-${route.tmdbId}`;
     case 'settings':

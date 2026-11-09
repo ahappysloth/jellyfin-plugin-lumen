@@ -21,7 +21,16 @@ const FILTERS: readonly Option<FilterKey>[] = (['all', 'unwatched', 'watched'] a
   value,
   label: strings.filters[value],
 }));
-const ITEM_TYPES: Record<LibraryCollection, string> = { movies: 'Movie', tvshows: 'Series' };
+const ITEM_TYPES: Record<LibraryCollection, string> = {
+  movies: 'Movie',
+  tvshows: 'Series',
+  boxsets: 'BoxSet',
+};
+const TITLES: Record<LibraryCollection, string> = {
+  movies: strings.movies,
+  tvshows: strings.shows,
+  boxsets: strings.collections,
+};
 const FILTER_PARAMS: Record<FilterKey, string[]> = {
   all: [],
   unwatched: ['IsUnplayed'],
@@ -79,10 +88,12 @@ export function LibraryView({
       .getItem(id)
       .then((library) => !cancelled && setName(library.Name))
       .catch(() => undefined);
-    ctx.api
-      .getGenres(id, itemType)
-      .then((result) => !cancelled && setGenres(result.Items))
-      .catch(() => undefined);
+    // Collections have no genres of their own.
+    if (collection !== 'boxsets')
+      ctx.api
+        .getGenres(id, itemType)
+        .then((result) => !cancelled && setGenres(result.Items))
+        .catch(() => undefined);
     return () => {
       cancelled = true;
     };
@@ -105,7 +116,7 @@ export function LibraryView({
     [genres],
   );
   const filtered = choice.filter !== 'all' || choice.genre !== '';
-  const fallbackTitle = collection === 'movies' ? strings.movies : strings.shows;
+  const fallbackTitle = TITLES[collection];
 
   /** Remembers the grid and scroll position, so Back from a title lands on the same card. */
   const save = (): void => {

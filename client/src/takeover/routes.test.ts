@@ -36,6 +36,20 @@ describe('parseRoute', () => {
     ['#/userprofile?userId=x', { kind: 'settings', page: 'profile' }],
     ['#/login', { kind: 'other' }],
     ['#/video', { kind: 'player' }],
+    [
+      '#/list?genreId=0123456789abcdef0123456789abcdef&serverId=s',
+      { kind: 'genre', id: '0123456789abcdef0123456789abcdef' },
+    ],
+    [
+      '#/list?genreId=0123456789abcdef0123456789abcdef&parentId=fedcba9876543210fedcba9876543210',
+      { kind: 'genre', id: '0123456789abcdef0123456789abcdef', parentId: 'fedcba9876543210fedcba9876543210' },
+    ],
+    ['#/list?parentId=0123456789abcdef0123456789abcdef', { kind: 'other' }],
+    ['#/list?genreId=nope', { kind: 'other' }],
+    [
+      '#/list?parentId=0123456789abcdef0123456789abcdef&collectionType=boxsets&serverId=s',
+      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'boxsets' },
+    ],
     ['', { kind: 'other' }],
   ])('%s', (hash, expected) => {
     expect(parseRoute(hash)).toEqual(expected);

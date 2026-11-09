@@ -59,6 +59,12 @@ export interface BaseItem {
   /** Library views only: `movies`, `tvshows`, `music`, … (absent for mixed folders). */
   CollectionType?: string;
   ChildCount?: number;
+  /** A person's birth date (Jellyfin stores it as the premiere date). */
+  PremiereDate?: string;
+  /** A person's death date. */
+  EndDate?: string;
+  /** A person's birthplace. */
+  ProductionLocations?: string[];
 }
 
 export interface ItemsResult {

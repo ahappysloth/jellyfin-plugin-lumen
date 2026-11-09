@@ -28,6 +28,8 @@ interface Props {
   onTrailer?: () => void;
   onBack: () => void;
   badges: string[];
+  /** Lends its backdrop when the item has none (a collection without art borrows its first title's). */
+  backdropFallback?: BaseItem;
   played: boolean;
   favorite: boolean;
   error: string | null;
@@ -40,7 +42,9 @@ export function DetailsHeader(props: Props) {
   const [muted, setMuted] = useState(true);
   const [trailerPlaying, setTrailerPlaying] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
-  const backdrop = resolveImage(item, ['Backdrop']);
+  const backdrop =
+    resolveImage(item, ['Backdrop']) ??
+    (props.backdropFallback ? resolveImage(props.backdropFallback, ['Backdrop']) : null);
   const logo = resolveImage(item, ['Logo']);
   const preview = props.trailerId && props.config.TrailerPreview && !reducedMotion ? props.trailerId : null;
   const meta = [

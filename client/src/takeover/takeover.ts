@@ -26,6 +26,7 @@ const ROUTE_KINDS: TakeoverRoute['kind'][] = [
   'details',
   'library',
   'favorites',
+  'genre',
   'search',
   'profile',
   'title',

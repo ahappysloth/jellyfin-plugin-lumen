@@ -2,6 +2,23 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [Unreleased]
+
+### Added
+- Lumen pages for the genre list (home genre tiles: All / Movies / Shows and a sort menu), people (portrait, born and
+  died, biography, and their titles in the library), collections (the details header over the collection's titles,
+  oldest first) and the Collections library.
+
+### Changed
+- One red throughout: the UI accent is now the logo's red (`#e30b17`). Servers still on the old default red move to it;
+  a custom accent is kept.
+- Player: redrawn ±10 s buttons, and the quality menu shows each preset's bitrate (Jellyfin caps the bitrate and keeps
+  the source resolution, as in its own menu).
+
+### Fixed
+- The resume bar in the Resume button is centred again, the player's timeline no longer has a grey band behind it, and
+  button icons sit level with their labels.
+
 ## [0.2.1] - 2026-11-09
 
 ### Added
