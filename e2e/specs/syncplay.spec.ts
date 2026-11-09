@@ -15,7 +15,10 @@ const watchTogether = (page: Page) =>
   page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: /^Watch together/ });
 
 const opened: Page[] = [];
-let played: string | undefined;
+let played: string[] = [];
+
+// Two browsers, a group handshake and playback starting on both: slower than the default timeout on CI runners.
+test.setTimeout(120_000);
 
 test.afterEach(async () => {
   for (const page of opened.splice(0)) await page.context().close();
@@ -24,20 +27,21 @@ test.afterEach(async () => {
   const { admin, kid } = loadState();
   for (const user of [admin, kid]) {
     await api('/SyncPlay/Leave', { method: 'POST', token: user.token }).catch(() => undefined);
-    if (!played) continue;
-    for (const method of ['POST', 'DELETE'] as const)
-      await api(`/UserPlayedItems/${played}`, { method, token: user.token, query: { userId: user.userId } });
+    // Every episode: a group's queue can move on to the next one before the test ends.
+    for (const id of played)
+      for (const method of ['POST', 'DELETE'] as const)
+        await api(`/UserPlayedItems/${id}`, { method, token: user.token, query: { userId: user.userId } });
   }
-  played = undefined;
+  played = [];
 });
 
-test('two viewers watch together: create, join, play for both, leave', async ({ browser }) => {
+test('two viewers watch together: create, join, leave and rejoin, play for both', async ({ browser }) => {
   const { admin, items } = loadState();
   const episodes = await api<{ Items: { Id: string }[] }>(`/Shows/${items['Lumen Show']}/Episodes`, {
     token: admin.token,
     query: { userId: admin.userId },
   });
-  played = episodes.Items[0]!.Id;
+  played = episodes.Items.map((e) => e.Id);
   const a = await viewer(browser, ADMIN);
   const b = await viewer(browser, KID);
 
@@ -61,17 +65,19 @@ test('two viewers watch together: create, join, play for both, leave', async ({ 
   }).toPass({ timeout: 15_000 });
   await a.keyboard.press('Escape');
 
-  // Play in A starts for both, and A's player says who it's with.
+  // B leaves (the button goes back to normal), then rejoins.
+  await watchTogether(b).click();
+  await b.getByRole('menuitem', { name: 'Leave group' }).click();
+  await expect(watchTogether(b)).toHaveAccessibleName('Watch together', { timeout: 15_000 });
+  await watchTogether(b).click();
+  await b.getByRole('menuitem', { name: /admin's group/ }).click();
+  await expect(watchTogether(b)).toHaveAccessibleName("Watch together: In admin's group", { timeout: 15_000 });
+
+  // Play in A starts for both, and A's player says who it's with. (While the group plays, leaving the player pulls
+  // a member back in: that's jellyfin-web's SyncPlay, so the test ends here and cleanup leaves the group.)
   await a.goto(`/web/#/details?id=${episodes.Items[0]!.Id}`);
   await a.locator('#lmn-root .lmn-details--episode').getByRole('button', { name: 'Play' }).click();
   await expect(a).toHaveURL(/#\/video/, { timeout: 20_000 });
   await expect(b).toHaveURL(/#\/video/, { timeout: 30_000 });
   await expect(a.getByText('Watching with kid')).toBeVisible({ timeout: 15_000 });
-
-  // Leaving clears the button.
-  await a.goto('/web/#/home');
-  await expect(watchTogether(a)).toBeVisible();
-  await watchTogether(a).click();
-  await a.getByRole('menuitem', { name: 'Leave group' }).click();
-  await expect(watchTogether(a)).toHaveAccessibleName('Watch together', { timeout: 15_000 });
 });
