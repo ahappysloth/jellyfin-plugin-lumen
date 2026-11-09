@@ -40,6 +40,7 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ISeerrClient, SeerrClient>();
         serviceCollection.AddSingleton<ISeerrUserMap, SeerrUserMap>();
         serviceCollection.AddSingleton<ITmdbImageCache, TmdbImageCache>();
+        serviceCollection.AddSingleton<CatalogMapper>();
 
         serviceCollection.AddSingleton<IHomeSectionProvider, ContinueWatchingProvider>();
         serviceCollection.AddSingleton<IHomeSectionProvider, NextUpProvider>();

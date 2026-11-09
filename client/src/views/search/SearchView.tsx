@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { BaseItem } from '../../api/types';
+import type { BaseItem, CatalogItem } from '../../api/types';
 import { Card } from '../../components/Card';
 import { Icon } from '../../components/icons';
 import { type CardVariant, imageUrl } from '../../components/images';
 import { strings } from '../../strings';
 import { liftVeil } from '../../veil/veil';
+import { CatalogCard } from '../catalog/CatalogCard';
+import { catalogHash, loadRequestStatus } from '../catalog/catalog';
 import { cardMenuHandler, infoHash } from '../cardMenu';
 import type { ViewContext } from '../context';
 import { initials } from '../details/CastRow';
@@ -26,6 +28,8 @@ export interface SearchResults {
   query: string;
   sections: Section[];
   people: BaseItem[];
+  /** Seerr titles not already listed above; empty when request features are off for this user. */
+  catalog: CatalogItem[];
 }
 
 const KINDS: readonly { key: string; title: string; type: string; variant: CardVariant }[] = [
@@ -36,6 +40,9 @@ const KINDS: readonly { key: string; title: string; type: string; variant: CardV
 
 /** Searches each kind separately so every section gets its own best matches. A failed kind is just left out. */
 export async function runSearch(ctx: ViewContext, query: string): Promise<SearchResults> {
+  const catalogSearch = loadRequestStatus(ctx).then((status) =>
+    status.Enabled ? ctx.api.searchCatalog(query).then((r) => r.Results) : [],
+  );
   const [people, ...kinds] = await Promise.all([
     ctx.api.searchPeople(query, PEOPLE).catch(() => ({ Items: [] })),
     ...KINDS.map((kind) =>
@@ -51,11 +58,14 @@ export async function runSearch(ctx: ViewContext, query: string): Promise<Search
         .catch(() => ({ Items: [] })),
     ),
   ]);
-  return {
-    query,
-    sections: KINDS.map((kind, i) => ({ ...kind, items: kinds[i]!.Items })).filter((s) => s.items.length > 0),
-    people: people.Items,
-  };
+  const sections = KINDS.map((kind, i) => ({ ...kind, items: kinds[i]!.Items })).filter(
+    (s) => s.items.length > 0,
+  );
+  const listed = new Set(sections.flatMap((s) => s.items.map((i) => i.Id.replace(/-/g, '').toLowerCase())));
+  const catalog = (await catalogSearch.catch(() => [] as CatalogItem[])).filter(
+    (c) => !c.JellyfinItemId || !listed.has(c.JellyfinItemId.replace(/-/g, '').toLowerCase()),
+  );
+  return { query, sections, people: people.Items, catalog };
 }
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -116,7 +126,8 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
   const shown = searching && results?.query === query ? results : null;
   const pending = searching && !shown;
   const open = (item: BaseItem): void => ctx.navigate(infoHash(item));
-  const empty = shown && shown.sections.length === 0 && shown.people.length === 0;
+  const empty =
+    shown && shown.sections.length === 0 && shown.people.length === 0 && shown.catalog.length === 0;
 
   return (
     <div class="lmn-browse lmn-search">
@@ -200,6 +211,27 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
                   )}
                   <span class="lmn-person__name">{person.Name}</span>
                 </button>
+              ))}
+            </div>
+          </section>
+        )}
+        {shown && shown.catalog.length > 0 && (
+          <section class="lmn-search__section" aria-label={strings.moreToRequest}>
+            <h2 class="lmn-row__title">{strings.moreToRequest}</h2>
+            <div
+              class="lmn-browse-grid lmn-browse-grid--poster"
+              role="list"
+              aria-label={strings.moreToRequest}
+            >
+              {shown.catalog.map((item) => (
+                <div role="listitem" key={item.Key} class="lmn-browse-grid__cell">
+                  <CatalogCard
+                    item={item}
+                    client={ctx.client}
+                    variant="poster"
+                    onSelect={(i) => ctx.navigate(catalogHash(i))}
+                  />
+                </div>
               ))}
             </div>
           </section>

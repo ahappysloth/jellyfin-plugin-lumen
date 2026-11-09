@@ -1,5 +1,20 @@
 import type { AjaxRequest, JellyfinApiClient } from '../compat/jellyfin';
-import type { BaseItem, ClientConfig, HomeResponse, ItemsResult, SessionInfo, UserInfo } from './types';
+import type {
+  BaseItem,
+  CatalogMediaType,
+  CatalogSearch,
+  CatalogTitle,
+  ClientConfig,
+  HomeResponse,
+  ItemsResult,
+  RequestResult,
+  RequestStatus,
+  SessionInfo,
+  UserInfo,
+} from './types';
+
+/** A rejected request with Seerr's (or Lumen's) message, for showing to the user. */
+export class RequestError extends Error {}
 
 export interface DiagnosticsReport {
   Client: string;
@@ -110,6 +125,41 @@ export class LumenApi {
     }));
   }
 
+  getRequestStatus(): Promise<RequestStatus> {
+    return this.get('Lumen/Requests/Status');
+  }
+
+  searchCatalog(query: string, page = 1): Promise<CatalogSearch> {
+    return this.get('Lumen/Requests/Search', () => ({ query, page }));
+  }
+
+  getCatalogTitle(mediaType: CatalogMediaType, tmdbId: number): Promise<CatalogTitle> {
+    return this.get(`Lumen/Requests/Title/${mediaType}/${tmdbId}`);
+  }
+
+  /** Files a request in Seerr as the signed-in user. Seasons: TV only; omitted means all. */
+  async requestTitle(
+    mediaType: CatalogMediaType,
+    tmdbId: number,
+    seasons?: number[],
+  ): Promise<RequestResult> {
+    try {
+      return (await this.client.ajax({
+        type: 'POST',
+        url: this.client.getUrl('Lumen/Requests'),
+        dataType: 'json',
+        data: JSON.stringify({
+          MediaType: mediaType,
+          TmdbId: tmdbId,
+          Seasons: seasons?.length ? seasons : null,
+        }),
+        contentType: 'application/json',
+      })) as RequestResult;
+    } catch (error) {
+      throw new RequestError(await errorMessage(error));
+    }
+  }
+
   /** People whose name matches, for search. */
   searchPeople(searchTerm: string, limit: number): Promise<ItemsResult> {
     return this.get('Persons', () => ({ userId: this.userId(), searchTerm, limit, enableImages: true }));
@@ -179,4 +229,17 @@ export class LumenApi {
     }
     await this.client.ajax(request);
   }
+}
+
+/** jellyfin-web's ajax rejects with the fetch Response; Lumen's errors carry { Error }. */
+async function errorMessage(error: unknown): Promise<string> {
+  if (error && typeof (error as Response).json === 'function') {
+    try {
+      const body = (await (error as Response).json()) as { Error?: string };
+      if (body.Error) return body.Error;
+    } catch {
+      // not JSON
+    }
+  }
+  return '';
 }

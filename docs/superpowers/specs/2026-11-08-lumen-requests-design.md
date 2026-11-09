@@ -172,10 +172,12 @@ Section types from §5.1 appear in the existing section editor automatically (da
 
 ## 9. Delivery plan (each step shippable on its own)
 
-1. Server foundation: config + admin fieldset, `SeerrClient`, user map, `/Lumen/Requests/Status`, image proxy, stub Seerr for E2E.
-2. Title page + request dialog (reachable from search first).
-3. Search takeover.
-4. Discover and My Requests home rows with mixed cards.
+1. ✅ Server foundation: config + admin fieldset, `SeerrClient`, user map, `/Lumen/Requests/Status`, image proxy, stub Seerr for E2E.
+2. ✅ Title page + request dialog (reachable from search first).
+3. ✅ Search takeover (Lumen's search page shipped first for the library; catalog results added with step 2). TV
+   requests always name their seasons rather than sending "all", so seasons Seerr adds later aren't requested.
+4. Discover and My Requests home rows with mixed cards. Still to do with it: the shared 10-minute discover cache and
+   the circuit breaker (§7); today every catalog call goes straight to Seerr.
 
 ## 10. Decisions (owner, 2026-11-08)
 

@@ -1045,6 +1045,176 @@ html.lmn-active #lmn-root {
   -webkit-touch-callout: none;
 }
 
+/* ---- Catalog (Seerr) cards, title page and request dialog ---------------------------------------------------- */
+.lmn-card__state {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 9px;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.lmn-card__state.is-filled {
+  border-color: var(--lmn-accent);
+  background: var(--lmn-accent);
+}
+.lmn-card--catalog .lmn-card__art > img:first-child {
+  filter: saturate(0.92);
+}
+.lmn-title__kicker {
+  margin: 0 0 10px;
+  color: var(--lmn-accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.lmn-title__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--lmn-accent) 22%, transparent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+}
+.lmn-title__note {
+  margin: 14px 0 0;
+  color: var(--lmn-text-2);
+  font-size: 14px;
+}
+.lmn-title__failed {
+  min-height: 70vh;
+  justify-content: center;
+}
+a.lmn-button {
+  text-decoration: none;
+}
+.lmn-dialog {
+  position: fixed;
+  z-index: 120;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.66);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: lmn-fade 0.2s ease;
+}
+.lmn-dialog__panel {
+  position: relative;
+  width: min(480px, 100%);
+  max-height: calc(100vh - 32px);
+  padding: 28px;
+  overflow-y: auto;
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 20px;
+  background: var(--lmn-surface);
+  box-shadow: 0 32px 64px -16px rgba(0, 0, 0, 0.9);
+  font-family: var(--lmn-font);
+  animation: lmn-pop 0.2s var(--lmn-ease);
+}
+.lmn-dialog__close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--lmn-text-2);
+  cursor: pointer;
+}
+.lmn-dialog__title {
+  margin: 0 40px 8px 0;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.lmn-dialog__text {
+  margin: 0 0 20px;
+  color: var(--lmn-text-2);
+  font-size: 15px;
+}
+.lmn-dialog__outcome {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 12px 0 24px;
+  color: #fff;
+  font-size: 15px;
+}
+.lmn-dialog__outcome .lmn-icon {
+  color: #4ade80;
+}
+.lmn-dialog__outcome.is-error .lmn-icon {
+  color: var(--lmn-accent);
+}
+.lmn-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.lmn-dialog__actions .lmn-button[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+.lmn-seasons {
+  margin: 0 0 24px;
+  overflow: hidden;
+  border: 1px solid var(--lmn-line);
+  border-radius: 14px;
+}
+.lmn-seasons__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 16px;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+.lmn-seasons__row + .lmn-seasons__row {
+  border-top: 1px solid var(--lmn-line);
+}
+.lmn-seasons__row--all {
+  background: rgba(255, 255, 255, 0.04);
+  font-weight: 600;
+}
+.lmn-seasons__row.is-locked {
+  color: var(--lmn-text-3);
+  cursor: default;
+}
+.lmn-seasons__row input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--lmn-accent);
+}
+.lmn-seasons__name {
+  flex: 1;
+}
+.lmn-seasons__meta {
+  color: var(--lmn-text-3);
+  font-size: 13px;
+}
+
 /* ---- Library and Favorites pages ------------------------------------------------------------------------------ */
 .lmn-browse {
   min-height: 100vh;

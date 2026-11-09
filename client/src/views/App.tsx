@@ -6,6 +6,7 @@ import type { TakeoverRoute } from '../takeover/routes';
 import { FavoritesView } from './browse/FavoritesView';
 import { LibraryView } from './browse/LibraryView';
 import type { ViewContext } from './context';
+import { TitleView } from './catalog/TitleView';
 import { DetailsView } from './details/DetailsView';
 import { HomeView } from './home/HomeView';
 import { ProfileView } from './profile/ProfileView';
@@ -14,7 +15,7 @@ import { Nav, type NavActive } from './Nav';
 
 function navActive(route: TakeoverRoute): NavActive {
   if (route.kind === 'library') return route.id;
-  return route.kind === 'details' ? 'home' : route.kind;
+  return route.kind === 'details' || route.kind === 'title' ? 'home' : route.kind;
 }
 
 function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
@@ -31,6 +32,15 @@ function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
       return <ProfileView ctx={ctx} />;
     case 'details':
       return <DetailsView key={route.id} id={route.id} ctx={ctx} />;
+    case 'title':
+      return (
+        <TitleView
+          key={`${route.mediaType}-${route.tmdbId}`}
+          mediaType={route.mediaType}
+          tmdbId={route.tmdbId}
+          ctx={ctx}
+        />
+      );
   }
 }
 
@@ -41,7 +51,7 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
   }, [route.kind]);
   return (
     <ErrorBoundary fallback={null} onError={ctx.onFallback}>
-      {route.kind !== 'details' && (
+      {route.kind !== 'details' && route.kind !== 'title' && (
         <ErrorBoundary fallback={null}>
           <Nav ctx={ctx} active={navActive(route)} />
         </ErrorBoundary>

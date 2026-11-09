@@ -39,6 +39,7 @@ public class ServiceRegistratorTests
         Assert.NotNull(provider.GetRequiredService<AssetCatalog>());
         Assert.NotNull(provider.GetRequiredService<ISeerrUserMap>());
         Assert.NotNull(provider.GetRequiredService<ITmdbImageCache>());
+        Assert.NotNull(provider.GetRequiredService<CatalogMapper>());
         Assert.Contains(provider.GetServices<IStartupFilter>(), f => f is LumenStartupFilter);
         Assert.Equal(
             [SectionTypes.BecauseYouWatched, SectionTypes.ContinueWatching, SectionTypes.Curated, SectionTypes.Genre, SectionTypes.Genres, SectionTypes.NewForYou, SectionTypes.NextUp, SectionTypes.RecentlyAdded],

@@ -1,8 +1,9 @@
-import { act, fireEvent, render, screen } from '@testing-library/preact';
+import { act, fireEvent, render, screen, within } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { makeContext } from '../../../test/viewContext';
 import type { AjaxRequest } from '../../compat/jellyfin';
+import { clearRequestStatus } from '../catalog/catalog';
 import { SearchView } from './SearchView';
 
 const params = (r: AjaxRequest) => new URL(r.url).searchParams;
@@ -62,5 +63,66 @@ describe('SearchView', () => {
     await flush();
 
     expect(screen.getByText('No results for “zzz”')).toBeInTheDocument();
+  });
+});
+
+describe('SearchView catalog results', () => {
+  beforeEach(() => {
+    clearRequestStatus();
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    clearRequestStatus();
+  });
+
+  it('adds Seerr titles under "More to request", skipping ones already listed from the library', async () => {
+    const client = createFakeClient(
+      routes({
+        Items: (r: AjaxRequest) =>
+          params(r).get('includeItemTypes') === 'Movie'
+            ? { Items: [{ Id: '0123456789abcdef0123456789abcdef', Name: 'Lumen Alpha', Type: 'Movie' }] }
+            : { Items: [] },
+        Persons: { Items: [] },
+        'Lumen/Requests/Status': { Enabled: true, CanRequestMovies: true, CanRequestTv: true },
+        'Lumen/Requests/Search': {
+          Page: 1,
+          TotalPages: 1,
+          Results: [
+            {
+              Key: 'movie-1',
+              MediaType: 'movie',
+              TmdbId: 1,
+              Title: 'Lumen Alpha',
+              GenreNames: [],
+              State: 'Available',
+              JellyfinItemId: '0123456789abcdef0123456789abcdef',
+            },
+            {
+              Key: 'movie-2',
+              MediaType: 'movie',
+              TmdbId: 2,
+              Title: 'Lumen Omega',
+              GenreNames: [],
+              State: 'None',
+            },
+          ],
+        },
+      }),
+    );
+    const ctx = makeContext(client);
+    render(<SearchView initialQuery="lumen" ctx={ctx} />);
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    const more = screen.getByRole('list', { name: 'More to request' });
+    expect(
+      within(more)
+        .getAllByRole('button')
+        .map((b) => b.getAttribute('aria-label')),
+    ).toEqual(['Lumen Omega, Request']);
+    fireEvent.click(within(more).getByRole('button'));
+    expect(ctx.navigate).toHaveBeenCalledWith('#/home?title=movie-2');
   });
 });

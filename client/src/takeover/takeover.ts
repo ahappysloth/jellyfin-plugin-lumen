@@ -22,6 +22,7 @@ const ROUTE_CLASSES = [
   'lmn-favorites',
   'lmn-search',
   'lmn-profile',
+  'lmn-title',
 ];
 
 /** Owns #lmn-root and the <html> classes that hide the stock page. Never touches jellyfin-web's own DOM. */
@@ -86,6 +87,7 @@ export class Takeover {
       case 'home':
         return config.HomeTakeover;
       case 'details':
+      case 'title':
         return config.DetailsTakeover;
       default:
         return config.LibraryTakeover;
