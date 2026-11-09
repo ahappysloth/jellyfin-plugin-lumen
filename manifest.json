@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/ahappysloth/jellyfin-plugin-lumen/main/assets/lumen-plugin.png",
     "versions": [
       {
+        "version": "0.2.4.0",
+        "changelog": "\n### Fixed\n- Play starts in the tab you pressed it in. With more than one Jellyfin tab open in a browser, it could start in\n  another tab instead, leaving the current one unchanged.\n- Seerr artwork URLs no longer carry your Jellyfin access token (which could end up in proxy logs and browser\n  history). They use a per-user token that only opens catalog artwork.",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/ahappysloth/jellyfin-plugin-lumen/releases/download/v0.2.4/lumen_0.2.4.0.zip",
+        "checksum": "6857983ed843944c4392fe221889c422",
+        "timestamp": "2026-11-09T19:35:00Z"
+      },
+      {
         "version": "0.2.3.0",
         "changelog": "\n### Changed\n- Back returns to the same spot in a grid, and only Back: opening Movies, Shows, a genre or Favorites from the nav\n  loads them fresh. Favoriting or marking a title watched no longer resets the grids you scrolled.\n- Errors are never silent: a failed play, favorite or watched change shows a short message on every page, and pages\n  that fail to load offer Try again. Search says when it failed instead of \"No results\".\n- Jellyfin's start page (index.html) is served compressed.\n- The admin page is organised into sections; a failed save, reset or lookup says what happened without hiding the\n  rest of the page.\n- The release workflow waits for CI on the tagged commit and can be re-run safely.\n\n### Fixed\n- The Seerr API key is never sent to another host when Seerr answers with a redirect (for example behind a sign-in\n  proxy); Lumen reports the redirect instead.\n- If Lumen hits an error while preparing Jellyfin's start page, the stock page is served instead of an error page.\n- Saving Lumen's settings through Jellyfin's own plugin-settings endpoint keeps the Seerr key, validates and refreshes\n  caches, like the Lumen admin page.\n- Seerr's discover lists and titles are no longer shared between users with different language or region settings.\n  Home shows a new request straight away, and Test connection works even while Seerr requests are paused after errors.\n- Turning Lumen off now also turns off its home and request endpoints.\n- A slow page load retries before falling back to the stock UI, the stock player takes over at once if Lumen can't\n  attach to Jellyfin's player, and the sign-in look can no longer stay on after signing in.\n- TV layout: browse, search and profile pages start with a focused item.\n- Phones: the request dialog fits on iOS and can't be closed mid-request, text buttons keep their text, and poster\n  grids show three across.\n- Screen readers hear a short result count in search instead of every result.",
         "targetAbi": "12.1.0.0",
