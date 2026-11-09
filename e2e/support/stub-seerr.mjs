@@ -4,9 +4,19 @@
 //   GET  /api/v1/status                         → { version }
 //   GET  /api/v1/user/jellyfin/:jellyfinUserId  → the mapped user, 404 if unmapped, 403 without the right key
 //   GET  /api/v1/settings/jellyfin              → the Jellyfin server this "Seerr" is linked to
+//   GET  /api/v1/search?query=&page=            → "matrix" (any case): movies 603, 604, show 1399 and a person; else empty
+//   GET  /api/v1/movie/:id   (603, 604)         → movie details (credits, YouTube trailer, mediaInfo)
+//   GET  /api/v1/tv/:id      (1399)             → show details (seasons 0–3, season availability, a request for S2)
+//   GET  /api/v1/{movie|tv}/:id/recommendations → two movies
+//   POST /api/v1/request  { mediaType, mediaId, seasons?, is4k }
+//        → 201 { id, status: 2 if the user has ADMIN/AUTO_APPROVE else 1, media: { status: 2 } };
+//          409 { message } if this user already requested the same mediaId + seasons; recorded for /__stub/requests
+//   (Catalog and request routes act as a user: they need the key and an X-Api-User header, 400 without it.)
 //   GET  /t/p/:size/:file                       → a tiny PNG (TMDB image stand-in)
 //   POST /__stub/users  { [jellyfinUserId]: { id, permissions } }   → replaces the user map (test control)
 //   POST /__stub/jellyfin  { name, serverId }                       → sets the linked Jellyfin server (test control)
+//   GET  /__stub/requests                                           → [{ user, body }] of requests filed (test control)
+//   POST /__stub/reset                                              → clears the recorded requests (test control)
 //   GET  /__stub/health
 import { createServer } from 'node:http';
 
@@ -19,6 +29,57 @@ const PNG = Buffer.from(
 );
 let users = {};
 let jellyfin = { name: 'Stub Jellyfin', serverId: '' };
+let requests = [];
+let nextRequestId = 1;
+
+// Seerr permission bits (server/lib/permissions.ts).
+const ADMIN = 2;
+const AUTO_APPROVE = 1024;
+
+const cast = [
+  { id: 6384, name: 'Stub Actor One', character: 'Lead', profilePath: '/stubcast1.jpg' },
+  { id: 2975, name: 'Stub Actor Two', character: 'Mentor', profilePath: null },
+];
+const trailer = [
+  { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', key: 'dQw4w9WgXcQ', name: 'Official Trailer', type: 'Trailer', site: 'YouTube' },
+];
+const art = (id) => ({ posterPath: `/stubposter${id}.jpg`, backdropPath: `/stubbackdrop${id}.jpg` });
+const movie = (id, title, releaseDate, mediaInfo) => ({
+  mediaType: 'movie', id, title, releaseDate, overview: `${title}: a stub overview.`, voteAverage: 8.2,
+  genreIds: [28, 878], ...art(id), ...(mediaInfo ? { mediaInfo } : {}),
+});
+const MATRIX = movie(603, 'The Matrix', '1999-03-30');
+const RELOADED = movie(604, 'The Matrix Reloaded', '2003-05-15', { status: 2 });
+const SAGA = {
+  mediaType: 'tv', id: 1399, name: 'Lumen Saga', firstAirDate: '2011-04-17', overview: 'Lumen Saga: a stub overview.',
+  voteAverage: 8.4, genreIds: [10765, 18], ...art(1399),
+  mediaInfo: { status: 4, seasons: [{ seasonNumber: 1, status: 5 }] },
+};
+const PERSON = { mediaType: 'person', id: 6384, name: 'Stub Matrix Person', profilePath: '/stubcast1.jpg' };
+const details = {
+  'movie/603': { ...MATRIX, runtime: 136, genres: [{ id: 28, name: 'Action' }, { id: 878, name: 'Science Fiction' }], credits: { cast }, relatedVideos: trailer },
+  'movie/604': { ...RELOADED, runtime: 138, genres: [{ id: 28, name: 'Action' }], credits: { cast }, relatedVideos: trailer },
+  'tv/1399': {
+    ...SAGA,
+    genres: [{ id: 10765, name: 'Sci-Fi & Fantasy' }, { id: 18, name: 'Drama' }],
+    credits: { cast },
+    relatedVideos: trailer,
+    seasons: [
+      { seasonNumber: 0, name: 'Specials', episodeCount: 2 },
+      { seasonNumber: 1, name: 'Season 1', episodeCount: 10 },
+      { seasonNumber: 2, name: 'Season 2', episodeCount: 10 },
+      { seasonNumber: 3, name: 'Season 3', episodeCount: 8 },
+    ],
+    mediaInfo: { ...SAGA.mediaInfo, requests: [{ status: 2, seasons: [{ seasonNumber: 2, status: 2 }] }] },
+  },
+};
+const page = (results, pageNumber = 1) => ({
+  page: pageNumber, totalPages: results.length ? 1 : 0, totalResults: results.length, results,
+});
+const recommendations = page([movie(605, 'Stub Recommendation One', '2010-01-01'), movie(606, 'Stub Recommendation Two', '2012-06-01')]);
+// What makes two requests "the same": mediaId plus the requested seasons ("all" or a sorted list).
+const requestKey = (user, body) =>
+  JSON.stringify([user, body.mediaType, body.mediaId, Array.isArray(body.seasons) ? [...body.seasons].sort((a, b) => a - b) : body.seasons ?? null]);
 
 const json = (res, status, body) => {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -29,6 +90,11 @@ createServer((req, res) => {
   const url = new URL(req.url, 'http://stub');
   const path = url.pathname;
   if (path === '/__stub/health') return json(res, 200, { ok: true });
+  if (path === '/__stub/requests' && req.method === 'GET') return json(res, 200, requests);
+  if (path === '/__stub/reset' && req.method === 'POST') {
+    requests = [];
+    return json(res, 200, { ok: true });
+  }
   if ((path === '/__stub/users' || path === '/__stub/jellyfin') && req.method === 'POST') {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
@@ -54,6 +120,42 @@ createServer((req, res) => {
     return found
       ? json(res, 200, { ...found, jellyfinAuthToken: 'must-not-leak', plexToken: 'must-not-leak' })
       : json(res, 404, { message: 'User not found' });
+  }
+  // Everything below acts as a user. Lumen must always say which one (X-Api-User), never browse as the admin.
+  const actingUser = req.headers['x-api-user'];
+  const isCatalog = path === '/api/v1/search' || path === '/api/v1/request' || /^\/api\/v1\/(movie|tv)\//.test(path);
+  if (isCatalog && !/^\d+$/.test(actingUser ?? '')) return json(res, 400, { message: 'stub: X-Api-User is required' });
+  if (path === '/api/v1/search' && req.method === 'GET') {
+    const query = url.searchParams.get('query') ?? '';
+    const pageNumber = Number(url.searchParams.get('page') ?? 1);
+    return json(res, 200, page(/matrix/i.test(query) ? [MATRIX, SAGA, RELOADED, PERSON] : [], pageNumber));
+  }
+  const title = path.match(/^\/api\/v1\/(movie|tv)\/(\d+)(\/recommendations)?$/);
+  if (title && req.method === 'GET') {
+    const found = details[`${title[1]}/${title[2]}`];
+    if (!found) return json(res, 404, { message: 'Unable to retrieve media.' });
+    return json(res, 200, title[3] ? recommendations : found);
+  }
+  if (path === '/api/v1/request' && req.method === 'POST') {
+    let raw = '';
+    req.on('data', (chunk) => (raw += chunk));
+    req.on('end', () => {
+      let body;
+      try {
+        body = JSON.parse(raw || '{}');
+      } catch {
+        return json(res, 400, { message: 'stub: invalid JSON' });
+      }
+      const key = requestKey(actingUser, body);
+      if (requests.some((r) => requestKey(r.user, r.body) === key)) {
+        return json(res, 409, { message: 'Request for this media already exists.' });
+      }
+      requests.push({ user: actingUser, body });
+      const seerrUser = Object.values(users).find((u) => String(u.id) === actingUser);
+      const autoApprove = ((seerrUser?.permissions ?? 0) & (ADMIN | AUTO_APPROVE)) !== 0;
+      return json(res, 201, { id: nextRequestId++, status: autoApprove ? 2 : 1, media: { status: 2 } });
+    });
+    return;
   }
   return json(res, 404, { message: `stub: no route for ${req.method} ${path}` });
 }).listen(PORT, () => console.log(`stub Seerr on :${PORT}`));

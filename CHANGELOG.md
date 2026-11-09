@@ -17,6 +17,10 @@ All notable changes to Lumen are documented here. Versions follow SemVer; Jellyf
 - Custom dropdowns for genre, sort and season.
 - Search page: results grouped by Movies, Shows, Episodes and People as you type, and an "Explore your library" grid
   before you do. The query is kept in the URL, so Back returns to it.
+- Requests (with Seerr configured): search shows "More to request" titles from Seerr's catalog with their request
+  state; a title page (backdrop, rating, runtime, genres, overview, cast, trailer link, recommendations) with a
+  Request button; and a request dialog (one step for movies, a season checklist for shows). Requests are filed in
+  Seerr as the signed-in user, so their permissions, quota and approval rules apply.
 - Settings page (the profile button): your avatar and name, grouped links to Jellyfin's settings pages, admin links for
   administrators, and Sign out.
 

@@ -1,7 +1,9 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Jellyfin.Plugin.Lumen.Configuration;
 
@@ -17,6 +19,24 @@ public interface ISeerrClient
 
     /// <summary>The Seerr account linked to a Jellyfin user, or null if there is none.</summary>
     Task<SeerrUser?> GetUserByJellyfinIdAsync(SeerrEndpoint endpoint, Guid jellyfinUserId, CancellationToken cancellationToken);
+
+    /// <summary>Movies, shows and people matching <paramref name="query"/>, as the Seerr user <paramref name="seerrUserId"/>.</summary>
+    Task<SeerrPage> SearchAsync(SeerrEndpoint endpoint, int seerrUserId, string query, int page, CancellationToken cancellationToken);
+
+    /// <summary>A movie's details, as the given Seerr user.</summary>
+    Task<SeerrTitle> GetMovieAsync(SeerrEndpoint endpoint, int seerrUserId, int tmdbId, CancellationToken cancellationToken);
+
+    /// <summary>A show's details, as the given Seerr user.</summary>
+    Task<SeerrTitle> GetTvAsync(SeerrEndpoint endpoint, int seerrUserId, int tmdbId, CancellationToken cancellationToken);
+
+    /// <summary>The first page of recommendations for a title (<paramref name="mediaType"/> is "movie" or "tv").</summary>
+    Task<SeerrPage> GetRecommendationsAsync(SeerrEndpoint endpoint, int seerrUserId, string mediaType, int tmdbId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Files a request as the given Seerr user, so Seerr applies their permissions, quota and auto-approval. For TV, a
+    /// null or empty <paramref name="seasons"/> requests all seasons; it is ignored for movies.
+    /// </summary>
+    Task<SeerrRequestResult> CreateRequestAsync(SeerrEndpoint endpoint, int seerrUserId, string mediaType, int tmdbId, IReadOnlyList<int>? seasons, CancellationToken cancellationToken);
 }
 
 /// <summary>Where and how to reach Seerr: base URL plus the admin API key.</summary>
@@ -53,13 +73,17 @@ public sealed record SeerrUser(int Id, long Permissions);
 /// <summary>A Seerr call failed: unreachable, timed out, rejected the key, or returned something unexpected.</summary>
 public sealed class SeerrException : Exception
 {
-    public SeerrException(string message, HttpStatusCode? status = null, Exception? inner = null)
+    public SeerrException(string message, HttpStatusCode? status = null, Exception? inner = null, string? seerrMessage = null)
         : base(message, inner)
     {
         Status = status;
+        SeerrMessage = seerrMessage;
     }
 
     public HttpStatusCode? Status { get; }
+
+    /// <summary>The <c>message</c> from Seerr's error body (e.g. a quota or permission explanation), if it sent one.</summary>
+    public string? SeerrMessage { get; }
 }
 
 /// <summary><see cref="ISeerrClient"/> over <see cref="IHttpClientFactory"/>, with a per-call timeout.</summary>
@@ -102,6 +126,79 @@ public sealed class SeerrClient : ISeerrClient
         }
     }
 
+    public async Task<SeerrPage> SearchAsync(SeerrEndpoint endpoint, int seerrUserId, string query, int page, CancellationToken cancellationToken)
+    {
+        var path = "api/v1/search?query=" + Uri.EscapeDataString(query) + "&page=" + page.ToString(CultureInfo.InvariantCulture);
+        return await GetAsync<SeerrPage>(endpoint, path, seerrUserId, cancellationToken).ConfigureAwait(false) ?? throw Unexpected();
+    }
+
+    public async Task<SeerrTitle> GetMovieAsync(SeerrEndpoint endpoint, int seerrUserId, int tmdbId, CancellationToken cancellationToken) =>
+        await GetAsync<SeerrTitle>(endpoint, "api/v1/movie/" + tmdbId.ToString(CultureInfo.InvariantCulture), seerrUserId, cancellationToken).ConfigureAwait(false)
+            ?? throw Unexpected();
+
+    public async Task<SeerrTitle> GetTvAsync(SeerrEndpoint endpoint, int seerrUserId, int tmdbId, CancellationToken cancellationToken) =>
+        await GetAsync<SeerrTitle>(endpoint, "api/v1/tv/" + tmdbId.ToString(CultureInfo.InvariantCulture), seerrUserId, cancellationToken).ConfigureAwait(false)
+            ?? throw Unexpected();
+
+    public async Task<SeerrPage> GetRecommendationsAsync(SeerrEndpoint endpoint, int seerrUserId, string mediaType, int tmdbId, CancellationToken cancellationToken)
+    {
+        var path = "api/v1/" + ValidMediaType(mediaType) + "/" + tmdbId.ToString(CultureInfo.InvariantCulture) + "/recommendations?page=1";
+        return await GetAsync<SeerrPage>(endpoint, path, seerrUserId, cancellationToken).ConfigureAwait(false) ?? throw Unexpected();
+    }
+
+    public async Task<SeerrRequestResult> CreateRequestAsync(
+        SeerrEndpoint endpoint, int seerrUserId, string mediaType, int tmdbId, IReadOnlyList<int>? seasons, CancellationToken cancellationToken)
+    {
+        // Never a userId: acting via X-Api-User is what makes Seerr apply this user's permissions and quota.
+        var body = new JsonObject
+        {
+            ["mediaType"] = ValidMediaType(mediaType),
+            ["mediaId"] = tmdbId,
+            ["is4k"] = false,
+        };
+        if (mediaType == CatalogMediaType.Tv)
+        {
+            body["seasons"] = seasons is { Count: > 0 } ? new JsonArray(seasons.Select(n => (JsonNode)n).ToArray()) : "all";
+        }
+
+        var created = await SendAsync<RequestBody>(endpoint, HttpMethod.Post, "api/v1/request", seerrUserId, body, cancellationToken).ConfigureAwait(false)
+            ?? throw Unexpected();
+        return new SeerrRequestResult(created.Id, created.Status, created.Media?.Status);
+    }
+
+    private static string ValidMediaType(string mediaType) =>
+        CatalogMediaType.IsValid(mediaType) ? mediaType : throw new ArgumentException("Unknown media type.", nameof(mediaType));
+
+    private static SeerrException Unexpected() => new("Seerr returned an empty response.");
+
+    /// <summary>The <c>message</c> of a Seerr error body, or null. Bounded, since it is shown to users.</summary>
+    private static async Task<string?> ReadMessageAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var text = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (text.Length > 65536)
+            {
+                return null;
+            }
+
+            using var doc = JsonDocument.Parse(text);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("message", out var message)
+                && message.ValueKind == JsonValueKind.String
+                && message.GetString()?.Trim() is { Length: > 0 } value)
+            {
+                return value.Length > 300 ? value[..300] : value;
+            }
+        }
+        catch (JsonException)
+        {
+            // Not JSON: no message to pass on.
+        }
+
+        return null;
+    }
+
     private static string Describe(HttpStatusCode status) => status switch
     {
         HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Seerr rejected the API key.",
@@ -109,11 +206,23 @@ public sealed class SeerrClient : ISeerrClient
         _ => string.Create(CultureInfo.InvariantCulture, $"Seerr returned HTTP {(int)status}."),
     };
 
-    private async Task<T?> GetAsync<T>(SeerrEndpoint endpoint, string path, int? actAsUser, CancellationToken cancellationToken)
+    private Task<T?> GetAsync<T>(SeerrEndpoint endpoint, string path, int? actAsUser, CancellationToken cancellationToken) =>
+        SendAsync<T>(endpoint, HttpMethod.Get, path, actAsUser, null, cancellationToken);
+
+    /// <summary>
+    /// One Seerr call. Error statuses (and 202 to a POST, Seerr's "nothing to request") become a
+    /// <see cref="SeerrException"/> carrying Seerr's <c>message</c>.
+    /// </summary>
+    private async Task<T?> SendAsync<T>(SeerrEndpoint endpoint, HttpMethod method, string path, int? actAsUser, JsonNode? body, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(Timeout);
-        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(endpoint.BaseUrl, path));
+        using var request = new HttpRequestMessage(method, new Uri(endpoint.BaseUrl, path));
+        if (body is not null)
+        {
+            request.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
+        }
+
         request.Headers.Add("X-Api-Key", endpoint.ApiKey);
         if (actAsUser is { } userId)
         {
@@ -126,13 +235,14 @@ public sealed class SeerrClient : ISeerrClient
         {
             var client = _http.CreateClient(HttpClientName);
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode || (method == HttpMethod.Post && response.StatusCode == HttpStatusCode.Accepted))
             {
-                throw new SeerrException(Describe(response.StatusCode), response.StatusCode);
+                var message = await ReadMessageAsync(response, timeout.Token).ConfigureAwait(false);
+                throw new SeerrException(Describe(response.StatusCode), response.StatusCode, null, message);
             }
 
-            await using var body = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
-            return await JsonSerializer.DeserializeAsync<T>(body, Json, timeout.Token).ConfigureAwait(false);
+            await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
+            return await JsonSerializer.DeserializeAsync<T>(stream, Json, timeout.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException e) when (!cancellationToken.IsCancellationRequested)
         {
@@ -161,6 +271,24 @@ public sealed class SeerrClient : ISeerrClient
 
         [JsonPropertyName("serverId")]
         public string? ServerId { get; set; }
+    }
+
+    private sealed class RequestBody
+    {
+        [JsonPropertyName("id")]
+        public int Id { get; set; }
+
+        [JsonPropertyName("status")]
+        public int? Status { get; set; }
+
+        [JsonPropertyName("media")]
+        public MediaBody? Media { get; set; }
+    }
+
+    private sealed class MediaBody
+    {
+        [JsonPropertyName("status")]
+        public int? Status { get; set; }
     }
 
     private sealed class UserBody

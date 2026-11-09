@@ -116,3 +116,58 @@ export interface UserInfo {
   HasPassword?: boolean;
   Policy?: { IsAdministrator?: boolean };
 }
+
+/** GET /Lumen/Requests/Status: what this user can do with Seerr's catalog (all false when off or unmapped). */
+export interface RequestStatus {
+  Enabled: boolean;
+  CanRequestMovies: boolean;
+  CanRequestTv: boolean;
+}
+
+export type CatalogMediaType = 'movie' | 'tv';
+export type CatalogState =
+  'None' | 'Requested' | 'Downloading' | 'PartlyAvailable' | 'Available' | 'Blocklisted';
+
+/** A title from Seerr's catalog (requests spec §3). Images are TMDB file names, served by Lumen's image proxy. */
+export interface CatalogItem {
+  Key: string;
+  MediaType: CatalogMediaType;
+  TmdbId: number;
+  Title: string;
+  Year?: number | null;
+  Overview?: string | null;
+  Rating?: number | null;
+  GenreNames: string[];
+  Poster?: string | null;
+  Backdrop?: string | null;
+  State: CatalogState;
+  /** Set when the server has it and this user can see it: open the normal details page instead. */
+  JellyfinItemId?: string | null;
+}
+
+export interface CatalogSeason {
+  Number: number;
+  Name: string;
+  EpisodeCount: number;
+  State: CatalogState;
+}
+
+export interface CatalogTitle extends CatalogItem {
+  Runtime?: number | null;
+  TrailerUrl?: string | null;
+  Cast: { TmdbId: number; Name: string; Character?: string | null; Photo?: string | null }[];
+  Seasons: CatalogSeason[];
+  Recommendations: CatalogItem[];
+  CanRequest: boolean;
+}
+
+export interface CatalogSearch {
+  Results: CatalogItem[];
+  Page: number;
+  TotalPages: number;
+}
+
+export interface RequestResult {
+  State: CatalogState;
+  NeedsApproval: boolean;
+}

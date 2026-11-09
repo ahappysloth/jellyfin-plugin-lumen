@@ -8,6 +8,10 @@ describe('parseRoute', () => {
     ['#/home?tab=0', { kind: 'home' }],
     ['#/home?tab=1', { kind: 'favorites' }],
     ['#/home?tab=2', { kind: 'other' }],
+    ['#/home?title=movie-603', { kind: 'title', mediaType: 'movie', tmdbId: 603 }],
+    ['#/home?title=tv-1399', { kind: 'title', mediaType: 'tv', tmdbId: 1399 }],
+    ['#/home?title=person-1', { kind: 'home' }],
+    ['#/home?title=movie-0', { kind: 'home' }],
     [
       '#/details?id=0123456789abcdef0123456789abcdef&serverId=s',
       { kind: 'details', id: '0123456789abcdef0123456789abcdef' },

@@ -6,11 +6,13 @@ export type Route =
   | { kind: 'library'; id: string; collection: LibraryCollection }
   | { kind: 'favorites' }
   | { kind: 'search'; query: string }
+  | { kind: 'title'; mediaType: 'movie' | 'tv'; tmdbId: number }
   | { kind: 'profile' }
   | { kind: 'other' };
 export type TakeoverRoute = Exclude<Route, { kind: 'other' }>;
 
 const ITEM_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
+const TITLE_KEY = /^(movie|tv)-([1-9][0-9]{0,9})$/;
 const LIBRARY_PATHS: Record<string, LibraryCollection> = { '/movies': 'movies', '/tv': 'tvshows' };
 
 /**
@@ -26,6 +28,10 @@ export function parseRoute(hash: string): Route {
   const tab = query.get('tab');
 
   if (path === '/home') {
+    // A catalog title the server may not have (requests spec §2.2): jellyfin-web renders home and ignores the
+    // parameter, so Lumen can own the route; a new path would hit jellyfin-web's 404 page.
+    const title = TITLE_KEY.exec(query.get('title') ?? '');
+    if (title) return { kind: 'title', mediaType: title[1] as 'movie' | 'tv', tmdbId: Number(title[2]) };
     if (tab === null || tab === '0') return { kind: 'home' };
     if (tab === '1') return { kind: 'favorites' };
     return { kind: 'other' };
@@ -50,7 +56,14 @@ export function routeKey(route: TakeoverRoute): string {
     case 'details':
     case 'library':
       return `${route.kind}:${route.id}`;
+    case 'title':
+      return `title:${route.mediaType}-${route.tmdbId}`;
     default:
       return route.kind;
   }
+}
+
+/** The Lumen route for a catalog title. */
+export function titleHash(mediaType: 'movie' | 'tv', tmdbId: number): string {
+  return `#/home?title=${mediaType}-${tmdbId}`;
 }
