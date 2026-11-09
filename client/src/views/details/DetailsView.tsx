@@ -5,6 +5,7 @@ import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import type { ViewContext } from '../context';
 import { liftVeil } from '../../veil/veil';
 import { CollectionDetails } from './CollectionDetails';
+import { EpisodeDetails } from './EpisodeDetails';
 import { PersonDetails } from './PersonDetails';
 import { MovieDetails } from './MovieDetails';
 import { SeriesDetails } from './SeriesDetails';
@@ -17,7 +18,13 @@ export interface ResolvedDetails {
 /** Which Lumen view handles an item. Null means the stock details page keeps it. */
 export async function resolveDetails(api: LumenApi, id: string): Promise<ResolvedDetails | null> {
   const item = await api.getItem(id);
-  if (item.Type === 'Movie' || item.Type === 'Series' || item.Type === 'BoxSet' || item.Type === 'Person')
+  if (
+    item.Type === 'Movie' ||
+    item.Type === 'Series' ||
+    item.Type === 'BoxSet' ||
+    item.Type === 'Person' ||
+    (item.Type === 'Episode' && item.SeriesId && item.SeasonId)
+  )
     return { item };
   if (item.Type === 'Season' && item.SeriesId)
     return { item: await api.getItem(item.SeriesId), seasonId: item.Id };
@@ -55,6 +62,8 @@ export function DetailsView({ id, ctx }: { id: string; ctx: ViewContext }) {
       return <CollectionDetails item={resolved.item} ctx={ctx} />;
     case 'Person':
       return <PersonDetails item={resolved.item} ctx={ctx} />;
+    case 'Episode':
+      return <EpisodeDetails key={resolved.item.Id} episode={resolved.item} ctx={ctx} />;
     default:
       return <SeriesDetails series={resolved.item} initialSeasonId={resolved.seasonId} ctx={ctx} />;
   }

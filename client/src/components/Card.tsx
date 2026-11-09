@@ -16,6 +16,8 @@ interface CardProps {
   onSelect: (item: BaseItem) => void;
   /** Right-click, the keyboard menu key, or a touch long-press: show actions for the item at that point. */
   onMenu?: MenuCallback;
+  /** The page's own item in a row of its siblings (an episode among its season's). */
+  current?: boolean;
 }
 
 const LONG_PRESS_MS = 550;
@@ -99,7 +101,7 @@ export function useMenuHandlers(item: BaseItem, onMenu: MenuCallback | undefined
   };
 }
 
-export function Card({ item, client, variant, caption, badge, onSelect, onMenu }: CardProps) {
+export function Card({ item, client, variant, caption, badge, onSelect, onMenu, current }: CardProps) {
   const { consumeClick, ...handlers } = useMenuHandlers(item, onMenu);
   const art = cardArt(item, variant);
   const size = CARD_SIZES[variant];
@@ -109,7 +111,8 @@ export function Card({ item, client, variant, caption, badge, onSelect, onMenu }
   return (
     <button
       type="button"
-      class={`lmn-card lmn-card--${variant}`}
+      class={`lmn-card lmn-card--${variant}${current ? ' is-current' : ''}`}
+      aria-current={current ? 'page' : undefined}
       data-item-id={item.Id}
       aria-label={caption ? `${item.Name}, ${caption}` : item.Name}
       onClick={() => {

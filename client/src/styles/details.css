@@ -94,6 +94,17 @@
   padding: 0;
   list-style: none;
 }
+.lmn-episodes__item {
+  position: relative;
+}
+.lmn-episodes__details {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+}
+.lmn-episodes__item:has(.lmn-episodes__details) .lmn-episode__body {
+  padding-right: 44px;
+}
 .lmn-episode {
   display: grid;
   grid-template-columns: 260px 1fr;
@@ -227,4 +238,56 @@
     grid-template-columns: 1fr;
     padding: 10px 0;
   }
+}
+
+/* Episode page */
+.lmn-details__eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 8px;
+  color: var(--lmn-text-2);
+  font-size: 15px;
+  font-weight: 600;
+}
+.lmn-details__eyebrow a {
+  color: #fff;
+  text-decoration: none;
+}
+.lmn-details__eyebrow a:hover,
+.lmn-details__eyebrow a:focus-visible {
+  text-decoration: underline;
+}
+.lmn-episode-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 var(--lmn-gutter);
+  margin: 4px 0 8px;
+}
+.lmn-episode-nav__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: var(--lmn-text-2);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.lmn-episode-nav__link span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lmn-episode-nav__link:hover,
+.lmn-episode-nav__link:focus-visible {
+  background: var(--lmn-surface);
+  color: #fff;
+}
+.lmn-card.is-current .lmn-card__art {
+  outline: 2px solid var(--lmn-accent);
+  outline-offset: 2px;
 }

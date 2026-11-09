@@ -114,6 +114,7 @@ export function SeriesDetails({ series, initialSeasonId, ctx }: Props) {
             episodes={episodes}
             client={ctx.client}
             onPlay={(ep) => actions.play(ep.Id, resumeTicks(ep))}
+            detailsHref={(ep) => detailsHash(ep.Id, ep.ServerId)}
           />
         )}
       </section>

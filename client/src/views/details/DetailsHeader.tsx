@@ -1,8 +1,9 @@
+import type { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import type { BaseItem, ClientConfig } from '../../api/types';
 import type { JellyfinApiClient } from '../../compat/jellyfin';
 import { Icon } from '../../components/icons';
-import { imageUrl, resolveImage } from '../../components/images';
+import { type ImageRef, imageUrl, resolveImage } from '../../components/images';
 import { ProgressBar } from '../../components/ProgressBar';
 import { usePrefersReducedMotion } from '../../components/usePrefersReducedMotion';
 import { strings } from '../../strings';
@@ -30,11 +31,29 @@ interface Props {
   badges: string[];
   /** Lends its backdrop when the item has none (a collection without art borrows its first title's). */
   backdropFallback?: BaseItem;
+  /** Replaces the backdrop (an episode shows its own still first). */
+  image?: ImageRef | null;
+  /** Shown above the title (an episode's show and number). */
+  eyebrow?: ComponentChildren;
   played: boolean;
   favorite: boolean;
   error: string | null;
   toggleWatched: () => void;
   toggleFavorite: () => void;
+}
+
+/** "Mar 4, 2010" for an ISO date; undefined when missing or unparseable. */
+export function airDate(iso: string | undefined): string | undefined {
+  if (!iso) return undefined;
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? undefined
+    : date.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        timeZone: 'UTC',
+      });
 }
 
 export function DetailsHeader(props: Props) {
@@ -43,14 +62,18 @@ export function DetailsHeader(props: Props) {
   const [trailerPlaying, setTrailerPlaying] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
   const backdrop =
+    props.image ??
     resolveImage(item, ['Backdrop']) ??
     (props.backdropFallback ? resolveImage(props.backdropFallback, ['Backdrop']) : null);
-  const logo = resolveImage(item, ['Logo']);
+  // An episode would borrow its show's logo; its own name is the title.
+  const logo = item.Type === 'Episode' ? null : resolveImage(item, ['Logo']);
   const preview = props.trailerId && props.config.TrailerPreview && !reducedMotion ? props.trailerId : null;
   const meta = [
     item.CommunityRating ? item.CommunityRating.toFixed(1) : undefined,
-    item.ProductionYear?.toString(),
-    item.Type === 'Movie' ? (formatRuntime(item.RunTimeTicks) ?? undefined) : undefined,
+    item.Type === 'Episode' ? airDate(item.PremiereDate) : item.ProductionYear?.toString(),
+    item.Type === 'Movie' || item.Type === 'Episode'
+      ? (formatRuntime(item.RunTimeTicks) ?? undefined)
+      : undefined,
   ].filter((part): part is string => !!part);
   const boxes = [item.OfficialRating, ...props.badges].filter((b): b is string => !!b);
 
@@ -92,6 +115,7 @@ export function DetailsHeader(props: Props) {
         )}
       </div>
       <div class="lmn-details__info">
+        {props.eyebrow && <p class="lmn-details__eyebrow">{props.eyebrow}</p>}
         {logo ? (
           <img class="lmn-details__logo" src={imageUrl(client, logo, { width: 840 })} alt={item.Name} />
         ) : (
