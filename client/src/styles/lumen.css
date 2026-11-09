@@ -1756,6 +1756,12 @@ a.lmn-button {
   .lmn-search__people {
     grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
   }
+  /* Beats the icon-only secondary button rule below. */
+  .lmn-button.lmn-profile__signout {
+    justify-content: center;
+    width: 100%;
+    padding: 0 22px;
+  }
   .lmn-profile__avatar {
     width: 64px;
     height: 64px;

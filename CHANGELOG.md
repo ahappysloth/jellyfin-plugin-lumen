@@ -21,10 +21,15 @@ All notable changes to Lumen are documented here. Versions follow SemVer; Jellyf
   state; a title page (backdrop, rating, runtime, genres, overview, cast, trailer link, recommendations) with a
   Request button; and a request dialog (one step for movies, a season checklist for shows). Requests are filed in
   Seerr as the signed-in user, so their permissions, quota and approval rules apply.
+- Jellyfin's sign-in page (a centred card with the mark and server name) and its settings pages (Profile, Quick
+  Connect, Display, Home, Playback, Subtitles, Controls) wear Lumen's look; the settings pages get Lumen's nav and a
+  back link to the settings menu. CSS only: the forms stay Jellyfin's. Admin switch: "Restyle Jellyfin's sign-in and
+  settings pages".
 - Settings page (the profile button): your avatar and name, grouped links to Jellyfin's settings pages, admin links for
   administrators, and Sign out.
 
 ### Changed
+- Sign out spans the full width on phones.
 - The nav pill is centred at the top of the page on wider screens.
 - The hero keeps rotating while hovered or focused by the page; only keyboard navigation inside it pauses it.
 - Popular Genres keeps the most popular genres but lists them alphabetically.

@@ -16,6 +16,8 @@ public sealed class ClientConfigDto
 
     public bool LibraryTakeover { get; init; }
 
+    public bool StyleStockPages { get; init; }
+
     public string AccentColor { get; init; } = string.Empty;
 
     public int HeroIntervalSeconds { get; init; }
@@ -32,6 +34,7 @@ public sealed class ClientConfigDto
         HomeTakeover = config.HomeTakeover,
         DetailsTakeover = config.DetailsTakeover,
         LibraryTakeover = config.LibraryTakeover,
+        StyleStockPages = config.StyleStockPages,
         AccentColor = config.AccentColor,
         HeroIntervalSeconds = config.HeroIntervalSeconds,
         TrailerPreview = config.TrailerPreview,

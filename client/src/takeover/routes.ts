@@ -8,10 +8,32 @@ export type Route =
   | { kind: 'search'; query: string }
   | { kind: 'title'; mediaType: 'movie' | 'tv'; tmdbId: number }
   | { kind: 'profile' }
+  /** A stock settings page Lumen restyles and frames with its own nav; the page itself stays jellyfin-web's. */
+  | { kind: 'settings'; page: SettingsPage }
   | { kind: 'other' };
 export type TakeoverRoute = Exclude<Route, { kind: 'other' }>;
 
 const ITEM_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
+export type SettingsPage =
+  'profile' | 'quickConnect' | 'display' | 'home' | 'playback' | 'subtitles' | 'controls';
+const SETTINGS_PATHS: Record<string, SettingsPage> = {
+  '/userprofile': 'profile',
+  '/quickconnect': 'quickConnect',
+  '/mypreferencesdisplay': 'display',
+  '/mypreferenceshome': 'home',
+  '/mypreferencesplayback': 'playback',
+  '/mypreferencessubtitles': 'subtitles',
+  '/mypreferencescontrols': 'controls',
+};
+/** jellyfin-web's signed-out pages, which Lumen restyles (CSS only; see veil/skin.ts). */
+export const SIGN_IN_PATHS = [
+  '/login',
+  '/forgotpassword',
+  '/forgotpasswordpin',
+  '/selectserver',
+  '/addserver',
+];
+
 const TITLE_KEY = /^(movie|tv)-([1-9][0-9]{0,9})$/;
 const LIBRARY_PATHS: Record<string, LibraryCollection> = { '/movies': 'movies', '/tv': 'tvshows' };
 
@@ -42,6 +64,8 @@ export function parseRoute(hash: string): Route {
   }
   if (path === '/search') return { kind: 'search', query: query.get('query') ?? '' };
   if (path === '/mypreferencesmenu') return { kind: 'profile' };
+  const settings = SETTINGS_PATHS[path];
+  if (settings) return { kind: 'settings', page: settings };
   const collection = LIBRARY_PATHS[path];
   if (collection && (tab === null || tab === '0')) {
     const id = query.get('topParentId');
@@ -58,6 +82,8 @@ export function routeKey(route: TakeoverRoute): string {
       return `${route.kind}:${route.id}`;
     case 'title':
       return `title:${route.mediaType}-${route.tmdbId}`;
+    case 'settings':
+      return `settings:${route.page}`;
     default:
       return route.kind;
   }

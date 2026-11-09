@@ -32,6 +32,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets a value indicating whether Lumen replaces the Movies and Shows library pages, Favorites, Search and the settings menu.</summary>
     public bool LibraryTakeover { get; set; } = true;
 
+    /// <summary>Gets or sets a value indicating whether Lumen restyles jellyfin-web's sign-in and settings pages.</summary>
+    public bool StyleStockPages { get; set; } = true;
+
     public string AccentColor { get; set; } = "#e12d39";
 
     public HeroSource HeroSource { get; set; } = HeroSource.RecentlyAdded;

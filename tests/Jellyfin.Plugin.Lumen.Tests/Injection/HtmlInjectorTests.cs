@@ -31,6 +31,15 @@ public class HtmlInjectorTests
     }
 
     [Fact]
+    public void MarksThePageForStyling_BeforeTheGuardRuns()
+    {
+        var result = HtmlInjector.Inject(Page, "h", "guard()", styleStockPages: true);
+
+        Assert.Contains("<script>document.documentElement.setAttribute('data-lmn-skin','');guard()</script>", result, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-lmn-skin", HtmlInjector.Inject(Page, "h", "guard()"), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void OmitsTheGuard_WhenNoneIsGiven()
     {
         var result = HtmlInjector.Inject(Page, "h");

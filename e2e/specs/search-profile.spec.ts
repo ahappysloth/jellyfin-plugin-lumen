@@ -33,3 +33,32 @@ test('the settings menu links to the stock settings pages; admin links only for 
   await expect(page).toHaveURL(/#\/mypreferencesplayback\?userId=/);
   await expect(page.locator('#lmn-root .lmn-profile')).toBeHidden();
 });
+
+test('the sign-in page wears Lumen’s look', async ({ page }) => {
+  await page.goto('/web/#/login');
+
+  await expect(page.locator('#txtManualName')).toBeVisible();
+  await expect(page.locator('html')).toHaveClass(/\blmn-signin\b/);
+  await expect(page.locator('.skinHeader')).toBeHidden();
+  // The Sign In button uses Lumen's accent instead of jellyfin-web's blue.
+  const background = await page
+    .locator('.manualLoginForm .button-submit')
+    .evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(background).toBe('rgb(225, 45, 57)');
+});
+
+test('settings pages keep working inside Lumen’s frame', async ({ page }) => {
+  await login(page, ADMIN);
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings and profile' }).click();
+  await page.getByRole('link', { name: /Playback/ }).click();
+
+  await expect(page.getByRole('heading', { name: 'Playback', level: 1 })).toBeVisible();
+  await expect(page.locator('#lmn-root .lmn-nav')).toBeVisible();
+  await expect(page.locator('.MuiAppBar-root, .skinHeader').first()).toBeHidden();
+  // The stock form is still there and usable.
+  await expect(page.locator('.page:not(.hide) .button-submit').first()).toBeVisible();
+
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page).toHaveURL(/#\/mypreferencesmenu$/);
+  await expect(page.locator('html')).not.toHaveClass(/lmn-skin-settings/);
+});

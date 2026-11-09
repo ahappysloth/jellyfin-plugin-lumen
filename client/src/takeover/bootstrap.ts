@@ -4,6 +4,7 @@ import type { ClientConfig } from '../api/types';
 import {
   getApiClient,
   getLayout,
+  getServerName,
   getServerVersion,
   navigateTo,
   selfTest,
@@ -13,7 +14,8 @@ import {
 import type { ViewContext } from '../views/context';
 import { onNavigate } from './navigation';
 import { parseRoute, type TakeoverRoute } from './routes';
-import { liftVeil, PENDING_CLASS } from '../veil/veil';
+import { applySignInSkin, isSignInRoute } from '../veil/skin';
+import { liftVeil, PENDING_CLASS, rememberVeilName } from '../veil/veil';
 import { Takeover } from './takeover';
 
 export interface BootstrapOptions {
@@ -103,7 +105,21 @@ export function startLumen(options: BootstrapOptions): () => void {
     return { userId, client, takeover };
   };
 
+  /** Sign-in pages need no session: style them from the route alone, and learn the server's name for them. */
+  const skinSignIn = (): void => {
+    applySignInSkin(doc, win.location.hash);
+    const client = getApiClient(win);
+    if (!client || !isSignInRoute(win.location.hash) || !doc.documentElement.hasAttribute('data-lmn-skin'))
+      return;
+    void getServerName(client).then((name) => {
+      if (!name) return;
+      rememberVeilName(name);
+      applySignInSkin(doc, win.location.hash, name);
+    });
+  };
+
   const sync = async (): Promise<void> => {
+    skinSignIn();
     // Loops because the user or client can change while a session is being created.
     for (;;) {
       if (stopped) return;
