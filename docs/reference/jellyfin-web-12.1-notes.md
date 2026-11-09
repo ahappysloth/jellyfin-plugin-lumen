@@ -308,3 +308,9 @@ There is no `main` element in the legacy layout.
 - Give our root an opaque background, or also hide `.backdropContainer` while active.
 - The legacy home header still shows the Home/Favorites tabs (`.skinHeader .headerTabs`). The modern home also adds `noHomeButtonHeader` to `.skinHeader`.
 - The now-playing bar lives in `body > .appfooter`, outside `#reactRoot`, so it stays visible.
+
+## Later findings (checked against the 12.2 and 12.4 Docker images)
+
+- **404 page.** Unknown hash routes render react-router's catch-all, a page with `id="fallbackPage"` ("Page not found"). `e2e/specs/stock-routes.spec.ts` opens every route Lumen links to and asserts this page isn't rendered.
+- **webpack module cache.** The production `runtime.bundle.js` keeps the module cache private: `__webpack_require__.c` is not set, only `.m` (the factories). So `compat/playbackManager.ts` can't ask which modules have run. It reads `require.c` when a build does expose it, and otherwise requires only the single module whose code *defines* `getCurrentPlayer` (Babel writes class methods as `key:"getCurrentPlayer"`). In 12.2 that's one module in `main.jellyfin.bundle.js`, imported at startup. Only `main` and two lazy chunks mention `setMaxStreamingBitrate`, and only `main` also mentions `getCurrentPlayer`.
+- **Real index.html.** `tests/Jellyfin.Plugin.Lumen.Tests/Injection/Fixtures/` holds the 12.2 and 12.4 files. The head is minified on one line: `<link rel="manifest" href="manifest.json">`, `<meta id="themeColor" name="theme-color" content="#202020">`, `<link rel="apple-touch-icon" sizes="180x180" href="touchicon.<hash>.png">`, then the `defer` bundles, then `</head>`.

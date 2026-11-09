@@ -38,7 +38,6 @@ All notable changes to Lumen are documented here. Versions follow SemVer; Jellyf
 - The plugin catalog image drops the glow behind the mark.
 - Jellyfin's settings pages (Playback, Subtitles, Home, Quick Connect, …) use Lumen's dropdown over their own selects,
   which stay in charge of the value; the Display page's menus are restyled to match.
-
 - The bottom tab bar is used below 910px wide (phones, small tablets, narrow windows); the centred pill from 910px.
 
 ### Fixed
@@ -112,7 +111,7 @@ All notable changes to Lumen are documented here. Versions follow SemVer; Jellyf
 ### Fixed
 - jellyfin-web's own header no longer flashes for a moment before Lumen loads.
 
-## [0.1.0]
+## [0.1.0] - 2026-10-07
 
 ### Added
 - Cinematic home screen: rotating hero with optional muted local-trailer previews, a floating pill nav (Home, your

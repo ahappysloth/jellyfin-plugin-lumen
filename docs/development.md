@@ -65,6 +65,18 @@ Day to day:
 
 The request features talk to Seerr. End-to-end tests never use a real one: Playwright starts `e2e/support/stub-seerr.mjs` on port 5055, which fakes the few Seerr endpoints Lumen calls and TMDB's image CDN. The Jellyfin server reaches it at `LUMEN_E2E_SEERR_URL` (`host.docker.internal:5055` when Jellyfin runs in Docker), and `LUMEN_TMDB_IMAGE_BASE` points Lumen's image proxy at it. `docker-dev.sh e2e` and `e2e-local.sh` set both, and `docker-dev.sh` restarts the server without the image override afterwards. Port 5055 must be free while the tests run.
 
+## jellyfin-web internals
+
+Every jellyfin-web selector, route, global and PlaybackManager method that Lumen's TypeScript depends on is listed once, in `client/src/compat/registry.ts`. The stylesheets can't import it, so they repeat the selectors they need, and `registry.test.ts` checks those still appear in the CSS. Two E2E specs check the registry against a real server, and the nightly job runs them against Jellyfin's `latest` and `unstable` images:
+- `stock-probe.spec.ts` opens each page (sign-in, home, Playback and Display settings, the player) and asserts that every selector registered for that page matches.
+- `stock-routes.spec.ts` opens every stock route Lumen links to and asserts it isn't jellyfin-web's 404 page.
+
+When a Jellyfin update breaks one of these, fix the name in the registry (and in the CSS, if it's repeated there). `docs/reference/jellyfin-web-12.1-notes.md` has the evidence behind each entry.
+
+At runtime, Lumen reports what it couldn't find to the admin Diagnostics page: a failed compatibility check (after retrying for 3 s on a cold load), a missing PlaybackManager or missing methods (`playbackManager.*`), and stock elements it hides that weren't there (`selector.*`). It also marks the server version "(untested)" when its major.minor isn't in `client/src/compat/tested-jellyfin.json`. When the E2E suite passes on a release that isn't listed, the job records the version in its summary and raises a warning. Add the release to the list then.
+
+When writing E2E assertions about stock elements Lumen hides, use `expectPresentButHidden` (`e2e/support/stock.ts`), not a bare `toBeHidden()`. `toBeHidden()` also passes when nothing matches, so a renamed selector would go unnoticed.
+
 ## Unit tests, lint and formatting
 
 ```sh
@@ -92,7 +104,18 @@ Both loops listen on all network interfaces. Other devices on the same network c
 
 - `ci.yml` runs on every PR and on pushes to `main`. It does client lint, typecheck, tests, build and size check, then `dotnet test` and publish, then E2E against `jellyfin/jellyfin:12.2` (`e2e.yml`).
 - `nightly.yml` runs the E2E suite against `jellyfin/jellyfin:latest` and `:unstable`.
-- `release.yml` runs on `v*` tags. It builds the plugin zip, creates the GitHub release with the matching `CHANGELOG.md` section, and adds the version to `manifest.json` with `scripts/update-manifest.mjs`, using `targetAbi` 12.1.0.0. To cut a release, bump `<Version>` in `Directory.Build.props`, add a `## [x.y.z]` section to `CHANGELOG.md`, then tag `vx.y.z`.
+- `release.yml` runs on `v*` tags.
+  - It requires a successful `ci.yml` run (including E2E) on the tagged commit, and waits for one that's still running.
+  - It re-runs the client and server checks, then builds the plugin zip.
+  - It creates the GitHub release with the matching `CHANGELOG.md` section.
+  - It adds the version to `manifest.json` with `scripts/update-manifest.mjs`. The `targetAbi` comes from the `Jellyfin.Controller` version in `Directory.Packages.props`.
+  - Every step can be re-run safely. An existing release is reused, along with its zip, so the manifest checksum matches what users download. The manifest commit is rebuilt on the latest `main` and the push is retried. A manifest that already lists the version is left alone.
+- To cut a release:
+  1. Bump `<Version>` in `Directory.Build.props` and add a `## [x.y.z] - YYYY-MM-DD` section to `CHANGELOG.md`.
+  2. Push to `main` and let CI pass.
+  3. Tag `vx.y.z` and push the tag.
+- If the release job fails partway through, re-run it.
+- The inline guard script changes with every release. Users with a strict Content-Security-Policy need its hash: after a build, `cd client && npm run guard-hash` prints it (README, "Reverse proxies").
 
 ## Further reading
 
