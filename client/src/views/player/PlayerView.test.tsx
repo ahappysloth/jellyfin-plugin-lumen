@@ -95,12 +95,28 @@ describe('PlayerView', () => {
     expect(pm.setSubtitleStreamIndex).toHaveBeenCalledWith(3, pm.player);
   });
 
-  it('hands the page back to the stock player when there is no playback manager', async () => {
+  it('hands the page back to the stock player at once when there is no playback manager', async () => {
     vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(null);
     const ctx = makeContext(createFakeClient());
     render(<PlayerView ctx={ctx} />);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(4500);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(ctx.onFallback).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back after a while when the manager never has a player', async () => {
+    const pm = fakeManager();
+    pm.getCurrentPlayer.mockReturnValue(null as unknown as typeof pm.player);
+    vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+    const ctx = makeContext(createFakeClient());
+    render(<PlayerView ctx={ctx} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(ctx.onFallback).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3500);
     });
     expect(ctx.onFallback).toHaveBeenCalled();
   });

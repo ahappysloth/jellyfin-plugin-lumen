@@ -31,8 +31,13 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   const idleTimer = useRef<number | undefined>(undefined);
   const missing = useRef(0);
 
-  // Poll the player. Give it a moment to appear; if it never does, fall back to the stock controls.
+  // Poll the player. Give it a moment to appear; if it never does, fall back to the stock controls. Without a playback
+  // manager there's nothing to wait for (the takeover normally checks before mounting: takeover.ts playerCheck).
   useEffect(() => {
+    if (!pm.current) {
+      ctx.onFallback();
+      return;
+    }
     const read = (): void => {
       const manager = pm.current;
       const player = manager?.getCurrentPlayer();

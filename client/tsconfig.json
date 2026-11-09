@@ -11,6 +11,7 @@
     "noImplicitOverride": true,
     "noEmit": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true,
     "types": ["vitest/globals"]
   },
   "include": ["src", "test", "vite.config.ts", "vite.admin.config.ts", "vite.guard.config.ts"]

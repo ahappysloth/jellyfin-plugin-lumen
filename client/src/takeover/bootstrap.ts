@@ -11,7 +11,11 @@ import {
   setFavicon,
   type JellyfinApiClient,
 } from '../compat/jellyfin';
+import { findPlaybackManager } from '../compat/playbackManager';
+import { describeServerVersion } from '../compat/testedVersions';
 import type { ViewContext } from '../views/context';
+import { VIEW_TIMEOUT_MS, withTimeout } from '../util/withTimeout';
+import { SAFETY_TIMER_KEY } from '../veil/runGuard';
 import { onNavigate } from './navigation';
 import { parseRoute, type Route, type TakeoverRoute } from './routes';
 import { applySignInSkin, isSignInRoute } from '../veil/skin';
@@ -26,6 +30,10 @@ export interface BootstrapOptions {
   doc?: Document;
   pollMs?: number;
   timeoutMs?: number;
+  /** How long a failing compatibility check is retried (Takeover's COMPAT_RETRY_MS by default). */
+  compatRetryMs?: number;
+  /** How long to wait for jellyfin-web to set the user after navigating to a takeover route while signed out. */
+  signInWaitMs?: number;
 }
 
 /**
@@ -40,6 +48,13 @@ function forThisServer(route: Route, client: JellyfinApiClient | null): Route {
 
 /** How long a taken-over page may keep the veil down while it loads. */
 const VEIL_FALLBACK_MS = 4000;
+/**
+ * Replaces the inline guard's 8 s safety net once lumen.js runs, so a slow server doesn't lift the veil onto the stock
+ * page just before Lumen's arrives. Covers the client config (VIEW_TIMEOUT_MS) plus the compatibility retry.
+ */
+const LUMEN_SAFETY_MS = 15_000;
+/** Just after sign-in jellyfin-web can navigate to home before it sets the user; wait this long for it. */
+const SIGN_IN_WAIT_MS = 3000;
 
 /** window.ApiClient exists before sign-in but has no user; wait until it does (or give up). */
 function waitForUser(win: Window, pollMs: number, timeoutMs: number): Promise<void> {
@@ -73,12 +88,23 @@ export function startLumen(options: BootstrapOptions): () => void {
   let session: Session | null = null;
   let pending: PendingSession | null = null;
   let stopped = false;
+  /** True while something is already waiting for a signed-in user (startup, or just after sign-in). */
+  let waitingForUser = true;
+  /** The URL a post-sign-in wait last ran for: one wait per navigation, so a signed-out page doesn't loop. */
+  let signInWaitHref: string | null = null;
+  const pollMs = options.pollMs ?? 100;
+
+  // lumen.js is running: it decides when the veil lifts. Its own safety net only lifts a veil nothing has claimed.
+  win.clearTimeout((win as unknown as Record<string, number | undefined>)[SAFETY_TIMER_KEY]);
+  const safety = win.setTimeout(() => {
+    if (!doc.documentElement.classList.contains('lmn-active')) liftVeil(doc);
+  }, LUMEN_SAFETY_MS);
 
   const createSession = async (client: JellyfinApiClient, userId: string): Promise<Session> => {
     const api = new LumenApi(client);
     let config: ClientConfig;
     try {
-      config = await api.getClientConfig();
+      config = await withTimeout(api.getClientConfig(), VIEW_TIMEOUT_MS);
     } catch {
       return { userId, client, takeover: null };
     }
@@ -90,12 +116,19 @@ export function startLumen(options: BootstrapOptions): () => void {
       win,
       doc,
       selfTest: () => selfTest(win, doc),
+      playerCheck: () => {
+        const { failed } = findPlaybackManager(win);
+        return { ok: failed.length === 0, failed };
+      },
+      retry: () => void sync(),
+      retryMs: options.compatRetryMs,
+      // Shown on Lumen's Diagnostics page; the version says whether Lumen was tested on it (compat/testedVersions.ts).
       report: (report) => {
         void getServerVersion(client)
-          .then((ServerVersion) =>
+          .then((version) =>
             api.postDiagnostics({
               Client: `${getLayout(doc)} ${win.navigator.userAgent}`.slice(0, 100),
-              ServerVersion,
+              ServerVersion: describeServerVersion(version),
               FailedChecks: report.failed,
             }),
           )
@@ -138,7 +171,7 @@ export function startLumen(options: BootstrapOptions): () => void {
       const userId = client?.getCurrentUserId() ?? null;
 
       if (session && (session.client !== client || session.userId !== userId)) {
-        session.takeover?.release();
+        session.takeover?.dispose();
         session = null;
         // Per-user caches (request permissions, optimistic states, saved grids) must not outlive the session.
         resetSessionCaches();
@@ -164,10 +197,16 @@ export function startLumen(options: BootstrapOptions): () => void {
       }
     }
     const route = forThisServer(parseRoute(win.location.hash), session?.client ?? null);
-    session?.takeover?.handle(route);
+    if (!session && route.kind !== 'other') {
+      // No user yet on a page Lumen could own: at startup waitForUser is on it; just after sign-in jellyfin-web may
+      // navigate here before it sets the user, so wait for one briefly (with the stock page hidden) and sync again.
+      if (getApiClient(win) && !waitingForUser && signInWaitHref !== win.location.href) awaitSignIn();
+      return;
+    }
+    // The compatibility check is being retried: the veil and lmn-pending stay up until the takeover calls back.
+    if (session?.takeover?.handle(route) === 'waiting') return;
     // The inline guard hid the stock chrome and showed the veil while this was undecided. If Lumen now owns the page,
     // its view lifts the veil once its content is ready (with a fallback here); otherwise lift it right away.
-    if (!session && route.kind !== 'other') return;
     if (doc.documentElement.classList.contains('lmn-active')) {
       doc.documentElement.classList.remove(PENDING_CLASS);
       win.setTimeout(() => liftVeil(doc), VEIL_FALLBACK_MS);
@@ -176,16 +215,34 @@ export function startLumen(options: BootstrapOptions): () => void {
     }
   };
 
+  const awaitSignIn = (): void => {
+    waitingForUser = true;
+    signInWaitHref = win.location.href;
+    doc.documentElement.classList.add(PENDING_CLASS);
+    void waitForUser(win, pollMs, options.signInWaitMs ?? SIGN_IN_WAIT_MS)
+      .then(() => {
+        waitingForUser = false;
+        return sync();
+      })
+      .finally(() => {
+        if (!session && !stopped) liftVeil(doc);
+      });
+  };
+
   const stopNavigation = onNavigate(() => void sync(), win);
-  void waitForUser(win, options.pollMs ?? 100, options.timeoutMs ?? 60_000)
-    .then(sync)
+  void waitForUser(win, pollMs, options.timeoutMs ?? 60_000)
+    .then(() => {
+      waitingForUser = false;
+      return sync();
+    })
     .finally(() => {
       if (!session) liftVeil(doc);
     });
 
   return () => {
     stopped = true;
+    win.clearTimeout(safety);
     stopNavigation();
-    session?.takeover?.release();
+    session?.takeover?.dispose();
   };
 }
