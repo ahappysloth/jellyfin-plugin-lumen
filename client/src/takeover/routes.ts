@@ -1,5 +1,6 @@
 import {
   LIBRARY_ROUTES,
+  LIBRARY_TABS,
   PIGGY_BACKED_PARAMS,
   SETTINGS_ROUTES,
   SIGN_IN_ROUTES,
@@ -7,13 +8,23 @@ import {
 } from '../compat/registry';
 
 export type LibraryCollection = 'movies' | 'tvshows' | 'boxsets';
+/** A Movies or Shows library's tab (registry.ts LIBRARY_TABS); a Collections library has only `items`. */
+export type LibraryTab = 'items' | 'favorites' | 'collections' | 'genres' | 'studios' | 'episodes';
+export type Facet = 'genre' | 'studio';
+
+/** The Lumen tab for jellyfin-web's `?tab=` index on a library page, or null when that tab stays stock. */
+export function libraryTabFromIndex(collection: 'movies' | 'tvshows', tab: string | null): LibraryTab | null {
+  const index = tab === null ? 0 : Number(tab);
+  const found = Object.entries(LIBRARY_TABS[collection]).find(([, i]) => i === index);
+  return found ? (found[0] as LibraryTab) : null;
+}
 
 export type Route =
   | { kind: 'home' }
   | { kind: 'details'; id: string; serverId?: string }
-  | { kind: 'library'; id: string; collection: LibraryCollection }
+  | { kind: 'library'; id: string; collection: LibraryCollection; tab: LibraryTab }
   | { kind: 'favorites' }
-  | { kind: 'genre'; id: string; parentId?: string }
+  | { kind: 'genre'; id: string; parentId?: string; facet?: Facet }
   | { kind: 'search'; query: string }
   | { kind: 'title'; mediaType: 'movie' | 'tv'; tmdbId: number }
   | { kind: 'profile' }
@@ -41,7 +52,7 @@ const LIBRARY_PATHS: Record<string, LibraryCollection> = {
 
 /**
  * Maps jellyfin-web hash routes to Lumen routes. Home tab 0 is Lumen's home and tab 1 its Favorites; the Movies and
- * Shows library pages are taken over on their default tab only (Suggestions, Genres, etc. stay stock). Search and the
+ * Shows library pages are taken over on the tabs in LIBRARY_TABS (Suggestions, Upcoming and Playlists stay stock). Search and the
  * settings menu (#/mypreferencesmenu) are Lumen's too; the settings pages they link to stay stock.
  */
 export function parseRoute(hash: string): Route {
@@ -72,13 +83,14 @@ export function parseRoute(hash: string): Route {
   const settings = SETTINGS_PATHS[path];
   if (settings) return { kind: 'settings', page: settings };
   if (path === STOCK_ROUTES.list) {
-    // jellyfin-web's item list filtered to one genre (home genre tiles, a library's Genres tab).
+    // jellyfin-web's item list filtered to one genre or studio (home genre tiles, a library's Genres/Studios tab).
     const genreId = query.get('genreId');
+    const studioId = query.get('studioId');
     const parentId = query.get('parentId');
-    if (genreId && ITEM_ID.test(genreId))
-      return parentId && ITEM_ID.test(parentId)
-        ? { kind: 'genre', id: genreId, parentId }
-        : { kind: 'genre', id: genreId };
+    const scoped = parentId && ITEM_ID.test(parentId) ? { parentId } : {};
+    if (genreId && ITEM_ID.test(genreId)) return { kind: 'genre', id: genreId, ...scoped };
+    if (studioId && ITEM_ID.test(studioId))
+      return { kind: 'genre', id: studioId, facet: 'studio', ...scoped };
     // A Collections library (Lumen's own links tag it; jellyfin-web ignores the extra parameter).
     if (
       query.get(PIGGY_BACKED_PARAMS.collectionType) === 'boxsets' &&
@@ -86,13 +98,14 @@ export function parseRoute(hash: string): Route {
       ITEM_ID.test(parentId) &&
       (tab === null || tab === '0')
     )
-      return { kind: 'library', id: parentId, collection: 'boxsets' };
+      return { kind: 'library', id: parentId, collection: 'boxsets', tab: 'items' };
     return { kind: 'other' };
   }
   const collection = LIBRARY_PATHS[path];
-  if (collection && (tab === null || tab === '0')) {
+  if (collection && collection !== 'boxsets') {
     const id = query.get('topParentId');
-    if (id && ITEM_ID.test(id)) return { kind: 'library', id, collection };
+    const libraryTab = libraryTabFromIndex(collection, tab);
+    if (id && ITEM_ID.test(id) && libraryTab) return { kind: 'library', id, collection, tab: libraryTab };
   }
   return { kind: 'other' };
 }
@@ -101,10 +114,11 @@ export function parseRoute(hash: string): Route {
 export function routeKey(route: TakeoverRoute): string {
   switch (route.kind) {
     case 'details':
-    case 'library':
       return `${route.kind}:${route.id}`;
+    case 'library':
+      return `library:${route.id}:${route.tab}`;
     case 'genre':
-      return `genre:${route.id}:${route.parentId ?? ''}`;
+      return `genre:${route.facet ?? 'genre'}:${route.id}:${route.parentId ?? ''}`;
     case 'title':
       return `title:${route.mediaType}-${route.tmdbId}`;
     case 'settings':

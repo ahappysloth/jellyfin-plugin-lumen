@@ -235,14 +235,14 @@ describe('Takeover', () => {
 
   it('takes over library pages and favorites only when LibraryTakeover is on', () => {
     const off = create();
-    off.takeover.handle({ kind: 'library', id: 'lib', collection: 'movies' });
+    off.takeover.handle({ kind: 'library', id: 'lib', collection: 'movies', tab: 'items' });
     off.takeover.handle({ kind: 'favorites' });
     expect(off.options.mount).not.toHaveBeenCalled();
 
     const on = create({ config: { ...config, LibraryTakeover: true } });
-    on.takeover.handle({ kind: 'library', id: 'lib', collection: 'movies' });
+    on.takeover.handle({ kind: 'library', id: 'lib', collection: 'movies', tab: 'items' });
     expect(document.documentElement.classList.contains('lmn-route-library')).toBe(true);
-    on.takeover.handle({ kind: 'library', id: 'lib', collection: 'movies' });
+    on.takeover.handle({ kind: 'library', id: 'lib', collection: 'movies', tab: 'items' });
     expect(on.options.mount).toHaveBeenCalledTimes(1);
 
     on.takeover.handle({ kind: 'favorites' });

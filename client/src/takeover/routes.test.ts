@@ -21,13 +21,48 @@ describe('parseRoute', () => {
     ['#/movies?topParentId=x', { kind: 'other' }],
     [
       '#/movies?topParentId=0123456789abcdef0123456789abcdef&collectionType=movies',
-      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'movies' },
+      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'movies', tab: 'items' },
     ],
     [
       '#/tv?topParentId=0123456789abcdef0123456789abcdef&collectionType=tvshows&tab=0',
-      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'tvshows' },
+      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'tvshows', tab: 'items' },
     ],
-    ['#/tv?topParentId=0123456789abcdef0123456789abcdef&tab=2', { kind: 'other' }],
+    ['#/tv?topParentId=0123456789abcdef0123456789abcdef&tab=2', { kind: 'other' }], // Upcoming stays stock
+    ['#/tv?topParentId=0123456789abcdef0123456789abcdef&tab=1', { kind: 'other' }], // Suggestions stays stock
+    ['#/movies?topParentId=0123456789abcdef0123456789abcdef&tab=6', { kind: 'other' }], // Playlists stays stock
+    [
+      '#/movies?topParentId=0123456789abcdef0123456789abcdef&tab=2',
+      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'movies', tab: 'favorites' },
+    ],
+    [
+      '#/movies?topParentId=0123456789abcdef0123456789abcdef&tab=3',
+      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'movies', tab: 'collections' },
+    ],
+    [
+      '#/movies?topParentId=0123456789abcdef0123456789abcdef&tab=4',
+      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'movies', tab: 'genres' },
+    ],
+    [
+      '#/movies?topParentId=0123456789abcdef0123456789abcdef&tab=5',
+      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'movies', tab: 'studios' },
+    ],
+    [
+      '#/tv?topParentId=0123456789abcdef0123456789abcdef&tab=3',
+      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'tvshows', tab: 'genres' },
+    ],
+    [
+      '#/tv?topParentId=0123456789abcdef0123456789abcdef&tab=4',
+      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'tvshows', tab: 'studios' },
+    ],
+    [
+      '#/tv?topParentId=0123456789abcdef0123456789abcdef&tab=5',
+      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'tvshows', tab: 'episodes' },
+    ],
+    [
+      '#/tv?topParentId=0123456789abcdef0123456789abcdef&tab=6',
+      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'tvshows', tab: 'collections' },
+    ],
+    ['#/movies?topParentId=0123456789abcdef0123456789abcdef&tab=x', { kind: 'other' }],
     ['#/music?topParentId=0123456789abcdef0123456789abcdef', { kind: 'other' }],
     ['#/search', { kind: 'search', query: '' }],
     ['#/search?query=star%20wars', { kind: 'search', query: 'star wars' }],
@@ -44,11 +79,24 @@ describe('parseRoute', () => {
       '#/list?genreId=0123456789abcdef0123456789abcdef&parentId=fedcba9876543210fedcba9876543210',
       { kind: 'genre', id: '0123456789abcdef0123456789abcdef', parentId: 'fedcba9876543210fedcba9876543210' },
     ],
+    [
+      '#/list?studioId=0123456789abcdef0123456789abcdef&parentId=fedcba9876543210fedcba9876543210',
+      {
+        kind: 'genre',
+        id: '0123456789abcdef0123456789abcdef',
+        facet: 'studio',
+        parentId: 'fedcba9876543210fedcba9876543210',
+      },
+    ],
+    [
+      '#/list?studioId=0123456789abcdef0123456789abcdef',
+      { kind: 'genre', id: '0123456789abcdef0123456789abcdef', facet: 'studio' },
+    ],
     ['#/list?parentId=0123456789abcdef0123456789abcdef', { kind: 'other' }],
     ['#/list?genreId=nope', { kind: 'other' }],
     [
       '#/list?parentId=0123456789abcdef0123456789abcdef&collectionType=boxsets&serverId=s',
-      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'boxsets' },
+      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'boxsets', tab: 'items' },
     ],
     ['', { kind: 'other' }],
   ])('%s', (hash, expected) => {

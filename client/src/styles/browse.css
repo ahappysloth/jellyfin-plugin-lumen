@@ -216,3 +216,58 @@
     animation: none;
   }
 }
+
+/* Library tabs */
+.lmn-browse__tabs {
+  flex: 1 0 100%;
+  min-width: 0;
+}
+/* Wide screens: title and controls share the first line, the tabs go under both. Phones keep them under the title. */
+@media (min-width: 721px) {
+  .lmn-browse__tabs {
+    order: 3;
+  }
+}
+.lmn-library-tabs {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.lmn-library-tabs::-webkit-scrollbar {
+  display: none;
+}
+.lmn-library-tabs .lmn-chip {
+  flex: 0 0 auto;
+  text-decoration: none;
+}
+
+/* Genre and studio tiles */
+.lmn-facet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+.lmn-facet {
+  display: block;
+  width: 100%;
+}
+.lmn-facet__count {
+  display: block;
+  margin-top: 4px;
+  color: var(--lmn-text-2);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+@media (max-width: 720px) {
+  .lmn-facet-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .lmn-facet .lmn-genre__label {
+    right: 12px;
+    bottom: 10px;
+    left: 12px;
+    font-size: 15px;
+  }
+}

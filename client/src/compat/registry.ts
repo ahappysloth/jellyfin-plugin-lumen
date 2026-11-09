@@ -87,6 +87,18 @@ export const LIBRARY_ROUTES: Record<string, string> = {
   playlists: '/playlists',
 };
 
+/**
+ * The library pages' tabs Lumen draws, by jellyfin-web's `?tab=` index (apps/modern/features/libraries/constants/views
+ * in 12.4). Tabs not listed (Suggestions, Upcoming, Playlists) stay stock.
+ */
+export const LIBRARY_TABS = {
+  movies: { items: 0, favorites: 2, collections: 3, genres: 4, studios: 5 },
+  tvshows: { items: 0, genres: 3, studios: 4, episodes: 5, collections: 6 },
+} as const;
+
+/** jellyfin-web's list page filtered to one studio (`#/list?studioId=`), like its genre list. */
+export const LIST_PARAMS = { genre: 'genreId', studio: 'studioId', parent: 'parentId' } as const;
+
 /** The stock settings pages Lumen restyles and frames (the page itself stays jellyfin-web's). */
 export const SETTINGS_ROUTES = {
   profile: '/userprofile',

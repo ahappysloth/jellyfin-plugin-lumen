@@ -7,6 +7,7 @@ import {
   API_CLIENT_METHODS,
   LAYOUT_CLASSES,
   LIBRARY_ROUTES,
+  LIST_PARAMS,
   PIGGY_BACKED_PARAMS,
   SETTINGS_ROUTES,
   STOCK_ROUTES,
@@ -113,6 +114,19 @@ export function libraryHash(view: { Id: string; CollectionType?: string; ServerI
   if (view.CollectionType === 'boxsets')
     return `#${STOCK_ROUTES.list}?parentId=${id}&${PIGGY_BACKED_PARAMS.collectionType}=boxsets${server}`;
   return `#${STOCK_ROUTES.list}?parentId=${id}${server}`;
+}
+
+/** A Movies or Shows library page on one of its tabs (jellyfin-web's `?tab=` index, registry.ts LIBRARY_TABS). */
+export function libraryTabHash(id: string, collection: 'movies' | 'tvshows', tab: number): string {
+  const base = libraryHash({ Id: id, CollectionType: collection });
+  return tab === 0 ? base : `${base}&tab=${tab}`;
+}
+
+/** jellyfin-web's item list filtered to one genre or studio, optionally inside one library. */
+export function facetHash(facet: 'genre' | 'studio', id: string, parentId?: string): string {
+  const param = facet === 'genre' ? LIST_PARAMS.genre : LIST_PARAMS.studio;
+  const parent = parentId ? `&${LIST_PARAMS.parent}=${encodeURIComponent(parentId)}` : '';
+  return `#${STOCK_ROUTES.list}?${param}=${encodeURIComponent(id)}${parent}`;
 }
 
 /** jellyfin-web's item list filtered to one genre. */
