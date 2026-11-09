@@ -2,6 +2,14 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.2.4] - 2026-11-09
+
+### Fixed
+- Play starts in the tab you pressed it in. With more than one Jellyfin tab open in a browser, it could start in
+  another tab instead, leaving the current one unchanged.
+- Seerr artwork URLs no longer carry your Jellyfin access token (which could end up in proxy logs and browser
+  history). They use a per-user token that only opens catalog artwork.
+
 ## [0.2.3] - 2026-11-09
 
 ### Changed
