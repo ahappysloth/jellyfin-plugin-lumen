@@ -1,5 +1,5 @@
 import type { ComponentChildren } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type {
   AdminApi,
   DiagnosticEntry,
@@ -9,7 +9,7 @@ import type {
   SectionParamDef,
   SectionTypeDef,
   SeerrTestResult,
-  UnmappedUser,
+  SeerrUsers,
 } from './adminApi';
 import { newUuid } from '../util/uuid';
 import {
@@ -44,6 +44,7 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
   const [diagnostics, setDiagnostics] = useState<DiagnosticEntry[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'saving' | 'saved' | 'failed'>('loading');
+  const [dirty, setDirty] = useState(false);
 
   const load = async (): Promise<void> => {
     try {
@@ -59,6 +60,7 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
       setTypes(t);
       setLookups({ Library: libraries, Collection: collections, Playlist: playlists });
       setDiagnostics(d);
+      setDirty(false);
       setStatus('ready');
     } catch {
       setStatus('failed');
@@ -75,6 +77,7 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
 
   const update = (patch: Partial<LumenConfig>): void => {
     setConfig({ ...config, ...patch });
+    setDirty(true);
     if (status === 'saved') setStatus('ready');
   };
   const updateSection = (index: number, section: SectionDef): void =>
@@ -88,6 +91,7 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
       if (result.ok) {
         setErrors([]);
         setConfig(normalizeConfig(await api.getConfig()));
+        setDirty(false);
         setStatus('saved');
       } else {
         setErrors(result.errors);
@@ -107,9 +111,25 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
   };
 
   return (
-    <form class="lmn-admin" onSubmit={(e) => void save(e)}>
+    <form
+      class="lmn-admin"
+      style={{ '--a-accent': config.AccentColor } as Record<string, string>}
+      onSubmit={(e) => void save(e)}
+    >
+      <header class="lmn-admin__header">
+        <span class="lmn-admin__logo" aria-hidden="true" />
+        <div>
+          <h1>Lumen</h1>
+          <p>Cinematic home and details pages, and catalog requests through Seerr.</p>
+        </div>
+      </header>
+
       {errors.length > 0 && (
-        <div class="lmn-admin__errors" role="alert">
+        <div
+          class="lmna-callout lmna-callout--error lmn-admin__errors"
+          role="alert"
+          style={{ marginBottom: '16px' }}
+        >
           <h3>Please fix these problems</h3>
           <ul>
             {errors.map((e) => (
@@ -119,132 +139,154 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
         </div>
       )}
 
-      <fieldset>
-        <legend>General</legend>
-        <Checkbox label="Enable Lumen" checked={config.Enabled} onChange={(v) => update({ Enabled: v })} />
-        <Checkbox
+      <Card title="General">
+        <Switch
+          label="Enable Lumen"
+          hint="Off shows Jellyfin's own pages everywhere."
+          checked={config.Enabled}
+          onChange={(v) => update({ Enabled: v })}
+        />
+        <Switch
           label="Replace the home screen"
           checked={config.HomeTakeover}
           onChange={(v) => update({ HomeTakeover: v })}
         />
-        <Checkbox
+        <Switch
           label="Replace movie and series details pages"
           checked={config.DetailsTakeover}
           onChange={(v) => update({ DetailsTakeover: v })}
         />
-        <Field label="Accent color">
+        <Field label="Accent color" hint="Badges, ratings, progress bars and this page's buttons.">
           <input
             type="color"
             value={config.AccentColor}
             onInput={(e) => update({ AccentColor: inputValue(e) })}
           />
         </Field>
-      </fieldset>
+      </Card>
 
-      <fieldset>
-        <legend>Hero banner</legend>
-        <Field label="Source">
-          <select value={String(config.HeroSource)} onChange={(e) => update({ HeroSource: inputValue(e) })}>
-            {HERO_SOURCES.map((s) => (
-              <option key={s} value={s}>
-                {HERO_LABELS[s]}
-              </option>
-            ))}
-          </select>
-        </Field>
-        {config.HeroSource === 'Collection' && (
-          <Field label="Collection">
-            <OptionSelect
-              options={lookups.Collection}
-              value={config.HeroCollectionId ?? ''}
-              onChange={(v) => update({ HeroCollectionId: v || null })}
-            />
+      <Card title="Hero banner" intro="The large rotating banner at the top of the home screen.">
+        <div class="lmna-grid">
+          <Field label="Source">
+            <select value={String(config.HeroSource)} onChange={(e) => update({ HeroSource: inputValue(e) })}>
+              {HERO_SOURCES.map((s) => (
+                <option key={s} value={s}>
+                  {HERO_LABELS[s]}
+                </option>
+              ))}
+            </select>
           </Field>
-        )}
-        <NumberField
-          label="Items"
-          value={config.HeroCount}
-          min={1}
-          max={10}
-          onChange={(v) => update({ HeroCount: v })}
-        />
-        <NumberField
-          label="Seconds per slide"
-          value={config.HeroIntervalSeconds}
-          min={3}
-          max={60}
-          onChange={(v) => update({ HeroIntervalSeconds: v })}
-        />
-        <Checkbox
-          label="Play muted trailer previews (local trailers only)"
-          checked={config.TrailerPreview}
-          onChange={(v) => update({ TrailerPreview: v })}
-        />
-        <NumberField
-          label="Seconds before the trailer starts"
-          value={config.TrailerDelaySeconds}
-          min={0}
-          max={30}
-          onChange={(v) => update({ TrailerDelaySeconds: v })}
-        />
-      </fieldset>
-
-      <fieldset>
-        <legend>Home sections</legend>
-        <ol class="lmn-admin__sections">
-          {config.Sections.map((section, index) => (
-            <li key={section.Id} class="lmn-admin__section">
-              <SectionEditor
-                section={section}
-                type={types.find((t) => t.Type === section.Type)}
-                lookups={lookups}
-                onChange={(s) => updateSection(index, s)}
+          {config.HeroSource === 'Collection' && (
+            <Field label="Collection">
+              <OptionSelect
+                options={lookups.Collection}
+                value={config.HeroCollectionId ?? ''}
+                onChange={(v) => update({ HeroCollectionId: v || null })}
               />
-              <div class="lmn-admin__section-actions">
-                <button
-                  type="button"
-                  class="emby-button"
-                  aria-label={`Move ${sectionLabel(section, types)} up`}
-                  disabled={index === 0}
-                  onClick={() => update({ Sections: moveSection(config.Sections, index, -1) })}
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  class="emby-button"
-                  aria-label={`Move ${sectionLabel(section, types)} down`}
-                  disabled={index === config.Sections.length - 1}
-                  onClick={() => update({ Sections: moveSection(config.Sections, index, 1) })}
-                >
-                  ↓
-                </button>
-                <button
-                  type="button"
-                  class="emby-button"
-                  aria-label={`Remove ${sectionLabel(section, types)}`}
-                  onClick={() => update({ Sections: removeSection(config.Sections, index) })}
-                >
-                  Remove
-                </button>
-              </div>
-            </li>
-          ))}
+            </Field>
+          )}
+          <NumberField
+            label="Items"
+            value={config.HeroCount}
+            min={1}
+            max={10}
+            onChange={(v) => update({ HeroCount: v })}
+          />
+          <NumberField
+            label="Seconds per slide"
+            value={config.HeroIntervalSeconds}
+            min={3}
+            max={60}
+            onChange={(v) => update({ HeroIntervalSeconds: v })}
+          />
+        </div>
+        <div style={{ marginTop: '18px' }}>
+          <Switch
+            label="Play muted trailer previews"
+            hint="Local trailers only. Also used behind details pages."
+            checked={config.TrailerPreview}
+            onChange={(v) => update({ TrailerPreview: v })}
+          />
+          {config.TrailerPreview && (
+            <NumberField
+              label="Seconds before the trailer starts"
+              value={config.TrailerDelaySeconds}
+              min={0}
+              max={30}
+              onChange={(v) => update({ TrailerDelaySeconds: v })}
+            />
+          )}
+        </div>
+      </Card>
+
+      <Card
+        title="Home sections"
+        intro="Rows on the home screen, top to bottom. Each row adapts to the viewer."
+      >
+        <ol class="lmna-sections">
+          {config.Sections.map((section, index) => {
+            const label = sectionLabel(section, types);
+            return (
+              <li key={section.Id} class={`lmna-section${section.Enabled ? '' : ' is-disabled'}`}>
+                <SectionEditor
+                  section={section}
+                  type={types.find((t) => t.Type === section.Type)}
+                  lookups={lookups}
+                  onChange={(s) => updateSection(index, s)}
+                  actions={
+                    <div class="lmna-section__actions">
+                      <button
+                        type="button"
+                        class="lmna-icon-btn"
+                        aria-label={`Move ${label} up`}
+                        title="Move up"
+                        disabled={index === 0}
+                        onClick={() => update({ Sections: moveSection(config.Sections, index, -1) })}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        class="lmna-icon-btn"
+                        aria-label={`Move ${label} down`}
+                        title="Move down"
+                        disabled={index === config.Sections.length - 1}
+                        onClick={() => update({ Sections: moveSection(config.Sections, index, 1) })}
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        class="lmna-icon-btn lmna-icon-btn--danger"
+                        aria-label={`Remove ${label}`}
+                        title="Remove"
+                        onClick={() => update({ Sections: removeSection(config.Sections, index) })}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  }
+                />
+              </li>
+            );
+          })}
         </ol>
         <AddSection
           types={types}
           onAdd={(type) => update({ Sections: [...config.Sections, newSection(type, newId())] })}
         />
-      </fieldset>
+      </Card>
 
       <RequestsSettings api={api} config={config} update={update} />
 
-      <fieldset>
-        <legend>Diagnostics</legend>
+      <Card
+        title="Diagnostics"
+        intro="Clients where Lumen's compatibility check failed and Jellyfin's own pages were shown."
+      >
         {diagnostics.length === 0 ? (
-          <p>No compatibility problems reported.</p>
+          <p class="lmna-empty">No compatibility problems reported.</p>
         ) : (
-          <table class="lmn-admin__diagnostics">
+          <table class="lmna-table lmn-admin__diagnostics">
             <thead>
               <tr>
                 <th>Client</th>
@@ -265,16 +307,24 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
             </tbody>
           </table>
         )}
-      </fieldset>
+      </Card>
 
-      <div class="lmn-admin__footer">
-        <button type="submit" class="raised button-submit block emby-button" disabled={status === 'saving'}>
+      <div class="lmna-savebar">
+        <button type="submit" class="lmna-btn lmna-btn--primary" disabled={status === 'saving'}>
           Save
         </button>
-        <button type="button" class="raised block emby-button" onClick={() => void reset()}>
+        <button type="button" class="lmna-btn lmna-btn--ghost" onClick={() => void reset()}>
           Reset to defaults
         </button>
-        {status === 'saved' && <p role="status">Settings saved.</p>}
+        {status === 'saved' ? (
+          <p role="status" class="lmna-savebar__status lmna-savebar__status--ok" style={{ margin: 0 }}>
+            Settings saved.
+          </p>
+        ) : (
+          <p class="lmna-savebar__status" style={{ margin: 0 }}>
+            {status === 'saving' ? 'Saving…' : dirty ? 'Unsaved changes' : ''}
+          </p>
+        )}
       </div>
     </form>
   );
@@ -291,16 +341,16 @@ function RequestsSettings({
   update: (patch: Partial<LumenConfig>) => void;
 }) {
   const [test, setTest] = useState<SeerrTestResult | 'testing' | null>(null);
-  const [unmapped, setUnmapped] = useState<UnmappedUser[] | null>(null);
-  const savedAndEnabled = config.RequestsEnabled && config.SeerrApiKeySet && !config.SeerrApiKey;
+  const [users, setUsers] = useState<SeerrUsers | null>(null);
+  const savedAndEnabled = !!config.RequestsEnabled && !!config.SeerrApiKeySet && !config.SeerrApiKey;
 
   useEffect(() => {
-    if (!savedAndEnabled) return setUnmapped(null);
+    if (!savedAndEnabled) return setUsers(null);
     let cancelled = false;
     api
-      .getUnmappedUsers()
-      .then((users) => !cancelled && setUnmapped(users))
-      .catch(() => !cancelled && setUnmapped(null));
+      .getSeerrUsers()
+      .then((result) => !cancelled && setUsers(result))
+      .catch(() => !cancelled && setUsers(null));
     return () => {
       cancelled = true;
     };
@@ -315,105 +365,149 @@ function RequestsSettings({
     }
   };
 
+  // The test result is fresher than the saved-settings check, so prefer it.
+  const tested = test && test !== 'testing' ? test : null;
+  const sameServer = tested?.Ok ? tested.SameJellyfinServer : users?.SameJellyfinServer;
+  const seerrServerName =
+    (tested?.Ok ? tested.JellyfinServerName : users?.JellyfinServerName) ?? 'another server';
+
   return (
-    <fieldset>
-      <legend>Requests</legend>
-      <p class="fieldDescription">
-        Browse and request titles you don't have yet, through Seerr. Requests are filed as the signed-in user,
-        so their Seerr permissions and quotas apply.
-      </p>
-      <Checkbox
+    <Card
+      title="Requests"
+      intro="Browse and request titles you don't have yet, through Seerr. Requests are filed as the signed-in user, so their Seerr permissions and quotas apply."
+    >
+      <Switch
         label="Enable catalog browsing and requests"
         checked={!!config.RequestsEnabled}
         onChange={(v) => update({ RequestsEnabled: v })}
       />
-      <Field label="Seerr address">
-        <input
-          type="url"
-          placeholder="http://seerr:5055"
-          value={config.SeerrUrl ?? ''}
-          onInput={(e) => update({ SeerrUrl: inputValue(e) })}
-        />
-      </Field>
-      <Field label="Seerr API key">
-        <input
-          type="password"
-          autoComplete="off"
-          placeholder={
-            config.SeerrApiKeySet ? 'Saved (leave blank to keep it)' : 'Seerr → Settings → General → API Key'
-          }
-          value={config.SeerrApiKey ?? ''}
-          onInput={(e) => update({ SeerrApiKey: inputValue(e) })}
-        />
-      </Field>
-      <div
-        class="lmn-admin__row"
-        style={{ display: 'flex', alignItems: 'center', gap: '1em', margin: '0.5em 0 1em' }}
-      >
-        <button
-          type="button"
-          class="raised emby-button"
-          disabled={test === 'testing'}
-          onClick={() => void runTest()}
-        >
-          Test connection
+      <div class="lmna-grid" style={{ marginBottom: '16px' }}>
+        <Field label="Seerr address" hint="As Jellyfin's server reaches it, e.g. http://seerr:5055">
+          <input
+            type="url"
+            placeholder="http://seerr:5055"
+            value={config.SeerrUrl ?? ''}
+            onInput={(e) => update({ SeerrUrl: inputValue(e) })}
+          />
+        </Field>
+        <Field label="Seerr API key" hint="Seerr → Settings → General">
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder={config.SeerrApiKeySet ? 'Saved (leave blank to keep it)' : 'Paste the API key'}
+            value={config.SeerrApiKey ?? ''}
+            onInput={(e) => update({ SeerrApiKey: inputValue(e) })}
+          />
+        </Field>
+      </div>
+      <div class="lmna-row">
+        <button type="button" class="lmna-btn" disabled={test === 'testing'} onClick={() => void runTest()}>
+          {test === 'testing' ? 'Testing…' : 'Test connection'}
         </button>
-        {test && test !== 'testing' && (
-          <span role="status" class={test.Ok ? 'lmn-admin__ok' : 'lmn-admin__error'}>
-            {test.Ok ? `Connected to Seerr ${test.Version ?? ''}` : test.Error}
+        {tested && (
+          <span role="status" class={`lmna-pill ${tested.Ok ? 'lmna-pill--ok' : 'lmna-pill--error'}`}>
+            {tested.Ok ? `Connected to Seerr ${tested.Version ?? ''}` : tested.Error}
           </span>
         )}
       </div>
-      <NumberField
-        label="Artwork cache size (MB)"
-        value={config.ImageCacheMb ?? 500}
-        min={50}
-        max={10000}
-        onChange={(v) => update({ ImageCacheMb: v })}
-      />
-      {unmapped && unmapped.length > 0 && (
-        <div class="lmn-admin__unmapped">
+
+      {sameServer === false ? (
+        <div class="lmna-callout lmna-callout--warn" role="note">
+          <h3>Seerr is linked to a different Jellyfin server</h3>
           <p>
-            These users have no Seerr account, so they won't see the catalog. Import them in Seerr (Users →
-            Import Jellyfin Users):
+            Seerr uses “{seerrServerName}”, not this server. Seerr accounts only match users of the Jellyfin
+            server it's linked to, so nobody here will see the catalog. Install Lumen on that server instead.
           </p>
-          <ul>
-            {unmapped.map((u) => (
-              <li key={u.Id}>{u.Name}</li>
-            ))}
-          </ul>
         </div>
+      ) : (
+        users &&
+        users.Unmapped.length > 0 && (
+          <div class="lmna-callout lmn-admin__unmapped">
+            <h3>Users without a Seerr account</h3>
+            <p>They won't see the catalog until they have one. In Seerr: Users → Import Jellyfin Users.</p>
+            <ul class="lmna-chips">
+              {users.Unmapped.map((u) => (
+                <li key={u.Id}>{u.Name}</li>
+              ))}
+            </ul>
+          </div>
+        )
       )}
+
+      <div style={{ marginTop: '18px' }}>
+        <NumberField
+          label="Artwork cache size (MB)"
+          value={config.ImageCacheMb ?? 500}
+          min={50}
+          max={10000}
+          onChange={(v) => update({ ImageCacheMb: v })}
+        />
+      </div>
+    </Card>
+  );
+}
+
+function Card({ title, intro, children }: { title: string; intro?: string; children: ComponentChildren }) {
+  return (
+    <fieldset class="lmna-card">
+      <legend>{title}</legend>
+      {intro && <p class="lmna-card__intro">{intro}</p>}
+      {!intro && <div style={{ height: '12px' }} />}
+      {children}
     </fieldset>
   );
 }
 
-function Field({ label, children }: { label: string; children: ComponentChildren }) {
+let fieldHintId = 0;
+
+/** A labelled control. The hint sits outside the label so it is a description, not part of the accessible name. */
+function Field({ label, hint, children }: { label: string; hint?: string; children: ComponentChildren }) {
+  const [hintId] = useState(() => `lmn-hint-${++fieldHintId}`);
+  const labelRef = useRef<HTMLLabelElement>(null);
+  useEffect(() => {
+    const control = labelRef.current?.querySelector('input, select');
+    if (!control) return;
+    if (hint) control.setAttribute('aria-describedby', hintId);
+    else control.removeAttribute('aria-describedby');
+  }, [hint, hintId]);
   return (
-    <label class="inputContainer lmn-admin__field">
-      <span class="inputLabel">{label}</span>
-      {children}
-    </label>
+    <div class="lmna-field">
+      <label ref={labelRef} class="lmna-field__control">
+        <span class="lmna-field__label">{label}</span>
+        {children}
+      </label>
+      {hint && (
+        <span id={hintId} class="lmna-field__hint">
+          {hint}
+        </span>
+      )}
+    </div>
   );
 }
 
-function Checkbox({
+function Switch({
   label,
+  hint,
   checked,
   onChange,
 }: {
   label: string;
+  hint?: string;
   checked: boolean;
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label class="checkboxContainer lmn-admin__checkbox">
+    <label class="lmna-switch">
       <input
         type="checkbox"
+        role="switch"
         checked={checked}
         onChange={(e) => onChange((e.target as HTMLInputElement).checked)}
       />
-      <span>{label}</span>
+      <span class="lmna-switch__text">
+        <span>{label}</span>
+        {hint && <small>{hint}</small>}
+      </span>
     </label>
   );
 }
@@ -489,41 +583,56 @@ function SectionEditor(props: {
   type: SectionTypeDef | undefined;
   lookups: Lookups;
   onChange: (section: SectionDef) => void;
+  actions: ComponentChildren;
 }) {
   const { section, type, lookups, onChange } = props;
+  const name = type?.DisplayName ?? `Unknown type: ${section.Type}`;
   return (
-    <div class="lmn-admin__section-body">
-      <strong>{type?.DisplayName ?? `Unknown type: ${section.Type}`}</strong>
-      <Checkbox
-        label="Enabled"
-        checked={section.Enabled}
-        onChange={(v) => onChange({ ...section, Enabled: v })}
-      />
-      <Field label="Title (optional)">
-        <input
-          type="text"
-          value={section.Title ?? ''}
-          onInput={(e) => onChange({ ...section, Title: inputValue(e) || null })}
-        />
-      </Field>
-      {type?.Parameters.map((p) => (
-        <Field key={p.Name} label={p.Required ? `${p.Label} *` : p.Label}>
-          <ParamInput
-            param={p}
-            value={getParam(section, p.Name)}
-            lookups={lookups}
-            onChange={(v) => onChange(setParam(section, p.Name, v))}
+    <>
+      <div class="lmna-section__head">
+        <span class="lmna-section__name">
+          {section.Title || name}
+          {section.Title && <small>{name}</small>}
+        </span>
+        <label class="lmna-switch" title={section.Enabled ? 'Shown' : 'Hidden'}>
+          <input
+            type="checkbox"
+            role="switch"
+            aria-label={`Show ${section.Title || name}`}
+            checked={section.Enabled}
+            onChange={(e) => onChange({ ...section, Enabled: (e.target as HTMLInputElement).checked })}
+          />
+        </label>
+        {props.actions}
+      </div>
+      <div class="lmna-section__body">
+        <Field label="Title (optional)">
+          <input
+            type="text"
+            placeholder={name}
+            value={section.Title ?? ''}
+            onInput={(e) => onChange({ ...section, Title: inputValue(e) || null })}
           />
         </Field>
-      ))}
-    </div>
+        {type?.Parameters.map((p) => (
+          <Field key={p.Name} label={p.Required ? `${p.Label} *` : p.Label}>
+            <ParamInput
+              param={p}
+              value={getParam(section, p.Name)}
+              lookups={lookups}
+              onChange={(v) => onChange(setParam(section, p.Name, v))}
+            />
+          </Field>
+        ))}
+      </div>
+    </>
   );
 }
 
 function AddSection({ types, onAdd }: { types: SectionTypeDef[]; onAdd: (type: SectionTypeDef) => void }) {
   const [choice, setChoice] = useState('');
   return (
-    <div class="lmn-admin__add">
+    <div class="lmna-add">
       <select aria-label="Section type to add" value={choice} onChange={(e) => setChoice(inputValue(e))}>
         <option value="">Add a section…</option>
         {types.map((t) => (
@@ -534,7 +643,7 @@ function AddSection({ types, onAdd }: { types: SectionTypeDef[]; onAdd: (type: S
       </select>
       <button
         type="button"
-        class="emby-button"
+        class="lmna-btn"
         disabled={!choice}
         onClick={() => {
           const type = types.find((t) => t.Type === choice);

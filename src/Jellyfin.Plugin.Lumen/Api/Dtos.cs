@@ -87,8 +87,14 @@ public sealed record RequestStatusDto(bool Enabled, bool CanRequestMovies, bool 
 /// <summary>Body of POST /Lumen/Admin/Seerr/Test. A null or empty key means "use the stored key".</summary>
 public sealed record SeerrTestRequestDto(string? Url, string? ApiKey);
 
-/// <summary>Result of a Seerr connection test.</summary>
-public sealed record SeerrTestResultDto(bool Ok, string? Version, string? Error);
+/// <summary>
+/// Result of a Seerr connection test. <c>SameJellyfinServer</c> is false when Seerr is linked to a different Jellyfin
+/// server (accounts can then never match), null when Seerr isn't set up for Jellyfin or that couldn't be read.
+/// </summary>
+public sealed record SeerrTestResultDto(bool Ok, string? Version, string? Error, string? JellyfinServerName = null, bool? SameJellyfinServer = null);
+
+/// <summary>Response of GET /Lumen/Admin/Seerr/Users.</summary>
+public sealed record SeerrUsersDto(string? JellyfinServerName, bool? SameJellyfinServer, IReadOnlyList<UnmappedUserDto> Unmapped);
 
 /// <summary>A Jellyfin user without a Seerr account (they get no catalog until imported in Seerr).</summary>
 public sealed record UnmappedUserDto(Guid Id, string Name);

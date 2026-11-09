@@ -1,0 +1,491 @@
+/* Lumen settings page. Scoped to .lmn-admin; colours derive from the dashboard's text colour so light and dark
+   dashboard themes both work. */
+.lmn-admin {
+  --a-accent: #e12d39;
+  --a-fg: currentColor;
+  --a-surface: color-mix(in srgb, currentColor 5%, transparent);
+  --a-surface-2: color-mix(in srgb, currentColor 9%, transparent);
+  --a-line: color-mix(in srgb, currentColor 14%, transparent);
+  --a-line-strong: color-mix(in srgb, currentColor 26%, transparent);
+  --a-dim: color-mix(in srgb, currentColor 62%, transparent);
+  --a-radius: 12px;
+  box-sizing: border-box;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 8px 0 96px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.lmn-admin *,
+.lmn-admin *::before,
+.lmn-admin *::after {
+  box-sizing: border-box;
+}
+
+/* Header */
+.lmn-admin__header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 8px 0 24px;
+}
+.lmn-admin__logo {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--a-accent);
+}
+.lmn-admin__logo::after {
+  content: '';
+  margin-left: 4px;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 13px solid #fff;
+}
+.lmn-admin__header h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.lmn-admin__header p {
+  margin: 2px 0 0;
+  color: var(--a-dim);
+}
+
+/* Cards (fieldsets) */
+.lmn-admin fieldset.lmna-card {
+  min-width: 0;
+  margin: 0 0 16px;
+  padding: 20px 24px 24px;
+  border: 1px solid var(--a-line);
+  border-radius: var(--a-radius);
+  background: var(--a-surface);
+}
+.lmn-admin .lmna-card > legend {
+  float: left;
+  width: 100%;
+  margin: 0 0 4px;
+  padding: 0;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.lmn-admin .lmna-card > legend + * {
+  clear: both;
+}
+.lmn-admin .lmna-card__intro {
+  clear: both;
+  margin: 0 0 18px;
+  color: var(--a-dim);
+}
+.lmn-admin .lmna-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px 20px;
+}
+
+/* Fields */
+.lmn-admin .lmna-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 0 0 16px;
+}
+.lmn-admin .lmna-grid .lmna-field {
+  margin: 0;
+}
+.lmn-admin .lmna-field__control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.lmn-admin .lmna-field__label {
+  color: var(--a-dim);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.lmn-admin .lmna-field__hint {
+  color: var(--a-dim);
+  font-size: 12.5px;
+}
+.lmn-admin input[type='text'],
+.lmn-admin input[type='url'],
+.lmn-admin input[type='password'],
+.lmn-admin input[type='number'],
+.lmn-admin select {
+  width: 100%;
+  max-width: 440px;
+  height: 40px;
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid var(--a-line-strong);
+  border-radius: 8px;
+  background: var(--a-surface-2);
+  color: inherit;
+  font: inherit;
+  appearance: none;
+}
+.lmn-admin input[type='number'] {
+  max-width: 140px;
+}
+.lmn-admin select {
+  padding-right: 36px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 17px,
+    calc(100% - 13px) 17px;
+  background-repeat: no-repeat;
+  background-size:
+    5px 5px,
+    5px 5px;
+  cursor: pointer;
+}
+.lmn-admin select option {
+  background: var(--a-bg, #181818);
+  color: inherit;
+}
+.lmn-admin input:focus-visible,
+.lmn-admin select:focus-visible,
+.lmn-admin button:focus-visible {
+  outline: 2px solid var(--a-accent);
+  outline-offset: 2px;
+}
+.lmn-admin input::placeholder {
+  color: var(--a-dim);
+  opacity: 0.8;
+}
+.lmn-admin input[type='color'] {
+  width: 56px;
+  height: 40px;
+  padding: 4px;
+  border: 1px solid var(--a-line-strong);
+  border-radius: 8px;
+  background: var(--a-surface-2);
+  cursor: pointer;
+}
+
+/* Switches (real checkboxes, restyled) */
+.lmn-admin .lmna-switch {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 14px;
+  cursor: pointer;
+}
+.lmn-admin .lmna-switch input {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 22px;
+  margin: 1px 0 0;
+  border-radius: 999px;
+  background: var(--a-line-strong);
+  cursor: pointer;
+  transition: background-color 0.2s;
+  appearance: none;
+}
+.lmn-admin .lmna-switch input::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s;
+}
+.lmn-admin .lmna-switch input:checked {
+  background: var(--a-accent);
+}
+.lmn-admin .lmna-switch input:checked::after {
+  transform: translateX(16px);
+}
+.lmn-admin .lmna-switch__text {
+  display: flex;
+  flex-direction: column;
+}
+.lmn-admin .lmna-switch__text small {
+  color: var(--a-dim);
+  font-size: 12.5px;
+}
+
+/* Buttons */
+.lmn-admin .lmna-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 38px;
+  margin: 0;
+  padding: 0 16px;
+  border: 1px solid var(--a-line-strong);
+  border-radius: 8px;
+  background: var(--a-surface-2);
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.lmn-admin .lmna-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, currentColor 40%, transparent);
+}
+.lmn-admin .lmna-btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.lmn-admin .lmna-btn--primary {
+  border-color: transparent;
+  background: var(--a-accent);
+  color: #fff;
+}
+.lmn-admin .lmna-btn--primary:hover:not(:disabled) {
+  border-color: transparent;
+  filter: brightness(1.1);
+}
+.lmn-admin .lmna-btn--ghost {
+  border-color: transparent;
+  background: none;
+  color: var(--a-dim);
+}
+.lmn-admin .lmna-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--a-dim);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.lmn-admin .lmna-icon-btn:hover:not(:disabled) {
+  border-color: var(--a-line);
+  background: var(--a-surface-2);
+  color: inherit;
+}
+.lmn-admin .lmna-icon-btn:disabled {
+  cursor: default;
+  opacity: 0.25;
+}
+.lmn-admin .lmna-icon-btn--danger:hover:not(:disabled) {
+  color: #ef5350;
+}
+
+/* Home sections */
+.lmn-admin .lmna-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  counter-reset: section;
+}
+.lmn-admin .lmna-section {
+  border: 1px solid var(--a-line);
+  border-radius: 10px;
+  background: var(--a-surface);
+  counter-increment: section;
+}
+.lmn-admin .lmna-section.is-disabled .lmna-section__name {
+  color: var(--a-dim);
+}
+.lmn-admin .lmna-section__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 10px 14px;
+}
+.lmn-admin .lmna-section__head::before {
+  content: counter(section);
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--a-surface-2);
+  color: var(--a-dim);
+  font-size: 12px;
+  font-weight: 700;
+}
+.lmn-admin .lmna-section__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lmn-admin .lmna-section__name small {
+  margin-left: 8px;
+  color: var(--a-dim);
+  font-weight: 500;
+}
+.lmn-admin .lmna-section__head .lmna-switch {
+  margin: 0 6px 0 0;
+}
+.lmn-admin .lmna-section__actions {
+  display: flex;
+  gap: 2px;
+}
+.lmn-admin .lmna-section__body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px 16px;
+  padding: 2px 14px 14px 48px;
+}
+.lmn-admin .lmna-section__body .lmna-field {
+  margin: 0;
+}
+.lmn-admin .lmna-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.lmn-admin .lmna-add select {
+  max-width: 320px;
+}
+
+/* Callouts and status */
+.lmn-admin .lmna-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+}
+.lmn-admin .lmna-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.lmn-admin .lmna-pill::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.lmn-admin .lmna-pill--ok {
+  color: #43a047;
+}
+.lmn-admin .lmna-pill--error {
+  color: #ef5350;
+}
+.lmn-admin .lmna-callout {
+  margin: 4px 0 0;
+  padding: 14px 16px;
+  border: 1px solid var(--a-line);
+  border-left: 3px solid var(--a-dim);
+  border-radius: 8px;
+  background: var(--a-surface-2);
+}
+.lmn-admin .lmna-callout--warn {
+  border-left-color: #f5a524;
+}
+.lmn-admin .lmna-callout--error {
+  border-left-color: #ef5350;
+}
+.lmn-admin .lmna-callout h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.lmn-admin .lmna-callout p {
+  margin: 0;
+}
+.lmn-admin .lmna-callout ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+.lmn-admin .lmna-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.lmn-admin .lmna-chips li {
+  padding: 3px 10px;
+  border: 1px solid var(--a-line-strong);
+  border-radius: 999px;
+  font-size: 13px;
+}
+
+/* Diagnostics */
+.lmn-admin .lmna-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.lmn-admin .lmna-table th {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--a-line-strong);
+  color: var(--a-dim);
+  font-weight: 600;
+  text-align: left;
+}
+.lmn-admin .lmna-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--a-line);
+}
+.lmn-admin .lmna-empty {
+  margin: 0;
+  color: var(--a-dim);
+}
+
+/* Sticky save bar */
+.lmn-admin .lmna-savebar {
+  position: sticky;
+  z-index: 2;
+  bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--a-line-strong);
+  border-radius: var(--a-radius);
+  background: color-mix(in srgb, var(--a-bg, #181818) 90%, transparent);
+  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.lmn-admin .lmna-savebar__status {
+  flex: 1;
+  color: var(--a-dim);
+}
+.lmn-admin .lmna-savebar__status--ok {
+  color: #43a047;
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .lmn-admin fieldset.lmna-card {
+    padding: 16px;
+  }
+  .lmn-admin .lmna-section__body {
+    padding-left: 14px;
+  }
+}

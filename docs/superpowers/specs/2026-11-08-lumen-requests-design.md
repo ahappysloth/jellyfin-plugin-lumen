@@ -149,6 +149,7 @@ New **Requests** fieldset in Lumen's dashboard page:
 - Enable request features (master switch).
 - Image cache size.
 - A table of Jellyfin users without a Seerr account, with a link to Seerr's user import page.
+- A check that Seerr is linked to *this* Jellyfin server: Lumen compares Seerr's `GET /settings/jellyfin` `serverId` with its own `SystemId` (keeping only the name and id; that response also holds Seerr's Jellyfin API key). If they differ, accounts can never match, so the page says so instead of suggesting an import.
 
 Section types from §5.1 appear in the existing section editor automatically (data-driven).
 

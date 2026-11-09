@@ -30,6 +30,7 @@ Prerequisites: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - `JELLYFIN_IMAGE=jellyfin/jellyfin:unstable ./scripts/docker-dev.sh` tests against another server version (the nightly CI job runs `latest` and `unstable`).
 - The Jellyfin container can reach services on your machine at `host.docker.internal`, e.g. a local Seerr at `http://host.docker.internal:5055`.
 - To start fresh, run `./scripts/docker-dev.sh down && rm -rf artifacts/docker`.
+- `e2e` runs against this same server and **resets Lumen's settings** (sections, hero, Seerr connection) as it goes. Re-enter anything you set by hand afterwards.
 
 ## Native loop
 

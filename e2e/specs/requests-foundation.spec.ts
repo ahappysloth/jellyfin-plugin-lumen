@@ -5,13 +5,17 @@ import { login } from '../support/login';
 // Seerr permission bits (server/lib/permissions.ts): ADMIN = 2.
 const ADMIN_PERMISSION = 2;
 
+const linkSeerrTo = (serverId: string, name = 'This server') =>
+  fetch(`${STUB_SEERR}/__stub/jellyfin`, { method: 'POST', body: JSON.stringify({ name, serverId }) });
+
 test.beforeEach(async () => {
   const { admin } = loadState();
-  // Only the admin has a Seerr account; kid is unmapped.
+  // Only the admin has a Seerr account; kid is unmapped. The stub Seerr is linked to this Jellyfin server.
   await fetch(`${STUB_SEERR}/__stub/users`, {
     method: 'POST',
     body: JSON.stringify({ [admin.userId.replace(/-/g, '')]: { id: 1, permissions: ADMIN_PERMISSION } }),
   });
+  await linkSeerrTo((await api<{ Id: string }>('/System/Info/Public')).Id);
 });
 test.afterEach(resetLumen);
 
@@ -36,8 +40,21 @@ test('an admin connects Seerr from the dashboard; the key is never sent back', a
   expect(config.SeerrApiKey ?? null).toBeNull();
   expect(config.SeerrApiKeySet).toBe(true);
   await expect(page.getByLabel('Seerr API key')).toHaveAttribute('placeholder', 'Saved (leave blank to keep it)');
-  await expect(page.getByText(/have no Seerr account/)).toBeVisible();
+  await expect(page.getByText('Users without a Seerr account')).toBeVisible();
   await expect(page.locator('.lmn-admin__unmapped li', { hasText: 'kid' })).toBeVisible();
+});
+
+test('the dashboard explains when Seerr is linked to a different Jellyfin server', async ({ page }) => {
+  await linkSeerrTo('ffffffffffffffffffffffffffffffff', 'Main Jellyfin');
+  await login(page, ADMIN);
+  await page.goto('/web/#/configurationpage?name=Lumen');
+
+  await page.getByLabel('Seerr address').fill(SEERR_URL);
+  await page.getByLabel('Seerr API key').fill('stub-key');
+  await page.getByRole('button', { name: 'Test connection' }).click();
+
+  await expect(page.getByText('Seerr is linked to a different Jellyfin server')).toBeVisible();
+  await expect(page.getByText(/Seerr uses “Main Jellyfin”/)).toBeVisible();
 });
 
 test.describe('with Seerr configured', () => {
