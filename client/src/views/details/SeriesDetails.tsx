@@ -1,3 +1,4 @@
+import { Dropdown } from '../../components/Dropdown';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { BaseItem } from '../../api/types';
 import { detailsHash } from '../../compat/jellyfin';
@@ -99,18 +100,13 @@ export function SeriesDetails({ series, initialSeasonId, ctx }: Props) {
         <div class="lmn-episodes-header">
           <h2>{strings.episodes}</h2>
           {seasons.length > 0 && (
-            <select
-              class="lmn-season-select"
-              aria-label={strings.season}
-              value={seasonId}
-              onChange={(e) => setSeasonId((e.target as HTMLSelectElement).value)}
-            >
-              {seasons.map((s) => (
-                <option key={s.Id} value={s.Id}>
-                  {seasonLabel(s)}
-                </option>
-              ))}
-            </select>
+            <Dropdown
+              label={strings.season}
+              hideLabel
+              value={seasonId ?? ''}
+              options={seasons.map((s) => ({ value: s.Id, label: seasonLabel(s) }))}
+              onChange={setSeasonId}
+            />
           )}
         </div>
         {episodes && (

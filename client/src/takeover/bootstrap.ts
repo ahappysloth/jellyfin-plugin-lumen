@@ -13,6 +13,7 @@ import {
 import type { ViewContext } from '../views/context';
 import { onNavigate } from './navigation';
 import { parseRoute, type TakeoverRoute } from './routes';
+import { liftVeil, PENDING_CLASS } from '../veil/veil';
 import { Takeover } from './takeover';
 
 export interface BootstrapOptions {
@@ -24,7 +25,8 @@ export interface BootstrapOptions {
   timeoutMs?: number;
 }
 
-export const PENDING_CLASS = 'lmn-pending';
+/** How long a taken-over page may keep the veil down while it loads. */
+const VEIL_FALLBACK_MS = 4000;
 
 /** window.ApiClient exists before sign-in but has no user; wait until it does (or give up). */
 function waitForUser(win: Window, pollMs: number, timeoutMs: number): Promise<void> {
@@ -131,16 +133,22 @@ export function startLumen(options: BootstrapOptions): () => void {
     }
     const route = parseRoute(win.location.hash);
     session?.takeover?.handle(route);
-    // The inline guard in index.html hid the stock chrome while this was undecided; once the takeover has run (or
-    // the route is one Lumen never owns), drop it.
-    if (session || route.kind === 'other') doc.documentElement.classList.remove(PENDING_CLASS);
+    // The inline guard hid the stock chrome and showed the veil while this was undecided. If Lumen now owns the page,
+    // its view lifts the veil once its content is ready (with a fallback here); otherwise lift it right away.
+    if (!session && route.kind !== 'other') return;
+    if (doc.documentElement.classList.contains('lmn-active')) {
+      doc.documentElement.classList.remove(PENDING_CLASS);
+      win.setTimeout(() => liftVeil(doc), VEIL_FALLBACK_MS);
+    } else {
+      liftVeil(doc);
+    }
   };
 
   const stopNavigation = onNavigate(() => void sync(), win);
   void waitForUser(win, options.pollMs ?? 100, options.timeoutMs ?? 60_000)
     .then(sync)
     .finally(() => {
-      if (!session) doc.documentElement.classList.remove(PENDING_CLASS);
+      if (!session) liftVeil(doc);
     });
 
   return () => {

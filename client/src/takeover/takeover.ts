@@ -1,5 +1,6 @@
 import type { ClientConfig } from '../api/types';
 import { type CompatReport, getAppBarHeight } from '../compat/jellyfin';
+import { liftVeil } from '../veil/veil';
 import { type Route, routeKey, type TakeoverRoute } from './routes';
 
 export interface TakeoverOptions {
@@ -68,6 +69,7 @@ export class Takeover {
     if (generation !== this.generation || this.mountedKey === null) return;
     this.suppressedHref = href;
     this.release();
+    liftVeil(this.options.doc);
   }
 
   private isEnabled(route: TakeoverRoute): boolean {

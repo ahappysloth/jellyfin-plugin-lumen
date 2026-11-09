@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import type { BaseItem } from '../../api/types';
 import { detailsHash } from '../../compat/jellyfin';
 import { Card } from '../../components/Card';
+import { cardMenuHandler } from '../cardMenu';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 
@@ -34,6 +35,7 @@ export function SimilarRow({ itemId, ctx }: { itemId: string; ctx: ViewContext }
             client={ctx.client}
             variant="landscape"
             onSelect={(selected) => ctx.navigate(detailsHash(selected.Id, selected.ServerId))}
+            onMenu={cardMenuHandler(ctx)}
           />
         ))}
       </div>

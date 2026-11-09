@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { BaseItem } from '../../api/types';
-import { detailsHash } from '../../compat/jellyfin';
 import { strings } from '../../strings';
 import type { LibraryCollection } from '../../takeover/routes';
 import type { ViewContext } from '../context';
+import { cardMenuHandler, infoHash } from '../cardMenu';
 import { BrowseGrid } from './BrowseGrid';
 import { getChoice, saveChoice, saveSnapshot } from './browseStore';
-import { type Option, PageHeader, Segmented, SelectPill } from './Toolbar';
+import { Dropdown } from '../../components/Dropdown';
+import { type Option, PageHeader, Segmented } from './Toolbar';
 import { useBrowseItems } from './useBrowseItems';
 
 export type SortKey = 'added' | 'title' | 'release' | 'rating';
@@ -109,7 +110,7 @@ export function LibraryView({
   const select = (item: BaseItem): void => {
     if (state.total !== null)
       saveSnapshot(queryKey, { items: state.items, total: state.total, scrollY: window.scrollY });
-    ctx.navigate(detailsHash(item.Id, item.ServerId));
+    ctx.navigate(infoHash(item));
   };
 
   return (
@@ -126,14 +127,14 @@ export function LibraryView({
         />
         <div class="lmn-browse__selects">
           {genres.length > 0 && (
-            <SelectPill
+            <Dropdown
               label={strings.genre}
               value={choice.genre}
               options={genreOptions}
               onChange={(genre) => setChoice({ genre })}
             />
           )}
-          <SelectPill
+          <Dropdown
             label={strings.sortBy}
             value={choice.sort}
             options={SORTS}
@@ -147,6 +148,7 @@ export function LibraryView({
         variant="poster"
         label={name ?? fallbackTitle}
         onSelect={select}
+        onMenu={cardMenuHandler(ctx)}
         empty={
           filtered ? (
             <>

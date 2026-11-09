@@ -3,6 +3,7 @@ import type { LumenApi } from '../../api/lumenApi';
 import type { BaseItem } from '../../api/types';
 import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import type { ViewContext } from '../context';
+import { liftVeil } from '../../veil/veil';
 import { MovieDetails } from './MovieDetails';
 import { SeriesDetails } from './SeriesDetails';
 
@@ -38,6 +39,10 @@ export function DetailsView({ id, ctx }: { id: string; ctx: ViewContext }) {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (resolved) liftVeil();
+  }, [resolved !== null]);
 
   if (!resolved) return <div class="lmn-details lmn-details--loading" aria-busy="true" />;
   return resolved.item.Type === 'Movie' ? (

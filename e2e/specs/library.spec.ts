@@ -12,13 +12,14 @@ test('the Movies page lists the library as a poster grid with filters and sort',
   await expect(grid.getByRole('button', { name: 'Lumen Alpha' })).toBeVisible();
   await expect(page.getByText(/\d+ titles/)).toBeVisible();
 
-  await page.getByRole('combobox', { name: /Sort by/ }).selectOption('title');
+  await page.getByRole('button', { name: /^Sort by:/ }).click();
+  await page.getByRole('option', { name: 'Title' }).click();
   await expect(grid.getByRole('button').first()).toHaveAccessibleName('Lumen Alpha');
 
   await grid.getByRole('button', { name: 'Lumen Alpha' }).click();
   await expect(page).toHaveURL(/#\/details\?id=/);
   await page.goBack();
-  await expect(page.getByRole('combobox', { name: /Sort by/ })).toHaveValue('title');
+  await expect(page.getByRole('button', { name: 'Sort by: Title' })).toBeVisible();
 });
 
 test.describe('favorites', () => {
@@ -66,4 +67,36 @@ test('a reload of home never paints the stock header', async ({ page }) => {
 
   await expect(page.locator('#lmn-root .lmn-home')).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as { __stockSeen: boolean }).__stockSeen)).toBe(false);
+});
+
+test('right-clicking a card offers its actions, and favoriting from the menu shows up in Favorites', async ({ page }) => {
+  const { admin, items } = loadState();
+  await login(page, ADMIN);
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Movies' }).click();
+
+  await page.getByRole('list', { name: 'Movies' }).getByRole('button', { name: 'Lumen Gamma' }).click({ button: 'right' });
+  const menu = page.getByRole('menu', { name: 'Actions for Lumen Gamma' });
+  await expect(menu.getByRole('menuitem')).toHaveText(['Play', 'More info', 'Open in new tab', 'Add to favorites', 'Mark as watched']);
+  await menu.getByRole('menuitem', { name: 'Add to favorites' }).click();
+  await expect(menu).toBeHidden();
+
+  try {
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Favorites' }).click();
+    await expect(page.getByRole('button', { name: 'Lumen Gamma' })).toBeVisible();
+  } finally {
+    await api(`/UserFavoriteItems/${items['Lumen Gamma']}`, {
+      method: 'DELETE',
+      token: admin.token,
+      query: { userId: admin.userId },
+    });
+  }
+});
+
+test('a cold load shows the veil and lifts it once home is ready', async ({ page }) => {
+  await login(page, ADMIN);
+  await page.reload();
+
+  await expect(page.locator('#lmn-root .lmn-home .lmn-hero')).toBeVisible();
+  await expect(page.locator('#lmn-veil')).toHaveCount(0);
+  await expect(page.locator('.docspinner')).toBeHidden();
 });

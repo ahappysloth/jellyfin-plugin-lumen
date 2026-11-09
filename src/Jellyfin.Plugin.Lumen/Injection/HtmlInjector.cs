@@ -5,20 +5,20 @@ public static class HtmlInjector
 {
     public const string Marker = "<!-- lumen:injected -->";
 
+    /// <summary>The client's inline guard bundle (client/src/veil/guard.ts).</summary>
+    public const string GuardAsset = "lumen-guard.js";
+
     // Relative to /web/ (or <BaseUrl>/web/), so "../Lumen" resolves to <BaseUrl>/Lumen.
     private const string AssetBase = "../Lumen/Assets/";
 
-    // Runs synchronously before jellyfin-web paints: on routes Lumen may take over (see client takeover/routes.ts), it
-    // hides the stock chrome until lumen.js (deferred) decides, so the stock header doesn't flash. lumen.js clears the
-    // class once it knows; the timeout is a safety net if lumen.js never loads.
-    private const string PendingGuard =
-        """<script>(function(){try{var h=location.hash.replace(/^#!?/,'').toLowerCase(),q=h.indexOf('?'),"""
-        + """p=q<0?h:h.slice(0,q),t=+((/[?&]tab=(\d+)/.exec(h)||[])[1]||0);"""
-        + """if(p===''||p==='/'||p==='/details'||(p==='/home'&&t<2)||((p==='/movies'||p==='/tv')&&t===0)){"""
-        + """var d=document.documentElement;d.classList.add('lmn-pending');"""
-        + """setTimeout(function(){d.classList.remove('lmn-pending')},5000)}}catch(e){}})()</script>""";
-
-    public static string Inject(string html, string buildHash)
+    /// <summary>Injects Lumen's tags before &lt;/head&gt;.</summary>
+    /// <param name="html">jellyfin-web's index.html.</param>
+    /// <param name="buildHash">Cache-busting hash for the asset URLs.</param>
+    /// <param name="guardScript">
+    /// The guard's JavaScript, inlined so it runs synchronously before jellyfin-web paints: on routes Lumen may take
+    /// over it hides the stock chrome and shows the loading veil until lumen.js (deferred) takes over. Null skips it.
+    /// </param>
+    public static string Inject(string html, string buildHash, string? guardScript = null)
     {
         if (html.Contains(Marker, StringComparison.Ordinal))
         {
@@ -32,7 +32,10 @@ public static class HtmlInjector
         }
 
         var version = Uri.EscapeDataString(buildHash);
-        var tags = $"{Marker}{PendingGuard}<link rel=\"stylesheet\" href=\"{AssetBase}lumen.css?v={version}\">"
+        var guard = string.IsNullOrEmpty(guardScript)
+            ? string.Empty
+            : "<script>" + guardScript.Replace("</", "<\\/", StringComparison.Ordinal) + "</script>";
+        var tags = $"{Marker}{guard}<link rel=\"stylesheet\" href=\"{AssetBase}lumen.css?v={version}\">"
             + $"<script defer src=\"{AssetBase}lumen.js?v={version}\"></script>";
 
         return string.Concat(html.AsSpan(0, headClose), tags, html.AsSpan(headClose));

@@ -60,6 +60,8 @@ describe('Hero', () => {
     render(
       <Hero items={items} client={createFakeClient()} config={config} onPlay={vi.fn()} onInfo={vi.fn()} />,
     );
+  /** Long enough for a slide animation to settle. */
+  const SLIDE = 800;
   const advance = (ms: number) =>
     act(() => {
       vi.advanceTimersByTime(ms);
@@ -71,9 +73,9 @@ describe('Hero', () => {
     fireEvent.mouseEnter(hero);
     screen.getByRole('button', { name: 'Play' }).focus();
 
-    advance(8000);
+    advance(8000 + SLIDE);
     expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument();
-    advance(8000);
+    advance(8000 + SLIDE);
     expect(screen.getByRole('img', { name: 'Alpha' })).toBeInTheDocument();
   });
 
@@ -98,12 +100,31 @@ describe('Hero', () => {
 
     advance(6000);
     swipe(hero, -200);
+    advance(SLIDE);
     expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument();
     advance(6000); // would have flipped at 8s on the old timer
     expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument();
 
     swipe(hero, 200);
+    advance(SLIDE);
     expect(screen.getByRole('img', { name: 'Alpha' })).toBeInTheDocument();
+  });
+
+  it('moves the track with the pointer one-to-one while dragging', () => {
+    const { container } = renderHero();
+    const hero = container.querySelector('.lmn-hero')!;
+    fireEvent.pointerDown(hero, {
+      pointerId: 3,
+      pointerType: 'mouse',
+      button: 0,
+      clientX: 500,
+      clientY: 100,
+    });
+    fireEvent.pointerMove(hero, { pointerId: 3, pointerType: 'mouse', clientX: 380, clientY: 100 });
+
+    const track = container.querySelector<HTMLElement>('.lmn-hero__track')!;
+    expect(track.style.transform).toBe('translateX(calc(0% + -120px))');
+    expect(track.classList.contains('is-animated')).toBe(false);
   });
 
   it('ignores short drags and vertical scrolls, and does not click through after a swipe', () => {

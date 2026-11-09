@@ -56,10 +56,12 @@ describe('LibraryView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Unwatched' }));
     await waitFor(() => expect(params(itemRequests().at(-1)!).get('filters')).toBe('IsUnplayed'));
 
-    fireEvent.change(await screen.findByRole('combobox', { name: /Genre/ }), { target: { value: 'g1' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Genre: All genres' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Drama' }));
     await waitFor(() => expect(params(itemRequests().at(-1)!).get('genreIds')).toBe('g1'));
 
-    fireEvent.change(screen.getByRole('combobox', { name: /Sort by/ }), { target: { value: 'title' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by: Recently added' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Title' }));
     await waitFor(() => expect(params(itemRequests().at(-1)!).get('sortBy')).toBe('SortName'));
     expect(params(itemRequests().at(-1)!).get('sortOrder')).toBe('Ascending');
 

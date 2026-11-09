@@ -33,6 +33,80 @@ html.lmn-pending .MuiAppBar-root,
 html.lmn-pending .skinHeader {
   display: none !important;
 }
+/* jellyfin-web's splash logo and loading spinner never show on Lumen's pages; the veil covers the cold load. */
+html.lmn-pending .splashLogo,
+html.lmn-pending .docspinner,
+html.lmn-active .splashLogo,
+html.lmn-active .docspinner {
+  display: none !important;
+}
+
+/* ---- Loading veil (veil/veil.ts): black, the mark and server name, a red edge; rises like a curtain. ---------- */
+#lmn-veil {
+  display: grid;
+  place-items: center;
+  border-bottom: 3px solid var(--lmn-accent);
+  box-shadow: 0 6px 32px -4px color-mix(in srgb, var(--lmn-accent) 55%, transparent);
+  font-family: var(--lmn-font);
+  transition: transform 0.85s cubic-bezier(0.76, 0, 0.24, 1);
+  will-change: transform;
+}
+#lmn-veil.is-lifting {
+  transform: translateY(calc(-100% - 40px));
+}
+.lmn-veil__brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #fff;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  animation: lmn-veil-in 0.6s var(--lmn-ease) both;
+}
+#lmn-veil.is-lifting .lmn-veil__brand {
+  opacity: 0;
+  transform: translateY(-24px);
+  transition:
+    opacity 0.35s,
+    transform 0.5s var(--lmn-ease);
+}
+.lmn-veil__mark {
+  display: block;
+  width: 56px;
+  height: 56px;
+  animation: lmn-veil-breathe 1.8s ease-in-out 0.6s infinite;
+}
+.lmn-veil__mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+@keyframes lmn-veil-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+@keyframes lmn-veil-breathe {
+  50% {
+    filter: drop-shadow(0 0 14px color-mix(in srgb, var(--lmn-accent) 70%, transparent));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #lmn-veil {
+    transition: opacity 0.3s;
+  }
+  #lmn-veil.is-lifting {
+    transform: none;
+    opacity: 0;
+  }
+  .lmn-veil__brand,
+  .lmn-veil__mark {
+    animation: none;
+  }
+}
+
 /* lmn-pending: set by an inline guard in index.html until lumen.js decides whether to take over (no stock flash). */
 html.lmn-pending body,
 html.lmn-active body {
@@ -95,22 +169,26 @@ html.lmn-active #lmn-root {
   gap: 16px;
   height: var(--lmn-nav-h);
   padding: 0 var(--lmn-gutter);
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent);
+  /* No bar: a soft fade from dark at the top to clear at the bottom keeps the nav legible over any artwork. The
+     extra height lets the fade finish below the nav. */
+  pointer-events: none;
+}
+.lmn-nav::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 -40px;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.72) 0%,
+    rgba(0, 0, 0, 0.45) 45%,
+    rgba(0, 0, 0, 0.15) 75%,
+    transparent 100%
+  );
   pointer-events: none;
 }
 .lmn-nav > * {
   pointer-events: auto;
-}
-.lmn-nav.is-scrolled {
-  background: rgba(15, 15, 15, 0.86);
-  box-shadow: 0 1px 0 var(--lmn-line);
-  -webkit-backdrop-filter: blur(14px) saturate(1.4);
-  backdrop-filter: blur(14px) saturate(1.4);
-}
-.lmn-nav {
-  transition:
-    background-color 0.3s,
-    box-shadow 0.3s;
 }
 .lmn-nav__brand {
   display: flex;
@@ -119,7 +197,7 @@ html.lmn-active #lmn-root {
   gap: 10px;
   min-width: 0;
   color: #fff;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.02em;
   text-decoration: none;
@@ -128,8 +206,8 @@ html.lmn-active #lmn-root {
 .lmn-nav__mark {
   display: block;
   flex: none;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
 }
 .lmn-nav__mark svg {
@@ -145,9 +223,9 @@ html.lmn-active #lmn-root {
 .lmn-nav__pill {
   display: flex;
   align-items: center;
-  gap: 2px;
-  height: 40px;
-  padding: 0 4px;
+  gap: 4px;
+  height: 48px;
+  padding: 0 5px;
   border: 1px solid var(--lmn-line);
   border-radius: 12px;
   background: var(--lmn-surface);
@@ -156,12 +234,12 @@ html.lmn-active #lmn-root {
 .lmn-nav__item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 8px;
+  gap: 7px;
+  height: 38px;
+  padding: 0 15px;
+  border-radius: 9px;
   color: var(--lmn-text-2);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
@@ -179,7 +257,7 @@ html.lmn-active #lmn-root {
 }
 .lmn-nav__item--icon {
   justify-content: center;
-  width: 32px;
+  width: 38px;
   padding: 0;
 }
 .lmn-nav__divider {
@@ -250,8 +328,7 @@ html.lmn-active #lmn-root {
 .lmn-nav__item:focus-visible,
 .lmn-nav__brand:focus-visible,
 .lmn-person:focus-visible,
-.lmn-episode:focus-visible,
-.lmn-season-select:focus-visible {
+.lmn-episode:focus-visible {
   outline: 2px solid var(--lmn-focus);
   outline-offset: 2px;
 }
@@ -299,13 +376,25 @@ html.lmn-active #lmn-root {
 .lmn-hero.is-dragging {
   cursor: grabbing;
 }
-.lmn-hero.is-dragging .lmn-hero__backdrop,
-.lmn-hero.is-dragging .lmn-hero__trailer {
-  transform: translateX(calc(var(--lmn-drag, 0px) * 0.25));
+.lmn-hero__controls {
+  transition: opacity 0.2s;
 }
-.lmn-hero.is-dragging .lmn-hero__content {
-  transform: translateX(calc(var(--lmn-drag, 0px) * 0.6));
-  opacity: 0.75;
+.lmn-hero.is-dragging .lmn-hero__controls {
+  opacity: 0;
+}
+/* Slides sit side by side on a track that follows the pointer 1:1 (Hero.tsx). */
+.lmn-hero__track {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+.lmn-hero__track.is-animated {
+  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.lmn-hero__slide {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
 }
 .lmn-hero__backdrop,
 .lmn-hero__video {
@@ -795,18 +884,6 @@ html.lmn-active #lmn-root {
   font-weight: 600;
   letter-spacing: -0.015em;
 }
-.lmn-season-select {
-  height: 36px;
-  padding: 0 14px;
-  border: 1px solid var(--lmn-line-strong);
-  border-radius: 8px;
-  background: var(--lmn-surface);
-  color: var(--lmn-text);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
 .lmn-episodes {
   margin: 0;
   padding: 0;
@@ -920,6 +997,54 @@ html.lmn-active #lmn-root {
   white-space: nowrap;
 }
 
+/* ---- Context menu (components/ContextMenu.tsx) ----------------------------------------------------------------- */
+.lmn-menu {
+  position: fixed;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  padding: 6px;
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 14px;
+  background: rgba(28, 28, 28, 0.96);
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.85);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  font-family: var(--lmn-font);
+  outline: none;
+  animation: lmn-pop 0.14s var(--lmn-ease);
+}
+.lmn-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 38px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--lmn-text-2);
+  font: 500 14px var(--lmn-font);
+  text-align: left;
+  cursor: pointer;
+}
+.lmn-menu__item.is-active {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.lmn-menu__item:focus {
+  outline: none;
+}
+.lmn-heart {
+  color: var(--lmn-accent);
+}
+/* Long-press opens Lumen's menu; don't also show iOS's link/image callout. */
+.lmn-card,
+.lmn-genre {
+  -webkit-touch-callout: none;
+}
+
 /* ---- Library and Favorites pages ------------------------------------------------------------------------------ */
 .lmn-browse {
   min-height: 100vh;
@@ -1006,54 +1131,116 @@ html.lmn-active #lmn-root {
 .lmn-chip.is-active .lmn-chip__count {
   color: var(--lmn-text-2);
 }
-.lmn-select {
+/* Dropdown (components/Dropdown.tsx): a pill button and a floating listbox. */
+.lmn-dropdown {
   position: relative;
   display: inline-flex;
+}
+.lmn-dropdown__button {
+  display: inline-flex;
   align-items: center;
-  height: 38px;
+  gap: 8px;
+  width: 100%;
+  height: 40px;
+  padding: 0 14px;
   border: 1px solid var(--lmn-line);
   border-radius: 12px;
   background: var(--lmn-surface);
-  transition: border-color 0.2s;
-}
-.lmn-select:hover,
-.lmn-select:focus-within {
-  border-color: var(--lmn-line-strong);
-}
-.lmn-select__label {
-  padding-left: 14px;
-  color: var(--lmn-text-3);
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-.lmn-select select {
-  height: 100%;
-  max-width: 220px;
-  padding: 0 36px 0 8px;
-  border: 0;
-  background: none;
   color: #fff;
   font: 600 13px var(--lmn-font);
+  white-space: nowrap;
   cursor: pointer;
-  appearance: none;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
 }
-.lmn-select select:focus {
+.lmn-dropdown__button:hover,
+.lmn-dropdown.is-open .lmn-dropdown__button {
+  border-color: var(--lmn-line-strong);
+  background: var(--lmn-surface-2);
+}
+/* Keyboard focus ring only while closed; an open list shows its own highlight. */
+.lmn-dropdown__button:focus {
   outline: none;
 }
-.lmn-select:has(select:focus-visible) {
+.lmn-dropdown:not(.is-open) .lmn-dropdown__button:focus-visible {
   outline: 2px solid var(--lmn-focus);
   outline-offset: 2px;
 }
-.lmn-select option {
-  background: var(--lmn-surface-2);
-  color: var(--lmn-text);
+.lmn-dropdown__label {
+  color: var(--lmn-text-3);
+  font-weight: 500;
 }
-.lmn-select__chevron {
-  position: absolute;
-  right: 12px;
+.lmn-dropdown__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+.lmn-dropdown__chevron {
   color: var(--lmn-text-2);
-  pointer-events: none;
+  transition: transform 0.2s var(--lmn-ease);
+}
+.lmn-dropdown.is-open .lmn-dropdown__chevron {
+  transform: rotate(180deg);
+}
+.lmn-dropdown__list {
+  position: absolute;
+  z-index: 60;
+  right: 0;
+  min-width: max(100%, 200px);
+  max-height: min(340px, 60vh);
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 14px;
+  background: rgba(28, 28, 28, 0.96);
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.8);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  list-style: none;
+  outline: none;
+  animation: lmn-pop 0.16s var(--lmn-ease);
+}
+.lmn-dropdown__list--down {
+  top: calc(100% + 6px);
+  transform-origin: top;
+}
+.lmn-dropdown__list--up {
+  bottom: calc(100% + 6px);
+  transform-origin: bottom;
+}
+.lmn-dropdown__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 36px;
+  padding: 0 10px 0 12px;
+  border-radius: 8px;
+  color: var(--lmn-text-2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.lmn-dropdown__option.is-active {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.lmn-dropdown__option[aria-selected='true'] {
+  color: #fff;
+  font-weight: 600;
+}
+.lmn-dropdown__check {
+  color: var(--lmn-accent);
+}
+@keyframes lmn-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
 }
 .lmn-browse-grid {
   display: grid;
@@ -1158,8 +1345,14 @@ html.lmn-active #lmn-root {
   }
   .lmn-nav__item {
     justify-content: center;
-    width: 32px;
+    width: 36px;
+    height: 36px;
     padding: 0;
+  }
+  .lmn-nav__pill {
+    gap: 2px;
+    height: 44px;
+    padding: 0 4px;
   }
   .lmn-nav__name {
     font-size: 16px;
@@ -1182,24 +1375,12 @@ html.lmn-active #lmn-root {
     flex-wrap: nowrap;
     width: 100%;
   }
-  .lmn-browse__selects .lmn-select {
+  .lmn-browse__selects .lmn-dropdown {
     flex: 1;
     min-width: 0;
   }
-  .lmn-select select {
-    flex: 1;
-    min-width: 0;
-    max-width: none;
-    padding-left: 14px;
-  }
-  /* The chosen value says enough on a phone; the label stays for screen readers. */
-  .lmn-select__label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
+  .lmn-browse__selects .lmn-dropdown__label {
+    display: none;
   }
   .lmn-browse-grid {
     gap: 20px 10px;
@@ -1324,7 +1505,8 @@ html.lmn-active #lmn-root {
 .layout-tv .lmn-icon-button:focus,
 .layout-tv .lmn-nav__item:focus,
 .layout-tv .lmn-person:focus,
-.layout-tv .lmn-season-select:focus {
+.layout-tv .lmn-chip:focus,
+.layout-tv .lmn-dropdown__button:focus {
   outline: 3px solid var(--lmn-focus);
   outline-offset: 3px;
 }

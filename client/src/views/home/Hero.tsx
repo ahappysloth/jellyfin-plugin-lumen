@@ -1,3 +1,4 @@
+import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { BadgeKey, BaseItem, ClientConfig, HeroItem } from '../../api/types';
 import type { JellyfinApiClient } from '../../compat/jellyfin';
@@ -19,7 +20,10 @@ interface Props {
 
 /** Horizontal travel (px) before a press counts as a swipe rather than a tap; and the share of width that flips. */
 const DRAG_SLOP = 8;
-const SWIPE_FRACTION = 0.12;
+const SWIPE_FRACTION = 0.15;
+/** A quick flick flips even when short (px per ms). */
+const FLICK_VELOCITY = 0.5;
+const SLIDE_MS = 650;
 
 type HeroPointerEvent = PointerEvent & { currentTarget: HTMLElement };
 
@@ -28,33 +32,74 @@ interface DragState {
   x: number;
   y: number;
   dx: number;
+  t: number;
   swiping: boolean;
 }
 
+const mod = (n: number, m: number): number => ((n % m) + m) % m;
+
+/**
+ * The home carousel. Slides sit side by side on a track: the previous, current and next. Dragging moves the track
+ * exactly with the pointer; letting go past a threshold (or flicking) slides to the neighbour, otherwise it springs
+ * back. Auto-advance uses the same slide.
+ */
 export function Hero({ items, client, config, badges, onPlay, onInfo }: Props) {
   const [index, setIndex] = useState(0);
   const [stopped, setStopped] = useState(false);
   // Only keyboard navigation inside the hero pauses it; hovering or the initial autofocus must not.
   const [keyboardInside, setKeyboardInside] = useState(false);
   const [dragX, setDragX] = useState(0);
+  /** -1/1 while sliding to the previous/next slide; 0 at rest. */
+  const [sliding, setSliding] = useState<-1 | 0 | 1>(0);
+  /** One frame with transitions off, while the track re-centres on the new slide after a slide. */
+  const [snap, setSnap] = useState(false);
   const drag = useRef<DragState | null>(null);
   const suppressClick = useRef(false);
+  const slideTimer = useRef<number | undefined>(undefined);
   const reducedMotion = usePrefersReducedMotion();
   const count = items.length;
-  const paused = stopped || keyboardInside || dragX !== 0;
+  const dragging = drag.current?.swiping ?? false;
+  const paused = stopped || keyboardInside || dragging || sliding !== 0;
 
-  const go = (delta: number): void => setIndex((i) => (((i + delta) % count) + count) % count);
+  const settle = (delta: -1 | 1): void => {
+    clearTimeout(slideTimer.current);
+    setSnap(true);
+    setSliding(0);
+    setDragX(0);
+    setIndex((i) => mod(i + delta, count));
+  };
+  useEffect(() => {
+    if (!snap) return;
+    const frame = requestAnimationFrame(() => setSnap(false));
+    return () => cancelAnimationFrame(frame);
+  }, [snap]);
+  const go = (delta: -1 | 1): void => {
+    if (count < 2) return;
+    if (reducedMotion) return settle(delta);
+    setSliding(delta);
+    // transitionend can be missed (hidden tab, interrupted transition): settle on a timer as well.
+    clearTimeout(slideTimer.current);
+    slideTimer.current = window.setTimeout(() => settle(delta), SLIDE_MS + 80);
+  };
+  useEffect(() => () => clearTimeout(slideTimer.current), []);
 
   // A fresh timer per slide, so a manual swipe or dot click gets a full interval before the next auto-advance.
   useEffect(() => {
     if (count < 2 || paused) return;
-    const timer = setTimeout(() => setIndex((i) => (i + 1) % count), config.HeroIntervalSeconds * 1000);
+    const timer = setTimeout(() => go(1), config.HeroIntervalSeconds * 1000);
     return () => clearTimeout(timer);
   }, [index, count, paused, config.HeroIntervalSeconds]);
 
   const onPointerDown = (e: HeroPointerEvent): void => {
-    if (count < 2 || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    drag.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, swiping: false };
+    if (count < 2 || sliding !== 0 || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    drag.current = {
+      pointerId: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      dx: 0,
+      t: e.timeStamp,
+      swiping: false,
+    };
   };
   const onPointerMove = (e: HeroPointerEvent): void => {
     const d = drag.current;
@@ -77,29 +122,35 @@ export function Hero({ items, client, config, badges, onPlay, onInfo }: Props) {
     const d = drag.current;
     if (!d || d.pointerId !== e.pointerId) return;
     drag.current = null;
-    setDragX(0);
     if (!d.swiping) return;
     suppressClick.current = true; // the click that follows a drag must not press Play or More info
     setTimeout(() => (suppressClick.current = false), 0);
     const width = e.currentTarget.clientWidth || window.innerWidth;
-    if (!cancelled && Math.abs(d.dx) > Math.max(40, width * SWIPE_FRACTION)) go(d.dx < 0 ? 1 : -1);
+    const velocity = Math.abs(d.dx) / Math.max(1, e.timeStamp - d.t);
+    const far = Math.abs(d.dx) > width * SWIPE_FRACTION || (velocity > FLICK_VELOCITY && Math.abs(d.dx) > 30);
+    if (!cancelled && far) {
+      go(d.dx < 0 ? 1 : -1); // the track animates from where the finger left it
+    } else {
+      setDragX(0); // spring back
+    }
   };
 
-  const current = items[index % items.length];
+  const current = items[mod(index, count)];
   if (!current) return null;
-  const item = current.Item;
-  const backdrop = resolveImage(item, ['Backdrop']);
-  const logo = resolveImage(item, ['Logo']);
   const trailerId = config.TrailerPreview && !reducedMotion ? current.TrailerItemId : null;
-  const badge = badges?.[item.Id];
-  const meta = [...cardMeta(item), ...(item.Genres ?? []).slice(0, 2)];
+
+  // Previous, current, next. With two items the neighbours are the same item: key them apart.
+  const slides = count < 2 ? [0] : [-1, 0, 1];
+  const offset = sliding !== 0 ? `${-sliding * 100}%` : '0%';
+  const trackStyle = {
+    transform: `translateX(calc(${offset} + ${sliding !== 0 ? 0 : dragX}px))`,
+  };
 
   return (
     <section
       aria-roledescription="carousel"
       aria-label="Featured"
-      class={`lmn-hero${dragX !== 0 ? ' is-dragging' : ''}`}
-      style={dragX !== 0 ? { '--lmn-drag': `${dragX}px` } : undefined}
+      class={`lmn-hero${dragging ? ' is-dragging' : ''}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={(e) => endDrag(e, false)}
@@ -117,25 +168,114 @@ export function Hero({ items, client, config, badges, onPlay, onInfo }: Props) {
         if (!next || !e.currentTarget.contains(next)) setKeyboardInside(false);
       }}
     >
+      <div
+        class={`lmn-hero__track${!snap && (sliding !== 0 || !dragging) ? ' is-animated' : ''}`}
+        style={trackStyle}
+        onTransitionEnd={(e) => {
+          if (e.target === e.currentTarget && sliding !== 0) settle(sliding);
+        }}
+      >
+        {slides.map((rel) => {
+          const i = mod(index + rel, count);
+          const hero = items[i]!;
+          const key = rel === -1 && count === 2 ? `p${i}` : String(i);
+          return (
+            <Slide
+              key={key}
+              rel={rel}
+              item={hero.Item}
+              client={client}
+              badge={badges?.[hero.Item.Id]}
+              current={rel === 0}
+              onPlay={onPlay}
+              onInfo={onInfo}
+            >
+              {rel === 0 && trailerId && sliding === 0 && !dragging && (
+                <TrailerPreview
+                  key={trailerId}
+                  trailerId={trailerId}
+                  delaySeconds={config.TrailerDelaySeconds}
+                  client={client}
+                />
+              )}
+            </Slide>
+          );
+        })}
+      </div>
+      {count > 1 && (
+        <div class="lmn-hero__controls">
+          <div class="lmn-hero__pager" role="tablist">
+            {items.map((h, i) => {
+              const active = i === mod(index + sliding, count);
+              return (
+                <button
+                  key={h.Item.Id}
+                  type="button"
+                  role="tab"
+                  tabIndex={-1}
+                  aria-selected={active}
+                  aria-label={`Show ${h.Item.Name}`}
+                  class={`lmn-hero__dash${active ? ' is-active' : ''}`}
+                  onClick={() => sliding === 0 && setIndex(i)}
+                />
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            class="lmn-icon-button"
+            tabIndex={-1}
+            aria-label={stopped ? strings.resumeRotation : strings.pauseRotation}
+            onClick={() => setStopped((s) => !s)}
+          >
+            <Icon name={stopped ? 'play' : 'pause'} size={14} />
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Slide({
+  rel,
+  item,
+  client,
+  badge,
+  current,
+  onPlay,
+  onInfo,
+  children,
+}: {
+  rel: number;
+  item: BaseItem;
+  client: Pick<JellyfinApiClient, 'getUrl'>;
+  badge?: BadgeKey;
+  current: boolean;
+  onPlay: (item: BaseItem) => void;
+  onInfo: (item: BaseItem) => void;
+  children?: ComponentChildren;
+}) {
+  const backdrop = resolveImage(item, ['Backdrop']);
+  const logo = resolveImage(item, ['Logo']);
+  const meta = [...cardMeta(item), ...(item.Genres ?? []).slice(0, 2)];
+  return (
+    <div
+      class={`lmn-hero__slide${current ? ' is-current' : ''}`}
+      style={{ transform: `translateX(${rel * 100}%)` }}
+      aria-hidden={current ? undefined : 'true'}
+      inert={!current}
+    >
       {backdrop && (
         <img
-          key={item.Id}
           class="lmn-hero__backdrop"
           src={imageUrl(client, backdrop, { width: 1920 })}
           alt=""
           draggable={false}
         />
       )}
-      {trailerId && (
-        <TrailerPreview
-          key={trailerId}
-          trailerId={trailerId}
-          delaySeconds={config.TrailerDelaySeconds}
-          client={client}
-        />
-      )}
+      {children}
       <div class="lmn-hero__scrim" />
-      <div class="lmn-hero__content" key={`content-${item.Id}`}>
+      <div class="lmn-hero__content">
         {logo ? (
           <img
             class="lmn-hero__logo"
@@ -161,7 +301,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo }: Props) {
         <div class="lmn-actions">
           <button
             type="button"
-            class="lmn-button lmn-button--primary lmn-autofocus"
+            class={`lmn-button lmn-button--primary${current ? ' lmn-autofocus' : ''}`}
             onClick={() => onPlay(item)}
           >
             <Icon name="play" />
@@ -178,33 +318,6 @@ export function Hero({ items, client, config, badges, onPlay, onInfo }: Props) {
           </button>
         </div>
       </div>
-      {items.length > 1 && (
-        <div class="lmn-hero__controls">
-          <div class="lmn-hero__pager" role="tablist">
-            {items.map((h, i) => (
-              <button
-                key={h.Item.Id}
-                type="button"
-                role="tab"
-                tabIndex={-1}
-                aria-selected={i === index}
-                aria-label={`Show ${h.Item.Name}`}
-                class={`lmn-hero__dash${i === index ? ' is-active' : ''}`}
-                onClick={() => setIndex(i)}
-              />
-            ))}
-          </div>
-          <button
-            type="button"
-            class="lmn-icon-button"
-            tabIndex={-1}
-            aria-label={stopped ? strings.resumeRotation : strings.pauseRotation}
-            onClick={() => setStopped((s) => !s)}
-          >
-            <Icon name={stopped ? 'play' : 'pause'} size={14} />
-          </button>
-        </div>
-      )}
-    </section>
+    </div>
   );
 }

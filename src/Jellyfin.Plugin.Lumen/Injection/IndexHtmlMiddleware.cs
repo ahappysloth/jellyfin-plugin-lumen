@@ -58,7 +58,8 @@ public sealed class IndexHtmlMiddleware
             return;
         }
 
-        var output = Transform(buffer.ToArray(), assets.BuildHash);
+        var guard = assets.TryGet(HtmlInjector.GuardAsset, out var guardAsset) ? Encoding.UTF8.GetString(guardAsset.Content) : null;
+        var output = Transform(buffer.ToArray(), assets.BuildHash, guard);
         var etag = "\"lmn-" + Convert.ToHexStringLower(SHA256.HashData(output))[..16] + "\"";
 
         context.Response.Headers.Remove(HeaderNames.LastModified);
@@ -87,12 +88,12 @@ public sealed class IndexHtmlMiddleware
             || path.EndsWith("/web/index.html", StringComparison.OrdinalIgnoreCase);
     }
 
-    private byte[] Transform(byte[] original, string buildHash)
+    private byte[] Transform(byte[] original, string buildHash, string? guard)
     {
         try
         {
             var html = Encoding.UTF8.GetString(original);
-            var injected = HtmlInjector.Inject(html, buildHash);
+            var injected = HtmlInjector.Inject(html, buildHash, guard);
             if (ReferenceEquals(injected, html) && !html.Contains(HtmlInjector.Marker, StringComparison.Ordinal)
                 && Interlocked.Exchange(ref _warnedNoHead, 1) == 0)
             {

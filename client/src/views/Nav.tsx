@@ -11,6 +11,7 @@ import {
 } from '../compat/jellyfin';
 import { Icon, type IconName } from '../components/icons';
 import { strings } from '../strings';
+import { rememberVeilName } from '../veil/veil';
 import type { ViewContext } from './context';
 
 const MAX_LIBRARIES = 4;
@@ -35,31 +36,19 @@ async function loadNavData(ctx: ViewContext): Promise<NavData> {
   return { serverName, libraries: views.Items.slice(0, MAX_LIBRARIES) };
 }
 
-/** True once the page has scrolled past the top, so the header can turn solid over content. */
-function useScrolled(threshold = 24): boolean {
-  const [scrolled, setScrolled] = useState(() => window.scrollY > threshold);
-  useEffect(() => {
-    const update = (): void => setScrolled(window.scrollY > threshold);
-    window.addEventListener('scroll', update, { passive: true });
-    update();
-    return () => window.removeEventListener('scroll', update);
-  }, [threshold]);
-  return scrolled;
-}
-
 /**
  * Lumen's floating header on its own pages: the server name on the left, and centred, a pill with Home, the user's
  * libraries, Favorites, search and settings. jellyfin-web's app bar is hidden while it shows (see lumen.css).
  */
 export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavActive }) {
   const [data, setData] = useState<NavData | null>(() => cache.get(ctx.userId) ?? null);
-  const scrolled = useScrolled();
 
   useEffect(() => {
     let cancelled = false;
     loadNavData(ctx)
       .then((fresh) => {
         cache.set(ctx.userId, fresh);
+        if (fresh.serverName) rememberVeilName(fresh.serverName);
         if (!cancelled) setData(fresh);
       })
       .catch(() => undefined);
@@ -69,7 +58,7 @@ export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavAc
   }, [ctx.userId]);
 
   return (
-    <header class={`lmn-nav${scrolled ? ' is-scrolled' : ''}`}>
+    <header class="lmn-nav">
       <a class="lmn-nav__brand" href={HOME_HASH}>
         <span class="lmn-nav__mark" aria-hidden="true" dangerouslySetInnerHTML={{ __html: markSvg }} />
         <span class="lmn-nav__name">{data?.serverName ?? 'Lumen'}</span>
@@ -93,10 +82,10 @@ export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavAc
         />
         <span class="lmn-nav__divider" aria-hidden="true" />
         <a class="lmn-nav__item lmn-nav__item--icon" href={SEARCH_HASH} aria-label={strings.search}>
-          <Icon name="search" size={16} />
+          <Icon name="search" size={18} />
         </a>
         <a class="lmn-nav__item lmn-nav__item--icon" href={PREFERENCES_HASH} aria-label={strings.profile}>
-          <Icon name="user" size={16} />
+          <Icon name="user" size={18} />
         </a>
       </nav>
     </header>
@@ -122,7 +111,7 @@ function NavItem({
       aria-label={label}
       title={label}
     >
-      <Icon name={icon} size={15} />
+      <Icon name={icon} size={17} />
       <span class="lmn-nav__label" aria-hidden="true">
         {label}
       </span>

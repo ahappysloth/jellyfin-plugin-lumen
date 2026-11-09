@@ -141,11 +141,14 @@ export function DetailsHeader(props: Props) {
             type="button"
             class="lmn-button lmn-button--secondary"
             aria-pressed={props.favorite}
-            aria-label={strings.addFavorite}
+            aria-label={strings.favorite}
             onClick={props.toggleFavorite}
           >
-            <Icon name={props.favorite ? 'check' : 'plus'} />
-            <span class="lmn-button__label">{strings.favorite}</span>
+            <Icon
+              name={props.favorite ? 'heart' : 'heartOutline'}
+              class={props.favorite ? 'lmn-heart' : undefined}
+            />
+            <span class="lmn-button__label">{props.favorite ? strings.favorited : strings.favorite}</span>
           </button>
           <button
             type="button"
