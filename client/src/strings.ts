@@ -19,6 +19,12 @@ export const strings = {
   episodes: 'Episodes',
   season: 'Season',
   specials: 'Specials',
+  episodeCode: (season: number | undefined, episode: number | undefined) =>
+    season === undefined || episode === undefined ? '' : `S${season}:E${episode}`,
+  episodeDetails: (name: string) => `Details for ${name}`,
+  previousEpisode: 'Previous episode',
+  nextEpisode: 'Next episode',
+  moreFromSeason: (season: string) => `More from ${season}`,
   playbackFailed: "Couldn't start playback. Try again from the stock player.",
   favoriteFailed: "Couldn't update favorites. Try again.",
   watchedFailed: "Couldn't update watched status. Try again.",

@@ -1,6 +1,8 @@
 import type { BaseItem } from '../../api/types';
 import type { JellyfinApiClient } from '../../compat/jellyfin';
+import { Icon } from '../../components/icons';
 import { imageUrl, resolveImage } from '../../components/images';
+import { strings } from '../../strings';
 import { ProgressBar, playedPercent } from '../../components/ProgressBar';
 import { formatRuntime } from './badges';
 
@@ -8,9 +10,11 @@ interface Props {
   episodes: BaseItem[];
   client: Pick<JellyfinApiClient, 'getUrl'>;
   onPlay: (episode: BaseItem) => void;
+  /** The episode's own page; a details link sits beside each row's play button. */
+  detailsHref?: (episode: BaseItem) => string;
 }
 
-export function EpisodeList({ episodes, client, onPlay }: Props) {
+export function EpisodeList({ episodes, client, onPlay, detailsHref }: Props) {
   return (
     <ol class="lmn-episodes">
       {episodes.map((episode) => {
@@ -18,7 +22,7 @@ export function EpisodeList({ episodes, client, onPlay }: Props) {
         const percent = playedPercent(episode);
         const runtime = formatRuntime(episode.RunTimeTicks);
         return (
-          <li key={episode.Id}>
+          <li key={episode.Id} class="lmn-episodes__item">
             <button
               type="button"
               class="lmn-episode"
@@ -47,6 +51,15 @@ export function EpisodeList({ episodes, client, onPlay }: Props) {
                 {episode.Overview && <span class="lmn-episode__overview">{episode.Overview}</span>}
               </span>
             </button>
+            {detailsHref && (
+              <a
+                class="lmn-icon-button lmn-episodes__details"
+                href={detailsHref(episode)}
+                aria-label={strings.episodeDetails(episode.Name)}
+              >
+                <Icon name="info" size={18} />
+              </a>
+            )}
           </li>
         );
       })}

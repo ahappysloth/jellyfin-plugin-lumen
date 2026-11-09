@@ -7,10 +7,9 @@ import { startPlayback } from '../playback/startPlayback';
 import type { ViewContext } from './context';
 import { toggleUserData, userDataValue } from './userDataStore';
 
-/** Where a card's "More info" goes: an episode opens its season on the series page. */
+/** Where a card's "More info" goes. */
 export function infoHash(item: BaseItem): string {
   if (item.Type === 'Genre') return genreHash(item.Id, item.ServerId);
-  if (item.Type === 'Episode') return detailsHash(item.SeasonId ?? item.SeriesId ?? item.Id, item.ServerId);
   return detailsHash(item.Id, item.ServerId);
 }
 

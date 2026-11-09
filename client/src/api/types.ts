@@ -49,6 +49,7 @@ export interface BaseItem {
   SeriesId?: string;
   SeriesName?: string;
   SeasonId?: string;
+  SeasonName?: string;
   IndexNumber?: number;
   ParentIndexNumber?: number;
   LocalTrailerCount?: number;

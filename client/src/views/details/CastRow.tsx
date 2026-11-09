@@ -21,7 +21,7 @@ interface Props {
 }
 
 export function CastRow({ people, client, onSelect }: Props) {
-  const cast = people.filter((p) => p.Type === 'Actor').slice(0, MAX_CAST);
+  const cast = people.filter((p) => p.Type === 'Actor' || p.Type === 'GuestStar').slice(0, MAX_CAST);
   if (cast.length === 0) return null;
   return (
     <section class="lmn-row lmn-cast" aria-label={strings.cast}>
