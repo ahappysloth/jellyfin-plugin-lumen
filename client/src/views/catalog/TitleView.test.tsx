@@ -135,4 +135,20 @@ describe('TitleView', () => {
     expect(await screen.findByText(/can't request this/)).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Request' })).toBeNull());
   });
+
+  it('offers Try again and Back when the title fails to load', async () => {
+    let fail = true;
+    const client = createFakeClient(
+      routes({
+        [`Lumen/Requests/Title/movie/603`]: () => (fail ? Promise.reject(new Error('offline')) : movie),
+      }),
+    );
+    render(<TitleView mediaType="movie" tmdbId={603} ctx={makeContext(client)} />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load this title from Seerr.");
+    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
+    fail = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('heading', { name: 'The Matrix' })).toBeInTheDocument();
+  });
 });

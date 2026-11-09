@@ -4,10 +4,11 @@ import type { BaseItem } from '../../api/types';
 import { playItem } from '../../playback/play';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
-import { reconcileUserData, setUserData, useUserData } from '../userDataStore';
+import { showToast } from '../../components/Toast';
+import { reconcileUserData, toggleUserData, useUserData } from '../userDataStore';
 
 /**
- * Watched/favorite toggles and playback with an inline error. Toggles go through the shared user-data store, so the
+ * Watched/favorite toggles (a refused change rolls back with a toast) and playback with an inline error. Toggles go through the shared user-data store, so the
  * card menus and the player agree with this page.
  */
 export function useItemActions(item: BaseItem, ctx: ViewContext) {
@@ -17,8 +18,8 @@ export function useItemActions(item: BaseItem, ctx: ViewContext) {
   const favorite = useUserData(item, 'IsFavorite');
   const [error, setError] = useState<string | null>(null);
 
-  const toggleWatched = (): void => void setUserData(ctx, item, 'Played', !played);
-  const toggleFavorite = (): void => void setUserData(ctx, item, 'IsFavorite', !favorite);
+  const toggleWatched = (): void => toggleUserData(ctx, item, 'Played', !played, showToast);
+  const toggleFavorite = (): void => toggleUserData(ctx, item, 'IsFavorite', !favorite, showToast);
   const play = (itemId: string, startTicks?: number): void => {
     setError(null);
     playItem(ctx.api, ctx.client, itemId, startTicks).catch(() => setError(strings.playbackFailed));

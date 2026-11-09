@@ -23,7 +23,7 @@ export function Segmented<T extends string>({
         <button
           key={o.value}
           type="button"
-          class={`lmn-chip${o.value === value ? ' is-active' : ''}`}
+          class={`lmn-chip${o.value === value ? ' is-active lmn-autofocus' : ''}`}
           aria-pressed={o.value === value}
           onClick={() => onChange(o.value)}
         >

@@ -4,7 +4,7 @@ import type { BaseItem } from '../../api/types';
 import type { JellyfinApiClient } from '../../compat/jellyfin';
 import { Card } from '../../components/Card';
 import type { CardVariant } from '../../components/images';
-import { strings } from '../../strings';
+import { LoadError } from '../../components/LoadError';
 import { captionFor } from '../home/Row';
 import type { CardMenuHandler } from '../cardMenu';
 import type { BrowseState } from './useBrowseItems';
@@ -79,14 +79,7 @@ export function BrowseGrid({ state, client, variant, label, onSelect, onMenu, em
             </div>
           ))}
       </div>
-      {error && (
-        <div class="lmn-browse__error" role="alert">
-          <p>{strings.loadFailed}</p>
-          <button type="button" class="lmn-button lmn-button--secondary" onClick={state.retry}>
-            {strings.retry}
-          </button>
-        </div>
-      )}
+      {error && <LoadError onRetry={state.retry} />}
       {hasMore && !error && <div ref={sentinel} class="lmn-browse-grid__sentinel" aria-hidden="true" />}
     </>
   );

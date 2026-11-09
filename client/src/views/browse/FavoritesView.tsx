@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'preact/hooks';
-import type { BaseItem } from '../../api/types';
+import type { RefObject } from 'preact';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../../components/icons';
 import type { CardVariant } from '../../components/images';
+import { LoadError } from '../../components/LoadError';
+import { useAutoFocus } from '../../components/useAutoFocus';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
-import { cardMenuHandler, infoHash } from '../cardMenu';
 import { BrowseGrid } from './BrowseGrid';
-import { getChoice, saveChoice, saveSnapshot } from './browseStore';
+import { getChoice, saveChoice } from './browseStore';
 import { PageHeader, Segmented } from './Toolbar';
-import { useBrowseItems } from './useBrowseItems';
+import { useGridPage } from './useGridPage';
 
 export type FavoritesTab = 'movies' | 'shows' | 'episodes';
 
@@ -26,6 +27,9 @@ export function FavoritesView({ ctx }: { ctx: ViewContext }) {
   const choiceKey = `${ctx.userId}|favorites`;
   const [counts, setCounts] = useState<Counts | null>(null);
   const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useAutoFocus(rootRef, failed, ctx.layout); // TV: Try again (the grid focuses itself once it loads)
   const [tab, setTabState] = useState<FavoritesTab | null>(() =>
     getChoice<FavoritesTab | null>(choiceKey, null),
   );
@@ -36,6 +40,7 @@ export function FavoritesView({ ctx }: { ctx: ViewContext }) {
 
   useEffect(() => {
     let cancelled = false;
+    setFailed(false);
     Promise.all(
       ORDER.map((key) =>
         ctx.api
@@ -63,13 +68,13 @@ export function FavoritesView({ ctx }: { ctx: ViewContext }) {
     return () => {
       cancelled = true;
     };
-  }, [ctx.userId]);
+  }, [ctx.userId, attempt]);
 
   const total = counts ? ORDER.reduce((sum, k) => sum + counts[k], 0) : null;
   const visibleTabs = counts ? ORDER.filter((k) => counts[k] > 0) : [];
 
   return (
-    <div class="lmn-browse">
+    <div ref={rootRef} class="lmn-browse">
       <PageHeader title={strings.favorites} meta={total ? strings.titleCount(total) : undefined}>
         {visibleTabs.length > 1 && tab && (
           <Segmented
@@ -80,48 +85,43 @@ export function FavoritesView({ ctx }: { ctx: ViewContext }) {
           />
         )}
       </PageHeader>
-      {failed && (
-        <div class="lmn-browse__error" role="alert">
-          <p>{strings.loadFailed}</p>
-        </div>
-      )}
+      {failed && <LoadError onRetry={() => setAttempt((n) => n + 1)} />}
       {total === 0 && (
         <div class="lmn-browse__empty">
           <EmptyFavorites />
         </div>
       )}
-      {counts && total !== 0 && tab && <FavoritesGrid key={tab} tab={tab} ctx={ctx} />}
+      {counts && total !== 0 && tab && <FavoritesGrid key={tab} tab={tab} ctx={ctx} rootRef={rootRef} />}
       {!counts && !failed && <div class="lmn-browse__pending" aria-busy="true" />}
     </div>
   );
 }
 
-function FavoritesGrid({ tab, ctx }: { tab: FavoritesTab; ctx: ViewContext }) {
+function FavoritesGrid({
+  tab,
+  ctx,
+  rootRef,
+}: {
+  tab: FavoritesTab;
+  ctx: ViewContext;
+  rootRef: RefObject<HTMLDivElement | null>;
+}) {
   const { itemType, variant, label } = TABS[tab];
-  const queryKey = `${ctx.userId}|favorites|${tab}`;
-  const state = useBrowseItems(queryKey, (page) =>
-    ctx.api.getBrowseItems({
-      includeItemTypes: itemType,
-      filters: ['IsFavorite'],
-      sortBy: 'SortName',
-      sortOrder: 'Ascending',
-      ...page,
-    }),
+  const { state, select, onMenu } = useGridPage(
+    ctx,
+    `${ctx.userId}|favorites|${tab}`,
+    (page) =>
+      ctx.api.getBrowseItems({
+        includeItemTypes: itemType,
+        filters: ['IsFavorite'],
+        sortBy: 'SortName',
+        sortOrder: 'Ascending',
+        ...page,
+      }),
+    { dependsOn: ['IsFavorite'] },
   );
-  /** Remembers the grid and scroll position, so Back from a title lands on the same card. */
-  const save = (): void => {
-    if (state.total !== null)
-      saveSnapshot(queryKey, {
-        items: state.items,
-        total: state.total,
-        scrollY: window.scrollY,
-        offset: state.offset,
-      });
-  };
-  const select = (item: BaseItem): void => {
-    save();
-    ctx.navigate(infoHash(item));
-  };
+  // TV: once the first page is in, focus the tab chip (or the first card, or the card the user came back from).
+  useAutoFocus(rootRef, state.total !== null, ctx.layout, state.restoredSelectedId ?? undefined);
   return (
     <BrowseGrid
       state={state}
@@ -129,7 +129,7 @@ function FavoritesGrid({ tab, ctx }: { tab: FavoritesTab; ctx: ViewContext }) {
       variant={variant}
       label={label}
       onSelect={select}
-      onMenu={cardMenuHandler(ctx, { beforeNavigate: save })}
+      onMenu={onMenu}
       empty={<EmptyFavorites />}
     />
   );

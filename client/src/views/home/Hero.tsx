@@ -152,7 +152,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo }: Props) {
   return (
     <section
       aria-roledescription="carousel"
-      aria-label="Featured"
+      aria-label={strings.featured}
       class={`lmn-hero${dragging ? ' is-dragging' : ''}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -211,7 +211,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo }: Props) {
           <div
             class="lmn-hero__pager"
             role="tablist"
-            aria-label="Featured titles"
+            aria-label={strings.featuredTitles}
             onKeyDown={(e) => {
               const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
               if (!step || sliding !== 0) return;
@@ -231,7 +231,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo }: Props) {
                   role="tab"
                   tabIndex={active ? 0 : -1}
                   aria-selected={active}
-                  aria-label={`Show ${h.Item.Name}`}
+                  aria-label={strings.showFeatured(h.Item.Name)}
                   class={`lmn-hero__dash${active ? ' is-active' : ''}`}
                   onClick={() => sliding === 0 && setIndex(i)}
                 />

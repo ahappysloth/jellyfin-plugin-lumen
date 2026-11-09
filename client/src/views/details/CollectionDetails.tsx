@@ -3,9 +3,7 @@ import type { BaseItem } from '../../api/types';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { strings } from '../../strings';
 import { BrowseGrid } from '../browse/BrowseGrid';
-import { saveSnapshot } from '../browse/browseStore';
-import { useBrowseItems } from '../browse/useBrowseItems';
-import { cardMenuHandler, infoHash } from '../cardMenu';
+import { useGridPage } from '../browse/useGridPage';
 import type { ViewContext } from '../context';
 import { DetailsHeader } from './DetailsHeader';
 import { goBack, useItemActions } from './useItemActions';
@@ -14,10 +12,9 @@ import { goBack, useItemActions } from './useItemActions';
 export function CollectionDetails({ item, ctx }: { item: BaseItem; ctx: ViewContext }) {
   const actions = useItemActions(item, ctx);
   const rootRef = useRef<HTMLElement>(null);
-  useAutoFocus(rootRef, true, ctx.layout);
 
   const queryKey = `${ctx.userId}|collection|${item.Id}`;
-  const state = useBrowseItems(queryKey, (page) =>
+  const { state, select, onMenu } = useGridPage(ctx, queryKey, (page) =>
     ctx.api.getBrowseItems({
       parentId: item.Id,
       includeItemTypes: 'Movie,Series',
@@ -26,15 +23,7 @@ export function CollectionDetails({ item, ctx }: { item: BaseItem; ctx: ViewCont
       ...page,
     }),
   );
-  const save = (): void => {
-    if (state.total !== null)
-      saveSnapshot(queryKey, {
-        items: state.items,
-        total: state.total,
-        scrollY: window.scrollY,
-        offset: state.offset,
-      });
-  };
+  useAutoFocus(rootRef, true, ctx.layout, state.restoredSelectedId ?? undefined);
 
   return (
     <article ref={rootRef} class="lmn-details lmn-details--collection">
@@ -56,11 +45,8 @@ export function CollectionDetails({ item, ctx }: { item: BaseItem; ctx: ViewCont
           client={ctx.client}
           variant="poster"
           label={strings.inCollection}
-          onSelect={(child) => {
-            save();
-            ctx.navigate(infoHash(child));
-          }}
-          onMenu={cardMenuHandler(ctx, { beforeNavigate: save })}
+          onSelect={select}
+          onMenu={onMenu}
           empty={<p>{strings.emptyCollection}</p>}
         />
       </section>

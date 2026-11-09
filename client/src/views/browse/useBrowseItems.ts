@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { BrowseQuery } from '../../api/lumenApi';
 import type { BaseItem, ItemsResult } from '../../api/types';
 import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
-import { getSnapshot } from './browseStore';
+import { type GridSnapshot, takeSnapshot } from './browseStore';
 
 export const PAGE_SIZE = 60;
 
@@ -14,6 +14,8 @@ export interface BrowseState {
   error: boolean;
   /** Restored from a snapshot: the caller should scroll back to where the user was. */
   restoredScrollY: number | null;
+  /** Restored from a snapshot: the card the user had opened. */
+  restoredSelectedId: string | null;
   hasMore: boolean;
   /** Server offset for the next page, for snapshots. */
   offset: number;
@@ -21,19 +23,22 @@ export interface BrowseState {
   retry: () => void;
 }
 
-type Fetch = (query: Pick<BrowseQuery, 'startIndex' | 'limit'>) => Promise<ItemsResult>;
+export type Fetch = (query: Pick<BrowseQuery, 'startIndex' | 'limit'>) => Promise<ItemsResult>;
 
 /**
- * Pages through a query. `key` identifies the query: when it changes the list restarts (or restores its snapshot).
- * Pages load one at a time; a stale answer for an old key is dropped.
+ * Pages through a query. `key` identifies the query: when it changes the list restarts, or restores its snapshot
+ * when browseStore's policy allows (Back to this page). Pages load one at a time; a stale answer for an old key is
+ * dropped.
  */
 export function useBrowseItems(key: string, fetchPage: Fetch): BrowseState {
-  const initial = getSnapshot(key);
+  // Taken once, on mount: a snapshot is used at most once.
+  const [initial] = useState<GridSnapshot | undefined>(() => takeSnapshot(key));
   const [items, setItems] = useState<BaseItem[]>(initial?.items ?? []);
   const [total, setTotal] = useState<number | null>(initial?.total ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [restoredScrollY, setRestoredScrollY] = useState<number | null>(initial?.scrollY ?? null);
+  const [restoredSelectedId, setRestoredSelectedId] = useState<string | null>(initial?.selectedId ?? null);
   const generation = useRef(0);
   /** Where the next page starts on the server. Not items.length: de-duplication can make that stall. */
   const offset = useRef(initial?.offset ?? initial?.items.length ?? 0);
@@ -82,7 +87,7 @@ export function useBrowseItems(key: string, fetchPage: Fetch): BrowseState {
       firstKey.current = false;
       if (initial) return;
     } else {
-      const snapshot = getSnapshot(key);
+      const snapshot = takeSnapshot(key);
       if (snapshot) {
         generation.current++;
         setItems(snapshot.items);
@@ -92,6 +97,7 @@ export function useBrowseItems(key: string, fetchPage: Fetch): BrowseState {
         setLoading(false);
         setError(false);
         setRestoredScrollY(snapshot.scrollY);
+        setRestoredSelectedId(snapshot.selectedId ?? null);
         return;
       }
       setItems([]);
@@ -99,6 +105,7 @@ export function useBrowseItems(key: string, fetchPage: Fetch): BrowseState {
       setDone(false);
       offset.current = 0;
       setRestoredScrollY(null);
+      setRestoredSelectedId(null);
     }
     load(true);
   }, [key]);
@@ -109,6 +116,7 @@ export function useBrowseItems(key: string, fetchPage: Fetch): BrowseState {
     loading,
     error,
     restoredScrollY,
+    restoredSelectedId,
     hasMore: !done,
     offset: offset.current,
     loadMore: () => load(false),

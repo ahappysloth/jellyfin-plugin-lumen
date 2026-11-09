@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { makeContext } from '../../../test/viewContext';
@@ -8,6 +8,7 @@ import { clearBrowseState } from './browseStore';
 import { LibraryView, sortParams } from './LibraryView';
 import { LumenApi } from '../../api/lumenApi';
 import { PAGE_SIZE, useBrowseItems } from './useBrowseItems';
+import { clearUserData, setUserData } from '../userDataStore';
 
 const LIB = '0123456789abcdef0123456789abcdef';
 const movie = (i: number): BaseItem => ({ Id: `m${i}`, Name: `Movie ${i}`, Type: 'Movie', ServerId: 's' });
@@ -86,6 +87,40 @@ describe('LibraryView', () => {
       sortBy: 'CommunityRating,SortName',
       sortOrder: 'Descending',
     });
+  });
+});
+
+describe('LibraryView snapshots', () => {
+  afterEach(() => {
+    clearBrowseState();
+    clearUserData();
+  });
+
+  it('keeps the saved grid through a favorite change, with the new value, but not through a watched change when filtered', async () => {
+    const { ctx, itemRequests } = setup(3);
+    await screen.findByText('3 titles');
+    fireEvent.click(screen.getByRole('button', { name: 'Movie 1' }));
+    cleanup();
+
+    // On the details page: favorite it. Back to the library: the same grid, no refetch.
+    await setUserData(ctx, movie(1), 'IsFavorite', true);
+    const before = itemRequests().length;
+    render(<LibraryView id={LIB} collection="movies" ctx={ctx} />);
+    expect(screen.getByRole('button', { name: 'Movie 1' })).toBeInTheDocument();
+    expect(itemRequests()).toHaveLength(before);
+    cleanup();
+
+    // Filtered to Unwatched: marking a title watched drops that grid, so Back refetches.
+    render(<LibraryView id={LIB} collection="movies" ctx={ctx} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Unwatched' }));
+    await waitFor(() => expect(params(itemRequests().at(-1)!).get('filters')).toBe('IsUnplayed'));
+    await screen.findByRole('button', { name: 'Movie 2' });
+    fireEvent.click(screen.getByRole('button', { name: 'Movie 2' }));
+    cleanup();
+    await setUserData(ctx, movie(2), 'Played', true);
+    const count = itemRequests().length;
+    render(<LibraryView id={LIB} collection="movies" ctx={ctx} />);
+    await waitFor(() => expect(itemRequests().length).toBeGreaterThan(count));
   });
 });
 

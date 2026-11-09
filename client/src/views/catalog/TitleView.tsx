@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { CatalogItem, CatalogMediaType, CatalogTitle, RequestResult } from '../../api/types';
 import { detailsHash } from '../../compat/jellyfin';
 import { Icon } from '../../components/icons';
+import { LoadError } from '../../components/LoadError';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { strings } from '../../strings';
 import { liftVeil } from '../../veil/veil';
@@ -36,8 +37,9 @@ export function TitleView({
   const [title, setTitle] = useState<CatalogTitle | null>(null);
   const [failed, setFailed] = useState(false);
   const [dialog, setDialog] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const rootRef = useRef<HTMLElement>(null);
-  useAutoFocus(rootRef, title !== null, ctx.layout);
+  useAutoFocus(rootRef, title !== null || failed, ctx.layout);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,17 +56,20 @@ export function TitleView({
     return () => {
       cancelled = true;
     };
-  }, [mediaType, tmdbId]);
+  }, [mediaType, tmdbId, attempt]);
 
   if (failed) {
     return (
-      <article class="lmn-details lmn-title">
-        <div class="lmn-browse__error lmn-title__failed" role="alert">
-          <p>{strings.titleFailed}</p>
+      <article ref={rootRef} class="lmn-details lmn-title">
+        <LoadError
+          class="lmn-title__failed"
+          message={strings.titleFailed}
+          onRetry={() => setAttempt((n) => n + 1)}
+        >
           <button type="button" class="lmn-button lmn-button--secondary" onClick={() => goBack(ctx)}>
             {strings.back}
           </button>
-        </div>
+        </LoadError>
       </article>
     );
   }
