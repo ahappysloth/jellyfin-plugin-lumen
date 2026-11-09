@@ -48,7 +48,51 @@ public sealed class RequestsControllerTests : IDisposable
 
         var status = (await Create().GetStatus(CancellationToken.None)).Value;
 
-        Assert.Equal(new RequestStatusDto(true, true, false), status);
+        Assert.Equal(new RequestStatusDto(true, true, false, CatalogImageToken.Create(_user, "key123")), status);
+    }
+
+    [Fact]
+    public async Task Status_GivesNoImageToken_WithoutCatalogAccess()
+    {
+        _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(RequestAccess.None);
+
+        Assert.Null((await Create().GetStatus(CancellationToken.None)).Value!.ImageToken);
+    }
+
+    [Fact]
+    public async Task Image_FromAnImgTag_IsAuthorizedByTheImageToken_NotTheAccessToken()
+    {
+        _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, false, false, 1, Endpoint));
+        var path = Path.GetTempFileName();
+        File.WriteAllBytes(path, [1, 2, 3]);
+        _images.GetAsync("w780", "abc.jpg", Arg.Any<CancellationToken>()).Returns(new CachedImage(path, "image/jpeg"));
+
+        var file = Assert.IsType<FileStreamResult>(
+            await Create(signedIn: false).GetImage("w780", "abc.jpg", CancellationToken.None, CatalogImageToken.Create(_user, "key123")));
+        await file.FileStream.DisposeAsync();
+        File.Delete(path);
+    }
+
+    [Theory]
+    [InlineData("other-key")]
+    [InlineData(null)]
+    public async Task Image_RejectsAForgedOrStaleImageToken(string? signedWith)
+    {
+        _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, false, false, 1, Endpoint));
+        var token = signedWith is null ? _user.ToString("N") + ".AAAAAAAAAAAAAAAAAAAAAA" : CatalogImageToken.Create(_user, signedWith);
+
+        Assert.IsType<NotFoundResult>(await Create(signedIn: false).GetImage("w780", "abc.jpg", CancellationToken.None, token));
+        await _images.DidNotReceiveWithAnyArgs().GetAsync(default!, default!, default);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("not-a-token")]
+    public async Task Image_WithoutAUserOrToken_IsUnauthorized(string? token)
+    {
+        Assert.IsType<UnauthorizedResult>(await Create(signedIn: false).GetImage("w780", "abc.jpg", CancellationToken.None, token));
+        await _users.DidNotReceiveWithAnyArgs().GetAccessAsync(default, default);
     }
 
     [Fact]

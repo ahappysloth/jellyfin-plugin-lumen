@@ -81,12 +81,13 @@ test.describe('with Seerr configured', () => {
       Enabled: true,
       CanRequestMovies: true,
       CanRequestTv: true,
+      ImageToken: expect.stringMatching(/^[0-9a-f]{32}\.[\w-]{22}$/),
     });
     expect(await api('/Lumen/Requests/Status', { token: kid.token })).toEqual({
       Enabled: false,
       CanRequestMovies: false,
       CanRequestTv: false,
-    });
+    }); // no ImageToken (Jellyfin omits nulls)
   });
 
   test('the image proxy serves TMDB art only to catalog users, only for allowed paths', async () => {
@@ -101,5 +102,16 @@ test.describe('with Seerr configured', () => {
     expect(ok.headers.get('content-type')).toBe('image/png');
     expect((await image(admin.token, 'w9999/abc123.png')).status).toBe(400);
     expect((await image(kid.token, 'w300/abc123.png')).status).toBe(404);
+  });
+
+  test("<img> URLs carry the user's image token, never the access token", async () => {
+    const { admin } = loadState();
+    const { ImageToken } = await api<{ ImageToken: string }>('/Lumen/Requests/Status', { token: admin.token });
+    const base = `${process.env.LUMEN_E2E_BASE_URL ?? 'http://localhost:8096'}/`;
+    const image = (query: string) => fetch(new URL(`Lumen/Requests/Image/w300/abc123.png${query}`, base));
+
+    expect((await image(`?t=${encodeURIComponent(ImageToken)}`)).status).toBe(200);
+    expect((await image(`?t=${encodeURIComponent(ImageToken.slice(0, -2) + 'AA')}`)).status).toBe(404);
+    expect((await image('')).status).toBe(401);
   });
 });

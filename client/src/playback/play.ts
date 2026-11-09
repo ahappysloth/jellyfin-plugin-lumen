@@ -1,6 +1,7 @@
 import type { LumenApi } from '../api/lumenApi';
 import type { BaseItem, SessionInfo } from '../api/types';
 import type { JellyfinApiClient } from '../compat/jellyfin';
+import { getPlaybackManager, type PlaybackManager } from '../compat/playbackManager';
 import { strings } from '../strings';
 
 export class PlaybackError extends Error {}
@@ -31,23 +32,38 @@ export async function findOwnSession(api: LumenApi, client: JellyfinApiClient): 
   return null;
 }
 
-/** Starts playback in jellyfin-web's own player, which keeps resume, subtitles, device profiles, and native players. */
+/**
+ * Starts playback in jellyfin-web's own player, which keeps resume, subtitles, device profiles, native players and
+ * next-episode autoplay.
+ *
+ * The player is called directly in this tab. Asking the server to send PlayNow to "this browser's session" is only a
+ * fallback (no playback manager or server id): every tab of a browser shares one device id, so the server delivers
+ * the command to whichever tab owns the session's websocket, which may not be the one the user clicked in.
+ */
 export async function playItem(
   api: LumenApi,
   client: JellyfinApiClient,
   itemId: string,
   startPositionTicks?: number,
+  manager: PlaybackManager | null = getPlaybackManager(),
 ): Promise<void> {
+  const ticks = startPositionTicks && startPositionTicks > 0 ? startPositionTicks : undefined;
+  const serverId = client.serverId?.();
+  if (manager?.play && serverId) {
+    try {
+      await manager.play({ ids: [itemId], startPositionTicks: ticks, serverId });
+    } catch {
+      throw new PlaybackError(strings.playbackFailed);
+    }
+    return;
+  }
+
   const userId = client.getCurrentUserId();
   const session = await findOwnSession(api, client);
   if (!session) throw new PlaybackError(strings.playbackFailed);
   // Signed out (or switched user) while looking up the session: don't start anything in the new session.
   if (!userId || client.getCurrentUserId() !== userId) throw new PlaybackError(strings.playbackFailed);
-  await api.playNow(
-    session.Id,
-    [itemId],
-    startPositionTicks && startPositionTicks > 0 ? startPositionTicks : undefined,
-  );
+  await api.playNow(session.Id, [itemId], ticks);
 }
 
 export function resumeTicks(item: BaseItem): number | undefined {

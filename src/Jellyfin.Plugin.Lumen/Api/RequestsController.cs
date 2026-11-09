@@ -60,19 +60,41 @@ public sealed class RequestsController : ControllerBase
         }
 
         var access = await _users.GetAccessAsync(userId, cancellationToken).ConfigureAwait(false);
-        return new RequestStatusDto(access.Enabled, access.CanRequestMovies, access.CanRequestTv);
+        var token = access.Enabled && access.Endpoint is { } endpoint ? CatalogImageToken.Create(userId, endpoint.ApiKey) : null;
+        return new RequestStatusDto(access.Enabled, access.CanRequestMovies, access.CanRequestTv, token);
     }
 
-    /// <summary>TMDB artwork, proxied and cached by the server.</summary>
+    /// <summary>
+    /// TMDB artwork, proxied and cached by the server. Authorized by the signed-in user, or (from an <c>&lt;img&gt;</c>,
+    /// which can't send headers) by the <paramref name="t"/> image token from GET Status, never the access token.
+    /// </summary>
     [HttpGet("Image/{size}/{file}")]
-    public async Task<IActionResult> GetImage([FromRoute] string size, [FromRoute] string file, CancellationToken cancellationToken)
+    [AllowAnonymous]
+    public async Task<IActionResult> GetImage(
+        [FromRoute] string size,
+        [FromRoute] string file,
+        CancellationToken cancellationToken,
+        [FromQuery] string? t = null)
     {
         if (!TmdbImageCache.IsAllowed(size, file))
         {
             return BadRequest();
         }
 
-        if (User.GetJellyfinUserId(_logger) is not { } userId || !(await _users.GetAccessAsync(userId, cancellationToken).ConfigureAwait(false)).Enabled)
+        var signedIn = User.GetJellyfinUserId(_logger);
+        Guid userId;
+        if (signedIn is { } id)
+        {
+            userId = id;
+        }
+        else if (!CatalogImageToken.TryReadUser(t, out userId))
+        {
+            return Unauthorized();
+        }
+
+        var access = await _users.GetAccessAsync(userId, cancellationToken).ConfigureAwait(false);
+        var tokenOk = signedIn is not null || (access.Endpoint is { } endpoint && CatalogImageToken.IsValid(t, userId, endpoint.ApiKey));
+        if (!access.Enabled || !tokenOk)
         {
             return NotFound();
         }

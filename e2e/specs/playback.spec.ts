@@ -14,6 +14,27 @@ test("Play hands off to jellyfin-web's own player", async ({ page }) => {
   await expect(page.locator('video').first()).toBeVisible();
 });
 
+test('Play starts in the tab it was pressed in, even with another Jellyfin tab open', async ({ page, context }) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  const play = page.locator('#lmn-root').getByRole('button', { name: 'Play' });
+  await expect(play).toBeVisible();
+
+  // A newer tab of the same browser: same localStorage, so the same Jellyfin device id and server session. The server
+  // sends remote commands for that session to one tab only, so playing through it could start in this other tab.
+  const other = await context.newPage();
+  await other.goto('/web/#/home');
+  await expect(other.locator('#lmn-root')).toBeVisible();
+  await page.bringToFront();
+  await play.click();
+
+  await expect(page).toHaveURL(/#\/video/);
+  await expect(page.locator('video').first()).toBeVisible();
+  await expect(other).not.toHaveURL(/#\/video/);
+  await expect(other.locator('video')).toHaveCount(0);
+});
+
 test("Lumen's player controls drive jellyfin-web's player, including subtitle tracks", async ({ page }) => {
   const { items } = loadState();
   await login(page, ADMIN);

@@ -8,7 +8,7 @@ import { useAutoFocus } from '../../components/useAutoFocus';
 import { strings } from '../../strings';
 import { liftVeil } from '../../veil/veil';
 import { CatalogCard } from '../catalog/CatalogCard';
-import { catalogHash, loadRequestStatus } from '../catalog/catalog';
+import { catalogHash, loadRequestStatus, useCatalogImageToken } from '../catalog/catalog';
 import { cardMenuHandler, infoHash } from '../cardMenu';
 import type { ViewContext } from '../context';
 import { initials } from '../details/CastRow';
@@ -92,6 +92,7 @@ function useDebounced<T>(value: T, ms: number): T {
 
 /** Results by kind as you type, with a random "Explore" grid before you do. */
 export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: ViewContext }) {
+  const imageToken = useCatalogImageToken(ctx);
   const [input, setInput] = useState(initialQuery);
   const query = useDebounced(input.trim(), DEBOUNCE_MS);
   const [results, setResults] = useState<SearchResults | null>(null);
@@ -268,6 +269,7 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
                   <CatalogCard
                     item={item}
                     client={ctx.client}
+                    imageToken={imageToken}
                     variant="poster"
                     onSelect={(i) => ctx.navigate(catalogHash(i))}
                   />

@@ -6,7 +6,9 @@ import { catalogImageUrl, stateLabel, useCatalogState } from './catalog';
 
 interface Props {
   item: CatalogItem;
-  client: Pick<JellyfinApiClient, 'getUrl' | 'accessToken'>;
+  client: Pick<JellyfinApiClient, 'getUrl'>;
+  /** The user's catalog image token (useCatalogImageToken); the art waits for it. */
+  imageToken: string | null | undefined;
   variant: CardVariant;
   onSelect: (item: CatalogItem) => void;
 }
@@ -15,7 +17,7 @@ interface Props {
  * A title from Seerr's catalog in Lumen's card style, with a tab for its request state: an outlined "Request", or a
  * filled "Requested" / "Downloading" / "Partly available".
  */
-export function CatalogCard({ item, client, variant, onSelect }: Props) {
+export function CatalogCard({ item, client, imageToken, variant, onSelect }: Props) {
   const state = useCatalogState(item);
   const label = item.JellyfinItemId ? null : stateLabel(state);
   const file = variant === 'poster' ? (item.Poster ?? item.Backdrop) : (item.Backdrop ?? item.Poster);
@@ -31,9 +33,9 @@ export function CatalogCard({ item, client, variant, onSelect }: Props) {
       onClick={() => onSelect(item)}
     >
       <span class="lmn-card__art">
-        {file ? (
+        {file && imageToken ? (
           <img
-            src={catalogImageUrl(client, file, variant === 'poster' ? 'w300' : 'w780')}
+            src={catalogImageUrl(client, file, variant === 'poster' ? 'w300' : 'w780', imageToken)}
             alt=""
             loading="lazy"
             decoding="async"

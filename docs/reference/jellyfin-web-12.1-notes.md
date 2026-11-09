@@ -283,7 +283,7 @@ There is no `main` element in the legacy layout.
   - **Episodes.** When the user has `EnableNextEpisodeAutoPlay` and a single Episode is sent, the server **expands `ItemIds` to the rest of the season/series** from that episode (`SessionManager.cs:1384-1409`). `startPositionTicks` still applies to the first item, because `startIndex` defaults to 0.
   - **Several tabs in one browser** share a deviceId. The server usually merges them, but an ambiguous match should fail closed (JE `auto-skip.js` comment).
   - The websocket subscription exists as soon as the ApiClient is created. Playback needs `playbackManager` and the player plugins, which `loadPlugins()` loads before `renderApp()`, so they are ready once the UI is up.
-- **No in-page shortcut.** `playbackManager` is not on `window`, so the server round-trip is the supported path from a plugin script.
+- **Several tabs, in practice.** The server keeps one session per device id and sends the command to one tab's websocket, which need not be the tab that asked (seen on a real 12.4 server: Play started in another open tab). So since 0.2.4 Lumen calls `playbackManager.play({ids, startPositionTicks, serverId})` in the page (it finds the manager through webpack, `client/src/compat/playbackManager.ts`) and uses the server round-trip only as a fallback when the manager or the server id is missing.
 
 ## 11. Card image URLs
 

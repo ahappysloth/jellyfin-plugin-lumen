@@ -51,6 +51,11 @@ export interface PlaybackManager {
   previousTrack(player: Player): void;
   getCurrentPlaylistIndex(player: Player): number;
   getPlaylist(player: Player): Promise<unknown[]>;
+  /**
+   * Plays items in this tab's player (or the cast target the user picked). Loads the items itself, honours
+   * startPositionTicks and queues the following episodes when the user has next-episode autoplay on.
+   */
+  play?(options: { ids: string[]; startPositionTicks?: number; serverId?: string }): Promise<unknown>;
 }
 
 export interface Player {

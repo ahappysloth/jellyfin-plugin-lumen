@@ -140,6 +140,8 @@ export interface RequestStatus {
   Enabled: boolean;
   CanRequestMovies: boolean;
   CanRequestTv: boolean;
+  /** Authorizes catalog image URLs (in place of the access token, which never goes in a URL). Null without access. */
+  ImageToken?: string | null;
 }
 
 export type CatalogMediaType = 'movie' | 'tv';

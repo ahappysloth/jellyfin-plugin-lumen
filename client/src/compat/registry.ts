@@ -168,5 +168,7 @@ export const PLAYBACK_MANAGER_METHODS = {
     'setSubtitleOffset',
     'togglePictureInPicture',
     'toggleAirPlay',
+    // Starts playback in this tab (playItem). Missing: Play falls back to the server's remote PlayNow.
+    'play',
   ],
 } as const;
