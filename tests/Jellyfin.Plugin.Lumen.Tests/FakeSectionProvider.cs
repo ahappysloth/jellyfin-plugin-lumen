@@ -16,6 +16,8 @@ internal sealed class FakeSectionProvider : IHomeSectionProvider
 
     public string DisplayName => Type + " (fake)";
 
+    public string Description => "A fake section for tests.";
+
     public IReadOnlyList<SectionParameter> Parameters { get; }
 
     public TimeSpan? TimeoutOverride { get; set; }

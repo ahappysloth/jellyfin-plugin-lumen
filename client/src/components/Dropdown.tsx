@@ -160,7 +160,11 @@ export function Dropdown<T extends string>({
               aria-selected={option.value === value}
               class={`lmn-dropdown__option${i === active ? ' is-active' : ''}`}
               onPointerMove={() => setActive(i)}
-              onClick={() => pick(i)}
+              onClick={(e) => {
+                // Inside a <label> (the admin page's fields), the click would also re-click the button.
+                e.preventDefault();
+                pick(i);
+              }}
             >
               <span>{option.label}</span>
               {option.value === value && <Icon name="check" size={16} class="lmn-dropdown__check" />}

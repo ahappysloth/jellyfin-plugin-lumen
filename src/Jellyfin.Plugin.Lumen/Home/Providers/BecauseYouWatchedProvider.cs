@@ -27,6 +27,8 @@ public sealed class BecauseYouWatchedProvider : IHomeSectionProvider
 
     public string DisplayName => "Because You Watched";
 
+    public string Description => "Personal picks similar to movies and shows the viewer watched recently, one row per title.";
+
     public IReadOnlyList<SectionParameter> Parameters { get; } =
         [new SectionParameter("maxRows", "Maximum rows", SectionParameterKind.Integer, DefaultValue: "2", Min: 1, Max: 5)];
 

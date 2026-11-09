@@ -2,6 +2,14 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [Unreleased]
+
+### Changed
+- Settings page: every dropdown uses Lumen's dropdown; each home section explains in a sentence what it shows; the save
+  bar reads status on the left and Reset to defaults then Save on the right; browsers and password managers no longer
+  fill the Seerr address and API key.
+- The plugin catalog image drops the glow behind the mark.
+
 ## [0.2.0] - 2026-11-08
 
 ### Added

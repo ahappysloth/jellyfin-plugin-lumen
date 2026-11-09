@@ -25,6 +25,8 @@ public sealed class NewForYouProvider : IHomeSectionProvider
 
     public string DisplayName => "New For You";
 
+    public string Description => "Recently added episodes of shows the viewer watches, and new movies in their favourite genres.";
+
     public IReadOnlyList<SectionParameter> Parameters { get; } =
         [new SectionParameter("days", "Look back (days)", SectionParameterKind.Integer, DefaultValue: "14", Min: 1, Max: 90)];
 

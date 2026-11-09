@@ -22,6 +22,8 @@ public sealed class RecentlyAddedProvider : IHomeSectionProvider
 
     public string DisplayName => "Recently Added";
 
+    public string Description => "The newest movies and shows on the server, or in one library; new episodes appear as their show.";
+
     public IReadOnlyList<SectionParameter> Parameters { get; } =
         [new SectionParameter("libraryId", "Library (empty = all libraries)", SectionParameterKind.Library)];
 

@@ -29,6 +29,8 @@ public sealed class GenresProvider : IHomeSectionProvider
 
     public string DisplayName => "Popular Genres";
 
+    public string Description => "Tiles for the most common genres, A to Z; each opens that genre's titles.";
+
     public IReadOnlyList<SectionParameter> Parameters { get; } =
         [new SectionParameter("libraryId", "Library (empty = all libraries)", SectionParameterKind.Library)];
 

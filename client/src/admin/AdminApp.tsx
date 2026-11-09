@@ -1,3 +1,5 @@
+import { Dropdown } from '../components/Dropdown';
+import { Icon } from '../components/icons';
 import { LumenMark } from '../components/LumenMark';
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
@@ -180,17 +182,18 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
       <Card title="Hero banner" intro="The large rotating banner at the top of the home screen.">
         <div class="lmna-grid">
           <Field label="Source">
-            <select value={String(config.HeroSource)} onChange={(e) => update({ HeroSource: inputValue(e) })}>
-              {HERO_SOURCES.map((s) => (
-                <option key={s} value={s}>
-                  {HERO_LABELS[s]}
-                </option>
-              ))}
-            </select>
+            <Dropdown
+              label="Source"
+              hideLabel
+              value={String(config.HeroSource)}
+              options={HERO_SOURCES.map((s) => ({ value: s, label: HERO_LABELS[s] }))}
+              onChange={(v) => update({ HeroSource: v as typeof config.HeroSource })}
+            />
           </Field>
           {config.HeroSource === 'Collection' && (
             <Field label="Collection">
               <OptionSelect
+                label="Collection"
                 options={lookups.Collection}
                 value={config.HeroCollectionId ?? ''}
                 onChange={(v) => update({ HeroCollectionId: v || null })}
@@ -321,26 +324,41 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
         )}
       </Card>
 
+      {/* Status reads as text on the left; the actions sit together on the right, Save last (the primary). */}
       <div class="lmna-savebar">
-        <button type="submit" class="lmna-btn lmna-btn--primary" disabled={status === 'saving'}>
-          Save
-        </button>
-        <button type="button" class="lmna-btn lmna-btn--ghost" onClick={() => void reset()}>
-          Reset to defaults
-        </button>
         {status === 'saved' ? (
-          <p role="status" class="lmna-savebar__status lmna-savebar__status--ok" style={{ margin: 0 }}>
+          <p role="status" class="lmna-savebar__status lmna-savebar__status--ok">
+            <Icon name="check" size={16} />
             Settings saved.
           </p>
         ) : (
-          <p class="lmna-savebar__status" style={{ margin: 0 }}>
-            {status === 'saving' ? 'Saving…' : dirty ? 'Unsaved changes' : ''}
+          <p
+            class={`lmna-savebar__status${dirty && status !== 'saving' ? ' lmna-savebar__status--dirty' : ''}`}
+          >
+            {status === 'saving' ? 'Saving…' : dirty ? 'Unsaved changes' : 'All changes saved'}
           </p>
         )}
+        <button type="button" class="lmna-btn lmna-btn--ghost" onClick={() => void reset()}>
+          Reset to defaults
+        </button>
+        <button type="submit" class="lmna-btn lmna-btn--primary" disabled={status === 'saving'}>
+          Save
+        </button>
       </div>
     </form>
   );
 }
+
+/**
+ * Keeps browsers and password managers (1Password, LastPass, Bitwarden, Dashlane) from filling a Jellyfin login into
+ * the Seerr fields. "new-password" is the one autocomplete value Chrome and Safari reliably respect on password inputs.
+ */
+const NO_PASSWORD_MANAGER = {
+  'data-1p-ignore': 'true',
+  'data-lpignore': 'true',
+  'data-bwignore': 'true',
+  'data-form-type': 'other',
+} as const;
 
 /** Seerr connection for catalog browsing and requests. The API key is write-only: the server never sends it back. */
 function RequestsSettings({
@@ -397,6 +415,10 @@ function RequestsSettings({
         <Field label="Seerr address" hint="As Jellyfin's server reaches it, e.g. http://seerr:5055">
           <input
             type="url"
+            name="lumen-seerr-address"
+            autoComplete="off"
+            spellcheck={false}
+            {...NO_PASSWORD_MANAGER}
             placeholder="http://seerr:5055"
             value={config.SeerrUrl ?? ''}
             onInput={(e) => update({ SeerrUrl: inputValue(e) })}
@@ -405,7 +427,10 @@ function RequestsSettings({
         <Field label="Seerr API key" hint="Seerr → Settings → General">
           <input
             type="password"
-            autoComplete="off"
+            name="lumen-seerr-api-key"
+            autoComplete="new-password"
+            spellcheck={false}
+            {...NO_PASSWORD_MANAGER}
             placeholder={config.SeerrApiKeySet ? 'Saved (leave blank to keep it)' : 'Paste the API key'}
             value={config.SeerrApiKey ?? ''}
             onInput={(e) => update({ SeerrApiKey: inputValue(e) })}
@@ -477,7 +502,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   const [hintId] = useState(() => `lmn-hint-${++fieldHintId}`);
   const labelRef = useRef<HTMLLabelElement>(null);
   useEffect(() => {
-    const control = labelRef.current?.querySelector('input, select');
+    const control = labelRef.current?.querySelector('input, select, button');
     if (!control) return;
     if (hint) control.setAttribute('aria-describedby', hintId);
     else control.removeAttribute('aria-describedby');
@@ -545,24 +570,25 @@ function NumberField(props: {
 }
 
 function OptionSelect({
+  label,
   options,
   value,
   onChange,
 }: {
+  label: string;
   options: Option[];
   value: string;
   onChange: (value: string) => void;
 }) {
   const selected = options.find((o) => normalizeId(o.id) === normalizeId(value))?.id ?? '';
   return (
-    <select value={selected} onChange={(e) => onChange(inputValue(e))}>
-      <option value="">(none)</option>
-      {options.map((o) => (
-        <option key={o.id} value={o.id}>
-          {o.name}
-        </option>
-      ))}
-    </select>
+    <Dropdown
+      label={label}
+      hideLabel
+      value={selected}
+      options={[{ value: '', label: '(none)' }, ...options.map((o) => ({ value: o.id, label: o.name }))]}
+      onChange={onChange}
+    />
   );
 }
 
@@ -574,7 +600,9 @@ function ParamInput(props: {
 }) {
   const { param, value, lookups, onChange } = props;
   if (param.Kind === 'Library' || param.Kind === 'Collection' || param.Kind === 'Playlist') {
-    return <OptionSelect options={lookups[param.Kind]} value={value} onChange={onChange} />;
+    return (
+      <OptionSelect label={param.Label} options={lookups[param.Kind]} value={value} onChange={onChange} />
+    );
   }
   if (param.Kind === 'Integer') {
     return (
@@ -617,6 +645,12 @@ function SectionEditor(props: {
         </label>
         {props.actions}
       </div>
+      {type?.Description && (
+        <p class="lmna-section__about">
+          <Icon name="info" size={15} />
+          {type.Description}
+        </p>
+      )}
       <div class="lmna-section__body">
         <Field label="Title (optional)">
           <input
@@ -645,14 +679,17 @@ function AddSection({ types, onAdd }: { types: SectionTypeDef[]; onAdd: (type: S
   const [choice, setChoice] = useState('');
   return (
     <div class="lmna-add">
-      <select aria-label="Section type to add" value={choice} onChange={(e) => setChoice(inputValue(e))}>
-        <option value="">Add a section…</option>
-        {types.map((t) => (
-          <option key={t.Type} value={t.Type}>
-            {`Add ${t.DisplayName}`}
-          </option>
-        ))}
-      </select>
+      <Dropdown
+        label="Section type to add"
+        hideLabel
+        value={choice}
+        options={[
+          { value: '', label: 'Choose a section to add…' },
+          ...types.map((t) => ({ value: t.Type, label: t.DisplayName })),
+        ]}
+        onChange={setChoice}
+      />
+      {choice && <p class="lmna-add__about">{types.find((t) => t.Type === choice)?.Description}</p>}
       <button
         type="button"
         class="lmna-btn"

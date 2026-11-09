@@ -25,6 +25,8 @@ public sealed class GenreProvider : IHomeSectionProvider
 
     public string DisplayName => "Genre rows";
 
+    public string Description => "A row per genre the viewer likes, filled with top-rated titles they haven't seen; the genres rotate daily.";
+
     public IReadOnlyList<SectionParameter> Parameters { get; } =
         [new SectionParameter("genreCount", "Number of genre rows", SectionParameterKind.Integer, DefaultValue: "3", Min: 1, Max: 6)];
 

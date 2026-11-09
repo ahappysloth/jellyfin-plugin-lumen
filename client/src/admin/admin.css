@@ -357,8 +357,8 @@
   flex-wrap: wrap;
   gap: 10px;
 }
-.lmn-admin .lmna-add select {
-  max-width: 320px;
+.lmn-admin .lmna-add .lmn-dropdown {
+  width: min(320px, 100%);
 }
 
 /* Callouts and status */
@@ -470,12 +470,64 @@
   backdrop-filter: blur(12px);
 }
 .lmn-admin .lmna-savebar__status {
+  display: flex;
   flex: 1;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
   color: var(--a-dim);
+  font-size: 13px;
+}
+.lmn-admin .lmna-savebar__status--dirty::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f5a524;
 }
 .lmn-admin .lmna-savebar__status--ok {
   color: #43a047;
   font-weight: 600;
+}
+
+/* Shared Dropdown component (styles/dropdown.css) inside admin fields: full width, admin accent. */
+.lmn-admin {
+  --lmn-accent: var(--a-accent);
+}
+.lmn-admin .lmn-dropdown {
+  display: flex;
+  width: 100%;
+}
+.lmn-admin .lmn-dropdown__button {
+  height: 40px;
+  font-weight: 500;
+}
+.lmn-admin .lmn-dropdown__list {
+  left: 0;
+  right: auto;
+}
+
+/* What a home section shows (from the server), under its name. */
+.lmn-admin .lmna-section__about,
+.lmn-admin .lmna-add__about {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  color: var(--a-dim);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.lmn-admin .lmna-section__about {
+  padding: 0 14px 10px 48px;
+}
+.lmn-admin .lmna-section__about .lmn-icon {
+  flex: none;
+  margin-top: 2px;
+}
+.lmn-admin .lmna-add__about {
+  flex-basis: 100%;
+  order: 3;
 }
 
 @media (max-width: 600px) {

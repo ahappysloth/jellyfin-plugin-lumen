@@ -1,0 +1,116 @@
+/*
+ * The Dropdown component's styles (components/Dropdown.tsx), shared by Lumen's pages (lumen.css bundle) and the admin
+ * page (admin bundle). Tokens fall back to Lumen's defaults where the admin page doesn't define them; the admin page
+ * maps its accent onto --lmn-accent.
+ */
+/* Dropdown (components/Dropdown.tsx): a pill button and a floating listbox. */
+.lmn-dropdown {
+  position: relative;
+  display: inline-flex;
+}
+.lmn-dropdown__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--lmn-line, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  background: var(--lmn-surface, #181818);
+  color: #fff;
+  font: 600 13px var(--lmn-font, inherit);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
+}
+.lmn-dropdown__button:hover,
+.lmn-dropdown.is-open .lmn-dropdown__button {
+  border-color: var(--lmn-line-strong, rgba(255, 255, 255, 0.16));
+  background: var(--lmn-surface-2, #212121);
+}
+/* Keyboard focus ring only while closed; an open list shows its own highlight. */
+.lmn-dropdown__button:focus {
+  outline: none;
+}
+.lmn-dropdown:not(.is-open) .lmn-dropdown__button:focus-visible {
+  outline: 2px solid var(--lmn-focus, #fff);
+  outline-offset: 2px;
+}
+.lmn-dropdown__label {
+  color: var(--lmn-text-3, #8c8c8c);
+  font-weight: 500;
+}
+.lmn-dropdown__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+.lmn-dropdown__chevron {
+  color: var(--lmn-text-2, #b3b3b3);
+  transition: transform 0.2s var(--lmn-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+.lmn-dropdown.is-open .lmn-dropdown__chevron {
+  transform: rotate(180deg);
+}
+.lmn-dropdown__list {
+  position: absolute;
+  z-index: 60;
+  right: 0;
+  min-width: max(100%, 200px);
+  max-height: min(340px, 60vh);
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  border: 1px solid var(--lmn-line-strong, rgba(255, 255, 255, 0.16));
+  border-radius: 14px;
+  background: rgba(28, 28, 28, 0.96);
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.8);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  list-style: none;
+  outline: none;
+  animation: lmn-dropdown-pop 0.16s var(--lmn-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+.lmn-dropdown__list--down {
+  top: calc(100% + 6px);
+  transform-origin: top;
+}
+.lmn-dropdown__list--up {
+  bottom: calc(100% + 6px);
+  transform-origin: bottom;
+}
+.lmn-dropdown__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 36px;
+  padding: 0 10px 0 12px;
+  border-radius: 8px;
+  color: var(--lmn-text-2, #b3b3b3);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.lmn-dropdown__option.is-active {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.lmn-dropdown__option[aria-selected='true'] {
+  color: #fff;
+  font-weight: 600;
+}
+.lmn-dropdown__check {
+  color: var(--lmn-accent, #e12d39);
+}
+@keyframes lmn-dropdown-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}

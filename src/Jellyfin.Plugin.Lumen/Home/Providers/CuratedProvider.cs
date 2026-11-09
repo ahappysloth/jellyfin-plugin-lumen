@@ -24,6 +24,8 @@ public sealed class CuratedProvider : IHomeSectionProvider
 
     public string DisplayName => "Curated row";
 
+    public string Description => "A collection, playlist or tag you choose, in its own order.";
+
     public IReadOnlyList<SectionParameter> Parameters { get; } =
     [
         new SectionParameter("collectionId", "Collection", SectionParameterKind.Collection),

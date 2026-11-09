@@ -1,10 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Lumen: a cinematic UI for Jellyfin">
   <defs>
-    <radialGradient id="lpGlowA" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#e12d39" stop-opacity=".55"/>
-      <stop offset=".5" stop-color="#e12d39" stop-opacity=".16"/>
-      <stop offset="1" stop-color="#e12d39" stop-opacity="0"/>
-    </radialGradient>
     <radialGradient id="lpGlowB" cx="0.5" cy="0.5" r="0.5">
       <stop offset="0" stop-color="#e12d39" stop-opacity=".28"/>
       <stop offset="1" stop-color="#e12d39" stop-opacity="0"/>
@@ -36,7 +31,6 @@
       <stop offset="0" stop-color="#e12d39"/><stop offset=".3" stop-color="#e12d39"/><stop offset="1" stop-color="#e12d39" stop-opacity="0"/>
     </linearGradient>
     <filter id="lpBlur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="5"/></filter>
-    <filter id="lpBlurBig" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="40"/></filter>
 
     <!-- Lumen J mark (from client/src/assets/lumen-j.svg), ids prefixed lp -->
     <linearGradient id="lpJStemFold" x1="44" y1="24" x2="39" y2="37" gradientUnits="userSpaceOnUse">
@@ -50,7 +44,6 @@
   <rect width="1280" height="720" fill="#0b0b0b"/>
 
   <!-- ambient glows -->
-  <ellipse cx="260" cy="360" rx="420" ry="360" fill="url(#lpGlowA)"/>
   <ellipse cx="1060" cy="250" rx="420" ry="300" fill="url(#lpGlowB)"/>
 
   <!-- abstract tilted poster-card rows, fading toward the left -->
@@ -85,8 +78,7 @@
 
   <rect width="1280" height="720" fill="url(#lpVignette)"/>
 
-  <!-- mark glow + mark -->
-  <ellipse cx="215" cy="345" rx="150" ry="170" fill="#e12d39" opacity=".35" filter="url(#lpBlurBig)"/>
+  <!-- mark -->
   <g transform="translate(66 164) scale(5.6)">
     <path fill="url(#lpJStemFold)" d="M36 6h16v34H36Z"/>
     <path fill="url(#lpJHookFold)" d="m36 30 16 6v3c0 12-9 20-22 20S8 51 8 37h15c0 6 2 9 7 9 4 0 6-3 6-7Z"/>

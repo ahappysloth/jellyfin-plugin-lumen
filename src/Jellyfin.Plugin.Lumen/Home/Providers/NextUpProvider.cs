@@ -18,6 +18,8 @@ public sealed class NextUpProvider : IHomeSectionProvider
 
     public string DisplayName => "Next Up";
 
+    public string Description => "The next unwatched episode of each show the viewer is part-way through.";
+
     public IReadOnlyList<SectionParameter> Parameters => [];
 
     public IReadOnlyList<string> Validate(SectionDefinition definition) => [];

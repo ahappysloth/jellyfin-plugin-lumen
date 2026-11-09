@@ -90,10 +90,10 @@ public sealed record SectionParameterDto(string Name, string Label, string Kind,
 }
 
 /// <summary>A section type for the admin form.</summary>
-public sealed record SectionTypeDto(string Type, string DisplayName, IReadOnlyList<SectionParameterDto> Parameters)
+public sealed record SectionTypeDto(string Type, string DisplayName, string Description, IReadOnlyList<SectionParameterDto> Parameters)
 {
     public static SectionTypeDto From(IHomeSectionProvider provider) =>
-        new(provider.Type, provider.DisplayName, provider.Parameters.Select(SectionParameterDto.From).ToList());
+        new(provider.Type, provider.DisplayName, provider.Description, provider.Parameters.Select(SectionParameterDto.From).ToList());
 }
 
 /// <summary>Response of GET /Lumen/Requests/Status.</summary>
