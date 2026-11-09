@@ -1,3 +1,11 @@
+import {
+  LIBRARY_ROUTES,
+  PIGGY_BACKED_PARAMS,
+  SETTINGS_ROUTES,
+  SIGN_IN_ROUTES,
+  STOCK_ROUTES,
+} from '../compat/registry';
+
 export type LibraryCollection = 'movies' | 'tvshows' | 'boxsets';
 
 export type Route =
@@ -19,26 +27,17 @@ export type TakeoverRoute = Exclude<Route, { kind: 'other' }>;
 const ITEM_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
 export type SettingsPage =
   'profile' | 'quickConnect' | 'display' | 'home' | 'playback' | 'subtitles' | 'controls';
-const SETTINGS_PATHS: Record<string, SettingsPage> = {
-  '/userprofile': 'profile',
-  '/quickconnect': 'quickConnect',
-  '/mypreferencesdisplay': 'display',
-  '/mypreferenceshome': 'home',
-  '/mypreferencesplayback': 'playback',
-  '/mypreferencessubtitles': 'subtitles',
-  '/mypreferencescontrols': 'controls',
-};
+const SETTINGS_PATHS: Record<string, SettingsPage> = Object.fromEntries(
+  Object.entries(SETTINGS_ROUTES).map(([page, path]) => [path, page as SettingsPage]),
+);
 /** jellyfin-web's signed-out pages, which Lumen restyles (CSS only; see veil/skin.ts). */
-export const SIGN_IN_PATHS = [
-  '/login',
-  '/forgotpassword',
-  '/forgotpasswordpin',
-  '/selectserver',
-  '/addserver',
-];
+export const SIGN_IN_PATHS = SIGN_IN_ROUTES;
 
 const TITLE_KEY = /^(movie|tv)-([1-9][0-9]{0,9})$/;
-const LIBRARY_PATHS: Record<string, LibraryCollection> = { '/movies': 'movies', '/tv': 'tvshows' };
+const LIBRARY_PATHS: Record<string, LibraryCollection> = {
+  [LIBRARY_ROUTES.movies!]: 'movies',
+  [LIBRARY_ROUTES.tvshows!]: 'tvshows',
+};
 
 /**
  * Maps jellyfin-web hash routes to Lumen routes. Home tab 0 is Lumen's home and tab 1 its Favorites; the Movies and
@@ -52,26 +51,27 @@ export function parseRoute(hash: string): Route {
   const query = new URLSearchParams(queryStart < 0 ? '' : value.slice(queryStart + 1));
   const tab = query.get('tab');
 
-  if (path === '/home') {
+  if (path === STOCK_ROUTES.home) {
     // A catalog title the server may not have (requests spec §2.2): jellyfin-web renders home and ignores the
-    // parameter, so Lumen can own the route; a new path would hit jellyfin-web's 404 page.
-    const title = TITLE_KEY.exec(query.get('title') ?? '');
+    // parameter, so Lumen can own the route; a new path would hit jellyfin-web's 404 page. Without Lumen (switched
+    // off, DetailsTakeover off, or a failed compatibility check) the link shows stock home: see PIGGY_BACKED_PARAMS.
+    const title = TITLE_KEY.exec(query.get(PIGGY_BACKED_PARAMS.catalogTitle) ?? '');
     if (title) return { kind: 'title', mediaType: title[1] as 'movie' | 'tv', tmdbId: Number(title[2]) };
     if (tab === null || tab === '0') return { kind: 'home' };
     if (tab === '1') return { kind: 'favorites' };
     return { kind: 'other' };
   }
-  if (path === '/details') {
+  if (path === STOCK_ROUTES.details) {
     const id = query.get('id');
     const serverId = query.get('serverId');
     if (id && ITEM_ID.test(id)) return serverId ? { kind: 'details', id, serverId } : { kind: 'details', id };
   }
-  if (path === '/search') return { kind: 'search', query: query.get('query') ?? '' };
-  if (path === '/mypreferencesmenu') return { kind: 'profile' };
-  if (path === '/video') return { kind: 'player' };
+  if (path === STOCK_ROUTES.search) return { kind: 'search', query: query.get('query') ?? '' };
+  if (path === STOCK_ROUTES.preferencesMenu) return { kind: 'profile' };
+  if (path === STOCK_ROUTES.video) return { kind: 'player' };
   const settings = SETTINGS_PATHS[path];
   if (settings) return { kind: 'settings', page: settings };
-  if (path === '/list') {
+  if (path === STOCK_ROUTES.list) {
     // jellyfin-web's item list filtered to one genre (home genre tiles, a library's Genres tab).
     const genreId = query.get('genreId');
     const parentId = query.get('parentId');
@@ -81,7 +81,7 @@ export function parseRoute(hash: string): Route {
         : { kind: 'genre', id: genreId };
     // A Collections library (Lumen's own links tag it; jellyfin-web ignores the extra parameter).
     if (
-      query.get('collectionType') === 'boxsets' &&
+      query.get(PIGGY_BACKED_PARAMS.collectionType) === 'boxsets' &&
       parentId &&
       ITEM_ID.test(parentId) &&
       (tab === null || tab === '0')
@@ -116,5 +116,5 @@ export function routeKey(route: TakeoverRoute): string {
 
 /** The Lumen route for a catalog title. */
 export function titleHash(mediaType: 'movie' | 'tv', tmdbId: number): string {
-  return `#/home?title=${mediaType}-${tmdbId}`;
+  return `#${STOCK_ROUTES.home}?${PIGGY_BACKED_PARAMS.catalogTitle}=${mediaType}-${tmdbId}`;
 }

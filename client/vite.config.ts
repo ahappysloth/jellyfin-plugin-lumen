@@ -20,5 +20,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
+    // Let tests read the stylesheets as text (`?raw`; compat/registry.test.ts checks the selectors they repeat).
+    css: true,
   },
 });
