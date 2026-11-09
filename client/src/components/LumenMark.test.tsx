@@ -9,7 +9,7 @@ describe('LumenMark', () => {
     const mark = container.querySelector('.lmn-mark.x')!;
     expect(mark.getAttribute('aria-hidden')).toBe('true');
     expect(mark.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 64 64');
-    expect(mark.querySelector('#lmnJStemFold')).not.toBeNull();
-    expect(MARK_SVG).toContain('lmnJStemFold');
+    expect(mark.querySelector('#lmnJShade')).not.toBeNull();
+    expect(MARK_SVG).toContain('lmnJShade');
   });
 });
