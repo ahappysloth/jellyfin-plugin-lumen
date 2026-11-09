@@ -7,7 +7,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "size": "node scripts/check-size.mjs"
+    "size": "node scripts/check-size.mjs",
+    "guard-hash": "node scripts/guard-csp.mjs"
   },
   "license": "GPL-3.0",
   "type": "module",
