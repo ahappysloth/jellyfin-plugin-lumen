@@ -157,7 +157,7 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
           onChange={(v) => update({ DetailsTakeover: v })}
         />
         <Switch
-          label="Replace the Movies, Shows and Favorites pages"
+          label="Replace the Movies, Shows, Favorites, Search and Settings pages"
           checked={config.LibraryTakeover}
           onChange={(v) => update({ LibraryTakeover: v })}
         />

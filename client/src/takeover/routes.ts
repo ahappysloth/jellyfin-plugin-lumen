@@ -5,6 +5,8 @@ export type Route =
   | { kind: 'details'; id: string }
   | { kind: 'library'; id: string; collection: LibraryCollection }
   | { kind: 'favorites' }
+  | { kind: 'search'; query: string }
+  | { kind: 'profile' }
   | { kind: 'other' };
 export type TakeoverRoute = Exclude<Route, { kind: 'other' }>;
 
@@ -13,8 +15,8 @@ const LIBRARY_PATHS: Record<string, LibraryCollection> = { '/movies': 'movies', 
 
 /**
  * Maps jellyfin-web hash routes to Lumen routes. Home tab 0 is Lumen's home and tab 1 its Favorites; the Movies and
- * Shows library pages are taken over on their default tab only (Suggestions, Genres, etc. stay stock).
- * Keep in sync with the inline guard in the server's HtmlInjector.
+ * Shows library pages are taken over on their default tab only (Suggestions, Genres, etc. stay stock). Search and the
+ * settings menu (#/mypreferencesmenu) are Lumen's too; the settings pages they link to stay stock.
  */
 export function parseRoute(hash: string): Route {
   const value = hash.replace(/^#!?/, '');
@@ -32,6 +34,8 @@ export function parseRoute(hash: string): Route {
     const id = query.get('id');
     if (id && ITEM_ID.test(id)) return { kind: 'details', id };
   }
+  if (path === '/search') return { kind: 'search', query: query.get('query') ?? '' };
+  if (path === '/mypreferencesmenu') return { kind: 'profile' };
   const collection = LIBRARY_PATHS[path];
   if (collection && (tab === null || tab === '0')) {
     const id = query.get('topParentId');

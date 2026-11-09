@@ -1,5 +1,5 @@
 import type { AjaxRequest, JellyfinApiClient } from '../compat/jellyfin';
-import type { BaseItem, ClientConfig, HomeResponse, ItemsResult, SessionInfo } from './types';
+import type { BaseItem, ClientConfig, HomeResponse, ItemsResult, SessionInfo, UserInfo } from './types';
 
 export interface DiagnosticsReport {
   Client: string;
@@ -18,6 +18,7 @@ export interface BrowseQuery {
   /** Jellyfin ItemFilter names, e.g. IsUnplayed, IsFavorite. */
   filters?: string[];
   genreIds?: string[];
+  searchTerm?: string;
   startIndex: number;
   limit: number;
 }
@@ -98,6 +99,7 @@ export class LumenApi {
       sortOrder: query.sortOrder,
       filters: query.filters?.length ? query.filters.join(',') : undefined,
       genreIds: query.genreIds?.length ? query.genreIds.join('|') : undefined,
+      searchTerm: query.searchTerm || undefined,
       startIndex: query.startIndex,
       limit: query.limit,
       fields: 'PrimaryImageAspectRatio,Genres',
@@ -106,6 +108,15 @@ export class LumenApi {
       enableImageTypes: 'Primary,Backdrop,Thumb,Logo',
       enableTotalRecordCount: true,
     }));
+  }
+
+  /** People whose name matches, for search. */
+  searchPeople(searchTerm: string, limit: number): Promise<ItemsResult> {
+    return this.get('Persons', () => ({ userId: this.userId(), searchTerm, limit, enableImages: true }));
+  }
+
+  getCurrentUser(): Promise<UserInfo> {
+    return this.get(`Users/${this.userId()}`);
   }
 
   /** Genres that have titles of the given types in a library, A to Z. */

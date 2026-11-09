@@ -14,7 +14,15 @@ export interface TakeoverOptions {
 }
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
-const ROUTE_CLASSES = ['lmn-active', 'lmn-home', 'lmn-details', 'lmn-library', 'lmn-favorites'];
+const ROUTE_CLASSES = [
+  'lmn-active',
+  'lmn-home',
+  'lmn-details',
+  'lmn-library',
+  'lmn-favorites',
+  'lmn-search',
+  'lmn-profile',
+];
 
 /** Owns #lmn-root and the <html> classes that hide the stock page. Never touches jellyfin-web's own DOM. */
 export class Takeover {

@@ -15,6 +15,10 @@ All notable changes to Lumen are documented here. Versions follow SemVer; Jellyf
   cold load, then rises like a curtain once the page is ready.
 - Right-click (or long-press on touch) any card for Play/Resume, More info, Open in new tab, favorite and watched.
 - Custom dropdowns for genre, sort and season.
+- Search page: results grouped by Movies, Shows, Episodes and People as you type, and an "Explore your library" grid
+  before you do. The query is kept in the URL, so Back returns to it.
+- Settings page (the profile button): your avatar and name, grouped links to Jellyfin's settings pages, admin links for
+  administrators, and Sign out.
 
 ### Changed
 - The nav pill is centred at the top of the page on wider screens.

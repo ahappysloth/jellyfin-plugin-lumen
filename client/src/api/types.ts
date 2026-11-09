@@ -106,3 +106,13 @@ export interface SessionInfo {
   DeviceId: string;
   UserId?: string;
 }
+
+/** The signed-in user (Jellyfin's UserDto subset). */
+export interface UserInfo {
+  Id: string;
+  Name: string;
+  ServerName?: string;
+  PrimaryImageTag?: string;
+  HasPassword?: boolean;
+  Policy?: { IsAdministrator?: boolean };
+}

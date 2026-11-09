@@ -8,11 +8,13 @@ import { LibraryView } from './browse/LibraryView';
 import type { ViewContext } from './context';
 import { DetailsView } from './details/DetailsView';
 import { HomeView } from './home/HomeView';
+import { ProfileView } from './profile/ProfileView';
+import { SearchView } from './search/SearchView';
 import { Nav, type NavActive } from './Nav';
 
 function navActive(route: TakeoverRoute): NavActive {
   if (route.kind === 'library') return route.id;
-  return route.kind === 'favorites' ? 'favorites' : 'home';
+  return route.kind === 'details' ? 'home' : route.kind;
 }
 
 function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
@@ -23,6 +25,10 @@ function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
       return <LibraryView key={route.id} id={route.id} collection={route.collection} ctx={ctx} />;
     case 'favorites':
       return <FavoritesView ctx={ctx} />;
+    case 'search':
+      return <SearchView initialQuery={route.query} ctx={ctx} />;
+    case 'profile':
+      return <ProfileView ctx={ctx} />;
     case 'details':
       return <DetailsView key={route.id} id={route.id} ctx={ctx} />;
   }
