@@ -4,7 +4,7 @@
  * (e2e/specs/stock-probe.spec.ts checks each selector matches on its page; stock-routes.spec.ts checks no route
  * Lumen links to is jellyfin-web's 404 page). When jellyfin-web changes, fix it here.
  *
- * The CSS (styles/lumen.css, player.css, stock-skin.css) can't import this module, so it repeats the selectors it
+ * The CSS (styles/base.css, player.css, stock-skin.css) can't import this module, so it repeats the selectors it
  * needs; `css` names the stylesheet that does, and registry.test.ts checks the selector text really occurs there.
  * Evidence for each entry: docs/reference/jellyfin-web-12.1-notes.md.
  *
@@ -18,23 +18,23 @@ export interface StockSelector {
   selector: string;
   probe: ProbePage | null;
   /** The stylesheet that repeats this selector, if any. */
-  css?: 'lumen.css' | 'player.css' | 'stock-skin.css';
+  css?: 'base.css' | 'player.css' | 'stock-skin.css';
 }
 
 export const STOCK_SELECTORS = {
   /** React's mount point (index.html). */
-  reactRoot: { selector: '#reactRoot', probe: 'home', css: 'lumen.css' },
+  reactRoot: { selector: '#reactRoot', probe: 'home', css: 'base.css' },
   /** Routed page content in both the Modern and Legacy layouts. Hidden via CSS only. */
-  stockPage: { selector: '#reactRoot .skinBody', probe: 'home', css: 'lumen.css' },
-  backdrop: { selector: '.backdropContainer', probe: 'home', css: 'lumen.css' },
+  stockPage: { selector: '#reactRoot .skinBody', probe: 'home', css: 'base.css' },
+  backdrop: { selector: '.backdropContainer', probe: 'home', css: 'base.css' },
   background: { selector: '.backgroundContainer', probe: 'home', css: 'stock-skin.css' },
   /** The Modern layout's app bar. */
-  modernAppBar: { selector: '.MuiAppBar-root', probe: 'home', css: 'lumen.css' },
+  modernAppBar: { selector: '.MuiAppBar-root', probe: 'home', css: 'base.css' },
   /** The Legacy layout's header (also in the Modern DOM, inside a hidden wrapper). */
-  legacyHeader: { selector: '.skinHeader', probe: 'home', css: 'lumen.css' },
+  legacyHeader: { selector: '.skinHeader', probe: 'home', css: 'base.css' },
   /** jellyfin-web's cold-load splash and spinner (gone by the time a probe could look). */
-  splashLogo: { selector: '.splashLogo', probe: null, css: 'lumen.css' },
-  spinner: { selector: '.docspinner', probe: null, css: 'lumen.css' },
+  splashLogo: { selector: '.splashLogo', probe: null, css: 'base.css' },
+  spinner: { selector: '.docspinner', probe: null, css: 'base.css' },
   /** The player's own controls, hidden under Lumen's. */
   videoOsd: { selector: '.videoOsdBottom', probe: 'player', css: 'player.css' },
   /** Prompts that stay clickable above Lumen's player (only shown with intro segments / near the end). */

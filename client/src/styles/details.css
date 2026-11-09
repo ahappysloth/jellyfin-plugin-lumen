@@ -59,9 +59,6 @@
   background: var(--lmn-surface);
   font-size: 14px;
 }
-.lmn-home > .lmn-toast {
-  margin: 16px var(--lmn-gutter);
-}
 
 /* "You may like" grid */
 .lmn-grid {
@@ -207,6 +204,9 @@
 
 /* Small screens (official mobile apps). */
 @media (max-width: 720px) {
+  .lmn-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
   .lmn-hero__logo,
   .lmn-details__logo {
     max-width: 260px;

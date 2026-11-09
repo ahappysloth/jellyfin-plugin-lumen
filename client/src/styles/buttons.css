@@ -98,16 +98,17 @@
 
 /* Small screens (official mobile apps). */
 @media (max-width: 720px) {
-  .lmn-button--secondary {
+  .lmn-button {
+    height: 42px;
+    padding: 0 18px;
+  }
+  /* Icon-and-label secondary buttons (they carry an aria-label) shrink to their icon; text-only ones keep their text. */
+  .lmn-button--secondary[aria-label] {
     width: 42px;
     padding: 0;
     justify-content: center;
   }
-  .lmn-button--secondary .lmn-button__label {
+  .lmn-button--secondary[aria-label] .lmn-button__label {
     display: none;
-  }
-  .lmn-button {
-    height: 42px;
-    padding: 0 18px;
   }
 }

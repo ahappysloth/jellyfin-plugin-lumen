@@ -207,9 +207,6 @@
   .lmn-browse-grid--landscape {
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   }
-  .lmn-browse-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
