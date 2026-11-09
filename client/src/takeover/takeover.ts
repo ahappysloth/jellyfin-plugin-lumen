@@ -23,6 +23,8 @@ const ROUTE_CLASSES = [
   'lmn-search',
   'lmn-profile',
   'lmn-title',
+  'lmn-settings',
+  'lmn-skin-settings',
 ];
 
 /** Owns #lmn-root and the <html> classes that hide the stock page. Never touches jellyfin-web's own DOM. */
@@ -53,7 +55,11 @@ export class Takeover {
 
     const root = this.ensureRoot();
     doc.documentElement.classList.remove(...ROUTE_CLASSES);
-    doc.documentElement.classList.add('lmn-active', `lmn-${route.kind}`);
+    // Settings pages stay jellyfin-web's (restyled, with Lumen's nav over them); every other route replaces the page.
+    doc.documentElement.classList.add(
+      route.kind === 'settings' ? 'lmn-skin-settings' : 'lmn-active',
+      `lmn-${route.kind}`,
+    );
     const { AccentColor } = this.options.config;
     if (HEX_COLOR.test(AccentColor)) root.style.setProperty('--lmn-accent', AccentColor);
     root.style.setProperty('--lmn-top-offset', `${getAppBarHeight(doc)}px`);
@@ -89,6 +95,8 @@ export class Takeover {
       case 'details':
       case 'title':
         return config.DetailsTakeover;
+      case 'settings':
+        return config.StyleStockPages;
       default:
         return config.LibraryTakeover;
     }

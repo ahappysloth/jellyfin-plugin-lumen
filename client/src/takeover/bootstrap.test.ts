@@ -7,6 +7,7 @@ const clientConfig = {
   HomeTakeover: true,
   DetailsTakeover: true,
   LibraryTakeover: true,
+  StyleStockPages: true,
   AccentColor: '#112233',
   HeroIntervalSeconds: 8,
   TrailerPreview: true,

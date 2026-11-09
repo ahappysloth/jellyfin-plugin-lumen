@@ -161,6 +161,12 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
           checked={config.LibraryTakeover}
           onChange={(v) => update({ LibraryTakeover: v })}
         />
+        <Switch
+          label="Restyle Jellyfin's sign-in and settings pages"
+          hint="Display, Playback, Subtitles and the other settings keep working as before; only their look changes."
+          checked={config.StyleStockPages}
+          onChange={(v) => update({ StyleStockPages: v })}
+        />
         <Field label="Accent color" hint="Badges, ratings, progress bars and this page's buttons.">
           <input
             type="color"

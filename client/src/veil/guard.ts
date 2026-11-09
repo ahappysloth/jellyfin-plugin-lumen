@@ -4,11 +4,13 @@
  * The timeout is a safety net in case lumen.js never loads.
  */
 import markSvg from '../assets/lumen-j.svg?raw';
+import { applySignInSkin } from './skin';
 import { liftVeil, PENDING_CLASS, shouldVeil, showVeil } from './veil';
 
 const SAFETY_MS = 8000;
 
 try {
+  applySignInSkin(document, location.hash);
   if (shouldVeil(location.hash)) {
     document.documentElement.classList.add(PENDING_CLASS);
     showVeil(document, markSvg);

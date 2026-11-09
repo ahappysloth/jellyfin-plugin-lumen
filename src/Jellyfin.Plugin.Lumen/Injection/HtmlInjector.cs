@@ -18,7 +18,11 @@ public static class HtmlInjector
     /// The guard's JavaScript, inlined so it runs synchronously before jellyfin-web paints: on routes Lumen may take
     /// over it hides the stock chrome and shows the loading veil until lumen.js (deferred) takes over. Null skips it.
     /// </param>
-    public static string Inject(string html, string buildHash, string? guardScript = null)
+    /// <param name="styleStockPages">
+    /// Marks the page (<c>data-lmn-skin</c> on &lt;html&gt;) so Lumen restyles the sign-in page, which loads before
+    /// anyone is signed in and so can't read Lumen's per-user client config.
+    /// </param>
+    public static string Inject(string html, string buildHash, string? guardScript = null, bool styleStockPages = false)
     {
         if (html.Contains(Marker, StringComparison.Ordinal))
         {
@@ -32,9 +36,11 @@ public static class HtmlInjector
         }
 
         var version = Uri.EscapeDataString(buildHash);
-        var guard = string.IsNullOrEmpty(guardScript)
+        var skin = styleStockPages ? "document.documentElement.setAttribute('data-lmn-skin','');" : string.Empty;
+        var script = skin + (guardScript ?? string.Empty);
+        var guard = script.Length == 0
             ? string.Empty
-            : "<script>" + guardScript.Replace("</", "<\\/", StringComparison.Ordinal) + "</script>";
+            : "<script>" + script.Replace("</", "<\\/", StringComparison.Ordinal) + "</script>";
         var tags = $"{Marker}{guard}<link rel=\"stylesheet\" href=\"{AssetBase}lumen.css?v={version}\">"
             + $"<script defer src=\"{AssetBase}lumen.js?v={version}\"></script>";
 

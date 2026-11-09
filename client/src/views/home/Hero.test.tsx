@@ -9,6 +9,7 @@ const config: ClientConfig = {
   HomeTakeover: true,
   DetailsTakeover: true,
   LibraryTakeover: true,
+  StyleStockPages: true,
   AccentColor: '#f5a524',
   HeroIntervalSeconds: 8,
   TrailerPreview: true,

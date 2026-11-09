@@ -24,7 +24,8 @@ export function rememberVeilName(name: string): void {
   }
 }
 
-function veilName(): string {
+/** The server name remembered from the last visit (the veil and sign-in page show it before anyone signs in). */
+export function veilName(): string {
   try {
     return localStorage.getItem(NAME_KEY) || 'Jellyfin';
   } catch {

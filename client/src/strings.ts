@@ -68,6 +68,7 @@ export const strings = {
   people: 'People',
   noResults: (q: string) => `No results for “${q}”`,
   noResultsHint: 'Check the spelling, or try a title, an actor or a director.',
+  settingsMenu: 'Settings',
   account: 'Account',
   preferences: 'Preferences',
   administration: 'Administration',

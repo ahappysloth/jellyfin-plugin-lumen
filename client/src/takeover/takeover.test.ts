@@ -8,6 +8,7 @@ const config: ClientConfig = {
   HomeTakeover: true,
   DetailsTakeover: false,
   LibraryTakeover: false,
+  StyleStockPages: true,
   AccentColor: '#f5a524',
   HeroIntervalSeconds: 8,
   TrailerPreview: true,
@@ -170,5 +171,23 @@ describe('Takeover', () => {
     expect(on.options.mount).toHaveBeenCalledTimes(2);
     expect(document.documentElement.classList.contains('lmn-favorites')).toBe(true);
     expect(document.documentElement.classList.contains('lmn-library')).toBe(false);
+  });
+
+  it('frames settings pages without hiding them, when StyleStockPages is on', () => {
+    const on = create({ config: { ...config, StyleStockPages: true } });
+    on.takeover.handle({ kind: 'settings', page: 'playback' });
+    const classes = document.documentElement.classList;
+    expect(on.options.mount).toHaveBeenCalledTimes(1);
+    expect(classes.contains('lmn-skin-settings')).toBe(true);
+    expect(classes.contains('lmn-active')).toBe(false);
+
+    on.takeover.handle({ kind: 'home' });
+    expect(classes.contains('lmn-skin-settings')).toBe(false);
+    expect(classes.contains('lmn-active')).toBe(true);
+    on.takeover.release();
+
+    const off = create({ config: { ...config, StyleStockPages: false } });
+    off.takeover.handle({ kind: 'settings', page: 'playback' });
+    expect(off.options.mount).not.toHaveBeenCalled();
   });
 });
