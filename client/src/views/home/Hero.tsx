@@ -15,6 +15,8 @@ interface Props {
   config: ClientConfig;
   badges?: Record<string, BadgeKey>;
   onPlay: (item: BaseItem) => void;
+  /** The item whose playback is starting (its Play shows "Starting…"). */
+  startingId?: string | null;
   onInfo: (item: BaseItem) => void;
 }
 
@@ -46,7 +48,7 @@ const heroWidth = (): number => Math.min(1920, Math.max(640, Math.ceil(window.in
  * exactly with the pointer; letting go past a threshold (or flicking) slides to the neighbour, otherwise it springs
  * back. Auto-advance uses the same slide.
  */
-export function Hero({ items, client, config, badges, onPlay, onInfo }: Props) {
+export function Hero({ items, client, config, badges, onPlay, onInfo, startingId }: Props) {
   const [index, setIndex] = useState(0);
   const [stopped, setStopped] = useState(false);
   // Only keyboard navigation inside the hero pauses it; hovering or the initial autofocus must not.
@@ -192,6 +194,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo }: Props) {
               current={rel === 0}
               onPlay={onPlay}
               onInfo={onInfo}
+              starting={startingId === hero.Item.Id}
             >
               {rel === 0 && trailerId && sliding === 0 && !dragging && (
                 <TrailerPreview
@@ -260,6 +263,7 @@ function Slide({
   current,
   onPlay,
   onInfo,
+  starting = false,
   children,
 }: {
   rel: number;
@@ -269,6 +273,7 @@ function Slide({
   current: boolean;
   onPlay: (item: BaseItem) => void;
   onInfo: (item: BaseItem) => void;
+  starting?: boolean;
   children?: ComponentChildren;
 }) {
   const backdrop = resolveImage(item, ['Backdrop']);
@@ -322,11 +327,13 @@ function Slide({
         <div class="lmn-actions">
           <button
             type="button"
-            class={`lmn-button lmn-button--primary${current ? ' lmn-autofocus' : ''}`}
+            class={`lmn-button lmn-button--primary${current ? ' lmn-autofocus' : ''}${starting ? ' is-busy' : ''}`}
+            disabled={starting}
+            aria-busy={starting ? 'true' : undefined}
             onClick={() => onPlay(item)}
           >
-            <Icon name="play" />
-            {strings.play}
+            {starting ? <span class="lmn-spinner" aria-hidden="true" /> : <Icon name="play" />}
+            {starting ? strings.starting : strings.play}
           </button>
           <button
             type="button"

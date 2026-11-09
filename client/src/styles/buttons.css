@@ -112,3 +112,28 @@
     display: none;
   }
 }
+
+/* Play/Resume while jellyfin-web starts the player */
+.lmn-button.is-busy {
+  cursor: progress;
+  opacity: 0.85;
+}
+.lmn-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: lmn-spin 0.7s linear infinite;
+}
+@keyframes lmn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lmn-spinner {
+    animation-duration: 2s;
+  }
+}

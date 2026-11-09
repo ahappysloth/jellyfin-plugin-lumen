@@ -35,6 +35,25 @@ test('Play starts in the tab it was pressed in, even with another Jellyfin tab o
   await expect(other.locator('video')).toHaveCount(0);
 });
 
+test("jellyfin-web's volume card never shows over Lumen's player", async ({ page }) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
+  await expect(page).toHaveURL(/#\/video/);
+  await expect(page.locator('video.htmlvideoplayer')).toBeVisible();
+
+  // Changing the volume through jellyfin-web (here its Up-arrow shortcut) shows its volume OSD
+  // (components/playback/volumeosd.js).
+  await page.locator('video.htmlvideoplayer').evaluate((v: HTMLVideoElement) => (v.volume = 0.5));
+  await page.keyboard.press('ArrowUp');
+  await expect(page.locator('.volumeOsd')).toHaveCount(1);
+  // jellyfin-web fades the card in over ~0.3 s and hides it itself after 3 s, so check once, while it would be up
+  // (an auto-retrying toBeHidden() would just wait for that).
+  await page.waitForTimeout(800);
+  expect(await page.locator('.volumeOsd').isVisible()).toBe(false);
+});
+
 test("Lumen's player controls drive jellyfin-web's player, including subtitle tracks", async ({ page }) => {
   const { items } = loadState();
   await login(page, ADMIN);

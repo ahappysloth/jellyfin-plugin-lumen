@@ -31,7 +31,11 @@ export function CollectionDetails({ item, ctx }: { item: BaseItem; ctx: ViewCont
         item={item}
         client={ctx.client}
         config={ctx.config}
-        primary={state.total === 0 ? null : { label: strings.play, onClick: () => actions.play(item.Id) }}
+        primary={
+          state.total === 0
+            ? null
+            : { label: strings.play, onClick: () => actions.play(item.Id), busy: actions.starting }
+        }
         trailerId={null}
         backdropFallback={state.items[0]}
         onBack={() => goBack(ctx)}

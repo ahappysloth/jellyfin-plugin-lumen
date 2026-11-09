@@ -2,6 +2,7 @@
 export const strings = {
   play: 'Play',
   resume: 'Resume',
+  starting: 'Starting…',
   moreInfo: 'More info',
   trailer: 'Trailer',
   watched: 'Watched',

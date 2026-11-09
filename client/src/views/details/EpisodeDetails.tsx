@@ -114,6 +114,7 @@ export function EpisodeDetails({ episode, ctx }: { episode: BaseItem; ctx: ViewC
           label: ticks ? strings.resume : strings.play,
           progress: ticks ? playedPercent(episode) : undefined,
           onClick: () => actions.play(episode.Id, ticks),
+          busy: actions.starting,
         }}
         trailerId={null}
         onBack={() => goBack(ctx)}

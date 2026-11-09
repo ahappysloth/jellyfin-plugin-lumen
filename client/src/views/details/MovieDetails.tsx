@@ -29,6 +29,7 @@ export function MovieDetails({ item, ctx }: { item: BaseItem; ctx: ViewContext }
           label: ticks ? strings.resume : strings.play,
           progress: ticks ? playedPercent(item) : undefined,
           onClick: () => actions.play(item.Id, ticks),
+          busy: actions.starting,
         }}
         trailerId={trailerId}
         onTrailer={trailerId ? () => actions.play(trailerId) : undefined}

@@ -17,6 +17,8 @@ export interface PrimaryAction {
   label: string;
   progress?: number;
   onClick: () => void;
+  /** Playback is starting: the button shows a spinner and "Starting…" and ignores clicks. */
+  busy?: boolean;
 }
 
 interface Props {
@@ -146,12 +148,14 @@ export function DetailsHeader(props: Props) {
           {primary && (
             <button
               type="button"
-              class="lmn-button lmn-button--primary lmn-autofocus"
+              class={`lmn-button lmn-button--primary lmn-autofocus${primary.busy ? ' is-busy' : ''}`}
+              disabled={primary.busy}
+              aria-busy={primary.busy ? 'true' : undefined}
               onClick={primary.onClick}
             >
-              <Icon name="play" />
-              {primary.label}
-              {primary.progress ? <ProgressBar percent={primary.progress} /> : null}
+              {primary.busy ? <span class="lmn-spinner" aria-hidden="true" /> : <Icon name="play" />}
+              {primary.busy ? strings.starting : primary.label}
+              {primary.progress && !primary.busy ? <ProgressBar percent={primary.progress} /> : null}
             </button>
           )}
           {props.onTrailer && (
