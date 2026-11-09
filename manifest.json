@@ -2,8 +2,8 @@
   {
     "guid": "186f9cb8-ba8e-4555-a700-ffa619f48264",
     "name": "Lumen",
-    "overview": "A cinematic home screen and details pages for Jellyfin.",
-    "description": "Lumen replaces Jellyfin's web home screen and movie/series details pages with a cinematic hero, personalized rows, and a redesigned details view. Works in browsers and the official mobile and desktop apps. Falls back to the stock UI automatically.",
+    "overview": "A cinematic home, library, search and details UI for Jellyfin, with Seerr requests.",
+    "description": "Lumen replaces Jellyfin's web home, Movies and Shows libraries, Favorites, search and movie/series details pages with a cinematic, Netflix-style UI, and restyles the sign-in and settings pages. With Seerr connected, users can browse and request titles the server doesn't have yet, from search, title pages and home rows. Works in browsers and the official mobile and desktop apps, and falls back to the stock UI automatically.",
     "owner": "ahappysloth",
     "category": "General",
     "imageUrl": null,
