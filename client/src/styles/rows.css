@@ -10,8 +10,7 @@
   position: relative;
   margin: 0 0 40px;
 }
-.lmn-hero + .lmn-row,
-.lmn-hero + .lmn-toast + .lmn-row {
+.lmn-hero + .lmn-row {
   margin-top: -56px;
 }
 .lmn-row__title {
@@ -115,8 +114,7 @@
 
 /* Small screens (official mobile apps). */
 @media (max-width: 720px) {
-  .lmn-hero + .lmn-row,
-  .lmn-hero + .lmn-toast + .lmn-row {
+  .lmn-hero + .lmn-row {
     margin-top: 0;
   }
   .lmn-row--genres .lmn-row__arrow {

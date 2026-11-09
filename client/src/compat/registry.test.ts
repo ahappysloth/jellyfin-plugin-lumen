@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import lumenCss from '../styles/lumen.css?raw';
+import baseCss from '../styles/base.css?raw';
 import playerCss from '../styles/player.css?raw';
 import stockSkinCss from '../styles/stock-skin.css?raw';
 import { PLAYBACK_MANAGER_METHODS, STOCK_SELECTORS } from './registry';
 
 const stylesheets: Record<string, string> = {
-  'lumen.css': lumenCss,
+  'base.css': baseCss,
   'player.css': playerCss,
   'stock-skin.css': stockSkinCss,
 };
