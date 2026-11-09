@@ -20,6 +20,16 @@ public class HtmlInjectorTests
     }
 
     [Fact]
+    public void AddsPendingGuard_BeforeStylesheet()
+    {
+        var result = HtmlInjector.Inject(Page, "h");
+
+        var guard = result.IndexOf("lmn-pending", StringComparison.Ordinal);
+        Assert.True(guard > result.IndexOf(HtmlInjector.Marker, StringComparison.Ordinal));
+        Assert.True(guard < result.IndexOf("lumen.css", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void UsesRelativeUrls_SoBaseUrlInstallsWork()
     {
         var result = HtmlInjector.Inject(Page, "h");

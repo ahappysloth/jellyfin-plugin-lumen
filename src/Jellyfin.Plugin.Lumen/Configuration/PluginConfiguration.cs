@@ -29,6 +29,9 @@ public class PluginConfiguration : BasePluginConfiguration
 
     public bool DetailsTakeover { get; set; } = true;
 
+    /// <summary>Gets or sets a value indicating whether Lumen replaces the Movies and Shows library pages and Favorites.</summary>
+    public bool LibraryTakeover { get; set; } = true;
+
     public string AccentColor { get; set; } = "#e12d39";
 
     public HeroSource HeroSource { get; set; } = HeroSource.RecentlyAdded;

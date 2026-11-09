@@ -1,6 +1,6 @@
 import type { ClientConfig } from '../api/types';
 import { type CompatReport, getAppBarHeight } from '../compat/jellyfin';
-import type { Route, TakeoverRoute } from './routes';
+import { type Route, routeKey, type TakeoverRoute } from './routes';
 
 export interface TakeoverOptions {
   config: ClientConfig;
@@ -13,7 +13,7 @@ export interface TakeoverOptions {
 }
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
-const ROUTE_CLASSES = ['lmn-active', 'lmn-home', 'lmn-details'];
+const ROUTE_CLASSES = ['lmn-active', 'lmn-home', 'lmn-details', 'lmn-library', 'lmn-favorites'];
 
 /** Owns #lmn-root and the <html> classes that hide the stock page. Never touches jellyfin-web's own DOM. */
 export class Takeover {
@@ -43,12 +43,12 @@ export class Takeover {
 
     const root = this.ensureRoot();
     doc.documentElement.classList.remove(...ROUTE_CLASSES);
-    doc.documentElement.classList.add('lmn-active', route.kind === 'home' ? 'lmn-home' : 'lmn-details');
+    doc.documentElement.classList.add('lmn-active', `lmn-${route.kind}`);
     const { AccentColor } = this.options.config;
     if (HEX_COLOR.test(AccentColor)) root.style.setProperty('--lmn-accent', AccentColor);
     root.style.setProperty('--lmn-top-offset', `${getAppBarHeight(doc)}px`);
 
-    const key = route.kind === 'home' ? 'home' : `details:${route.id}`;
+    const key = routeKey(route);
     if (this.mountedKey !== key) {
       this.mountedKey = key;
       const generation = ++this.generation;
@@ -71,7 +71,15 @@ export class Takeover {
   }
 
   private isEnabled(route: TakeoverRoute): boolean {
-    return route.kind === 'home' ? this.options.config.HomeTakeover : this.options.config.DetailsTakeover;
+    const { config } = this.options;
+    switch (route.kind) {
+      case 'home':
+        return config.HomeTakeover;
+      case 'details':
+        return config.DetailsTakeover;
+      default:
+        return config.LibraryTakeover;
+    }
   }
 
   /** Only a passing self-test is remembered; a failing one is re-run later (jellyfin-web may not have rendered yet). */

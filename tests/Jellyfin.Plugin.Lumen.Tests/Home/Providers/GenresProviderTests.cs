@@ -36,7 +36,7 @@ public class GenresProviderTests
     }
 
     [Fact]
-    public async Task OneRow_OfGenresByTitleCount_ThenName_SkippingEmpty()
+    public async Task OneRow_OfGenresWithTitles_Alphabetical_SkippingEmpty()
     {
         var drama = WithGenre("Drama", 5);
         var action = WithGenre("Action", 2);
@@ -49,7 +49,7 @@ public class GenresProviderTests
         var row = Assert.Single(rows);
         Assert.Equal(SectionTypes.Genres, row.Type);
         Assert.Equal("Popular Genres", row.Title);
-        Assert.Equal([drama, action, comedy], row.Items);
+        Assert.Equal([action, comedy, drama], row.Items);
         Assert.All(_queries, q => Assert.Same(_user, q.User));
         var count = _queries.First(q => q.Limit is null);
         Assert.Equal([BaseItemKind.Movie, BaseItemKind.Series], count.IncludeItemTypes);
@@ -57,19 +57,20 @@ public class GenresProviderTests
     }
 
     [Fact]
-    public async Task CapsAtTwelveGenres()
+    public async Task KeepsTheTwelveMostPopularGenres_ShownAlphabetically()
     {
+        // G14 is the most popular and G00 the least, so popularity order is the reverse of alphabetical.
         for (var i = 0; i < 15; i++)
         {
-            WithGenre($"G{i:D2}", 100 - i);
+            WithGenre($"G{14 - i:D2}", 100 - i);
         }
 
         var rows = await new GenresProvider(_library).GetRowsAsync(TestData.Context(_user), TestData.Section(SectionTypes.Genres), CancellationToken.None);
 
         var items = Assert.Single(rows).Items;
         Assert.Equal(GenresProvider.MaxGenres, items.Count);
-        Assert.Equal("G00", items[0].Name);
-        Assert.Equal("G11", items[^1].Name);
+        Assert.Equal("G03", items[0].Name);
+        Assert.Equal("G14", items[^1].Name);
     }
 
     [Fact]

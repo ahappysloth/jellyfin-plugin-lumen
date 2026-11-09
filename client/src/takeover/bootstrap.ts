@@ -1,4 +1,5 @@
 import { LumenApi } from '../api/lumenApi';
+import markSvg from '../assets/lumen-j.svg?raw';
 import type { ClientConfig } from '../api/types';
 import {
   getApiClient,
@@ -6,6 +7,7 @@ import {
   getServerVersion,
   navigateTo,
   selfTest,
+  setFavicon,
   type JellyfinApiClient,
 } from '../compat/jellyfin';
 import type { ViewContext } from '../views/context';
@@ -21,6 +23,8 @@ export interface BootstrapOptions {
   pollMs?: number;
   timeoutMs?: number;
 }
+
+export const PENDING_CLASS = 'lmn-pending';
 
 /** window.ApiClient exists before sign-in but has no user; wait until it does (or give up). */
 function waitForUser(win: Window, pollMs: number, timeoutMs: number): Promise<void> {
@@ -64,6 +68,7 @@ export function startLumen(options: BootstrapOptions): () => void {
       return { userId, client, takeover: null };
     }
     if (!config.Enabled) return { userId, client, takeover: null };
+    setFavicon(markSvg, doc);
 
     const takeover = new Takeover({
       config,
@@ -124,11 +129,19 @@ export function startLumen(options: BootstrapOptions): () => void {
         session = created;
       }
     }
-    session?.takeover?.handle(parseRoute(win.location.hash));
+    const route = parseRoute(win.location.hash);
+    session?.takeover?.handle(route);
+    // The inline guard in index.html hid the stock chrome while this was undecided; once the takeover has run (or
+    // the route is one Lumen never owns), drop it.
+    if (session || route.kind === 'other') doc.documentElement.classList.remove(PENDING_CLASS);
   };
 
   const stopNavigation = onNavigate(() => void sync(), win);
-  void waitForUser(win, options.pollMs ?? 100, options.timeoutMs ?? 60_000).then(sync);
+  void waitForUser(win, options.pollMs ?? 100, options.timeoutMs ?? 60_000)
+    .then(sync)
+    .finally(() => {
+      if (!session) doc.documentElement.classList.remove(PENDING_CLASS);
+    });
 
   return () => {
     stopped = true;

@@ -1,0 +1,87 @@
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
+import { afterEach, describe, expect, it } from 'vitest';
+import { createFakeClient, routes } from '../../../test/fakeClient';
+import { makeContext } from '../../../test/viewContext';
+import type { AjaxRequest } from '../../compat/jellyfin';
+import type { BaseItem } from '../../api/types';
+import { clearBrowseState } from './browseStore';
+import { LibraryView, sortParams } from './LibraryView';
+import { PAGE_SIZE } from './useBrowseItems';
+
+const LIB = '0123456789abcdef0123456789abcdef';
+const movie = (i: number): BaseItem => ({ Id: `m${i}`, Name: `Movie ${i}`, Type: 'Movie', ServerId: 's' });
+const params = (r: AjaxRequest) => new URL(r.url).searchParams;
+
+function setup(total: number) {
+  const all = Array.from({ length: total }, (_, i) => movie(i));
+  const client = createFakeClient(
+    routes({
+      [`Items/${LIB}`]: { Id: LIB, Name: 'Films', Type: 'CollectionFolder' },
+      Genres: { Items: [{ Id: 'g1', Name: 'Drama', Type: 'Genre' }] },
+      Items: (r: AjaxRequest) => {
+        const start = Number(params(r).get('startIndex'));
+        const limit = Number(params(r).get('limit'));
+        return { Items: all.slice(start, start + limit), TotalRecordCount: total };
+      },
+    }),
+  );
+  const ctx = makeContext(client);
+  render(<LibraryView id={LIB} collection="movies" ctx={ctx} />);
+  const itemRequests = () => client.requests.filter((r) => new URL(r.url).pathname === '/Items');
+  return { client, ctx, itemRequests };
+}
+
+describe('LibraryView', () => {
+  afterEach(() => clearBrowseState());
+
+  it('shows the library name, title count and a poster grid, newest first', async () => {
+    const { itemRequests } = setup(3);
+
+    expect(await screen.findByRole('heading', { name: 'Films' })).toBeInTheDocument();
+    expect(await screen.findByText('3 titles')).toBeInTheDocument();
+    const grid = screen.getByRole('list', { name: 'Films' });
+    expect(within(grid).getAllByRole('button')).toHaveLength(3);
+    const q = params(itemRequests()[0]!);
+    expect(q.get('parentId')).toBe(LIB);
+    expect(q.get('includeItemTypes')).toBe('Movie');
+    expect(q.get('sortBy')).toBe('DateCreated,SortName');
+    expect(q.get('sortOrder')).toBe('Descending');
+    expect(q.get('recursive')).toBe('true');
+  });
+
+  it('refetches with the chosen filter, genre and sort, and can clear filters when nothing matches', async () => {
+    const { client, itemRequests } = setup(2);
+    await screen.findByText('2 titles');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unwatched' }));
+    await waitFor(() => expect(params(itemRequests().at(-1)!).get('filters')).toBe('IsUnplayed'));
+
+    fireEvent.change(await screen.findByRole('combobox', { name: /Genre/ }), { target: { value: 'g1' } });
+    await waitFor(() => expect(params(itemRequests().at(-1)!).get('genreIds')).toBe('g1'));
+
+    fireEvent.change(screen.getByRole('combobox', { name: /Sort by/ }), { target: { value: 'title' } });
+    await waitFor(() => expect(params(itemRequests().at(-1)!).get('sortBy')).toBe('SortName'));
+    expect(params(itemRequests().at(-1)!).get('sortOrder')).toBe('Ascending');
+
+    client.respond = routes({ Items: { Items: [], TotalRecordCount: 0 } });
+    fireEvent.click(screen.getByRole('button', { name: 'Watched' }));
+    expect(await screen.findByText('Nothing matches these filters.')).toBeInTheDocument();
+  });
+
+  it('pages in PAGE_SIZE chunks and opens details on select', async () => {
+    const { ctx, itemRequests } = setup(PAGE_SIZE + 5);
+    await screen.findByText(`${PAGE_SIZE + 5} titles`);
+    expect(params(itemRequests()[0]!).get('limit')).toBe(String(PAGE_SIZE));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Movie 1' }));
+    expect(ctx.navigate).toHaveBeenCalledWith('#/details?id=m1&serverId=s');
+  });
+
+  it('sorts shows by their newest episode for "Recently added"', () => {
+    expect(sortParams('added', 'tvshows').sortBy).toBe('DateLastContentAdded,SortName');
+    expect(sortParams('rating', 'movies')).toEqual({
+      sortBy: 'CommunityRating,SortName',
+      sortOrder: 'Descending',
+    });
+  });
+});

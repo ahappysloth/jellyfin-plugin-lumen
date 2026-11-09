@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="lmnJStemFold" x1="44" y1="24" x2="39" y2="37" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#e12d39"/>
+      <stop offset="1" stop-color="#78121d"/>
+    </linearGradient>
+    <linearGradient id="lmnJHookFold" x1="15" y1="42" x2="47" y2="42" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#a91d2a"/>
+      <stop offset=".45" stop-color="#e12d39"/>
+    </linearGradient>
+  </defs>
+  <!-- Upright ribbon, shaded beneath the diagonal fold. -->
+  <path fill="url(#lmnJStemFold)" d="M36 6h16v34H36Z"/>
+  <!-- The returning ribbon crosses the upright and opens into the hook. -->
+  <path fill="url(#lmnJHookFold)" d="m36 30 16 6v3c0 12-9 20-22 20S8 51 8 37h15c0 6 2 9 7 9 4 0 6-3 6-7Z"/>
+</svg>

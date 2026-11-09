@@ -26,9 +26,15 @@
 html.lmn-active #reactRoot .skinBody,
 html.lmn-active .backdropContainer,
 html.lmn-active .MuiAppBar-root,
-html.lmn-active .skinHeader {
+html.lmn-active .skinHeader,
+html.lmn-pending #reactRoot .skinBody,
+html.lmn-pending .backdropContainer,
+html.lmn-pending .MuiAppBar-root,
+html.lmn-pending .skinHeader {
   display: none !important;
 }
+/* lmn-pending: set by an inline guard in index.html until lumen.js decides whether to take over (no stock flash). */
+html.lmn-pending body,
 html.lmn-active body {
   background: var(--lmn-bg);
 }
@@ -75,15 +81,17 @@ html.lmn-active #lmn-root {
 }
 
 /* ---- Header / nav -------------------------------------------------------------------------------------------- */
+/* Brand on the left, the pill centred on the page: equal flexible side columns keep it centred whatever the brand's
+   width. The empty third column only balances the first. */
 .lmn-nav {
   position: fixed;
   z-index: 50;
   top: 0;
   right: 0;
   left: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
   height: var(--lmn-nav-h);
   padding: 0 var(--lmn-gutter);
@@ -106,6 +114,7 @@ html.lmn-active #lmn-root {
 }
 .lmn-nav__brand {
   display: flex;
+  justify-self: start;
   align-items: center;
   gap: 10px;
   min-width: 0;
@@ -115,22 +124,18 @@ html.lmn-active #lmn-root {
   letter-spacing: -0.02em;
   text-decoration: none;
 }
+/* The "J" ribbon mark (assets/lumen-j.svg), inlined. */
 .lmn-nav__mark {
-  position: relative;
+  display: block;
   flex: none;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: var(--lmn-accent);
+  width: 32px;
+  height: 32px;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
 }
-.lmn-nav__mark::after {
-  content: '';
-  position: absolute;
-  top: 9px;
-  left: 11px;
-  border-top: 6px solid transparent;
-  border-bottom: 6px solid transparent;
-  border-left: 10px solid #fff;
+.lmn-nav__mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .lmn-nav__name {
   overflow: hidden;
@@ -286,6 +291,21 @@ html.lmn-active #lmn-root {
   min-height: 520px;
   overflow: hidden;
   background: var(--lmn-surface);
+  /* Horizontal swipes/drags flip slides; vertical ones still scroll the page. */
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.lmn-hero.is-dragging {
+  cursor: grabbing;
+}
+.lmn-hero.is-dragging .lmn-hero__backdrop,
+.lmn-hero.is-dragging .lmn-hero__trailer {
+  transform: translateX(calc(var(--lmn-drag, 0px) * 0.25));
+}
+.lmn-hero.is-dragging .lmn-hero__content {
+  transform: translateX(calc(var(--lmn-drag, 0px) * 0.6));
+  opacity: 0.75;
 }
 .lmn-hero__backdrop,
 .lmn-hero__video {
@@ -900,11 +920,237 @@ html.lmn-active #lmn-root {
   white-space: nowrap;
 }
 
+/* ---- Library and Favorites pages ------------------------------------------------------------------------------ */
+.lmn-browse {
+  min-height: 100vh;
+  padding: calc(var(--lmn-nav-h) + 28px) var(--lmn-gutter) 48px;
+  background:
+    radial-gradient(
+      1200px 420px at 15% -120px,
+      color-mix(in srgb, var(--lmn-accent) 16%, transparent),
+      transparent 70%
+    ),
+    var(--lmn-bg);
+}
+.lmn-browse__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px 24px;
+  margin-bottom: 28px;
+}
+.lmn-browse__title {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(30px, 3.4vw, 44px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+.lmn-browse__meta {
+  margin: 8px 0 0;
+  color: var(--lmn-text-3);
+  font-size: 14px;
+  font-weight: 500;
+}
+.lmn-browse__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.lmn-browse__selects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lmn-segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--lmn-line);
+  border-radius: 12px;
+  background: var(--lmn-surface);
+}
+.lmn-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--lmn-text-2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+.lmn-chip:hover {
+  color: #fff;
+}
+.lmn-chip.is-active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-weight: 600;
+}
+.lmn-chip__count {
+  color: var(--lmn-text-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.lmn-chip.is-active .lmn-chip__count {
+  color: var(--lmn-text-2);
+}
+.lmn-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  border: 1px solid var(--lmn-line);
+  border-radius: 12px;
+  background: var(--lmn-surface);
+  transition: border-color 0.2s;
+}
+.lmn-select:hover,
+.lmn-select:focus-within {
+  border-color: var(--lmn-line-strong);
+}
+.lmn-select__label {
+  padding-left: 14px;
+  color: var(--lmn-text-3);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.lmn-select select {
+  height: 100%;
+  max-width: 220px;
+  padding: 0 36px 0 8px;
+  border: 0;
+  background: none;
+  color: #fff;
+  font: 600 13px var(--lmn-font);
+  cursor: pointer;
+  appearance: none;
+}
+.lmn-select select:focus {
+  outline: none;
+}
+.lmn-select:has(select:focus-visible) {
+  outline: 2px solid var(--lmn-focus);
+  outline-offset: 2px;
+}
+.lmn-select option {
+  background: var(--lmn-surface-2);
+  color: var(--lmn-text);
+}
+.lmn-select__chevron {
+  position: absolute;
+  right: 12px;
+  color: var(--lmn-text-2);
+  pointer-events: none;
+}
+.lmn-browse-grid {
+  display: grid;
+  gap: 28px 16px;
+}
+.lmn-browse-grid--poster {
+  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+}
+.lmn-browse-grid--landscape {
+  grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
+}
+.lmn-browse-grid .lmn-card {
+  width: 100%;
+}
+.lmn-browse-grid__cell {
+  min-width: 0;
+}
+.lmn-browse-grid__skeleton .lmn-card__art,
+.lmn-skeleton-line {
+  background: linear-gradient(
+    100deg,
+    var(--lmn-surface) 30%,
+    var(--lmn-surface-2) 50%,
+    var(--lmn-surface) 70%
+  );
+  background-size: 300% 100%;
+  animation: lmn-shimmer 1.4s linear infinite;
+}
+.lmn-browse-grid--poster .lmn-browse-grid__skeleton .lmn-card__art {
+  aspect-ratio: 2 / 3;
+}
+.lmn-skeleton-line {
+  display: block;
+  width: 70%;
+  height: 12px;
+  margin: 10px 2px 0;
+  border-radius: 4px;
+}
+@keyframes lmn-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+.lmn-browse-grid__sentinel {
+  height: 1px;
+}
+.lmn-browse__pending {
+  min-height: 50vh;
+}
+.lmn-browse__empty,
+.lmn-browse__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 72px 16px;
+  color: var(--lmn-text-2);
+  text-align: center;
+}
+.lmn-browse__empty p,
+.lmn-browse__error p {
+  max-width: 380px;
+  margin: 0 0 12px;
+}
+.lmn-browse__empty-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--lmn-accent) 18%, transparent);
+  color: var(--lmn-accent);
+}
+.lmn-browse__empty .lmn-browse__empty-title {
+  margin-bottom: 4px;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+}
+.lmn-chip:focus-visible {
+  outline: 2px solid var(--lmn-focus);
+  outline-offset: 2px;
+}
+
 /* ---- Small screens (official mobile apps) ------------------------------------------------------------------------ */
 @media (max-width: 720px) {
   :root {
     --lmn-card-w: 232px;
     --lmn-nav-h: 64px;
+  }
+  /* No room to centre: brand left, icon-only pill right. */
+  .lmn-nav {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
   .lmn-nav__label,
   .lmn-nav__divider {
@@ -917,6 +1163,52 @@ html.lmn-active #lmn-root {
   }
   .lmn-nav__name {
     font-size: 16px;
+  }
+  .lmn-browse {
+    padding-top: calc(var(--lmn-nav-h) + 16px);
+  }
+  .lmn-browse__header {
+    margin-bottom: 20px;
+  }
+  .lmn-browse__toolbar,
+  .lmn-segmented {
+    width: 100%;
+  }
+  .lmn-segmented .lmn-chip {
+    flex: 1;
+    justify-content: center;
+  }
+  .lmn-browse__selects {
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+  .lmn-browse__selects .lmn-select {
+    flex: 1;
+    min-width: 0;
+  }
+  .lmn-select select {
+    flex: 1;
+    min-width: 0;
+    max-width: none;
+    padding-left: 14px;
+  }
+  /* The chosen value says enough on a phone; the label stays for screen readers. */
+  .lmn-select__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .lmn-browse-grid {
+    gap: 20px 10px;
+  }
+  .lmn-browse-grid--poster {
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  }
+  .lmn-browse-grid--landscape {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   }
   .lmn-hero {
     height: 78vh;
@@ -968,7 +1260,7 @@ html.lmn-active #lmn-root {
   .lmn-row--genres .lmn-row__arrow {
     height: 113px;
   }
-  .lmn-grid {
+  .lmn-browse-grid {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   }
   .lmn-details__header {
@@ -997,7 +1289,9 @@ html.lmn-active #lmn-root {
   .lmn-hero__backdrop,
   .lmn-hero__video,
   .lmn-hero__content,
-  .lmn-hero__dash {
+  .lmn-hero__dash,
+  .lmn-browse-grid__skeleton .lmn-card__art,
+  .lmn-skeleton-line {
     transition: none;
     animation: none;
   }

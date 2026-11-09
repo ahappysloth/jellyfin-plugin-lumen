@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createFakeClient } from '../../test/fakeClient';
-import { detailsHash, genreHash, getAppBarHeight, getLayout, libraryHash, selfTest } from './jellyfin';
+import {
+  detailsHash,
+  genreHash,
+  getAppBarHeight,
+  getLayout,
+  libraryHash,
+  selfTest,
+  setFavicon,
+} from './jellyfin';
 
 function stockDom(): void {
   document.body.innerHTML =
@@ -71,5 +79,19 @@ describe('compat', () => {
       '#/list?parentId=c&serverId=s',
     );
     expect(genreHash('g', 's')).toBe('#/list?genreId=g&serverId=s');
+  });
+});
+
+describe('setFavicon', () => {
+  it("replaces jellyfin-web's icon with the SVG mark, adding a link when none exists", () => {
+    document.head.innerHTML = '<link rel="shortcut icon" href="favicon.ico">';
+    setFavicon('<svg/>');
+    const link = document.querySelector<HTMLLinkElement>('link[rel~="icon"]')!;
+    expect(link.href).toBe('data:image/svg+xml,%3Csvg%2F%3E');
+    expect(link.type).toBe('image/svg+xml');
+
+    document.head.innerHTML = '';
+    setFavicon('<svg/>');
+    expect(document.querySelectorAll('link[rel="icon"]')).toHaveLength(1);
   });
 });

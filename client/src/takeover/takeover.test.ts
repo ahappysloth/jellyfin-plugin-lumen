@@ -7,6 +7,7 @@ const config: ClientConfig = {
   Enabled: true,
   HomeTakeover: true,
   DetailsTakeover: false,
+  LibraryTakeover: false,
   AccentColor: '#f5a524',
   HeroIntervalSeconds: 8,
   TrailerPreview: true,
@@ -151,5 +152,23 @@ describe('Takeover', () => {
 
     expect(options.unmount).not.toHaveBeenCalled();
     expect(document.documentElement.classList.contains('lmn-active')).toBe(true);
+  });
+
+  it('takes over library pages and favorites only when LibraryTakeover is on', () => {
+    const off = create();
+    off.takeover.handle({ kind: 'library', id: 'lib', collection: 'movies' });
+    off.takeover.handle({ kind: 'favorites' });
+    expect(off.options.mount).not.toHaveBeenCalled();
+
+    const on = create({ config: { ...config, LibraryTakeover: true } });
+    on.takeover.handle({ kind: 'library', id: 'lib', collection: 'movies' });
+    expect(document.documentElement.classList.contains('lmn-library')).toBe(true);
+    on.takeover.handle({ kind: 'library', id: 'lib', collection: 'movies' });
+    expect(on.options.mount).toHaveBeenCalledTimes(1);
+
+    on.takeover.handle({ kind: 'favorites' });
+    expect(on.options.mount).toHaveBeenCalledTimes(2);
+    expect(document.documentElement.classList.contains('lmn-favorites')).toBe(true);
+    expect(document.documentElement.classList.contains('lmn-library')).toBe(false);
   });
 });

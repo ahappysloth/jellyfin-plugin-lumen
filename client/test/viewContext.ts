@@ -8,6 +8,7 @@ export const testConfig: ClientConfig = {
   Enabled: true,
   HomeTakeover: true,
   DetailsTakeover: true,
+  LibraryTakeover: true,
   AccentColor: '#f5a524',
   HeroIntervalSeconds: 8,
   TrailerPreview: false,

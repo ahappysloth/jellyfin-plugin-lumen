@@ -1,10 +1,11 @@
 # Lumen for Jellyfin
 
-Lumen gives Jellyfin a cinematic home screen and redesigned movie/series details pages:
-- a rotating hero with optional muted trailer previews, under a floating pill nav to your libraries, search and settings
+Lumen gives Jellyfin a cinematic home screen, redesigned library and details pages, and a Favorites page:
+- a swipeable rotating hero with optional muted trailer previews, under a floating pill nav to your libraries, favorites, search and settings
 - personalized rows of landscape cards: Because You Watched, daily genre picks, New For You, curated collections, playlists, or tags, plus Popular Genres tiles
 - "Recently added", "New episode" and "New season" badges on cards
 - details pages built around one-click play and resume, with the local trailer playing behind them
+- Movies and Shows pages with an endless poster grid, watched/genre filters and sorting, plus a Favorites page
 
 It is a single, self-contained server plugin, with no other plugins required. Whenever anything goes wrong, Jellyfin's stock UI takes over automatically.
 
@@ -34,7 +35,7 @@ Lumen changes Jellyfin's *web* interface, so it appears wherever that interface 
 
 ## Running alongside other plugins
 
-Lumen injects its own script and hides only the stock home and details pages while it shows its own. It can run next to plugins that use the File Transformation plugin, but plugins that also redesign the home screen will be hidden while Lumen's home is showing. If you use one of those, turn off "Replace the home screen" in Lumen's settings.
+Lumen injects its own script and hides only the stock pages it replaces (home, details, the Movies and Shows libraries and Favorites) while it shows its own. It can run next to plugins that use the File Transformation plugin, but plugins that also redesign the home screen will be hidden while Lumen's home is showing. If you use one of those, turn off "Replace the home screen" in Lumen's settings.
 
 ## Playback tips
 
