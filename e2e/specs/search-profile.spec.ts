@@ -44,7 +44,7 @@ test('the sign-in page wears Lumen’s look', async ({ page }) => {
   const background = await page
     .locator('.manualLoginForm .button-submit')
     .evaluate((el) => getComputedStyle(el).backgroundColor);
-  expect(background).toBe('rgb(225, 45, 57)');
+  expect(background).toBe('rgb(227, 11, 23)');
 });
 
 test('settings pages keep working inside Lumen’s frame', async ({ page }) => {

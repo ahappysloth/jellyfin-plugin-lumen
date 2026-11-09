@@ -71,11 +71,32 @@ public class ConfigMigratorTests
         Assert.True(config.Enabled);
         Assert.True(config.HomeTakeover);
         Assert.True(config.DetailsTakeover);
-        Assert.Equal("#e12d39", config.AccentColor);
+        Assert.Equal("#e30b17", config.AccentColor);
         Assert.Equal(HeroSource.RecentlyAdded, config.HeroSource);
         Assert.Equal(5, config.HeroCount);
         Assert.Equal(8, config.HeroIntervalSeconds);
         Assert.True(config.TrailerPreview);
         Assert.Equal(4, config.TrailerDelaySeconds);
+    }
+
+    [Fact]
+    public void V1WithTheOldDefaultAccent_MovesToTheNewRed()
+    {
+        var config = new PluginConfiguration { SchemaVersion = 1, AccentColor = "#E12D39", Sections = [new SectionDefinition { Id = Guid.NewGuid(), Type = SectionTypes.NextUp }] };
+
+        Assert.True(ConfigMigrator.Migrate(config, [Movies]));
+
+        Assert.Equal(PluginConfiguration.DefaultAccent, config.AccentColor);
+        Assert.Equal(2, config.SchemaVersion);
+    }
+
+    [Fact]
+    public void V1WithACustomAccent_KeepsIt()
+    {
+        var config = new PluginConfiguration { SchemaVersion = 1, AccentColor = "#3366ff", Sections = [new SectionDefinition { Id = Guid.NewGuid(), Type = SectionTypes.NextUp }] };
+
+        ConfigMigrator.Migrate(config, [Movies]);
+
+        Assert.Equal("#3366ff", config.AccentColor);
     }
 }

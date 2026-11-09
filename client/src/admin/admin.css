@@ -1,7 +1,7 @@
 /* Lumen settings page. Scoped to .lmn-admin; colours derive from the dashboard's text colour so light and dark
    dashboard themes both work. */
 .lmn-admin {
-  --a-accent: #e12d39;
+  --a-accent: #e30b17;
   --a-fg: currentColor;
   --a-surface: color-mix(in srgb, currentColor 5%, transparent);
   --a-surface-2: color-mix(in srgb, currentColor 9%, transparent);
@@ -35,7 +35,7 @@
   flex: none;
   width: 44px;
   height: 44px;
-  filter: drop-shadow(0 4px 12px rgba(225, 45, 57, 0.35));
+  filter: drop-shadow(0 4px 12px rgba(227, 11, 23, 0.35));
 }
 .lmn-admin__logo svg {
   display: block;

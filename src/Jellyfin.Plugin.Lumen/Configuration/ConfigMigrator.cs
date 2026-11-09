@@ -20,7 +20,19 @@ public static class ConfigMigrator
             changed = true;
         }
 
-        // Future migrations: `if (config.SchemaVersion < 2) { ...; config.SchemaVersion = 2; changed = true; }`
+        if (config.SchemaVersion < 2)
+        {
+            // The default red changed with the refined J; a server still on the old default follows it, a custom accent stays.
+            if (string.Equals(config.AccentColor, PluginConfiguration.LegacyDefaultAccent, StringComparison.OrdinalIgnoreCase))
+            {
+                config.AccentColor = PluginConfiguration.DefaultAccent;
+            }
+
+            config.SchemaVersion = 2;
+            changed = true;
+        }
+
+        // Future migrations: `if (config.SchemaVersion < 3) { ...; config.SchemaVersion = 3; changed = true; }`
         return changed;
     }
 }
