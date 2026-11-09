@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { UserInfo } from '../../api/types';
 import { canSignOut, getServerName, SETTINGS_HASHES, signOut } from '../../compat/jellyfin';
 import { Icon, type IconName } from '../../components/icons';
+import { useAutoFocus } from '../../components/useAutoFocus';
 import { strings } from '../../strings';
 import { liftVeil } from '../../veil/veil';
 import type { ViewContext } from '../context';
@@ -39,6 +40,8 @@ const ADMIN: readonly Entry[] = [
 export function ProfileView({ ctx }: { ctx: ViewContext }) {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [serverName, setServerName] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useAutoFocus(rootRef, user !== null, ctx.layout);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,7 +63,7 @@ export function ProfileView({ ctx }: { ctx: ViewContext }) {
     ctx.layout === 'tv' ? [...PREFERENCES, { key: 'controls', icon: 'gamepad' } as const] : PREFERENCES;
 
   return (
-    <div class="lmn-browse lmn-profile">
+    <div ref={rootRef} class="lmn-browse lmn-profile">
       <header class="lmn-profile__header">
         <a
           class="lmn-profile__avatar"
@@ -91,7 +94,7 @@ export function ProfileView({ ctx }: { ctx: ViewContext }) {
       </header>
 
       <div class="lmn-profile__groups">
-        <Group title={strings.account} entries={ACCOUNT} userId={user.Id} />
+        <Group title={strings.account} entries={ACCOUNT} userId={user.Id} autofocus />
         <Group title={strings.preferences} entries={preferences} userId={user.Id} />
         {admin && <Group title={strings.administration} entries={ADMIN} userId={user.Id} />}
       </div>
@@ -110,16 +113,30 @@ export function ProfileView({ ctx }: { ctx: ViewContext }) {
   );
 }
 
-function Group({ title, entries, userId }: { title: string; entries: readonly Entry[]; userId: string }) {
+function Group({
+  title,
+  entries,
+  userId,
+  autofocus = false,
+}: {
+  title: string;
+  entries: readonly Entry[];
+  userId: string;
+  /** TV: the group's first link takes the starting focus. */
+  autofocus?: boolean;
+}) {
   return (
     <section class="lmn-profile__group" aria-label={title}>
       <h2 class="lmn-profile__group-title">{title}</h2>
       <ul class="lmn-profile__list">
-        {entries.map(({ key, icon }) => {
+        {entries.map(({ key, icon }, i) => {
           const [label, hint] = strings.settings[key];
           return (
             <li key={key}>
-              <a class="lmn-profile__link" href={SETTINGS_HASHES[key](userId)}>
+              <a
+                class={`lmn-profile__link${autofocus && i === 0 ? ' lmn-autofocus' : ''}`}
+                href={SETTINGS_HASHES[key](userId)}
+              >
                 <span class="lmn-profile__icon">
                   <Icon name={icon} size={20} />
                 </span>

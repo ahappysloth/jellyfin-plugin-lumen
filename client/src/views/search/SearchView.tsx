@@ -3,6 +3,8 @@ import type { BaseItem, CatalogItem } from '../../api/types';
 import { Card } from '../../components/Card';
 import { Icon } from '../../components/icons';
 import { type CardVariant, imageUrl } from '../../components/images';
+import { LoadError } from '../../components/LoadError';
+import { useAutoFocus } from '../../components/useAutoFocus';
 import { strings } from '../../strings';
 import { liftVeil } from '../../veil/veil';
 import { CatalogCard } from '../catalog/CatalogCard';
@@ -30,6 +32,8 @@ export interface SearchResults {
   people: BaseItem[];
   /** Seerr titles not already listed above; empty when request features are off for this user. */
   catalog: CatalogItem[];
+  /** Every library search failed (offline, server down): not the same as "no results". */
+  failed: boolean;
 }
 
 const KINDS: readonly { key: string; title: string; type: string; variant: CardVariant }[] = [
@@ -38,13 +42,21 @@ const KINDS: readonly { key: string; title: string; type: string; variant: CardV
   { key: 'episodes', title: strings.episodesTab, type: 'Episode', variant: 'landscape' },
 ];
 
-/** Searches each kind separately so every section gets its own best matches. A failed kind is just left out. */
+/**
+ * Searches each kind separately so every section gets its own best matches. A failed kind is just left out, unless
+ * they all failed: then the result says so.
+ */
 export async function runSearch(ctx: ViewContext, query: string): Promise<SearchResults> {
   const catalogSearch = loadRequestStatus(ctx).then((status) =>
     status.Enabled ? ctx.api.searchCatalog(query).then((r) => r.Results) : [],
   );
+  let failures = 0;
+  const none = (): { Items: BaseItem[] } => {
+    failures++;
+    return { Items: [] };
+  };
   const [people, ...kinds] = await Promise.all([
-    ctx.api.searchPeople(query, PEOPLE).catch(() => ({ Items: [] })),
+    ctx.api.searchPeople(query, PEOPLE).catch(none),
     ...KINDS.map((kind) =>
       ctx.api
         .getBrowseItems({
@@ -55,9 +67,10 @@ export async function runSearch(ctx: ViewContext, query: string): Promise<Search
           startIndex: 0,
           limit: PER_KIND,
         })
-        .catch(() => ({ Items: [] })),
+        .catch(none),
     ),
   ]);
+  const failed = failures === KINDS.length + 1;
   const sections = KINDS.map((kind, i) => ({ ...kind, items: kinds[i]!.Items })).filter(
     (s) => s.items.length > 0,
   );
@@ -65,7 +78,7 @@ export async function runSearch(ctx: ViewContext, query: string): Promise<Search
   const catalog = (await catalogSearch.catch(() => [] as CatalogItem[])).filter(
     (c) => !c.JellyfinItemId || !listed.has(c.JellyfinItemId.replace(/-/g, '').toLowerCase()),
   );
-  return { query, sections, people: people.Items, catalog };
+  return { query, sections, people: people.Items, catalog: failed ? [] : catalog, failed };
 }
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -85,6 +98,8 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
   const [explore, setExplore] = useState<BaseItem[] | null>(null);
   const field = useRef<HTMLInputElement>(null);
   const latest = useRef('');
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const [attempt, setAttempt] = useState(0);
   const onMenu = cardMenuHandler(ctx);
   const searching = query.length >= MIN_QUERY;
 
@@ -107,7 +122,7 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
         if (latest.current === next.query) setResults(next);
       })
       .catch(() => undefined);
-  }, [query]);
+  }, [query, attempt]);
 
   useEffect(() => {
     if (searching || explore) return;
@@ -126,8 +141,20 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
   const shown = searching && results?.query === query ? results : null;
   const pending = searching && !shown;
   const open = (item: BaseItem): void => ctx.navigate(infoHash(item));
-  const empty =
-    shown && shown.sections.length === 0 && shown.people.length === 0 && shown.catalog.length === 0;
+  const failed = !!shown?.failed;
+  const count = shown
+    ? shown.sections.reduce((n, s) => n + s.items.length, 0) + shown.people.length + shown.catalog.length
+    : 0;
+  const empty = shown && !failed && count === 0;
+  // TV: focus the first result (or Explore card) rather than the field, which would open the on-screen keyboard.
+  useAutoFocus(resultsRef, !!(shown ?? explore), ctx.layout);
+  const status = !searching
+    ? ''
+    : pending
+      ? strings.searching
+      : failed
+        ? '' // the error block announces itself
+        : strings.resultCount(count);
 
   return (
     <div class="lmn-browse lmn-search">
@@ -167,9 +194,22 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
         )}
       </form>
 
-      <div aria-live="polite" aria-busy={pending}>
+      {/* One short line for screen readers, rather than re-reading every section on each keystroke. */}
+      <p class="lmn-visually-hidden" role="status">
+        {status}
+      </p>
+      <div ref={resultsRef} aria-busy={pending}>
         {!searching && explore && explore.length > 0 && (
           <ResultSection title={strings.explore} variant="poster" items={explore} ctx={ctx} onMenu={onMenu} />
+        )}
+        {failed && (
+          <LoadError
+            message={strings.searchFailed}
+            onRetry={() => {
+              setResults(null);
+              setAttempt((n) => n + 1);
+            }}
+          />
         )}
         {empty && (
           <div class="lmn-browse__empty">

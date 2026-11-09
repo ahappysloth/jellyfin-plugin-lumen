@@ -1,14 +1,13 @@
-import { useEffect, useState } from 'preact/hooks';
-import type { BaseItem } from '../../api/types';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { Dropdown } from '../../components/Dropdown';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
-import { cardMenuHandler, infoHash } from '../cardMenu';
+import { useAutoFocus } from '../../components/useAutoFocus';
 import { BrowseGrid } from './BrowseGrid';
-import { getChoice, saveChoice, saveSnapshot } from './browseStore';
+import { getChoice, saveChoice } from './browseStore';
 import { sortParams, type SortKey } from './LibraryView';
 import { type Option, PageHeader, Segmented } from './Toolbar';
-import { useBrowseItems } from './useBrowseItems';
+import { useGridPage } from './useGridPage';
 
 export type GenreKind = 'all' | 'movies' | 'shows';
 
@@ -55,7 +54,7 @@ export function GenreView({ id, parentId, ctx }: { id: string; parentId?: string
   }, [id, ctx.userId]);
 
   const queryKey = `${ctx.userId}|genre|${id}|${parentId ?? ''}|${choice.kind}|${choice.sort}`;
-  const state = useBrowseItems(queryKey, (page) =>
+  const { state, select, onMenu } = useGridPage(ctx, queryKey, (page) =>
     ctx.api.getBrowseItems({
       parentId,
       includeItemTypes: ITEM_TYPES[choice.kind],
@@ -65,23 +64,12 @@ export function GenreView({ id, parentId, ctx }: { id: string; parentId?: string
     }),
   );
 
-  const save = (): void => {
-    if (state.total !== null)
-      saveSnapshot(queryKey, {
-        items: state.items,
-        total: state.total,
-        scrollY: window.scrollY,
-        offset: state.offset,
-      });
-  };
-  const select = (item: BaseItem): void => {
-    save();
-    ctx.navigate(infoHash(item));
-  };
+  const rootRef = useRef<HTMLDivElement>(null);
+  useAutoFocus(rootRef, true, ctx.layout, state.restoredSelectedId ?? undefined);
   const title = name ?? strings.genrePage;
 
   return (
-    <div class="lmn-browse lmn-genre-page">
+    <div ref={rootRef} class="lmn-browse lmn-genre-page">
       <PageHeader title={title} meta={state.total !== null ? strings.titleCount(state.total) : undefined}>
         <Segmented
           label={strings.filter}
@@ -104,7 +92,7 @@ export function GenreView({ id, parentId, ctx }: { id: string; parentId?: string
         variant="poster"
         label={title}
         onSelect={select}
-        onMenu={cardMenuHandler(ctx, { beforeNavigate: save })}
+        onMenu={onMenu}
         empty={<p>{strings.emptyGenre}</p>}
       />
     </div>

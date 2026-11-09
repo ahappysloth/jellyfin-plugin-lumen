@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { BaseItem } from '../../api/types';
 import { strings } from '../../strings';
 import type { LibraryCollection } from '../../takeover/routes';
 import type { ViewContext } from '../context';
-import { cardMenuHandler, infoHash } from '../cardMenu';
 import { BrowseGrid } from './BrowseGrid';
-import { getChoice, saveChoice, saveSnapshot } from './browseStore';
+import { getChoice, saveChoice } from './browseStore';
 import { Dropdown } from '../../components/Dropdown';
+import { useAutoFocus } from '../../components/useAutoFocus';
 import { type Option, PageHeader, Segmented } from './Toolbar';
-import { useBrowseItems } from './useBrowseItems';
+import { useGridPage } from './useGridPage';
 
 export type SortKey = 'added' | 'title' | 'release' | 'rating';
 export type FilterKey = 'all' | 'unwatched' | 'watched';
@@ -31,6 +31,8 @@ const TITLES: Record<LibraryCollection, string> = {
   tvshows: strings.shows,
   boxsets: strings.collections,
 };
+/** The user-data field a filter depends on: changing it makes a saved grid stale. */
+const FILTER_FIELDS = { all: [], unwatched: ['Played'], watched: ['Played'] } as const;
 const FILTER_PARAMS: Record<FilterKey, string[]> = {
   all: [],
   unwatched: ['IsUnplayed'],
@@ -100,16 +102,22 @@ export function LibraryView({
   }, [id, ctx.userId]);
 
   const queryKey = `${ctx.userId}|library|${id}|${choice.sort}|${choice.filter}|${choice.genre}`;
-  const state = useBrowseItems(queryKey, (page) =>
-    ctx.api.getBrowseItems({
-      parentId: id,
-      includeItemTypes: itemType,
-      ...sortParams(choice.sort, collection),
-      filters: FILTER_PARAMS[choice.filter],
-      genreIds: choice.genre ? [choice.genre] : undefined,
-      ...page,
-    }),
+  const { state, select, onMenu } = useGridPage(
+    ctx,
+    queryKey,
+    (page) =>
+      ctx.api.getBrowseItems({
+        parentId: id,
+        includeItemTypes: itemType,
+        ...sortParams(choice.sort, collection),
+        filters: FILTER_PARAMS[choice.filter],
+        genreIds: choice.genre ? [choice.genre] : undefined,
+        ...page,
+      }),
+    { dependsOn: FILTER_FIELDS[choice.filter] },
   );
+  const rootRef = useRef<HTMLDivElement>(null);
+  useAutoFocus(rootRef, true, ctx.layout, state.restoredSelectedId ?? undefined);
 
   const genreOptions = useMemo<Option<string>[]>(
     () => [{ value: '', label: strings.allGenres }, ...genres.map((g) => ({ value: g.Id, label: g.Name }))],
@@ -118,23 +126,8 @@ export function LibraryView({
   const filtered = choice.filter !== 'all' || choice.genre !== '';
   const fallbackTitle = TITLES[collection];
 
-  /** Remembers the grid and scroll position, so Back from a title lands on the same card. */
-  const save = (): void => {
-    if (state.total !== null)
-      saveSnapshot(queryKey, {
-        items: state.items,
-        total: state.total,
-        scrollY: window.scrollY,
-        offset: state.offset,
-      });
-  };
-  const select = (item: BaseItem): void => {
-    save();
-    ctx.navigate(infoHash(item));
-  };
-
   return (
-    <div class="lmn-browse">
+    <div ref={rootRef} class="lmn-browse">
       <PageHeader
         title={name ?? fallbackTitle}
         meta={state.total !== null ? strings.titleCount(state.total) : undefined}
@@ -168,7 +161,7 @@ export function LibraryView({
         variant="poster"
         label={name ?? fallbackTitle}
         onSelect={select}
-        onMenu={cardMenuHandler(ctx, { beforeNavigate: save })}
+        onMenu={onMenu}
         empty={
           filtered ? (
             <>

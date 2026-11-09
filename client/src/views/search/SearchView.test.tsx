@@ -63,6 +63,42 @@ describe('SearchView', () => {
     await flush();
 
     expect(screen.getByText('No results for “zzz”')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('0 results');
+  });
+
+  it('announces a short result count instead of a live region around every result', async () => {
+    const client = createFakeClient(routes({ Items: items, Persons: { Items: [] } }));
+    render(<SearchView initialQuery="alp" ctx={makeContext(client)} />);
+    await flush();
+
+    expect(screen.getByRole('status')).toHaveTextContent('1 result');
+    expect(document.querySelector('[aria-live]')).toBeNull();
+  });
+
+  it('shows a load error with Try again, not "No results", when every search fails', async () => {
+    const client = createFakeClient(() => Promise.reject(new Error('offline')));
+    render(<SearchView initialQuery="alp" ctx={makeContext(client)} />);
+    await flush();
+
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't search right now.");
+    expect(screen.queryByText(/No results/)).toBeNull();
+
+    client.respond = routes({ Items: items, Persons: { Items: [] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await flush();
+    expect(screen.getByRole('button', { name: 'Lumen Alpha' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('keeps the results of the kinds that answered when only some fail', async () => {
+    const client = createFakeClient(
+      routes({ Items: items, Persons: () => Promise.reject(new Error('people search down')) }),
+    );
+    render(<SearchView initialQuery="alp" ctx={makeContext(client)} />);
+    await flush();
+
+    expect(screen.getByRole('button', { name: 'Lumen Alpha' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });
 

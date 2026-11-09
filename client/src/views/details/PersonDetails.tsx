@@ -5,9 +5,7 @@ import { imageUrl, resolveImage } from '../../components/images';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { strings } from '../../strings';
 import { BrowseGrid } from '../browse/BrowseGrid';
-import { saveSnapshot } from '../browse/browseStore';
-import { useBrowseItems } from '../browse/useBrowseItems';
-import { cardMenuHandler, infoHash } from '../cardMenu';
+import { useGridPage } from '../browse/useGridPage';
 import type { ViewContext } from '../context';
 import { initials } from './CastRow';
 import { goBack } from './useItemActions';
@@ -30,11 +28,10 @@ export function formatPersonDate(iso: string | undefined): string | null {
 /** An actor or crew member: portrait, life dates, biography, and the titles in this library they're in. */
 export function PersonDetails({ item, ctx }: { item: BaseItem; ctx: ViewContext }) {
   const rootRef = useRef<HTMLElement>(null);
-  useAutoFocus(rootRef, true, ctx.layout);
   const [expanded, setExpanded] = useState(false);
 
   const queryKey = `${ctx.userId}|person|${item.Id}`;
-  const state = useBrowseItems(queryKey, (page) =>
+  const { state, select, onMenu } = useGridPage(ctx, queryKey, (page) =>
     ctx.api.getBrowseItems({
       personIds: [item.Id],
       includeItemTypes: 'Movie,Series',
@@ -43,15 +40,7 @@ export function PersonDetails({ item, ctx }: { item: BaseItem; ctx: ViewContext 
       ...page,
     }),
   );
-  const save = (): void => {
-    if (state.total !== null)
-      saveSnapshot(queryKey, {
-        items: state.items,
-        total: state.total,
-        scrollY: window.scrollY,
-        offset: state.offset,
-      });
-  };
+  useAutoFocus(rootRef, true, ctx.layout, state.restoredSelectedId ?? undefined);
 
   const photo = resolveImage(item, ['Primary']);
   const born = formatPersonDate(item.PremiereDate);
@@ -130,11 +119,8 @@ export function PersonDetails({ item, ctx }: { item: BaseItem; ctx: ViewContext 
           client={ctx.client}
           variant="poster"
           label={strings.knownFor}
-          onSelect={(title) => {
-            save();
-            ctx.navigate(infoHash(title));
-          }}
-          onMenu={cardMenuHandler(ctx, { beforeNavigate: save })}
+          onSelect={select}
+          onMenu={onMenu}
           empty={<p>{strings.noPersonTitles}</p>}
         />
       </section>

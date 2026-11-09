@@ -3,6 +3,7 @@ import './styles/lumen.css';
 import './styles/stock-skin.css';
 import './styles/dropdown.css';
 import './styles/player.css';
+import './styles/feedback.css';
 import { startLumen } from './takeover/bootstrap';
 import { App } from './views/App';
 

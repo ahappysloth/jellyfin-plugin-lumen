@@ -1,6 +1,7 @@
 import { ContextMenuHost } from '../components/ContextMenu';
 import { useEffect } from 'preact/hooks';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { ToastHost } from '../components/Toast';
 import { liftVeil } from '../veil/veil';
 import type { TakeoverRoute } from '../takeover/routes';
 import { FavoritesView } from './browse/FavoritesView';
@@ -76,6 +77,7 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
       )}
       <Page route={route} ctx={ctx} />
       <ContextMenuHost />
+      <ToastHost />
     </ErrorBoundary>
   );
 }

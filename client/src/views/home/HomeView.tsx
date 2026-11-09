@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { BaseItem, HomeResponse, HomeRow } from '../../api/types';
 import { detailsHash } from '../../compat/jellyfin';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
+import { showToast } from '../../components/Toast';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { startPlayback } from '../../playback/startPlayback';
 import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
@@ -25,7 +26,6 @@ import { Row } from './Row';
 
 export function HomeView({ ctx }: { ctx: ViewContext }) {
   const [home, setHome] = useState<HomeResponse | null>(() => usableCachedHome(ctx.userId) ?? null);
-  const [error, setError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const previous = getSelection(ctx.userId);
   useAutoFocus(rootRef, home !== null, ctx.layout, previous?.itemId);
@@ -64,12 +64,11 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
 
   const open = (item: BaseItem): void => ctx.navigate(detailsHash(item.Id, item.ServerId));
   const play = (item: BaseItem): void => {
-    setError(null);
     startPlayback(ctx, item)
       .then((played) => played || open(item))
-      .catch(() => setError(strings.playbackFailed));
+      .catch(() => showToast(strings.playbackFailed));
   };
-  const onMenu = cardMenuHandler(ctx, { onError: setError });
+  const onMenu = cardMenuHandler(ctx);
   const select = (item: BaseItem, row: HomeRow): void => {
     const card = rootRef.current?.querySelector(`[data-row-id="${row.Id}"] [data-item-id="${item.Id}"]`);
     rememberSelection(ctx.userId, {
@@ -97,11 +96,6 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
             onInfo={open}
           />
         </ErrorBoundary>
-      )}
-      {error && (
-        <p class="lmn-toast" role="alert">
-          {error}
-        </p>
       )}
       {home.Rows.map((row) => (
         <ErrorBoundary key={row.Id} fallback={null}>
