@@ -5,7 +5,8 @@ import type { PlayerSnapshot } from './playerState';
 
 /**
  * Quality presets, highest first. A preset shows when the source is at least `minHeight` tall (no "4K" for a 1080p
- * file). Bitrates follow jellyfin-web's own quality menu.
+ * file). Bitrates follow jellyfin-web's own quality menu, and like it they only cap the bitrate: the server transcodes
+ * under the cap but keeps the source resolution, so the menu shows the bitrate next to each name.
  */
 export const QUALITY_PRESETS = [
   { label: '4K', detail: 'Ultra HD', bitrate: 120_000_000, minHeight: 1500 },
@@ -113,7 +114,7 @@ export function QualityPanel({
               key={p.bitrate}
               selected={current === p.bitrate}
               label={p.label}
-              detail={p.detail}
+              detail={[p.detail, `${p.bitrate / 1_000_000} Mbps`].filter(Boolean).join(' · ')}
               onSelect={() => setQuality(p.bitrate)}
             />
           ))}
