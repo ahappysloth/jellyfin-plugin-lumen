@@ -32,8 +32,8 @@ export function GeneralSettings({
         onChange={(v) => update({ LibraryTakeover: v })}
       />
       <Switch
-        label="Restyle Jellyfin's sign-in and settings pages"
-        hint="Display, Playback, Subtitles and the other settings keep working as before; only their look changes."
+        label="Restyle Jellyfin's sign-in, settings and Dashboard pages"
+        hint="Settings, the Dashboard and the metadata editor keep working as before; only their look changes."
         checked={config.StyleStockPages}
         onChange={(v) => update({ StyleStockPages: v })}
       />

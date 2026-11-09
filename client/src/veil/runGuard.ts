@@ -5,7 +5,7 @@
  * takes over (takeover/bootstrap.ts), so a slow server doesn't flash the stock page before Lumen's.
  */
 import { MARK_SVG } from '../brand/mark';
-import { applySignInSkin } from './skin';
+import { applyDashboardSkin, applySignInSkin } from './skin';
 import { liftVeil, PENDING_CLASS, shouldVeil, showVeil } from './veil';
 
 export const SAFETY_MS = 8000;
@@ -13,9 +13,12 @@ export const SAFETY_MS = 8000;
 export const SAFETY_TIMER_KEY = '__lmnVeilSafety';
 
 export function runGuard(win: Window, doc: Document): void {
-  const follow = (): void => applySignInSkin(doc, win.location.hash);
+  const follow = (): void => {
+    applySignInSkin(doc, win.location.hash);
+    applyDashboardSkin(doc, win.location.hash);
+  };
   follow();
-  // Follow navigation on our own too, so the sign-in look comes off even if lumen.js never loads. jellyfin-web
+  // Follow navigation on our own too, so the sign-in and admin looks come off even if lumen.js never loads. jellyfin-web
   // navigates with history.pushState, which fires no event, so wrap it (and replaceState) as well.
   win.addEventListener('hashchange', follow);
   win.addEventListener('popstate', follow);

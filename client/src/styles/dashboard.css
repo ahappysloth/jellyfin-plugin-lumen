@@ -1,0 +1,526 @@
+/*
+ * Lumen's look for jellyfin-web's admin pages: the Dashboard (#/dashboard/*), the metadata manager (#/metadata) and
+ * plugin settings pages (#/configurationpage). Built on its own (vite.dashboard.config.ts → lumen-dashboard.css) and
+ * only linked when the admin leaves "Restyle Jellyfin's sign-in, settings and Dashboard pages" on; everything is scoped to
+ * html.lmn-skin-dashboard, which the inline guard sets on those routes (veil/skin.ts).
+ *
+ * The Dashboard is React + MUI. MUI reads its colours from jellyfin-web's `--jf-*` CSS variables, so Lumen's palette
+ * goes in there first; the rest uses MUI's stable `Mui*` class names (never emotion's generated `css-*` ones) and
+ * jellyfin-web's legacy class names for the older pages and dialogs. The legacy emby-* form controls share their
+ * rules with the settings pages (stock-skin.css). If a selector stops matching after a Jellyfin update, that part
+ * looks stock again; nothing here changes how a page works.
+ */
+
+/* ---- Palette: jellyfin-web's MUI theme variables (set over every dashboard theme) ---------- */
+html.lmn-skin-dashboard[data-theme],
+html.lmn-skin-dashboard {
+  color-scheme: dark;
+  --jf-palette-mode: dark;
+  --jf-palette-background-default: var(--lmn-bg);
+  --jf-palette-background-defaultChannel: 15 15 15;
+  --jf-palette-background-paper: var(--lmn-surface);
+  --jf-palette-background-paperChannel: 24 24 24;
+  --jf-palette-primary-main: var(--lmn-accent);
+  --jf-palette-primary-light: color-mix(in srgb, var(--lmn-accent) 80%, #fff);
+  --jf-palette-primary-dark: color-mix(in srgb, var(--lmn-accent) 80%, #000);
+  --jf-palette-primary-contrastText: #fff;
+  /* MUI tints hovers and selections with these channels; neutral, so they work with any accent colour. */
+  --jf-palette-primary-mainChannel: 255 255 255;
+  --jf-palette-primary-darkChannel: 255 255 255;
+  --jf-palette-secondary-main: var(--lmn-accent);
+  --jf-palette-secondary-contrastText: #fff;
+  --jf-palette-secondary-mainChannel: 255 255 255;
+  --jf-palette-error-main: #f0484f;
+  --jf-palette-error-light: #f57a7f;
+  --jf-palette-error-dark: #b3262c;
+  --jf-palette-error-mainChannel: 240 72 79;
+  --jf-palette-info-main: #8ab4f8;
+  --jf-palette-info-mainChannel: 138 180 248;
+  --jf-palette-text-primary: var(--lmn-text);
+  --jf-palette-text-secondary: var(--lmn-text-2);
+  --jf-palette-text-disabled: var(--lmn-text-4);
+  --jf-palette-text-primaryChannel: 242 242 242;
+  --jf-palette-divider: var(--lmn-line);
+  --jf-palette-action-selected: var(--lmn-fill-3);
+  --jf-palette-action-selectedChannel: 255 255 255;
+  --jf-palette-action-hover: var(--lmn-fill-2);
+  /* The rest of the dark scheme, so a light dashboard theme doesn't leave dark-on-dark icons and controls. */
+  --jf-palette-action-active: #fff;
+  --jf-palette-action-activeChannel: 255 255 255;
+  --jf-palette-action-disabled: rgba(255, 255, 255, 0.3);
+  --jf-palette-action-disabledBackground: rgba(255, 255, 255, 0.12);
+  --jf-palette-action-focus: rgba(255, 255, 255, 0.12);
+  --jf-palette-text-secondaryChannel: 179 179 179;
+  --jf-palette-text-icon: rgba(255, 255, 255, 0.5);
+  --jf-palette-dividerChannel: 255 255 255;
+  --jf-palette-common-onBackground: #fff;
+  --jf-palette-common-onBackgroundChannel: 255 255 255;
+  --jf-palette-FilledInput-bg: rgba(255, 255, 255, 0.06);
+  --jf-palette-FilledInput-hoverBg: rgba(255, 255, 255, 0.09);
+  --jf-palette-FilledInput-disabledBg: rgba(255, 255, 255, 0.12);
+  --jf-palette-Button-inheritContainedBg: var(--lmn-surface-2);
+  --jf-palette-Button-inheritContainedHoverBg: #2c2c2c;
+  --jf-palette-Chip-defaultBorder: var(--lmn-line-strong);
+  --jf-palette-Chip-defaultIconColor: var(--lmn-text-2);
+  --jf-palette-Switch-defaultColor: #e0e0e0;
+  --jf-palette-Switch-defaultDisabledColor: #757575;
+  --jf-palette-Tooltip-bg: var(--lmn-surface-2);
+  --jf-palette-AppBar-defaultBg: var(--lmn-bg);
+  --jf-palette-AppBar-darkBg: var(--lmn-bg);
+  --jf-palette-Avatar-defaultBg: var(--lmn-surface-2);
+  --jf-palette-SnackbarContent-bg: var(--lmn-surface-2);
+  --jf-palette-TableCell-border: var(--lmn-line);
+  --jf-palette-LinearProgress-primaryBg: var(--lmn-fill-3);
+  --jf-palette-LinearProgress-successBg: var(--lmn-fill-3);
+  --jf-palette-Switch-primaryDisabledColor: var(--lmn-surface-2);
+  --jf-overlays-1: none;
+  --jf-overlays-2: none;
+  --jf-overlays-4: none;
+  --jf-overlays-8: none;
+  --jf-overlays-16: none;
+  --jf-overlays-24: none;
+  --jf-shape-borderRadius: 10px;
+}
+
+/* ---- Page, type -------------------------------------------------------------------------------------------------- */
+html.lmn-skin-dashboard body,
+html.lmn-skin-dashboard .skinBody,
+html.lmn-skin-dashboard .page,
+html.lmn-skin-dashboard .backgroundContainer {
+  background: var(--lmn-bg) !important;
+  color: var(--lmn-text);
+  font-family: var(--lmn-font);
+}
+html.lmn-skin-dashboard .backdropContainer {
+  display: none;
+}
+html.lmn-skin-dashboard
+  :is(
+    .MuiTypography-root,
+    .MuiButtonBase-root,
+    .MuiInputBase-root,
+    .MuiInputLabel-root,
+    .MuiFormHelperText-root,
+    .MuiFormControlLabel-label,
+    .MuiTableCell-root,
+    .MuiChip-label,
+    .MuiMenuItem-root,
+    .MuiAlert-message,
+    .MuiSnackbarContent-message,
+    .MuiTooltip-tooltip
+  ) {
+  font-family: var(--lmn-font);
+}
+html.lmn-skin-dashboard :is(.MuiTypography-h1, .MuiTypography-h2, .MuiTypography-h3, .MuiTypography-h4) {
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+html.lmn-skin-dashboard .MuiTypography-h1 {
+  font-size: clamp(26px, 2.6vw, 34px);
+}
+html.lmn-skin-dashboard .MuiTypography-h2 {
+  font-size: 20px;
+}
+html.lmn-skin-dashboard .MuiTypography-h3 {
+  font-size: 17px;
+}
+html.lmn-skin-dashboard .MuiTypography-h5,
+html.lmn-skin-dashboard .MuiTypography-h6 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+/* Links are MUI's primary colour; keep them readable instead of accent-red (red reads as an error here). */
+html.lmn-skin-dashboard .MuiLink-root,
+html.lmn-skin-dashboard .skinBody a:not(.emby-button, .MuiButtonBase-root, .MuiLink-button) {
+  color: var(--lmn-text);
+  text-decoration-color: var(--lmn-line-strong);
+}
+html.lmn-skin-dashboard .MuiLink-root:hover {
+  text-decoration-color: currentColor;
+}
+
+/* ---- App bar and drawer ------------------------------------------------------------------------------------------ */
+html.lmn-skin-dashboard .MuiAppBar-root {
+  border-bottom: 1px solid var(--lmn-line);
+  background: rgba(15, 15, 15, 0.88) !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+html.lmn-skin-dashboard .MuiDrawer-paper {
+  border-right: 1px solid var(--lmn-line) !important;
+  background: var(--lmn-bg) !important;
+}
+/* jellyfin-web's logo (top of the drawer, and the metadata manager's header): Lumen's mark instead. */
+html.lmn-skin-dashboard img[src*='icon-transparent'] {
+  content: url('../assets/lumen-j.svg');
+}
+html.lmn-skin-dashboard .MuiDrawer-paper .MuiListSubheader-root {
+  background: transparent;
+  color: var(--lmn-text-3);
+  font-family: var(--lmn-font);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 36px;
+  text-transform: uppercase;
+}
+html.lmn-skin-dashboard .MuiDrawer-paper .MuiListItemButton-root {
+  width: auto;
+  margin: 1px 8px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  border-radius: 10px;
+  color: var(--lmn-text-2);
+}
+html.lmn-skin-dashboard .MuiDrawer-paper .MuiListItemButton-root:hover {
+  background: var(--lmn-fill-2);
+  color: #fff;
+}
+html.lmn-skin-dashboard .MuiDrawer-paper .MuiListItemButton-root.Mui-selected {
+  background: var(--lmn-fill-3) !important;
+  color: #fff;
+}
+html.lmn-skin-dashboard .MuiDrawer-paper .MuiListItemButton-root.Mui-selected .MuiListItemText-primary {
+  font-weight: 600;
+}
+html.lmn-skin-dashboard .MuiDrawer-paper .MuiListItemIcon-root {
+  min-width: 40px;
+  color: inherit;
+}
+
+/* ---- Surfaces ---------------------------------------------------------------------------------------------------- */
+html.lmn-skin-dashboard
+  .MuiPaper-root:not(.MuiAppBar-root, .MuiDrawer-paper, .MuiMenu-paper, .MuiPopover-paper) {
+  background-image: none;
+}
+html.lmn-skin-dashboard :is(.MuiCard-root, .MuiPaper-elevation1, .MuiPaper-outlined, .MuiAccordion-root) {
+  border: 1px solid var(--lmn-line);
+  border-radius: 14px !important;
+  background-color: var(--lmn-surface) !important;
+  box-shadow: none !important;
+}
+html.lmn-skin-dashboard .MuiCardActionArea-root:hover .MuiCardActionArea-focusHighlight {
+  opacity: 0.04;
+}
+html.lmn-skin-dashboard .MuiDivider-root {
+  border-color: var(--lmn-line);
+}
+/* Cards without artwork (devices, users, libraries): Lumen's surface instead of jellyfin-web's blues. */
+html.lmn-skin-dashboard .defaultCardBackground {
+  background-color: var(--lmn-surface-2) !important;
+  color: var(--lmn-text-2);
+}
+html.lmn-skin-dashboard .MuiAvatar-colorDefault {
+  background-color: var(--lmn-surface-2);
+  color: var(--lmn-text-2);
+}
+
+/* ---- Buttons ----------------------------------------------------------------------------------------------------- */
+html.lmn-skin-dashboard .MuiButton-root {
+  border-radius: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: none !important;
+}
+html.lmn-skin-dashboard .MuiButton-containedPrimary:not(.Mui-disabled) {
+  background-color: var(--lmn-accent);
+  color: #fff;
+}
+html.lmn-skin-dashboard .MuiButton-containedPrimary:not(.Mui-disabled):hover {
+  background-color: color-mix(in srgb, var(--lmn-accent) 88%, #fff);
+}
+html.lmn-skin-dashboard .MuiButton-outlined:not(.MuiButton-colorError, .Mui-disabled) {
+  border-color: var(--lmn-line-strong);
+  color: var(--lmn-text);
+}
+html.lmn-skin-dashboard .MuiButton-outlined:not(.MuiButton-colorError, .Mui-disabled):hover {
+  border-color: rgba(255, 255, 255, 0.32);
+  background-color: var(--lmn-fill-2);
+}
+html.lmn-skin-dashboard .MuiButton-textPrimary:not(.Mui-disabled) {
+  color: var(--lmn-text);
+}
+/* Destructive actions (Restart, Shutdown, Delete, Uninstall) are outlined, so they never look like the accent. */
+html.lmn-skin-dashboard
+  .MuiButton-colorError:is(.MuiButton-contained, .MuiButton-outlined):not(.Mui-disabled) {
+  border: 1px solid color-mix(in srgb, var(--jf-palette-error-main) 55%, transparent);
+  background-color: transparent;
+  color: var(--jf-palette-error-light);
+}
+html.lmn-skin-dashboard
+  .MuiButton-colorError:is(.MuiButton-contained, .MuiButton-outlined):not(.Mui-disabled):hover {
+  border-color: var(--jf-palette-error-main);
+  background-color: color-mix(in srgb, var(--jf-palette-error-main) 14%, transparent);
+}
+html.lmn-skin-dashboard .MuiIconButton-root:hover {
+  background-color: var(--lmn-fill-2);
+}
+html.lmn-skin-dashboard :is(.MuiButtonBase-root, .emby-button):focus-visible {
+  outline: 2px solid var(--lmn-focus);
+  outline-offset: 2px;
+}
+
+/* ---- Tabs, chips, progress --------------------------------------------------------------------------------------- */
+html.lmn-skin-dashboard .MuiTab-root {
+  min-height: 44px;
+  color: var(--lmn-text-2);
+  font-weight: 600;
+  text-transform: none;
+}
+html.lmn-skin-dashboard .MuiTab-root.Mui-selected {
+  color: #fff;
+}
+html.lmn-skin-dashboard .MuiTabs-indicator {
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background-color: var(--lmn-accent);
+}
+html.lmn-skin-dashboard .MuiChip-root {
+  border-radius: 999px;
+  font-weight: 500;
+}
+html.lmn-skin-dashboard .MuiChip-filledDefault {
+  background-color: var(--lmn-fill-3);
+}
+html.lmn-skin-dashboard .MuiChip-outlined {
+  border-color: var(--lmn-line-strong);
+}
+html.lmn-skin-dashboard .MuiChip-filledPrimary {
+  background-color: #fff;
+  color: #000;
+}
+html.lmn-skin-dashboard .MuiLinearProgress-root {
+  height: 6px;
+  border-radius: 3px;
+}
+html.lmn-skin-dashboard .MuiLinearProgress-bar {
+  border-radius: 3px;
+}
+
+/* ---- Form controls ----------------------------------------------------------------------------------------------- */
+html.lmn-skin-dashboard .MuiFilledInput-root {
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+html.lmn-skin-dashboard .MuiFilledInput-root:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+html.lmn-skin-dashboard .MuiFilledInput-root::before,
+html.lmn-skin-dashboard .MuiFilledInput-root::after {
+  display: none;
+}
+html.lmn-skin-dashboard .MuiFilledInput-root.Mui-focused {
+  border-color: color-mix(in srgb, var(--lmn-accent) 75%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--lmn-accent) 18%, transparent);
+}
+html.lmn-skin-dashboard .MuiFilledInput-root.Mui-error {
+  border-color: var(--jf-palette-error-main);
+}
+html.lmn-skin-dashboard .MuiFilledInput-root.Mui-disabled {
+  opacity: 0.6;
+}
+html.lmn-skin-dashboard .MuiOutlinedInput-root {
+  border-radius: 12px;
+}
+html.lmn-skin-dashboard .MuiOutlinedInput-notchedOutline {
+  border-color: var(--lmn-line-strong);
+}
+html.lmn-skin-dashboard .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: color-mix(in srgb, var(--lmn-accent) 75%, transparent);
+}
+html.lmn-skin-dashboard .MuiInputLabel-root,
+html.lmn-skin-dashboard .MuiFormLabel-root.Mui-focused {
+  color: var(--lmn-text-2);
+}
+html.lmn-skin-dashboard .MuiFormHelperText-root:not(.Mui-error) {
+  color: var(--lmn-text-3);
+}
+html.lmn-skin-dashboard :is(.MuiCheckbox-root, .MuiRadio-root) {
+  color: var(--lmn-text-3);
+}
+html.lmn-skin-dashboard
+  :is(.MuiCheckbox-root, .MuiRadio-root, .MuiSwitch-switchBase).Mui-checked:not(.Mui-disabled) {
+  color: var(--lmn-accent) !important;
+}
+html.lmn-skin-dashboard .MuiSwitch-switchBase.Mui-checked:not(.Mui-disabled) + .MuiSwitch-track {
+  background-color: var(--lmn-accent) !important;
+  opacity: 0.6;
+}
+html.lmn-skin-dashboard .MuiSelect-icon {
+  color: var(--lmn-text-2);
+}
+
+/* ---- Menus, dialogs, tooltips, snackbars ------------------------------------------------------------------------- */
+html.lmn-skin-dashboard :is(.MuiMenu-paper, .MuiPopover-paper, .MuiAutocomplete-paper) {
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 14px !important;
+  background: rgba(28, 28, 28, 0.97) !important;
+  background-image: none !important;
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.8) !important;
+}
+html.lmn-skin-dashboard .MuiMenu-list {
+  padding: 6px !important;
+}
+html.lmn-skin-dashboard .MuiMenuItem-root {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: var(--lmn-text-2);
+  font-size: 14px;
+}
+html.lmn-skin-dashboard .MuiMenuItem-root:hover,
+html.lmn-skin-dashboard .MuiMenuItem-root.Mui-focusVisible {
+  background: var(--lmn-fill-3) !important;
+  color: #fff;
+}
+html.lmn-skin-dashboard .MuiMenuItem-root.Mui-selected {
+  background: var(--lmn-fill-2) !important;
+  color: #fff;
+  font-weight: 600;
+}
+html.lmn-skin-dashboard .MuiDialog-paper {
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 20px !important;
+  background: var(--lmn-surface) !important;
+  box-shadow: 0 40px 80px -24px rgba(0, 0, 0, 0.9) !important;
+}
+html.lmn-skin-dashboard .MuiDialogTitle-root {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+html.lmn-skin-dashboard .MuiBackdrop-root:not(.MuiBackdrop-invisible) {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+html.lmn-skin-dashboard .MuiTooltip-tooltip {
+  border-radius: 8px;
+  background: var(--lmn-surface-2);
+  color: var(--lmn-text);
+  font-size: 12px;
+}
+html.lmn-skin-dashboard .MuiSnackbarContent-root,
+html.lmn-skin-dashboard .MuiAlert-root {
+  border-radius: 12px;
+}
+html.lmn-skin-dashboard .MuiSnackbarContent-root {
+  border: 1px solid var(--lmn-line-strong);
+  color: var(--lmn-text);
+}
+
+/* ---- Tables (Activity, Devices, API keys: material-react-table) ------------------------------------------------- */
+/* Cells keep MUI's opaque paper background (Lumen's surface, through the palette), so sticky headers and pinned
+   columns stay readable over the rows scrolling under them. */
+html.lmn-skin-dashboard .MuiTableCell-root {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+html.lmn-skin-dashboard .MuiTableCell-root {
+  border-bottom-color: var(--lmn-line);
+  background-image: none;
+}
+html.lmn-skin-dashboard .MuiTableCell-head {
+  color: var(--lmn-text-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ---- Legacy pages and dialogs (metadata editor, Add library, Identify, Edit images, plugin pages) ------------------ */
+html.lmn-skin-dashboard .formDialog,
+html.lmn-skin-dashboard .dialog.formDialog {
+  border: 1px solid var(--lmn-line-strong);
+  background: var(--lmn-surface) !important;
+  color: var(--lmn-text);
+  font-family: var(--lmn-font);
+}
+html.lmn-skin-dashboard .dialog:not(.dialog-fullscreen) {
+  border-radius: 20px;
+}
+html.lmn-skin-dashboard .formDialogHeader {
+  border-bottom: 1px solid var(--lmn-line);
+  background: var(--lmn-surface) !important;
+}
+html.lmn-skin-dashboard .formDialogHeaderTitle {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+html.lmn-skin-dashboard .formDialogFooter {
+  border-top: 1px solid var(--lmn-line);
+  background: var(--lmn-surface) !important;
+}
+html.lmn-skin-dashboard .dialogBackdropOpened {
+  background-color: rgba(0, 0, 0, 0.7);
+  opacity: 1;
+}
+html.lmn-skin-dashboard .actionSheet {
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 14px;
+  background: rgba(28, 28, 28, 0.97) !important;
+}
+html.lmn-skin-dashboard .actionSheetMenuItem {
+  border-radius: 8px;
+}
+html.lmn-skin-dashboard .actionSheetMenuItem:hover {
+  background: var(--lmn-fill-3);
+}
+html.lmn-skin-dashboard .editPageSidebar {
+  border-right: 1px solid var(--lmn-line);
+  background: var(--lmn-bg);
+}
+html.lmn-skin-dashboard .metadataSidebarIcon {
+  color: var(--lmn-text-3);
+}
+/* The metadata editor's Save, in its header: Lumen's primary button. */
+html.lmn-skin-dashboard .btnHeaderSave {
+  padding: 0.45em 1em;
+  border-radius: 10px;
+  background: var(--lmn-accent);
+  color: #fff !important;
+  font-weight: 600;
+}
+html.lmn-skin-dashboard .btnHeaderSave:hover {
+  background: color-mix(in srgb, var(--lmn-accent) 88%, #fff);
+}
+html.lmn-skin-dashboard .libraryTree .jstree-anchor {
+  border-radius: 6px;
+  color: var(--lmn-text-2);
+}
+html.lmn-skin-dashboard .libraryTree :is(.jstree-hovered, .jstree-wholerow-hovered) {
+  background: var(--lmn-fill-2) !important;
+  box-shadow: none !important;
+}
+html.lmn-skin-dashboard .libraryTree :is(.jstree-clicked, .jstree-wholerow-clicked) {
+  background: var(--lmn-fill-3) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+html.lmn-skin-dashboard .paperList,
+html.lmn-skin-dashboard .detailSection .paperList {
+  border-radius: 12px;
+  background: var(--lmn-surface) !important;
+}
+html.lmn-skin-dashboard .listItem-border {
+  border-color: var(--lmn-line) !important;
+}
+html.lmn-skin-dashboard .emby-button.raised.button-delete {
+  border: 1px solid color-mix(in srgb, var(--jf-palette-error-main) 55%, transparent);
+  background: transparent !important;
+  color: var(--jf-palette-error-light) !important;
+}
+html.lmn-skin-dashboard .emby-tab-button-active {
+  color: #fff;
+}
+html.lmn-skin-dashboard .emby-tab-button-active::after,
+html.lmn-skin-dashboard .emby-tabs-slider .emby-tab-button-active {
+  border-color: var(--lmn-accent);
+}
+html.lmn-skin-dashboard ::selection {
+  background: color-mix(in srgb, var(--lmn-accent) 45%, transparent);
+}

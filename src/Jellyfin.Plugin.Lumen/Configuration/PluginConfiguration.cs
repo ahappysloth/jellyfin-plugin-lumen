@@ -39,7 +39,7 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets a value indicating whether Lumen replaces the Movies and Shows library pages, Favorites, Search and the settings menu.</summary>
     public bool LibraryTakeover { get; set; } = true;
 
-    /// <summary>Gets or sets a value indicating whether Lumen restyles jellyfin-web's sign-in and settings pages.</summary>
+    /// <summary>Gets or sets a value indicating whether Lumen restyles jellyfin-web's sign-in, settings and admin pages.</summary>
     public bool StyleStockPages { get; set; } = true;
 
     /// <summary>Gets or sets a value indicating whether Lumen replaces jellyfin-web's video player controls.</summary>

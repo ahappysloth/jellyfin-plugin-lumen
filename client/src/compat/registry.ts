@@ -4,7 +4,7 @@
  * (e2e/specs/stock-probe.spec.ts checks each selector matches on its page; stock-routes.spec.ts checks no route
  * Lumen links to is jellyfin-web's 404 page). When jellyfin-web changes, fix it here.
  *
- * The CSS (styles/base.css, player.css, stock-skin.css) can't import this module, so it repeats the selectors it
+ * The CSS (styles/base.css, player.css, stock-skin.css, dashboard.css) can't import this module, so it repeats the selectors it
  * needs; `css` names the stylesheet that does, and registry.test.ts checks the selector text really occurs there.
  * Evidence for each entry: docs/reference/jellyfin-web-12.1-notes.md.
  *
@@ -12,13 +12,13 @@
  */
 
 /** A page the e2e probe opens to look for a selector; null means it can't be probed reliably (transient UI). */
-export type ProbePage = 'login' | 'home' | 'settings' | 'display' | 'player';
+export type ProbePage = 'login' | 'home' | 'settings' | 'display' | 'player' | 'dashboard' | 'metadata';
 
 export interface StockSelector {
   selector: string;
   probe: ProbePage | null;
   /** The stylesheet that repeats this selector, if any. */
-  css?: 'base.css' | 'player.css' | 'stock-skin.css';
+  css?: 'base.css' | 'player.css' | 'stock-skin.css' | 'dashboard.css';
 }
 
 export const STOCK_SELECTORS = {
@@ -56,6 +56,21 @@ export const STOCK_SELECTORS = {
   /** jellyfin-web's toasts (components/toast/toast.ts), e.g. SyncPlay's "joined the group" notices. */
   toastContainer: { selector: '.toastContainer', probe: null, css: 'stock-skin.css' },
   toast: { selector: '.toastContainer .toast', probe: null, css: 'stock-skin.css' },
+  /** The admin pages (dashboard.css): the Dashboard's MUI frame, drawer and controls. */
+  dashboardDrawer: { selector: '.MuiDrawer-paper', probe: 'dashboard', css: 'dashboard.css' },
+  dashboardNavItem: { selector: '.MuiListItemButton-root', probe: 'dashboard', css: 'dashboard.css' },
+  dashboardNavHeading: { selector: '.MuiListSubheader-root', probe: 'dashboard', css: 'dashboard.css' },
+  dashboardLogo: { selector: "img[src*='icon-transparent']", probe: 'dashboard', css: 'dashboard.css' },
+  dashboardCard: { selector: '.MuiCard-root', probe: 'dashboard', css: 'dashboard.css' },
+  dashboardButton: { selector: '.MuiButton-containedPrimary', probe: 'dashboard', css: 'dashboard.css' },
+  /** Restart and Shutdown: outlined so they never look like the (red by default) accent. */
+  dashboardDangerButton: { selector: '.MuiButton-colorError', probe: 'dashboard', css: 'dashboard.css' },
+  /** Device cards without artwork. */
+  cardBackground: { selector: '.defaultCardBackground', probe: 'dashboard', css: 'dashboard.css' },
+  /** The metadata manager: its library tree, and the editor form (emby-* controls, stock-skin.css). */
+  metadataSidebar: { selector: '.editPageSidebar', probe: 'metadata', css: 'dashboard.css' },
+  metadataTree: { selector: '.libraryTree', probe: 'metadata', css: 'dashboard.css' },
+  metadataTreeIcon: { selector: '.metadataSidebarIcon', probe: 'metadata', css: 'dashboard.css' },
   /** jellyfin-web's "Page not found" page (react-router's catch-all). Lumen never shows it; e2e uses it as a marker. */
   notFoundPage: { selector: '#fallbackPage', probe: null },
 } as const satisfies Record<string, StockSelector>;
@@ -129,6 +144,15 @@ export const SETTINGS_ROUTES = {
   subtitles: '/mypreferencessubtitles',
   controls: '/mypreferencescontrols',
 } as const;
+
+/**
+ * jellyfin-web's admin pages, which Lumen restyles (CSS only; see veil/skin.ts and styles/dashboard.css): each path and
+ * everything under it (`/dashboard/users`, …). `/configurationpage` is a plugin's own settings page.
+ */
+export const ADMIN_ROUTES = ['/dashboard', '/metadata', '/configurationpage'];
+
+/** The MUI theme variable dashboard.css overrides first; the e2e probe checks jellyfin-web still defines it. */
+export const DASHBOARD_THEME_VARIABLE = '--jf-palette-primary-main';
 
 /** jellyfin-web's signed-out pages, which Lumen restyles (CSS only; see veil/skin.ts). */
 export const SIGN_IN_ROUTES = [

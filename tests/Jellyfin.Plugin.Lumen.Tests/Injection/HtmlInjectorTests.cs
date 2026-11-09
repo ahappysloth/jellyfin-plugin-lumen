@@ -40,6 +40,31 @@ public class HtmlInjectorTests
     }
 
     [Fact]
+    public void LinksTheAdminStylesheet_AfterLumens_OnlyWhenStylingStockPages()
+    {
+        const string link = "<link rel=\"stylesheet\" href=\"../Lumen/Assets/lumen-dashboard.css?v=h\">";
+        var result = HtmlInjector.Inject(Page, "h", "guard()", styleStockPages: true);
+
+        Assert.Contains(link, result, StringComparison.Ordinal);
+        Assert.True(result.IndexOf(link, StringComparison.Ordinal) > result.IndexOf("lumen.css", StringComparison.Ordinal));
+        Assert.DoesNotContain("lumen-dashboard.css", HtmlInjector.Inject(Page, "h", "guard()"), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("#2266ff", true)]
+    [InlineData("red;}body{display:none", false)]
+    [InlineData("</style><script>x()</script>", false)]
+    [InlineData(null, false)]
+    public void GivesTheAdminPagesTheAccent_OnlyAValidHexColour(string? accent, bool expected)
+    {
+        var result = HtmlInjector.Inject(Page, "h", "guard()", styleStockPages: true, accentColor: accent);
+
+        Assert.Equal(expected, result.Contains("<style>html.lmn-skin-dashboard{--lmn-accent:#2266ff}</style>", StringComparison.Ordinal));
+        Assert.DoesNotContain("<style>", HtmlInjector.Inject(Page, "h", "guard()", accentColor: "#2266ff"), StringComparison.Ordinal);
+        Assert.DoesNotContain("x()", result, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InstallsAsLumen_SwappingManifestTouchIconAndThemeColor()
     {
         const string page = "<html><head><meta id=\"themeColor\" name=\"theme-color\" content=\"#202020\">"
