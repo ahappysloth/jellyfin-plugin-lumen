@@ -13,6 +13,8 @@ import { Icon, type IconName } from '../components/icons';
 import { LumenMark } from '../components/LumenMark';
 import { strings } from '../strings';
 import { rememberVeilName } from '../veil/veil';
+import { useSyncPlayState } from './syncplay/syncPlayState';
+import { WatchTogetherButton } from './syncplay/WatchTogether';
 import type { ViewContext } from './context';
 
 const MAX_LIBRARIES = 4;
@@ -43,6 +45,7 @@ async function loadNavData(ctx: ViewContext): Promise<NavData> {
  */
 export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavActive }) {
   const [data, setData] = useState<NavData | null>(() => cache.get(ctx.userId) ?? null);
+  const syncPlay = useSyncPlayState(ctx);
 
   // While the nav shows, phones get the tab bar: lumen.css pads pages and lifts jellyfin-web's now-playing bar.
   useEffect(() => {
@@ -101,6 +104,7 @@ export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavAc
         >
           <Icon name="search" size={18} />
         </a>
+        <WatchTogetherButton ctx={ctx} state={syncPlay} class="lmn-nav__item lmn-nav__item--icon" />
         <a
           class={`lmn-nav__item lmn-nav__item--icon${active === 'profile' ? ' is-active' : ''}`}
           href={PREFERENCES_HASH}

@@ -95,7 +95,7 @@ export interface PlayerState {
 }
 
 type WebpackModule = { exports?: unknown };
-type WebpackRequire = ((id: string) => unknown) & {
+export type WebpackRequire = ((id: string) => unknown) & {
   /** Module factories, by id. */
   m?: Record<string, unknown>;
   /** The module cache: only present when the build exposes it (jellyfin-web 12.1–12.4 production builds don't). */
@@ -133,7 +133,7 @@ const loaders = new WeakMap<Window, WebpackRequire>();
  * The webpack module loader, via a chunk with a runtime callback (webpack's supported way for a chunk to get it).
  * Remembered per window: each push leaves an entry in the chunk array.
  */
-function webpackRequire(win: Window): WebpackRequire | null {
+export function webpackRequire(win: Window): WebpackRequire | null {
   const known = loaders.get(win);
   if (known) return known;
   const chunks = (win as unknown as Record<string, unknown>)[WEBPACK_CHUNK_GLOBAL];

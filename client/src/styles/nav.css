@@ -228,3 +228,8 @@
     font-size: 16px;
   }
 }
+
+/* Watch together: lit while in a SyncPlay group */
+.lmn-nav__item.is-syncplay {
+  color: var(--lmn-accent);
+}

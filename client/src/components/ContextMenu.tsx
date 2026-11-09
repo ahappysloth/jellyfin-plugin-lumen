@@ -5,6 +5,8 @@ export interface MenuEntry {
   label: string;
   icon: IconName;
   onSelect: () => void;
+  /** A second, quieter line (e.g. who is in a group). */
+  detail?: string;
 }
 
 interface OpenMenu {
@@ -15,6 +17,9 @@ interface OpenMenu {
   returnFocus: HTMLElement | null;
   /** For screen readers: what the menu is about. */
   label: string;
+  /** Shown above the entries (not focusable). */
+  title?: string;
+  subtitle?: string;
 }
 
 type Listener = (menu: OpenMenu | null) => void;
@@ -121,9 +126,15 @@ export function ContextMenuHost() {
         action();
       }}
     >
+      {menu.title && (
+        <div class="lmn-menu__header">
+          <span class="lmn-menu__title">{menu.title}</span>
+          {menu.subtitle && <span class="lmn-menu__subtitle">{menu.subtitle}</span>}
+        </div>
+      )}
       {menu.entries.map((entry, i) => (
         <button
-          key={entry.label}
+          key={`${i}:${entry.label}`}
           type="button"
           role="menuitem"
           tabIndex={-1}
@@ -132,7 +143,14 @@ export function ContextMenuHost() {
           onClick={() => choose(entry)}
         >
           <Icon name={entry.icon} size={16} />
-          {entry.label}
+          {entry.detail ? (
+            <span class="lmn-menu__text">
+              {entry.label}
+              <span class="lmn-menu__detail">{entry.detail}</span>
+            </span>
+          ) : (
+            entry.label
+          )}
         </button>
       ))}
     </div>

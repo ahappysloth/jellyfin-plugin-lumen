@@ -7,6 +7,8 @@ import { strings } from '../../strings';
 import { liftVeil } from '../../veil/veil';
 import type { ViewContext } from '../context';
 import { initials } from '../details/CastRow';
+import { useSyncPlayState } from '../syncplay/syncPlayState';
+import { openWatchTogether } from '../syncplay/WatchTogether';
 
 /** Avatar pixels, for 2x screens at its 88px CSS size. */
 const AVATAR_PX = 176;
@@ -41,6 +43,7 @@ export function ProfileView({ ctx }: { ctx: ViewContext }) {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [serverName, setServerName] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const syncPlay = useSyncPlayState(ctx);
   useAutoFocus(rootRef, user !== null, ctx.layout);
 
   useEffect(() => {
@@ -96,6 +99,31 @@ export function ProfileView({ ctx }: { ctx: ViewContext }) {
       <div class="lmn-profile__groups">
         <Group title={strings.account} entries={ACCOUNT} userId={user.Id} autofocus />
         <Group title={strings.preferences} entries={preferences} userId={user.Id} />
+        {syncPlay.available && (
+          <section class="lmn-profile__group" aria-label={strings.watchTogether}>
+            <ul class="lmn-profile__list">
+              <li>
+                <button
+                  type="button"
+                  class="lmn-profile__link"
+                  aria-haspopup="menu"
+                  onClick={(e) => void openWatchTogether(ctx, syncPlay, e.currentTarget)}
+                >
+                  <span class="lmn-profile__icon">
+                    <Icon name="group" size={20} />
+                  </span>
+                  <span class="lmn-profile__text">
+                    <span class="lmn-profile__label">{strings.watchTogether}</span>
+                    <span class="lmn-profile__hint">
+                      {syncPlay.group ? strings.inGroup(syncPlay.group.GroupName) : strings.syncPlay}
+                    </span>
+                  </span>
+                  <Icon name="chevronRight" size={18} class="lmn-profile__chevron" />
+                </button>
+              </li>
+            </ul>
+          </section>
+        )}
         {admin && <Group title={strings.administration} entries={ADMIN} userId={user.Id} />}
       </div>
 
