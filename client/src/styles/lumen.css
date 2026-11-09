@@ -296,6 +296,10 @@ html.lmn-active #lmn-root {
 .lmn-button:hover {
   background: rgba(109, 109, 110, 0.5);
 }
+/* The UI font's caps sit a pixel below the line box's centre; drop the icon to meet them. */
+.lmn-button > .lmn-icon {
+  transform: translateY(1px);
+}
 .lmn-button--primary {
   background: #fff;
   color: #0f0f0f;
@@ -830,6 +834,7 @@ html.lmn-active #lmn-root {
 }
 .lmn-button .lmn-progress {
   position: static;
+  align-self: center;
   width: 56px;
   height: 3px;
   border-radius: 2px;

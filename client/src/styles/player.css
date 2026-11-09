@@ -305,18 +305,18 @@ html.lmn-skin-player .upNextContainer {
   font-variant-numeric: tabular-nums;
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
 }
-.lmn-progress {
+.lmn-seek {
   position: relative;
   height: 18px;
   margin: 0 0 6px;
   cursor: pointer;
   touch-action: none;
 }
-.lmn-progress.is-disabled {
+.lmn-seek.is-disabled {
   cursor: default;
   opacity: 0.5;
 }
-.lmn-progress__rail {
+.lmn-seek__rail {
   position: absolute;
   top: 50%;
   right: 0;
@@ -328,24 +328,24 @@ html.lmn-skin-player .upNextContainer {
   transform: translateY(-50%);
   transition: height 0.15s;
 }
-.lmn-progress:hover .lmn-progress__rail,
-.lmn-progress.is-dragging .lmn-progress__rail {
+.lmn-seek:hover .lmn-seek__rail,
+.lmn-seek.is-dragging .lmn-seek__rail {
   height: 5px;
 }
-.lmn-progress__buffered,
-.lmn-progress__played {
+.lmn-seek__buffered,
+.lmn-seek__played {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
 }
-.lmn-progress__buffered {
+.lmn-seek__buffered {
   background: rgba(255, 255, 255, 0.32);
 }
-.lmn-progress__played {
+.lmn-seek__played {
   background: #fff;
 }
-.lmn-progress__thumb {
+.lmn-seek__thumb {
   position: absolute;
   top: 50%;
   width: 14px;
@@ -356,11 +356,11 @@ html.lmn-skin-player .upNextContainer {
   transform: translate(-50%, -50%);
   transition: transform 0.15s;
 }
-.lmn-progress:hover .lmn-progress__thumb,
-.lmn-progress.is-dragging .lmn-progress__thumb {
+.lmn-seek:hover .lmn-seek__thumb,
+.lmn-seek.is-dragging .lmn-seek__thumb {
   transform: translate(-50%, -50%) scale(1.2);
 }
-.lmn-progress__tip {
+.lmn-seek__tip {
   position: absolute;
   bottom: 22px;
   padding: 4px 8px;
