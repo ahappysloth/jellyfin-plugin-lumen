@@ -39,7 +39,8 @@ test('a failed compatibility check shows the stock UI and is reported to admins'
 
   await login(page, ADMIN);
 
-  await expect(page.locator('#indexPage')).toBeVisible();
+  // Lumen retries a failing check for a few seconds (jellyfin-web may still be rendering) before it gives up.
+  await expect(page.locator('#indexPage')).toBeVisible({ timeout: 15_000 });
   await expect
     .poll(async () =>
       (await api<{ FailedChecks: string[] }[]>('/Lumen/Admin/Diagnostics', { token: admin.token })).some((d) => d.FailedChecks.includes('forced')),

@@ -1,0 +1,58 @@
+import { expect, test, type Page } from '@playwright/test';
+import { STOCK_SELECTORS, type ProbePage } from '../../client/src/compat/registry';
+import { ADMIN, loadState } from '../support/api';
+import { login } from '../support/login';
+import { openFresh } from '../support/stock-pages';
+
+/**
+ * Probe: every jellyfin-web selector Lumen depends on (client/src/compat/registry.ts) still matches on its page. A miss
+ * means part of Lumen silently stops working after a Jellyfin update: stock controls showing through Lumen's, a
+ * header that won't hide, or settings that look stock again. The nightly job runs this against new Jellyfin builds.
+ */
+const byPage = (probe: ProbePage) =>
+  Object.entries(STOCK_SELECTORS).filter(([, entry]) => entry.probe === probe);
+
+async function expectSelectorsOn(page: Page, probe: ProbePage): Promise<void> {
+  for (const [name, { selector }] of byPage(probe)) {
+    await expect(page.locator(selector), `${name} (${selector}) should match on the ${probe} page`).not.toHaveCount(0);
+  }
+}
+
+test('stock selectors on the sign-in page', async ({ page }) => {
+  await openFresh(page, '#/login');
+  await expect(page.locator('#txtManualName')).toBeVisible();
+  await expectSelectorsOn(page, 'login');
+});
+
+test('stock selectors on home and the settings pages', async ({ page }) => {
+  const { admin } = loadState();
+  await login(page, ADMIN);
+
+  await openFresh(page, '#/home');
+  await expect(page.locator('#lmn-root .lmn-home')).toBeVisible();
+  await expectSelectorsOn(page, 'home');
+
+  await openFresh(page, `#/mypreferencesplayback?userId=${admin.userId}`);
+  await expectSelectorsOn(page, 'settings');
+
+  await openFresh(page, `#/mypreferencesdisplay?userId=${admin.userId}`);
+  await expectSelectorsOn(page, 'display');
+});
+
+test('stock selectors in the video player', async ({ page }) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
+  await expect(page).toHaveURL(/#\/video/);
+  // Lumen found jellyfin-web's PlaybackManager (its controls replace the stock ones).
+  await expect(page.locator('#lmn-root .lmn-osd')).toBeVisible();
+  await expectSelectorsOn(page, 'player');
+});
+
+test('every probed selector belongs to a page this spec opens', () => {
+  const probed = new Set<ProbePage>(['login', 'home', 'settings', 'display', 'player']);
+  for (const [name, entry] of Object.entries(STOCK_SELECTORS)) {
+    if (entry.probe !== null) expect(probed.has(entry.probe), name).toBe(true);
+  }
+});

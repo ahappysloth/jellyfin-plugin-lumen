@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { ADMIN, KID } from '../support/api';
 import { login } from '../support/login';
+import { expectPresentButHidden } from '../support/stock';
 
 test('search finds library titles as you type and keeps the query for Back', async ({ page }) => {
   await login(page, ADMIN);
@@ -8,7 +9,7 @@ test('search finds library titles as you type and keeps the query for Back', asy
 
   const box = page.getByRole('searchbox', { name: 'Search' });
   await expect(box).toBeFocused();
-  await expect(page.locator('#reactRoot .skinBody').first()).toBeHidden();
+  await expectPresentButHidden(page.locator('#reactRoot .skinBody'));
   await box.fill('alpha');
 
   const movies = page.getByRole('list', { name: 'Movies' });
@@ -39,7 +40,7 @@ test('the sign-in page wears Lumen’s look', async ({ page }) => {
 
   await expect(page.locator('#txtManualName')).toBeVisible();
   await expect(page.locator('html')).toHaveClass(/\blmn-signin\b/);
-  await expect(page.locator('.skinHeader')).toBeHidden();
+  await expectPresentButHidden(page.locator('.skinHeader'));
   // The Sign In button uses Lumen's accent instead of jellyfin-web's blue.
   const background = await page
     .locator('.manualLoginForm .button-submit')
@@ -54,7 +55,7 @@ test('settings pages keep working inside Lumen’s frame', async ({ page }) => {
 
   await expect(page.getByRole('heading', { name: 'Playback', level: 1 })).toBeVisible();
   await expect(page.locator('#lmn-root .lmn-nav')).toBeVisible();
-  await expect(page.locator('.MuiAppBar-root, .skinHeader').first()).toBeHidden();
+  await expectPresentButHidden(page.locator('.MuiAppBar-root, .skinHeader'));
   // The stock form is still there and usable.
   await expect(page.locator('.page:not(.hide) .button-submit').first()).toBeVisible();
 

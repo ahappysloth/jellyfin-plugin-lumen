@@ -117,11 +117,13 @@ e2e() {
   # The stub Seerr runs in this container (Playwright webServer); publish it so Jellyfin can reach it.
   local rc=0
   run --ipc=host --add-host=host.docker.internal:host-gateway -p 5055:5055 \
-    -v "$ROOT/e2e:/src:ro" -v "$ROOT/e2e/test-results:/out/test-results" -v "$ROOT/e2e/playwright-report:/out/playwright-report" \
+    -v "$ROOT/e2e:/src:ro" -v "$ROOT/client/src/compat:/client-compat:ro" -v "$ROOT/e2e/test-results:/out/test-results" -v "$ROOT/e2e/playwright-report:/out/playwright-report" \
     -e LUMEN_E2E_BASE_URL=http://host.docker.internal:8096 -e LUMEN_E2E_MEDIA_PATH=/media \
     -e LUMEN_E2E_SEERR_URL=http://host.docker.internal:5055 \
     "mcr.microsoft.com/playwright:v$pw-noble" bash -c '
       mkdir /tmp/w && cd /src && tar --exclude=node_modules --exclude=test-results --exclude=playwright-report -cf - . | tar -xf - -C /tmp/w
+      # Specs import the jellyfin-web registry from client/src/compat (../../client from specs/).
+      mkdir -p /tmp/client/src && cp -r /client-compat /tmp/client/src/compat
       cd /tmp/w && npm ci --no-audit --no-fund --loglevel=error && npx playwright test "$@"; rc=$?
       cp -r test-results/. /out/test-results/ 2>/dev/null; cp -r playwright-report/. /out/playwright-report/ 2>/dev/null
       exit $rc' bash "$@" || rc=$?
