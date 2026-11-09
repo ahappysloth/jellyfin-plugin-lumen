@@ -6,6 +6,7 @@ import type { ViewContext } from '../context';
 import { formatRuntime } from '../details/badges';
 import { AudioSubtitlesPanel, QualityPanel, qualityLabel } from './PlayerPanels';
 import { ProgressBar } from './ProgressBar';
+import { SkipIcon } from './SkipIcon';
 import { setUserData, useUserData } from '../userDataStore';
 import { readPlayerState, type PlayerSnapshot } from './playerState';
 
@@ -198,7 +199,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
               aria-label={strings.player.rewind}
               onClick={act(() => manager.rewind(player))}
             >
-              <Icon name="replay10" size={26} />
+              <SkipIcon direction="back" />
             </button>
             <button
               type="button"
@@ -206,7 +207,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
               aria-label={strings.player.forward}
               onClick={act(() => manager.fastForward(player))}
             >
-              <Icon name="forward10" size={26} />
+              <SkipIcon direction="forward" />
             </button>
             <Volume manager={manager} snap={snap} />
           </div>
