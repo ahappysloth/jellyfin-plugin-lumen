@@ -86,6 +86,62 @@ describe('DetailsView', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't start playback");
   });
 
+  it('shows a person with their filmography', async () => {
+    let query: URLSearchParams | null = null;
+    const ctx = makeContext(
+      createFakeClient(
+        routes({
+          'Items/p1': {
+            Id: 'p1',
+            Name: 'Jane Doe',
+            Type: 'Person',
+            Overview: 'An actor.',
+            PremiereDate: '1970-03-04T00:00:00.0000000Z',
+            ProductionLocations: ['Leeds, England'],
+          },
+          Items: (r: { url: string }) => {
+            query = new URL(r.url).searchParams;
+            return { Items: [{ Id: 'm1', Name: 'Lumen Alpha', Type: 'Movie' }], TotalRecordCount: 1 };
+          },
+        }),
+      ),
+    );
+    render(<DetailsView id="p1" ctx={ctx} />);
+
+    expect(await screen.findByRole('heading', { name: 'Jane Doe' })).toBeInTheDocument();
+    expect(screen.getByText(/Born March 4, 1970 in Leeds, England/)).toBeInTheDocument();
+    expect((await screen.findAllByText('Lumen Alpha')).length).toBeGreaterThan(0);
+    expect(query!.get('personIds')).toBe('p1');
+    expect(ctx.onFallback).not.toHaveBeenCalled();
+  });
+
+  it('shows a collection with its titles, oldest first', async () => {
+    let query: URLSearchParams | null = null;
+    const ctx = makeContext(
+      createFakeClient(
+        routes({
+          'Items/c1': {
+            Id: 'c1',
+            Name: 'Lumen Saga',
+            Type: 'BoxSet',
+            UserData: { Played: false, IsFavorite: false },
+          },
+          Items: (r: { url: string }) => {
+            query = new URL(r.url).searchParams;
+            return { Items: [{ Id: 'm1', Name: 'Lumen Alpha', Type: 'Movie' }], TotalRecordCount: 1 };
+          },
+        }),
+      ),
+    );
+    render(<DetailsView id="c1" ctx={ctx} />);
+
+    expect(await screen.findByRole('heading', { name: 'Lumen Saga' })).toBeInTheDocument();
+    expect((await screen.findAllByText('Lumen Alpha')).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /Play/ })).toBeInTheDocument();
+    expect(query!.get('parentId')).toBe('c1');
+    expect(query!.get('sortOrder')).toBe('Ascending');
+  });
+
   it('hands unsupported item types back to the stock page', async () => {
     const ctx = makeContext(
       createFakeClient(routes({ 'Items/x1': { Id: 'x1', Name: 'Song', Type: 'Audio' } })),

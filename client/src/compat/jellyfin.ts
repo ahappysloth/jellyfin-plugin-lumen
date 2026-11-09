@@ -111,6 +111,8 @@ export function libraryHash(view: { Id: string; CollectionType?: string; ServerI
   const route = view.CollectionType ? routes[view.CollectionType] : undefined;
   if (route) return `#/${route}?topParentId=${id}&collectionType=${view.CollectionType}`;
   const server = view.ServerId ? `&serverId=${encodeURIComponent(view.ServerId)}` : '';
+  // Tagged so Lumen can take the Collections library over; jellyfin-web's list page ignores the extra parameter.
+  if (view.CollectionType === 'boxsets') return `#/list?parentId=${id}&collectionType=boxsets${server}`;
   return `#/list?parentId=${id}${server}`;
 }
 

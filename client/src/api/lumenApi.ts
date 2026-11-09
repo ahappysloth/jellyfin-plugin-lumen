@@ -33,6 +33,7 @@ export interface BrowseQuery {
   /** Jellyfin ItemFilter names, e.g. IsUnplayed, IsFavorite. */
   filters?: string[];
   genreIds?: string[];
+  personIds?: string[];
   searchTerm?: string;
   startIndex: number;
   limit: number;
@@ -114,6 +115,7 @@ export class LumenApi {
       sortOrder: query.sortOrder,
       filters: query.filters?.length ? query.filters.join(',') : undefined,
       genreIds: query.genreIds?.length ? query.genreIds.join('|') : undefined,
+      personIds: query.personIds?.length ? query.personIds.join('|') : undefined,
       searchTerm: query.searchTerm || undefined,
       startIndex: query.startIndex,
       limit: query.limit,
