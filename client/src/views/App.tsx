@@ -29,15 +29,24 @@ function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
     case 'home':
       return <HomeView ctx={ctx} />;
     case 'library':
-      return <LibraryView key={route.id} id={route.id} collection={route.collection} ctx={ctx} />;
+      return (
+        <LibraryView
+          key={`${route.id}:${route.tab}`}
+          id={route.id}
+          collection={route.collection}
+          tab={route.tab}
+          ctx={ctx}
+        />
+      );
     case 'favorites':
       return <FavoritesView ctx={ctx} />;
     case 'genre':
       return (
         <GenreView
-          key={`${route.id}:${route.parentId ?? ''}`}
+          key={`${route.facet ?? 'genre'}:${route.id}:${route.parentId ?? ''}`}
           id={route.id}
           parentId={route.parentId}
+          facet={route.facet}
           ctx={ctx}
         />
       );

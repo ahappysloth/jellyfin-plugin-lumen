@@ -33,6 +33,7 @@ export interface BrowseQuery {
   /** Jellyfin ItemFilter names, e.g. IsUnplayed, IsFavorite. */
   filters?: string[];
   genreIds?: string[];
+  studioIds?: string[];
   personIds?: string[];
   searchTerm?: string;
   startIndex: number;
@@ -115,6 +116,7 @@ export class LumenApi {
       sortOrder: query.sortOrder,
       filters: query.filters?.length ? query.filters.join(',') : undefined,
       genreIds: query.genreIds?.length ? query.genreIds.join('|') : undefined,
+      studioIds: query.studioIds?.length ? query.studioIds.join('|') : undefined,
       personIds: query.personIds?.length ? query.personIds.join('|') : undefined,
       searchTerm: query.searchTerm || undefined,
       startIndex: query.startIndex,
@@ -172,6 +174,17 @@ export class LumenApi {
   }
 
   /** Genres that have titles of the given types in a library, A to Z. */
+  getStudios(parentId: string, includeItemTypes: string): Promise<ItemsResult> {
+    return this.get('Studios', () => ({
+      userId: this.userId(),
+      parentId,
+      includeItemTypes,
+      sortBy: 'SortName',
+      sortOrder: 'Ascending',
+      enableImages: false,
+    }));
+  }
+
   getGenres(parentId: string, includeItemTypes: string): Promise<ItemsResult> {
     return this.get('Genres', () => ({
       userId: this.userId(),

@@ -32,7 +32,18 @@ const DEFAULT_CHOICE: Choice = { kind: 'all', sort: 'added' };
  * One genre's movies and shows (jellyfin-web's `#/list?genreId=…`, which the home genre tiles open), optionally inside
  * one library. Same grid, chips and sort menu as the library pages.
  */
-export function GenreView({ id, parentId, ctx }: { id: string; parentId?: string; ctx: ViewContext }) {
+export function GenreView({
+  id,
+  parentId,
+  facet = 'genre',
+  ctx,
+}: {
+  id: string;
+  parentId?: string;
+  /** A studio's titles instead of a genre's (`#/list?studioId=`). */
+  facet?: 'genre' | 'studio';
+  ctx: ViewContext;
+}) {
   const choiceKey = `${ctx.userId}|genre`;
   const [choice, setChoiceState] = useState<Choice>(() => getChoice(choiceKey, DEFAULT_CHOICE));
   const setChoice = (patch: Partial<Choice>): void => {
@@ -53,20 +64,20 @@ export function GenreView({ id, parentId, ctx }: { id: string; parentId?: string
     };
   }, [id, ctx.userId]);
 
-  const queryKey = `${ctx.userId}|genre|${id}|${parentId ?? ''}|${choice.kind}|${choice.sort}`;
+  const queryKey = `${ctx.userId}|${facet}|${id}|${parentId ?? ''}|${choice.kind}|${choice.sort}`;
   const { state, select, onMenu } = useGridPage(ctx, queryKey, (page) =>
     ctx.api.getBrowseItems({
       parentId,
       includeItemTypes: ITEM_TYPES[choice.kind],
       ...sortParams(choice.sort, choice.kind === 'shows' ? 'tvshows' : 'movies'),
-      genreIds: [id],
+      ...(facet === 'studio' ? { studioIds: [id] } : { genreIds: [id] }),
       ...page,
     }),
   );
 
   const rootRef = useRef<HTMLDivElement>(null);
   useAutoFocus(rootRef, true, ctx.layout, state.restoredSelectedId ?? undefined);
-  const title = name ?? strings.genrePage;
+  const title = name ?? (facet === 'studio' ? strings.studioPage : strings.genrePage);
 
   return (
     <div ref={rootRef} class="lmn-browse lmn-genre-page">
@@ -93,7 +104,7 @@ export function GenreView({ id, parentId, ctx }: { id: string; parentId?: string
         label={title}
         onSelect={select}
         onMenu={onMenu}
-        empty={<p>{strings.emptyGenre}</p>}
+        empty={<p>{facet === 'studio' ? strings.emptyStudio : strings.emptyGenre}</p>}
       />
     </div>
   );

@@ -38,10 +38,13 @@ export function Segmented<T extends string>({
 export function PageHeader({
   title,
   meta,
+  tabs,
   children,
 }: {
   title: string;
   meta?: string;
+  /** A row of section links under the title (a library's tabs). */
+  tabs?: ComponentChildren;
   children?: ComponentChildren;
 }) {
   return (
@@ -50,6 +53,7 @@ export function PageHeader({
         <h1 class="lmn-browse__title">{title}</h1>
         {meta && <p class="lmn-browse__meta">{meta}</p>}
       </div>
+      {tabs && <div class="lmn-browse__tabs">{tabs}</div>}
       {children && <div class="lmn-browse__toolbar">{children}</div>}
     </header>
   );

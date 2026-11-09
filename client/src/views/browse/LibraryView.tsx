@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { BaseItem } from '../../api/types';
 import { strings } from '../../strings';
-import type { LibraryCollection } from '../../takeover/routes';
+import type { LibraryCollection, LibraryTab } from '../../takeover/routes';
+import { LibraryTabBar, LibraryTabView } from './LibraryTabs';
 import type { ViewContext } from '../context';
 import { BrowseGrid } from './BrowseGrid';
 import { getChoice, saveChoice } from './browseStore';
@@ -65,6 +66,23 @@ const DEFAULT_CHOICE: Choice = { sort: 'added', filter: 'all', genre: '' };
 
 /** A Movies or Shows library: title, sort/filter/genre controls and an endless poster grid. */
 export function LibraryView({
+  id,
+  collection,
+  tab = 'items',
+  ctx,
+}: {
+  id: string;
+  collection: LibraryCollection;
+  tab?: LibraryTab;
+  ctx: ViewContext;
+}) {
+  if (collection !== 'boxsets' && tab !== 'items')
+    return <LibraryTabView id={id} collection={collection} tab={tab} ctx={ctx} />;
+  return <LibraryGrid id={id} collection={collection} ctx={ctx} />;
+}
+
+/** A library's main tab: every title, with filter, genre and sort controls. */
+function LibraryGrid({
   id,
   collection,
   ctx,
@@ -131,6 +149,11 @@ export function LibraryView({
       <PageHeader
         title={name ?? fallbackTitle}
         meta={state.total !== null ? strings.titleCount(state.total) : undefined}
+        tabs={
+          collection !== 'boxsets' ? (
+            <LibraryTabBar id={id} collection={collection} current="items" />
+          ) : undefined
+        }
       >
         <Segmented
           label={strings.filter}

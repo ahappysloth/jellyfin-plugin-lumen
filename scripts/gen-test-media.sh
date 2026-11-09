@@ -99,6 +99,7 @@ movie() { # title year genres(comma) rating hue color with_logo(1|0)
     echo "<movie><title>$1</title><year>$2</year><rating>$4</rating><mpaa>PG-13</mpaa><plot>$1 is a Lumen test movie.</plot>"
     IFS=',' read -ra genres <<< "$3"
     for g in "${genres[@]}"; do echo "<genre>$g</genre>"; done
+    echo '<studio>Lumen Pictures</studio>'
     cast "Ada Vance:Captain Rhee" "Marco Ilic:The Navigator" "June Okafor:Dr. Sol" "Theo Brandt:Kestrel"
     echo '</movie>'
   } > "$dir/movie.nfo"
@@ -120,7 +121,7 @@ art "$show/backdrop.jpg" 1280x720 0x224466
 logo "$show/logo.png" "Lumen Show"
 {
   echo '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-  echo '<tvshow><title>Lumen Show</title><year>2010</year><rating>8.5</rating><genre>Science Fiction</genre><plot>A Lumen test series.</plot>'
+  echo '<tvshow><title>Lumen Show</title><year>2010</year><rating>8.5</rating><genre>Science Fiction</genre><studio>Lumen Television</studio><plot>A Lumen test series.</plot>'
   cast "Ada Vance:Commander Hale" "Rui Tanaka:Ensign Mori"
   echo '</tvshow>'
 } > "$show/tvshow.nfo"
