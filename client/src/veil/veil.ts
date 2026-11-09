@@ -10,9 +10,13 @@ export const PENDING_CLASS = 'lmn-pending';
 const NAME_KEY = 'lmn-server-name';
 const LIFT_MS = 900;
 
-/** Routes Lumen may own, plus the bare app URL (jellyfin-web redirects it to home). */
-export function shouldVeil(hash: string): boolean {
-  if (/^#?!?\/?$/.test(hash)) return true;
+/**
+ * Routes Lumen may own, plus the bare app URL (jellyfin-web's hash router redirects it to home). An empty hash counts
+ * only at the app's root (`/web/`, `/web/index.html`): anywhere else (`/web/home`) jellyfin-web isn't hash-routed, so
+ * Lumen won't take the page over and there's nothing to wait for.
+ */
+export function shouldVeil(hash: string, path = '/'): boolean {
+  if (/^#?!?\/?$/.test(hash)) return /\/(index\.html)?$/i.test(path);
   const kind = parseRoute(hash).kind;
   // A reload on the player lands wherever jellyfin-web sends it; nothing of Lumen's to wait for.
   return kind !== 'other' && kind !== 'player';

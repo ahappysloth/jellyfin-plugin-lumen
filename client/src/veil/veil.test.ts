@@ -21,6 +21,14 @@ describe('veil', () => {
     expect(shouldVeil(hash)).toBe(expected);
   });
 
+  it('veils an empty hash only at the app root, not when jellyfin-web is path-routed', () => {
+    expect(shouldVeil('', '/web/')).toBe(true);
+    expect(shouldVeil('', '/jf/web/index.html')).toBe(true);
+    expect(shouldVeil('', '/web/home')).toBe(false);
+    expect(shouldVeil('#/', '/web/details')).toBe(false);
+    expect(shouldVeil('#/home', '/web/')).toBe(true);
+  });
+
   it('shows the mark and the last known server name, then lifts and removes itself', () => {
     vi.useFakeTimers();
     rememberVeilName('Den');
