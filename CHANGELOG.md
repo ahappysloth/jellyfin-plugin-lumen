@@ -2,6 +2,21 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.3.0] - 2026-11-09
+
+### Added
+- Episode pages: the episode's still, its show (linking to that season) and number, air date, runtime and overview,
+  Play/Resume, Favorite and Watched, previous/next episode across seasons, guest stars and cast, and the rest of the
+  season as a row. More info on an episode card opens it, and each row of a season's episode list links to it.
+- Library tabs on Movies and Shows, in Jellyfin's tab order: Suggestions (continue watching, latest, and Jellyfin's
+  recommendations such as "Because you watched…"), Upcoming (Shows, by air day), Favorites (Movies), Collections,
+  Genres and Studios (tiles opening that genre or studio within the library), and Episodes (Shows, newest first).
+- Studio pages (`#/list?studioId=…`), like the genre pages.
+
+### Changed
+- Lumen is tested on Jellyfin 12.4 only; CI and the nightly run on 12.4. Older 12.x servers still work and show as
+  untested in diagnostics.
+
 ## [0.2.4] - 2026-11-09
 
 ### Fixed
