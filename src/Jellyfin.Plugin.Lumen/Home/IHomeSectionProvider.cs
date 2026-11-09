@@ -9,6 +9,9 @@ public interface IHomeSectionProvider
 
     string DisplayName { get; }
 
+    /// <summary>Gets one sentence for the admin page: what the section shows and how it picks it.</summary>
+    string Description { get; }
+
     /// <summary>Gets the parameters; these drive the admin form and generic validation.</summary>
     IReadOnlyList<SectionParameter> Parameters { get; }
 

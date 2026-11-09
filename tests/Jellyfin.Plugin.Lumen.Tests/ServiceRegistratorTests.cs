@@ -48,5 +48,8 @@ public class ServiceRegistratorTests
                 SectionTypes.MyRequests, SectionTypes.NewForYou, SectionTypes.NextUp, SectionTypes.RecentlyAdded,
             ],
             provider.GetServices<IHomeSectionProvider>().Select(p => p.Type).Order(StringComparer.Ordinal));
+
+        // The admin page shows each section's one-sentence description.
+        Assert.All(provider.GetServices<IHomeSectionProvider>(), p => Assert.EndsWith(".", p.Description, StringComparison.Ordinal));
     }
 }

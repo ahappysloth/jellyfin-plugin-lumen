@@ -68,6 +68,8 @@ public abstract class CatalogSectionProvider : IHomeSectionProvider
 
     public abstract string DisplayName { get; }
 
+    public abstract string Description { get; }
+
     public IReadOnlyList<SectionParameter> Parameters => [];
 
     public TimeSpan? Timeout => RowTimeout;
@@ -173,6 +175,8 @@ public sealed class CatalogTrendingProvider : CatalogDiscoverProvider
     public override string Type => SectionTypes.CatalogTrending;
 
     public override string DisplayName => "Trending";
+
+    public override string Description => "Movies and shows trending this week, from Seerr; titles not on the server can be requested.";
 }
 
 /// <summary>Seerr's popular movies.</summary>
@@ -186,6 +190,8 @@ public sealed class CatalogPopularMoviesProvider : CatalogDiscoverProvider
     public override string Type => SectionTypes.CatalogPopularMovies;
 
     public override string DisplayName => "Popular Movies";
+
+    public override string Description => "Popular movies from Seerr, mixing ones on the server with ones the viewer can request.";
 }
 
 /// <summary>Seerr's popular shows.</summary>
@@ -199,6 +205,8 @@ public sealed class CatalogPopularShowsProvider : CatalogDiscoverProvider
     public override string Type => SectionTypes.CatalogPopularShows;
 
     public override string DisplayName => "Popular Shows";
+
+    public override string Description => "Popular shows from Seerr, mixing ones on the server with ones the viewer can request.";
 }
 
 /// <summary>Upcoming movies and shows merged, soonest first; titles without a date go last.</summary>
@@ -212,6 +220,8 @@ public sealed class CatalogUpcomingProvider : CatalogSectionProvider
     public override string Type => SectionTypes.CatalogUpcoming;
 
     public override string DisplayName => "Coming Soon";
+
+    public override string Description => "Upcoming movies and shows from Seerr, soonest first, ready to request ahead of release.";
 
     /// <summary>A "YYYY-MM-DD" date, or null.</summary>
     internal static DateOnly? ParseDate(string? date) =>
@@ -250,6 +260,8 @@ public sealed class MyRequestsProvider : CatalogSectionProvider
     public override string Type => SectionTypes.MyRequests;
 
     public override string DisplayName => "My Requests";
+
+    public override string Description => "What the viewer has requested through Seerr and how each request is going; hidden when there are none.";
 
     protected override async Task<IReadOnlyList<CatalogItemDto>> GetItemsAsync(SeerrEndpoint endpoint, int seerrUserId, HomeContext context, CancellationToken cancellationToken)
     {

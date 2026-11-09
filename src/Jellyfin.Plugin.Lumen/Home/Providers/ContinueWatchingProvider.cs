@@ -20,6 +20,8 @@ public sealed class ContinueWatchingProvider : IHomeSectionProvider
 
     public string DisplayName => "Continue Watching";
 
+    public string Description => "Movies and episodes the viewer started but didn't finish, most recent first.";
+
     public IReadOnlyList<SectionParameter> Parameters => [];
 
     public IReadOnlyList<string> Validate(SectionDefinition definition) => [];

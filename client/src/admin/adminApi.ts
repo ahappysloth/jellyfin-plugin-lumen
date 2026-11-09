@@ -13,6 +13,8 @@ export interface SectionParamDef {
 export interface SectionTypeDef {
   Type: string;
   DisplayName: string;
+  /** One sentence: what the section shows (absent from older servers). */
+  Description?: string;
   Parameters: SectionParamDef[];
 }
 

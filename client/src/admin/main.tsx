@@ -2,6 +2,7 @@ import { render } from 'preact';
 import { getApiClient } from '../compat/jellyfin';
 import { AdminApp } from './AdminApp';
 import { createAdminApi } from './adminApi';
+import dropdownCss from '../styles/dropdown.css?inline';
 import css from './admin.css?inline';
 
 /** The admin bundle has no separate stylesheet; inject it once, scoped to .lmn-admin. */
@@ -9,7 +10,7 @@ function injectStyles(): void {
   if (document.getElementById('lmn-admin-style')) return;
   const style = document.createElement('style');
   style.id = 'lmn-admin-style';
-  style.textContent = css;
+  style.textContent = dropdownCss + css;
   document.head.appendChild(style);
 }
 

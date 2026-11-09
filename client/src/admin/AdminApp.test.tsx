@@ -8,6 +8,7 @@ const types: SectionTypeDef[] = [
   {
     Type: 'Genre',
     DisplayName: 'Genre rows',
+    Description: 'A row per genre the viewer likes.',
     Parameters: [
       {
         Name: 'genreCount',
@@ -164,9 +165,10 @@ describe('AdminApp', () => {
     render(<AdminApp api={api} newId={() => 'new1'} />);
 
     await screen.findByText('Genre rows');
-    fireEvent.change(screen.getByRole('combobox', { name: 'Section type to add' }), {
-      target: { value: 'Genre' },
-    });
+    fireEvent.click(screen.getByRole('button', { name: /^Section type to add:/ }));
+    fireEvent.click(screen.getByRole('option', { name: 'Genre rows' }));
+    // The chosen type explains itself before it's added.
+    expect(screen.getAllByText('A row per genre the viewer likes.').length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
@@ -199,9 +201,26 @@ describe('AdminApp', () => {
     render(<AdminApp api={fakeApi()} />);
 
     await screen.findByText('Genre rows');
-    expect(screen.queryByLabelText('Collection')).toBeNull();
-    fireEvent.change(screen.getByLabelText('Source'), { target: { value: 'Collection' } });
-    expect(screen.getByLabelText('Collection')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Collection:/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Source: Recently added' }));
+    fireEvent.click(screen.getByRole('option', { name: 'A collection' }));
+    expect(screen.getByRole('button', { name: 'Collection: (none)' })).toBeInTheDocument();
+  });
+
+  it('puts the save status first and Save last, and keeps password managers out of the Seerr fields', async () => {
+    const { container } = render(<AdminApp api={fakeApi()} />);
+    await screen.findByText('Genre rows');
+
+    const bar = container.querySelector('.lmna-savebar')!;
+    expect([...bar.children].map((c) => c.textContent)).toEqual([
+      'All changes saved',
+      'Reset to defaults',
+      'Save',
+    ]);
+    const key = screen.getByLabelText('Seerr API key');
+    expect(key).toHaveAttribute('autocomplete', 'new-password');
+    expect(key).toHaveAttribute('data-1p-ignore', 'true');
+    expect(screen.getByLabelText('Seerr address')).toHaveAttribute('autocomplete', 'off');
   });
 
   it('reports load failures', async () => {
