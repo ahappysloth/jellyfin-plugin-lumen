@@ -9,7 +9,7 @@ import {
   SEARCH_HASH,
   SETTINGS_HASHES,
 } from '../../client/src/compat/jellyfin';
-import { LIBRARY_ROUTES } from '../../client/src/compat/registry';
+import { ADMIN_ROUTES, LIBRARY_ROUTES } from '../../client/src/compat/registry';
 import { ADMIN, api, loadState } from '../support/api';
 import { login } from '../support/login';
 import { NOT_FOUND, openFresh } from '../support/stock-pages';
@@ -42,6 +42,8 @@ test('every stock route Lumen links to opens a real page, not jellyfin-web’s 4
     libraryHash({ Id: libraries.movies, CollectionType: 'boxsets', ServerId: serverId }),
     libraryHash({ Id: libraries.movies, ServerId: serverId }),
     ...Object.values(SETTINGS_HASHES).map((hash) => hash(admin.userId)),
+    // The admin pages Lumen restyles (and links to from its settings menu).
+    ...ADMIN_ROUTES.map((route) => (route === '/configurationpage' ? `#${route}?name=Lumen` : `#${route}`)),
   ];
   for (const hash of hashes) {
     await test.step(hash, async () => {

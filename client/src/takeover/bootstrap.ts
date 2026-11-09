@@ -18,7 +18,7 @@ import { VIEW_TIMEOUT_MS, withTimeout } from '../util/withTimeout';
 import { SAFETY_TIMER_KEY } from '../veil/runGuard';
 import { onNavigate } from './navigation';
 import { parseRoute, type Route, type TakeoverRoute } from './routes';
-import { applySignInSkin, isSignInRoute } from '../veil/skin';
+import { applyDashboardSkin, applySignInSkin, isSignInRoute } from '../veil/skin';
 import { liftVeil, PENDING_CLASS, rememberVeilName } from '../veil/veil';
 import { resetSessionCaches } from '../util/sessionCaches';
 import { Takeover } from './takeover';
@@ -149,8 +149,11 @@ export function startLumen(options: BootstrapOptions): () => void {
     return { userId, client, takeover };
   };
 
-  /** Sign-in pages need no session: style them from the route alone, and learn the server's name for them. */
-  const skinSignIn = (): void => {
+  /**
+   * Sign-in and admin pages need no session: style them from the route alone, and learn the server's name for sign-in.
+   */
+  const skinStockPages = (): void => {
+    applyDashboardSkin(doc, win.location.hash);
     applySignInSkin(doc, win.location.hash);
     const client = getApiClient(win);
     if (!client || !isSignInRoute(win.location.hash) || !doc.documentElement.hasAttribute('data-lmn-skin'))
@@ -163,7 +166,7 @@ export function startLumen(options: BootstrapOptions): () => void {
   };
 
   const sync = async (): Promise<void> => {
-    skinSignIn();
+    skinStockPages();
     // Loops because the user or client can change while a session is being created.
     for (;;) {
       if (stopped) return;

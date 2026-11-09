@@ -1,7 +1,8 @@
 /*
- * Lumen's look for jellyfin-web's own sign-in and settings pages. CSS only and scoped to two <html> classes:
+ * Lumen's look for jellyfin-web's own sign-in and settings pages. CSS only and scoped to <html> classes:
  *   html.lmn-signin         sign in / forgot password / server select (veil/skin.ts, no session needed)
  *   html.lmn-skin-settings  Profile, Quick Connect, Display, Home, Playback, Subtitles, Controls (takeover.ts)
+ *   html.lmn-skin-dashboard the admin pages share the form controls below; the rest of their look is dashboard.css
  * The pages keep jellyfin-web's markup and behaviour; if a selector stops matching after a Jellyfin update, that
  * part simply looks stock again. Selectors are jellyfin-web's legacy emby-* controls and its MUI (Display page).
  */
@@ -20,19 +21,23 @@
 }
 
 /* ---- Shared controls ------------------------------------------------------------------------------------------ */
-:is(html.lmn-signin, html.lmn-skin-settings) .skinBody :is(h1, h2, h3, .sectionTitle) {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
+  .skinBody
+  :is(h1, h2, h3, .sectionTitle) {
   color: #fff;
   font-family: var(--lmn-font);
   font-weight: 700;
   letter-spacing: -0.02em;
 }
-:is(html.lmn-signin, html.lmn-skin-settings) :is(.inputLabel, .selectLabel, .textareaLabel) {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
+  :is(.inputLabel, .selectLabel, .textareaLabel) {
   color: var(--lmn-text-2) !important;
   font-family: var(--lmn-font);
   font-size: 13px;
   font-weight: 500;
 }
-:is(html.lmn-signin, html.lmn-skin-settings) :is(.emby-input, .emby-select, .emby-textarea) {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
+  :is(.emby-input, .emby-select, .emby-textarea) {
   min-height: 46px;
   padding: 0 14px;
   border: 1px solid var(--lmn-line-strong) !important;
@@ -46,47 +51,60 @@
     box-shadow 0.2s,
     background-color 0.2s;
 }
-:is(html.lmn-signin, html.lmn-skin-settings) :is(.emby-input, .emby-select, .emby-textarea):focus {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
+  :is(.emby-input, .emby-select, .emby-textarea):focus {
   border-color: color-mix(in srgb, var(--lmn-accent) 75%, transparent) !important;
   background: rgba(255, 255, 255, 0.08) !important;
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--lmn-accent) 18%, transparent);
   outline: none;
 }
-:is(html.lmn-signin, html.lmn-skin-settings) .emby-select option {
+/* Multi-line fields (the metadata editor's Overview) keep room above and below the text. */
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-textarea {
+  min-height: 92px;
+  padding: 10px 14px;
+}
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-select option {
   background: var(--lmn-surface-2);
 }
-:is(html.lmn-signin, html.lmn-skin-settings) .selectArrowContainer {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .selectArrowContainer {
   right: 14px;
   color: var(--lmn-text-2);
 }
-:is(html.lmn-signin, html.lmn-skin-settings) :is(.fieldDescription, .checkboxListLabel) {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
+  :is(.fieldDescription, .checkboxListLabel) {
   color: var(--lmn-text-3);
   font-size: 13px;
 }
-:is(html.lmn-signin, html.lmn-skin-settings) .checkboxLabel {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .checkboxLabel {
   color: var(--lmn-text);
   font-family: var(--lmn-font);
 }
-:is(html.lmn-signin, html.lmn-skin-settings) .checkboxOutline {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .checkboxOutline {
   border: 1.5px solid var(--lmn-line-strong) !important;
   border-radius: 6px !important;
   background: rgba(255, 255, 255, 0.04) !important;
 }
-:is(html.lmn-signin, html.lmn-skin-settings) .emby-checkbox:checked + span + .checkboxOutline {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
+  .emby-checkbox:checked
+  + span
+  + .checkboxOutline {
   border-color: var(--lmn-accent) !important;
   background: var(--lmn-accent) !important;
 }
-:is(html.lmn-signin, html.lmn-skin-settings)
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
   .emby-checkbox:checked
   + span
   + .checkboxOutline
   .checkboxIcon-checked {
   color: #fff !important;
 }
-:is(html.lmn-signin, html.lmn-skin-settings) .emby-checkbox:focus-visible + span + .checkboxOutline {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
+  .emby-checkbox:focus-visible
+  + span
+  + .checkboxOutline {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--lmn-accent) 35%, transparent);
 }
-:is(html.lmn-signin, html.lmn-skin-settings) .emby-button.raised {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-button.raised {
   min-height: 46px;
   border-radius: 10px !important;
   background: var(--lmn-surface-2) !important;
@@ -100,19 +118,20 @@
     background-color 0.2s,
     transform 0.1s;
 }
-:is(html.lmn-signin, html.lmn-skin-settings) .emby-button.raised:hover {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-button.raised:hover {
   background: #2c2c2c !important;
 }
-:is(html.lmn-signin, html.lmn-skin-settings) .emby-button.raised:active {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-button.raised:active {
   transform: scale(0.99);
 }
-:is(html.lmn-signin, html.lmn-skin-settings) .emby-button.raised.button-submit {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-button.raised.button-submit {
   background: var(--lmn-accent) !important;
 }
-:is(html.lmn-signin, html.lmn-skin-settings) .emby-button.raised.button-submit:hover {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
+  .emby-button.raised.button-submit:hover {
   background: color-mix(in srgb, var(--lmn-accent) 88%, #fff) !important;
 }
-:is(html.lmn-signin, html.lmn-skin-settings) .emby-button:focus-visible {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-button:focus-visible {
   outline: 2px solid var(--lmn-focus);
   outline-offset: 2px;
 }

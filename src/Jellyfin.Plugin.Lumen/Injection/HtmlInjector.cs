@@ -22,7 +22,8 @@ public static partial class HtmlInjector
     /// </param>
     /// <param name="styleStockPages">
     /// Marks the page (<c>data-lmn-skin</c> on &lt;html&gt;) so Lumen restyles the sign-in page, which loads before
-    /// anyone is signed in and so can't read Lumen's per-user client config.
+    /// anyone is signed in and so can't read Lumen's per-user client config, and links the admin pages' stylesheet
+    /// (<c>lumen-dashboard.css</c>, applied only on the Dashboard, metadata manager and plugin settings pages).
     /// </param>
     /// <param name="installAsLumen">
     /// Points the web app manifest, Apple touch icon and theme colour at Lumen's, so a home-screen install gets the J.
@@ -31,8 +32,18 @@ public static partial class HtmlInjector
     /// With <paramref name="installAsLumen"/>, receives the names of jellyfin-web's tags that weren't there to replace
     /// (Lumen's are added anyway), so the caller can warn that index.html changed shape.
     /// </param>
+    /// <param name="accentColor">
+    /// The server's accent (<c>#rrggbb</c>; anything else is ignored), for the admin pages' stylesheet: those pages are
+    /// outside Lumen's own root, where lumen.js sets the accent, so it comes with the page to be there at first paint.
+    /// </param>
     public static string Inject(
-        string html, string buildHash, string? guardScript = null, bool styleStockPages = false, bool installAsLumen = false, ICollection<string>? notFound = null)
+        string html,
+        string buildHash,
+        string? guardScript = null,
+        bool styleStockPages = false,
+        bool installAsLumen = false,
+        ICollection<string>? notFound = null,
+        string? accentColor = null)
     {
         if (html.Contains(Marker, StringComparison.Ordinal))
         {
@@ -51,7 +62,13 @@ public static partial class HtmlInjector
         var guard = script.Length == 0
             ? string.Empty
             : "<script>" + script.Replace("</", "<\\/", StringComparison.Ordinal) + "</script>";
-        var tags = $"{Marker}{guard}<link rel=\"stylesheet\" href=\"{AssetBase}lumen.css?v={version}\">"
+        var dashboard = styleStockPages
+            ? $"<link rel=\"stylesheet\" href=\"{AssetBase}lumen-dashboard.css?v={version}\">"
+                + (accentColor is not null && HexColor().IsMatch(accentColor)
+                    ? $"<style>html.lmn-skin-dashboard{{--lmn-accent:{accentColor}}}</style>"
+                    : string.Empty)
+            : string.Empty;
+        var tags = $"{Marker}{guard}<link rel=\"stylesheet\" href=\"{AssetBase}lumen.css?v={version}\">{dashboard}"
             + $"<script defer src=\"{AssetBase}lumen.js?v={version}\"></script>";
 
         var page = string.Concat(html.AsSpan(0, headClose), tags, html.AsSpan(headClose));
@@ -84,6 +101,9 @@ public static partial class HtmlInjector
 
         return result;
     }
+
+    [GeneratedRegex("^#[0-9a-fA-F]{6}$")]
+    private static partial Regex HexColor();
 
     /// <summary>A &lt;link&gt; with <c>rel="manifest"</c>, wherever <c>rel</c> sits among its attributes.</summary>
     [GeneratedRegex("<link\\b[^>]*?\\srel\\s*=\\s*(?:\"manifest\"|'manifest'|manifest(?=[\\s/>]))[^>]*>", RegexOptions.IgnoreCase)]

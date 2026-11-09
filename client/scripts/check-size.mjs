@@ -11,6 +11,12 @@ console.log(`lumen bundle: ${(total / 1024).toFixed(1)} KB gzipped (budget ${BUD
 const GUARD_BUDGET = 4 * 1024;
 const guard = gzipSync(readFileSync('dist/lumen-guard.js')).length;
 console.log(`lumen guard: ${(guard / 1024).toFixed(1)} KB gzipped (budget ${GUARD_BUDGET / 1024} KB)`);
-if (total > BUDGET || guard > GUARD_BUDGET) {
+// The admin pages' stylesheet loads alongside lumen.css only where the Dashboard skin is on.
+const DASHBOARD_BUDGET = 8 * 1024;
+const dashboard = gzipSync(readFileSync('dist/lumen-dashboard.css')).length;
+console.log(
+  `lumen dashboard: ${(dashboard / 1024).toFixed(1)} KB gzipped (budget ${DASHBOARD_BUDGET / 1024} KB)`,
+);
+if (total > BUDGET || guard > GUARD_BUDGET || dashboard > DASHBOARD_BUDGET) {
   process.exit(1);
 }

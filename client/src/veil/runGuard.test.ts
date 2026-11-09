@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runGuard, SAFETY_TIMER_KEY } from './runGuard';
-import { SIGN_IN_CLASS } from './skin';
+import { DASHBOARD_CLASS, SIGN_IN_CLASS } from './skin';
 import { VEIL_ID } from './veil';
 
 describe('inline guard', () => {
@@ -30,6 +30,19 @@ describe('inline guard', () => {
     expect(document.documentElement.classList.contains(SIGN_IN_CLASS)).toBe(true);
     window.dispatchEvent(new PopStateEvent('popstate'));
     expect(document.documentElement.classList.contains(SIGN_IN_CLASS)).toBe(true);
+  });
+
+  it('puts the admin look on the Dashboard and takes it off again as jellyfin-web navigates', () => {
+    history.replaceState(null, '', '#/dashboard');
+    runGuard(window, document);
+    expect(document.documentElement.classList.contains(DASHBOARD_CLASS)).toBe(true);
+    // The Dashboard isn't a route Lumen takes over: no veil.
+    expect(document.getElementById(VEIL_ID)).toBeNull();
+
+    history.pushState(null, '', '#/dashboard/users');
+    expect(document.documentElement.classList.contains(DASHBOARD_CLASS)).toBe(true);
+    history.pushState(null, '', '#/home');
+    expect(document.documentElement.classList.contains(DASHBOARD_CLASS)).toBe(false);
   });
 
   it('follows back/forward (popstate) too', () => {
