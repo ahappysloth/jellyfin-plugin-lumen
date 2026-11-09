@@ -1,5 +1,5 @@
 import { LumenApi } from '../api/lumenApi';
-import markSvg from '../assets/lumen-j.svg?raw';
+import { MARK_SVG } from '../brand/mark';
 import type { ClientConfig } from '../api/types';
 import {
   getApiClient,
@@ -72,7 +72,7 @@ export function startLumen(options: BootstrapOptions): () => void {
       return { userId, client, takeover: null };
     }
     if (!config.Enabled) return { userId, client, takeover: null };
-    setFavicon(markSvg, doc);
+    setFavicon(MARK_SVG, doc);
 
     const takeover = new Takeover({
       config,

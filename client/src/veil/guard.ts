@@ -3,7 +3,7 @@
  * On routes Lumen may take over, it hides the stock chrome (lmn-pending) and shows the veil; lumen.js lifts both.
  * The timeout is a safety net in case lumen.js never loads.
  */
-import markSvg from '../assets/lumen-j.svg?raw';
+import { MARK_SVG } from '../brand/mark';
 import { applySignInSkin } from './skin';
 import { liftVeil, PENDING_CLASS, shouldVeil, showVeil } from './veil';
 
@@ -13,7 +13,7 @@ try {
   applySignInSkin(document, location.hash);
   if (shouldVeil(location.hash)) {
     document.documentElement.classList.add(PENDING_CLASS);
-    showVeil(document, markSvg);
+    showVeil(document, MARK_SVG);
     setTimeout(() => liftVeil(document), SAFETY_MS);
   }
 } catch {

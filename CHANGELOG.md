@@ -31,6 +31,7 @@ All notable changes to Lumen are documented here. Versions follow SemVer; Jellyf
   Seerr failures in a row, so home stays fast when Seerr is down.
 - Phones: a bottom tab bar (Home, up to two libraries, Favorites, Me) with search as its own button at the top.
 - Home rows scroll by click-and-drag with a mouse; their arrows are glass buttons.
+- A plugin image for Jellyfin's catalog, and the J mark on Lumen's settings page (one shared `LumenMark` component).
 - "Add to Home Screen" installs with Lumen's icon and the server's name (Lumen's web app manifest and touch icon).
 - Settings page (the profile button): your avatar and name, grouped links to Jellyfin's settings pages, admin links for
   administrators, and Sign out.

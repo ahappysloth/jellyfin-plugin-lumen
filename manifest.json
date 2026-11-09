@@ -6,7 +6,7 @@
     "description": "Lumen replaces Jellyfin's web home, Movies and Shows libraries, Favorites, search and movie/series details pages with a cinematic, Netflix-style UI, and restyles the sign-in and settings pages. With Seerr connected, users can browse and request titles the server doesn't have yet, from search, title pages and home rows. Works in browsers and the official mobile and desktop apps, and falls back to the stock UI automatically.",
     "owner": "ahappysloth",
     "category": "General",
-    "imageUrl": null,
+    "imageUrl": "https://raw.githubusercontent.com/ahappysloth/jellyfin-plugin-lumen/main/assets/lumen-plugin.png",
     "versions": []
   }
 ]
