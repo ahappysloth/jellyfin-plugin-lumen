@@ -9,7 +9,8 @@ import {
 
 export type LibraryCollection = 'movies' | 'tvshows' | 'boxsets';
 /** A Movies or Shows library's tab (registry.ts LIBRARY_TABS); a Collections library has only `items`. */
-export type LibraryTab = 'items' | 'favorites' | 'collections' | 'genres' | 'studios' | 'episodes';
+export type LibraryTab =
+  'items' | 'suggestions' | 'upcoming' | 'favorites' | 'collections' | 'genres' | 'studios' | 'episodes';
 export type Facet = 'genre' | 'studio';
 
 /** The Lumen tab for jellyfin-web's `?tab=` index on a library page, or null when that tab stays stock. */
@@ -52,7 +53,7 @@ const LIBRARY_PATHS: Record<string, LibraryCollection> = {
 
 /**
  * Maps jellyfin-web hash routes to Lumen routes. Home tab 0 is Lumen's home and tab 1 its Favorites; the Movies and
- * Shows library pages are taken over on the tabs in LIBRARY_TABS (Suggestions, Upcoming and Playlists stay stock). Search and the
+ * Shows library pages are taken over on the tabs in LIBRARY_TABS (Playlists stays stock). Search and the
  * settings menu (#/mypreferencesmenu) are Lumen's too; the settings pages they link to stay stock.
  */
 export function parseRoute(hash: string): Route {

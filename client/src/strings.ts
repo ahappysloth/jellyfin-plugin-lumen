@@ -87,6 +87,8 @@ export const strings = {
   libraryTabs: 'Library sections',
   libraryTabNames: {
     items: '',
+    suggestions: 'Suggestions',
+    upcoming: 'Upcoming',
     favorites: 'Favorites',
     collections: 'Collections',
     genres: 'Genres',
@@ -98,6 +100,22 @@ export const strings = {
   noGenres: 'No genres yet.',
   noStudios: 'No studios yet.',
   noEpisodes: 'No episodes yet.',
+  noSuggestions: 'No suggestions yet. Watch something and check back.',
+  noUpcoming: 'No upcoming episodes.',
+  continueWatching: 'Continue watching',
+  nextUp: 'Next up',
+  latestMovies: 'Latest movies',
+  latestEpisodes: 'Latest episodes',
+  today: 'Today',
+  tomorrow: 'Tomorrow',
+  recommendation: (type: string, name: string | undefined): string => {
+    if (!name) return 'Recommended';
+    if (type === 'SimilarToRecentlyPlayed') return `Because you watched ${name}`;
+    if (type === 'SimilarToLikedItem') return `Because you liked ${name}`;
+    if (type === 'HasDirectorFromRecentlyPlayed' || type === 'HasLikedDirector') return `Directed by ${name}`;
+    if (type === 'HasActorFromRecentlyPlayed' || type === 'HasLikedActor') return `Starring ${name}`;
+    return 'Recommended';
+  },
   titleCount: (n: number) => (n === 1 ? '1 title' : `${n.toLocaleString()} titles`),
   genreCount: (n: number) => (n === 1 ? '1 genre' : `${n.toLocaleString()} genres`),
   studioCount: (n: number) => (n === 1 ? '1 studio' : `${n.toLocaleString()} studios`),

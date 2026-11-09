@@ -37,6 +37,7 @@ describe('library tabs', () => {
     const links = within(nav).getAllByRole('link');
     expect(links.map((l) => l.textContent)).toEqual([
       'Movies',
+      'Suggestions',
       'Favorites',
       'Collections',
       'Genres',
@@ -44,6 +45,7 @@ describe('library tabs', () => {
     ]);
     expect(links.map((l) => l.getAttribute('href'))).toEqual([
       `#/movies?topParentId=${LIB}&collectionType=movies`,
+      `#/movies?topParentId=${LIB}&collectionType=movies&tab=1`,
       `#/movies?topParentId=${LIB}&collectionType=movies&tab=2`,
       `#/movies?topParentId=${LIB}&collectionType=movies&tab=3`,
       `#/movies?topParentId=${LIB}&collectionType=movies&tab=4`,
@@ -60,7 +62,7 @@ describe('library tabs', () => {
       within(nav)
         .getAllByRole('link')
         .map((l) => l.textContent),
-    ).toEqual(['Shows', 'Genres', 'Studios', 'Episodes', 'Collections']);
+    ).toEqual(['Shows', 'Suggestions', 'Upcoming', 'Genres', 'Studios', 'Episodes', 'Collections']);
     expect(within(nav).getByRole('link', { name: 'Episodes' })).toHaveAttribute('aria-current', 'page');
   });
 

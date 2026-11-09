@@ -27,8 +27,19 @@ describe('parseRoute', () => {
       '#/tv?topParentId=0123456789abcdef0123456789abcdef&collectionType=tvshows&tab=0',
       { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'tvshows', tab: 'items' },
     ],
-    ['#/tv?topParentId=0123456789abcdef0123456789abcdef&tab=2', { kind: 'other' }], // Upcoming stays stock
-    ['#/tv?topParentId=0123456789abcdef0123456789abcdef&tab=1', { kind: 'other' }], // Suggestions stays stock
+    [
+      '#/tv?topParentId=0123456789abcdef0123456789abcdef&tab=1',
+      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'tvshows', tab: 'suggestions' },
+    ],
+    [
+      '#/tv?topParentId=0123456789abcdef0123456789abcdef&tab=2',
+      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'tvshows', tab: 'upcoming' },
+    ],
+    [
+      '#/movies?topParentId=0123456789abcdef0123456789abcdef&tab=1',
+      { kind: 'library', id: '0123456789abcdef0123456789abcdef', collection: 'movies', tab: 'suggestions' },
+    ],
+    ['#/tv?topParentId=0123456789abcdef0123456789abcdef&tab=7', { kind: 'other' }], // Playlists stays stock
     ['#/movies?topParentId=0123456789abcdef0123456789abcdef&tab=6', { kind: 'other' }], // Playlists stays stock
     [
       '#/movies?topParentId=0123456789abcdef0123456789abcdef&tab=2',

@@ -11,6 +11,7 @@ import type {
   RequestStatus,
   SessionInfo,
   UserInfo,
+  MovieRecommendation,
 } from './types';
 
 /** A rejected request with Seerr's (or Lumen's) message, for showing to the user. */
@@ -25,6 +26,10 @@ export interface DiagnosticsReport {
 type Params = () => Record<string, unknown>;
 
 /** One page of a library or favorites grid (Jellyfin's /Items query, PascalCase values as the server expects). */
+/** Fields and image types for rows of cards (suggestions, upcoming). */
+const ROW_FIELDS = 'PrimaryImageAspectRatio';
+const ROW_IMAGES = 'Primary,Backdrop,Thumb,Logo';
+
 export interface BrowseQuery {
   parentId?: string;
   includeItemTypes: string;
@@ -80,6 +85,75 @@ export class LumenApi {
       seriesId,
       limit: 1,
       enableResumable: false,
+    }));
+  }
+
+  /** In-progress titles of some types inside a library, most recent first. */
+  getResumeIn(parentId: string, includeItemTypes: string, limit = 24): Promise<ItemsResult> {
+    return this.get('UserItems/Resume', () => ({
+      userId: this.userId(),
+      parentId,
+      includeItemTypes,
+      limit,
+      fields: ROW_FIELDS,
+      enableImageTypes: ROW_IMAGES,
+      imageTypeLimit: 1,
+      enableUserData: true,
+    }));
+  }
+
+  /** The newest titles of some types in a library; episodes are listed one by one, not grouped by show. */
+  getLatestIn(parentId: string, includeItemTypes: string, limit = 24): Promise<BaseItem[]> {
+    return this.get('Items/Latest', () => ({
+      userId: this.userId(),
+      parentId,
+      includeItemTypes,
+      limit,
+      groupItems: false,
+      fields: ROW_FIELDS,
+      enableImageTypes: ROW_IMAGES,
+      imageTypeLimit: 1,
+      enableUserData: true,
+    }));
+  }
+
+  /** Each show's next episode to watch, inside a library. */
+  getNextUpIn(parentId: string, limit = 24): Promise<ItemsResult> {
+    return this.get('Shows/NextUp', () => ({
+      userId: this.userId(),
+      parentId,
+      limit,
+      fields: ROW_FIELDS,
+      enableImageTypes: ROW_IMAGES,
+      imageTypeLimit: 1,
+      enableUserData: true,
+    }));
+  }
+
+  /** Jellyfin's movie recommendations for a library ("Because you watched…", "Starring…", …). */
+  getMovieRecommendations(parentId: string): Promise<MovieRecommendation[]> {
+    return this.get('Movies/Recommendations', () => ({
+      userId: this.userId(),
+      parentId,
+      categoryLimit: 6,
+      itemLimit: 16,
+      fields: ROW_FIELDS,
+      enableImageTypes: ROW_IMAGES,
+      imageTypeLimit: 1,
+      enableUserData: true,
+    }));
+  }
+
+  /** Episodes due to air, soonest first. */
+  getUpcoming(parentId: string, limit = 60): Promise<ItemsResult> {
+    return this.get('Shows/Upcoming', () => ({
+      userId: this.userId(),
+      parentId,
+      limit,
+      fields: `${ROW_FIELDS},Overview`,
+      enableImageTypes: ROW_IMAGES,
+      imageTypeLimit: 1,
+      enableUserData: true,
     }));
   }
 

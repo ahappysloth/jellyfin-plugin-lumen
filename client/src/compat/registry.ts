@@ -89,11 +89,11 @@ export const LIBRARY_ROUTES: Record<string, string> = {
 
 /**
  * The library pages' tabs Lumen draws, by jellyfin-web's `?tab=` index (apps/modern/features/libraries/constants/views
- * in 12.4). Tabs not listed (Suggestions, Upcoming, Playlists) stay stock.
+ * in 12.4). Tabs not listed (Playlists) stay stock.
  */
 export const LIBRARY_TABS = {
-  movies: { items: 0, favorites: 2, collections: 3, genres: 4, studios: 5 },
-  tvshows: { items: 0, genres: 3, studios: 4, episodes: 5, collections: 6 },
+  movies: { items: 0, suggestions: 1, favorites: 2, collections: 3, genres: 4, studios: 5 },
+  tvshows: { items: 0, suggestions: 1, upcoming: 2, genres: 3, studios: 4, episodes: 5, collections: 6 },
 } as const;
 
 /** jellyfin-web's list page filtered to one studio (`#/list?studioId=`), like its genre list. */
