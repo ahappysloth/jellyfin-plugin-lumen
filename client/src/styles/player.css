@@ -493,3 +493,58 @@ html.lmn-skin-player .upNextContainer {
 html.lmn-skin-player .volumeOsd {
   display: none !important;
 }
+
+/* Volume pill: drops down from the top centre after a volume change, without bringing back the controls. */
+.lmn-volume-pill {
+  position: fixed;
+  z-index: 3;
+  top: calc(16px + env(safe-area-inset-top));
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 200px;
+  padding: 10px 16px;
+  border: 1px solid var(--lmn-line);
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.82);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.8);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -24px);
+  transition:
+    opacity 0.2s var(--lmn-ease),
+    transform 0.25s var(--lmn-ease);
+}
+.lmn-volume-pill.is-shown {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.lmn-volume-pill__track {
+  flex: 1;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+}
+.lmn-volume-pill__fill {
+  display: block;
+  height: 100%;
+  background: #fff;
+  transition: width 0.12s linear;
+}
+.lmn-volume-pill__value {
+  min-width: 42px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lmn-volume-pill {
+    transition: opacity 0.2s;
+    transform: translate(-50%, 0);
+  }
+}

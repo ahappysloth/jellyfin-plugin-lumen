@@ -15,6 +15,8 @@ import { readPlayerState, type PlayerSnapshot } from './playerState';
 const POLL_MS = 250;
 /** Controls fade out after this long without input while playing. */
 const IDLE_MS = 3000;
+/** How long the volume pill stays after the last change. */
+const PILL_MS = 1200;
 
 type Panel = 'quality' | 'tracks' | null;
 
@@ -89,13 +91,47 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   };
   useEffect(() => {
     wake();
-    const events = ['pointermove', 'pointerdown', 'keydown', 'wheel'] as const;
+    // Not the wheel: jellyfin-web turns it into volume changes, which get the volume pill instead.
+    const events = ['pointermove', 'pointerdown', 'keydown'] as const;
     events.forEach((e) => document.addEventListener(e, wake, { passive: true }));
     return () => {
       clearTimeout(idleTimer.current);
       events.forEach((e) => document.removeEventListener(e, wake));
     };
   }, []);
+
+  // A volume change (jellyfin-web's wheel and keyboard shortcuts, or Lumen's mute) shows the volume pill, not the
+  // controls. <video> volume events don't bubble, so listen in the capture phase. The first reading is only the
+  // starting point: jellyfin-web sets the volume as playback starts.
+  const [volume, setVolume] = useState<{ level: number; muted: boolean; shownAt: number } | null>(null);
+  const lastVolume = useRef<{ level: number; muted: boolean } | null>(null);
+  const pillTimer = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    const onVolume = (): void => {
+      const manager = pm.current;
+      const player = manager?.getCurrentPlayer();
+      if (!manager || !player) return;
+      let next: { level: number; muted: boolean };
+      try {
+        next = { level: Math.round(manager.getVolume(player)), muted: manager.isMuted(player) };
+      } catch {
+        return;
+      }
+      const prev = lastVolume.current;
+      lastVolume.current = next;
+      if (!prev || (prev.level === next.level && prev.muted === next.muted)) return;
+      setVolume({ ...next, shownAt: Date.now() });
+      clearTimeout(pillTimer.current);
+      pillTimer.current = window.setTimeout(() => setVolume((v) => (v ? { ...v, shownAt: 0 } : v)), PILL_MS);
+    };
+    document.addEventListener('volumechange', onVolume, true);
+    return () => {
+      document.removeEventListener('volumechange', onVolume, true);
+      clearTimeout(pillTimer.current);
+    };
+  }, []);
+  // Seed the starting point from the first snapshot too (a player may not fire volumechange as it starts).
+  if (snap && !lastVolume.current) lastVolume.current = { level: Math.round(snap.volume), muted: snap.muted };
 
   if (!snap || !pm.current) return null;
   const manager = pm.current;
@@ -126,6 +162,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
         }
       }}
     >
+      <VolumePill volume={volume} />
       {/* Clicking the picture toggles play (closes a menu first); double-click toggles full screen. */}
       <div
         class="lmn-player__surface"
@@ -333,5 +370,24 @@ function FavoriteButton({ ctx, item }: { ctx: ViewContext; item: NonNullable<Pla
     >
       <Icon name={favorite ? 'heart' : 'heartOutline'} size={22} />
     </button>
+  );
+}
+
+/** The volume, dropped down from the top centre for a moment after it changes. */
+function VolumePill({ volume }: { volume: { level: number; muted: boolean; shownAt: number } | null }) {
+  const level = volume?.muted ? 0 : (volume?.level ?? 0);
+  return (
+    <div
+      class={`lmn-volume-pill${volume && volume.shownAt ? ' is-shown' : ''}`}
+      role="status"
+      aria-label={strings.player.volume}
+      aria-live="polite"
+    >
+      <Icon name={volume?.muted || level === 0 ? 'volumeOff' : 'volumeOn'} size={18} />
+      <span class="lmn-volume-pill__track" aria-hidden="true">
+        <span class="lmn-volume-pill__fill" style={{ width: `${level}%` }} />
+      </span>
+      <span class="lmn-volume-pill__value">{volume?.muted ? strings.player.muted : `${level}%`}</span>
+    </div>
   );
 }

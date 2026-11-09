@@ -201,6 +201,7 @@ export const strings = {
     mute: 'Mute',
     unmute: 'Unmute',
     volume: 'Volume',
+    muted: 'Muted',
     seek: 'Seek',
     quality: 'Quality',
     audioSubtitles: 'Audio & Subtitles',

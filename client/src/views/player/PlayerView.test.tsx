@@ -33,9 +33,9 @@ function fakeManager() {
     seek: vi.fn(),
     rewind: vi.fn(),
     fastForward: vi.fn(),
-    getVolume: () => 80,
+    getVolume: vi.fn(() => 80),
     setVolume: vi.fn(),
-    isMuted: () => false,
+    isMuted: vi.fn(() => false),
     toggleMute: vi.fn(),
     audioTracks: () => [{ Index: 1, DisplayTitle: 'English - AAC - 5.1 - Default' }],
     getAudioStreamIndex: () => 1,
@@ -93,6 +93,65 @@ describe('PlayerView', () => {
     fireEvent.click(screen.getByRole('button', { name: /Audio & Subtitles/ }));
     fireEvent.click(screen.getByRole('menuitemradio', { name: /Spanish/ }));
     expect(pm.setSubtitleStreamIndex).toHaveBeenCalledWith(3, pm.player);
+  });
+
+  it('shows a volume pill on a volume change without bringing back the controls', async () => {
+    const pm = fakeManager();
+    vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+    const { container } = render(<PlayerView ctx={makeContext(createFakeClient())} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000); // controls hide while playing
+    });
+    const osd = container.querySelector('.lmn-osd')!;
+    expect(osd).toHaveClass('is-idle');
+
+    // jellyfin-web changes the volume (its wheel or keyboard shortcuts); the <video> reports it.
+    pm.getVolume.mockReturnValue(40);
+    const video = document.createElement('video');
+    document.body.appendChild(video);
+    fireEvent.wheel(document);
+    fireEvent(video, new Event('volumechange'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+
+    const pill = screen.getByRole('status', { name: 'Volume' });
+    expect(pill).toHaveTextContent('40%');
+    expect(pill).toHaveClass('is-shown');
+    expect(osd).toHaveClass('is-idle'); // the wheel didn't wake the controls
+
+    pm.isMuted.mockReturnValue(true);
+    fireEvent(video, new Event('volumechange'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(pill).toHaveTextContent('Muted');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(pill).not.toHaveClass('is-shown');
+    video.remove();
+  });
+
+  it('shows no volume pill for the volume jellyfin-web sets as playback starts', async () => {
+    const pm = fakeManager();
+    vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+    render(<PlayerView ctx={makeContext(createFakeClient())} />);
+    const video = document.createElement('video');
+    document.body.appendChild(video);
+    fireEvent(video, new Event('volumechange'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    fireEvent(video, new Event('volumechange')); // same volume as before: not a change
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(screen.queryByRole('status', { name: 'Volume' })?.classList.contains('is-shown') ?? false).toBe(
+      false,
+    );
+    video.remove();
   });
 
   it('hands the page back to the stock player at once when there is no playback manager', async () => {
