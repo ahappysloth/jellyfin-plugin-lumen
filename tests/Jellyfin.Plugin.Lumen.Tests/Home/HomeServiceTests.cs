@@ -349,6 +349,44 @@ public sealed class HomeServiceTests : IDisposable
         Assert.Equal(["Patient"], home.Rows.Select(r => r.Type));
     }
 
+    [Fact]
+    public async Task AbandonedWork_KeepsItsSlot_SoItCantPileUp()
+    {
+        Add("S");
+        using var stuck = new ManualResetEventSlim();
+        var calls = 0;
+        var provider = new FakeSectionProvider("S")
+        {
+            Rows = (_, def, _) =>
+            {
+                if (Interlocked.Increment(ref calls) == 1)
+                {
+                    stuck.Wait(TimeSpan.FromSeconds(10), CancellationToken.None); // a synchronous library query that ignores its token
+                }
+
+                return Task.FromResult(HomeRow.Single(def, "S", [TestData.Movie("s")]));
+            },
+        };
+        using var slots = new SemaphoreSlim(1);
+        var service = new HomeService([provider], _store, _hero, _history, new FakeMapper(), _badges, _cache, TimeProvider.System, NullLogger<HomeService>.Instance)
+        {
+            Timeout = TimeSpan.FromMilliseconds(200),
+            WorkSlots = slots,
+        };
+
+        Assert.Empty((await service.GetHomeAsync(TestData.User("a"), CancellationToken.None)).Rows);
+        Assert.Empty((await service.GetHomeAsync(TestData.User("b"), CancellationToken.None)).Rows); // waits for the slot, times out
+        Assert.Equal(1, calls);
+
+        stuck.Set();
+        for (var i = 0; i < 100 && slots.CurrentCount == 0; i++)
+        {
+            await Task.Delay(20);
+        }
+
+        Assert.Single((await service.GetHomeAsync(TestData.User("c"), CancellationToken.None)).Rows);
+    }
+
     private static FakeSectionProvider Returning(string type, params BaseItem[] items) => new(type)
     {
         Rows = (_, def, _) => Task.FromResult(HomeRow.Single(def, type, items)),

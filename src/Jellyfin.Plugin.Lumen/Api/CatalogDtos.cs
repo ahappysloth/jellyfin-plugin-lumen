@@ -1,16 +1,5 @@
 namespace Jellyfin.Plugin.Lumen.Api;
 
-/// <summary>Request states of a catalog title or season (see <see cref="Requests.CatalogMapper.MapStatus"/>).</summary>
-public static class CatalogState
-{
-    public const string None = "None";
-    public const string Requested = "Requested";
-    public const string Downloading = "Downloading";
-    public const string PartlyAvailable = "PartlyAvailable";
-    public const string Available = "Available";
-    public const string Blocklisted = "Blocklisted";
-}
-
 /// <summary>
 /// A title from Seerr's catalog that the server may or may not have (requests design spec, §3). <c>Poster</c> and
 /// <c>Backdrop</c> are TMDB file names (no leading slash) for <c>/Lumen/Requests/Image/{size}/{file}</c>.

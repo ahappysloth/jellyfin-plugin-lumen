@@ -80,6 +80,9 @@ public sealed class SeerrDiscoverClientTests : IDisposable
     [Fact]
     public async Task Discover_IsCachedServerWide_ForTenMinutes()
     {
+        await LookUpAsync(7, """{"locale":"en","region":"","originalLanguage":null}""");
+        await LookUpAsync(8, """{"locale":"en","region":"","originalLanguage":null}""");
+        _http.Requests.Clear();
         _http.Respond = _ => FakeHttp.Json(EmptyPage);
 
         var first = await _client.DiscoverAsync(Endpoint, 7, SeerrDiscoverList.Trending, CancellationToken.None);
@@ -124,6 +127,9 @@ public sealed class SeerrDiscoverClientTests : IDisposable
     [Fact]
     public async Task TitleSummary_IsCachedPerTitle_ButTitleDetailsAndSearchAreNot()
     {
+        await LookUpAsync(7, "{}");
+        await LookUpAsync(8, "{}");
+        _http.Requests.Clear();
         _http.Respond = r => r.RequestUri!.AbsolutePath.Contains("/search", StringComparison.Ordinal)
             ? FakeHttp.Json(EmptyPage)
             : FakeHttp.Json("""{"id":603,"title":"The Matrix"}""");
@@ -211,7 +217,7 @@ public sealed class SeerrDiscoverClientTests : IDisposable
             await Assert.ThrowsAsync<SeerrException>(() => _client.SearchAsync(Endpoint, 7, "x", 1, CancellationToken.None));
         }
 
-        Assert.False(_client.Breaker.IsOpen);
+        Assert.False(_client.BreakerFor(Endpoint).IsOpen);
     }
 
     [Fact]
@@ -224,7 +230,7 @@ public sealed class SeerrDiscoverClientTests : IDisposable
         await Assert.ThrowsAsync<SeerrException>(() => _client.SearchAsync(Endpoint, 7, "x", 1, CancellationToken.None));
 
         Assert.Equal(before + 1, _http.Requests.Count);
-        Assert.True(_client.Breaker.IsOpen);
+        Assert.True(_client.BreakerFor(Endpoint).IsOpen);
     }
 
     [Theory]
@@ -242,7 +248,7 @@ public sealed class SeerrDiscoverClientTests : IDisposable
             Assert.Equal(status, error.Status);
         }
 
-        Assert.False(_client.Breaker.IsOpen);
+        Assert.False(_client.BreakerFor(Endpoint).IsOpen);
     }
 
     [Fact]
@@ -263,7 +269,7 @@ public sealed class SeerrDiscoverClientTests : IDisposable
             }
         }
 
-        Assert.False(_client.Breaker.IsOpen);
+        Assert.False(_client.BreakerFor(Endpoint).IsOpen);
         Assert.Equal(9, calls);
     }
 
@@ -277,7 +283,7 @@ public sealed class SeerrDiscoverClientTests : IDisposable
 
         Assert.Equal("3.5.1", (await _client.GetStatusAsync(Endpoint, CancellationToken.None)).Version);
         Assert.NotNull(await _client.GetJellyfinServerAsync(Endpoint, CancellationToken.None));
-        Assert.True(_client.Breaker.IsOpen);
+        Assert.True(_client.BreakerFor(Endpoint).IsOpen);
     }
 
     [Fact]
@@ -290,7 +296,7 @@ public sealed class SeerrDiscoverClientTests : IDisposable
             await Assert.ThrowsAsync<SeerrException>(() => _client.GetStatusAsync(Endpoint, CancellationToken.None));
         }
 
-        Assert.False(_client.Breaker.IsOpen);
+        Assert.False(_client.BreakerFor(Endpoint).IsOpen);
     }
 
     [Fact]
@@ -304,6 +310,16 @@ public sealed class SeerrDiscoverClientTests : IDisposable
         await Assert.ThrowsAsync<SeerrException>(() => _client.DiscoverAsync(Endpoint, 7, SeerrDiscoverList.PopularTv, CancellationToken.None));
     }
 
+    /// <summary>Looks up Seerr user <paramref name="seerrUserId"/>, whose settings are <paramref name="settings"/> (JSON).</summary>
+    private async Task LookUpAsync(int seerrUserId, string? settings)
+    {
+        var body = settings is null
+            ? $$"""{"id":{{seerrUserId}},"permissions":32}"""
+            : $$"""{"id":{{seerrUserId}},"permissions":32,"settings":{{settings}}}""";
+        _http.Respond = _ => FakeHttp.Json(body);
+        Assert.Equal(seerrUserId, (await _client.GetUserByJellyfinIdAsync(Endpoint, Guid.NewGuid(), CancellationToken.None))!.Id);
+    }
+
     private async Task TripAsync()
     {
         _http.Respond = _ => throw new HttpRequestException("down");
@@ -312,6 +328,6 @@ public sealed class SeerrDiscoverClientTests : IDisposable
             await Assert.ThrowsAsync<SeerrException>(() => _client.SearchAsync(Endpoint, 7, "x", 1, CancellationToken.None));
         }
 
-        Assert.True(_client.Breaker.IsOpen);
+        Assert.True(_client.BreakerFor(Endpoint).IsOpen);
     }
 }

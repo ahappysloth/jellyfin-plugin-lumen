@@ -30,6 +30,17 @@ public class SeerrUserMapTests
     }
 
     [Fact]
+    public async Task LumenSwitchedOff_NoAccessAndNoSeerrCalls()
+    {
+        var config = Configured();
+        config.Enabled = false;
+        _store.Current.Returns(config);
+
+        Assert.Equal(RequestAccess.None, await Map().GetAccessAsync(_user, CancellationToken.None));
+        await _seerr.DidNotReceiveWithAnyArgs().GetUserByJellyfinIdAsync(default!, default, default);
+    }
+
+    [Fact]
     public async Task MappedUser_GetsTheirSeerrPermissions_CachedForTenMinutes()
     {
         _seerr.GetUserByJellyfinIdAsync(Arg.Any<SeerrEndpoint>(), _user, Arg.Any<CancellationToken>()).Returns(new SeerrUser(4, 262144));

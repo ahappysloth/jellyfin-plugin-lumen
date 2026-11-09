@@ -1,7 +1,7 @@
 using System.Net;
 using System.Security.Claims;
 using Jellyfin.Plugin.Lumen.Api;
-using Jellyfin.Plugin.Lumen.Configuration;
+using Jellyfin.Plugin.Lumen.Home;
 using Jellyfin.Plugin.Lumen.Requests;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
@@ -14,16 +14,16 @@ using Xunit;
 
 namespace Jellyfin.Plugin.Lumen.Tests.Requests;
 
-public class RequestsControllerTests
+public sealed class RequestsControllerTests : IDisposable
 {
     private static readonly SeerrEndpoint Endpoint = new(new Uri("http://seerr:5055/"), "key123");
 
     private readonly ISeerrUserMap _users = Substitute.For<ISeerrUserMap>();
     private readonly ITmdbImageCache _images = Substitute.For<ITmdbImageCache>();
     private readonly ISeerrClient _seerr = Substitute.For<ISeerrClient>();
-    private readonly ILumenConfigStore _config = Substitute.For<ILumenConfigStore>();
     private readonly IUserManager _userManager = Substitute.For<IUserManager>();
     private readonly ILibraryManager _library = Substitute.For<ILibraryManager>();
+    private readonly HomeCache _home = new(Substitute.For<IUserDataManager>(), Substitute.For<ILibraryManager>(), TimeProvider.System);
     private readonly Jellyfin.Database.Implementations.Entities.User _jellyfinUser = TestData.User();
     private readonly Guid _user;
 
@@ -31,8 +31,9 @@ public class RequestsControllerTests
     {
         _user = _jellyfinUser.Id;
         _userManager.GetUserById(_user).Returns(_jellyfinUser);
-        _config.Current.Returns(new PluginConfiguration { RequestsEnabled = true, SeerrUrl = "http://seerr:5055", SeerrApiKey = "key123" });
     }
+
+    public void Dispose() => _home.Dispose();
 
     [Fact]
     public async Task Status_RequiresAJellyfinUser()
@@ -70,13 +71,23 @@ public class RequestsControllerTests
     public async Task Image_ServesTheCachedFile_WithLongCaching()
     {
         _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, false, false, 1, Endpoint));
-        _images.GetAsync("w780", "abc.jpg", Arg.Any<CancellationToken>()).Returns(new CachedImage("/tmp/abc.jpg", "image/jpeg"));
+        var path = Path.GetTempFileName();
+        File.WriteAllBytes(path, [1, 2, 3]);
+        _images.GetAsync("w780", "abc.jpg", Arg.Any<CancellationToken>()).Returns(new CachedImage(path, "image/jpeg"));
         var controller = Create();
 
-        var file = Assert.IsType<PhysicalFileResult>(await controller.GetImage("w780", "abc.jpg", CancellationToken.None));
+        var file = Assert.IsType<FileStreamResult>(await controller.GetImage("w780", "abc.jpg", CancellationToken.None));
 
-        Assert.Equal("/tmp/abc.jpg", file.FileName);
-        Assert.Contains("max-age=604800", controller.Response.Headers.CacheControl.ToString(), StringComparison.Ordinal);
+        await using (file.FileStream)
+        {
+            Assert.Equal("image/jpeg", file.ContentType);
+            Assert.Equal(3, file.FileStream.Length);
+            Assert.Contains("max-age=604800", controller.Response.Headers.CacheControl.ToString(), StringComparison.Ordinal);
+
+            // Open, it can still be trimmed (or replaced) without breaking the response.
+            File.Delete(path);
+            Assert.Equal(1, file.FileStream.ReadByte());
+        }
     }
 
     [Theory]
@@ -323,6 +334,75 @@ public class RequestsControllerTests
         Assert.Equal(new ErrorDto(expectedError), result.Value);
     }
 
+    [Fact]
+    public async Task Image_IsA502_WhenTmdbFails()
+    {
+        GrantAccess();
+        _images.GetAsync("w780", "abc.jpg", Arg.Any<CancellationToken>()).Returns(Task.FromException<CachedImage?>(new HttpRequestException("tmdb down")));
+
+        Assert.Equal(StatusCodes.Status502BadGateway, Assert.IsType<StatusCodeResult>(await Create().GetImage("w780", "abc.jpg", CancellationToken.None)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Image_IsA404_WhenTmdbHasNoSuchImage()
+    {
+        GrantAccess();
+        _images.GetAsync("w780", "abc.jpg", Arg.Any<CancellationToken>()).Returns((CachedImage?)null);
+
+        Assert.IsType<NotFoundResult>(await Create().GetImage("w780", "abc.jpg", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Image_FetchesAgain_WhenTheFileVanishedBeforeItWasServed()
+    {
+        GrantAccess();
+        var gone = Path.Combine(Path.GetTempPath(), "lumen-gone-" + Guid.NewGuid().ToString("N") + ".jpg");
+        var path = Path.GetTempFileName();
+        File.WriteAllBytes(path, [1]);
+        _images.GetAsync("w780", "abc.jpg", Arg.Any<CancellationToken>()).Returns(new CachedImage(gone, "image/jpeg"), new CachedImage(path, "image/jpeg"));
+
+        var file = Assert.IsType<FileStreamResult>(await Create().GetImage("w780", "abc.jpg", CancellationToken.None));
+
+        await file.FileStream.DisposeAsync();
+        File.Delete(path);
+        await _images.Received(2).GetAsync("w780", "abc.jpg", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Image_IsA502_WhenTheFileKeepsVanishing()
+    {
+        GrantAccess();
+        var gone = Path.Combine(Path.GetTempPath(), "lumen-gone-" + Guid.NewGuid().ToString("N") + ".jpg");
+        _images.GetAsync("w780", "abc.jpg", Arg.Any<CancellationToken>()).Returns(new CachedImage(gone, "image/jpeg"));
+
+        Assert.Equal(StatusCodes.Status502BadGateway, Assert.IsType<StatusCodeResult>(await Create().GetImage("w780", "abc.jpg", CancellationToken.None)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Request_RefreshesTheUsersHome()
+    {
+        GrantAccess();
+        _seerr.CreateRequestAsync(default!, default, default!, default, default, default).ReturnsForAnyArgs(new SeerrRequestResult(5, 1, 2));
+        var before = _home.Stamp(_user);
+
+        Assert.NotNull((await Create().CreateRequest(new CatalogRequestDto("movie", 603, null), CancellationToken.None)).Value);
+
+        Assert.NotEqual(before, _home.Stamp(_user));
+    }
+
+    [Fact]
+    public async Task AFailedRequest_LeavesTheHomeCacheAlone()
+    {
+        GrantAccess();
+        _seerr.CreateRequestAsync(default!, default, default!, default, default, default)
+            .ReturnsForAnyArgs<SeerrRequestResult>(_ => throw new SeerrException("failed", HttpStatusCode.Conflict));
+        var before = _home.Stamp(_user);
+
+        await Create().CreateRequest(new CatalogRequestDto("movie", 603, null), CancellationToken.None);
+
+        Assert.Equal(before, _home.Stamp(_user));
+    }
+
     private static void AssertError<T>(ActionResult? result)
         where T : ObjectResult =>
         Assert.IsType<ErrorDto>(Assert.IsType<T>(result).Value);
@@ -330,7 +410,7 @@ public class RequestsControllerTests
     private void GrantAccess() =>
         _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, true, true, 9, Endpoint));
 
-    private RequestsController Create(bool signedIn = true) => new(_users, _images, _seerr, _config, _userManager, new CatalogMapper(_library), NullLogger<RequestsController>.Instance)
+    private RequestsController Create(bool signedIn = true) => new(_users, _images, _seerr, _home, _userManager, new CatalogMapper(_library), NullLogger<RequestsController>.Instance)
     {
         ControllerContext = new ControllerContext
         {

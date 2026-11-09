@@ -17,6 +17,9 @@ namespace Jellyfin.Plugin.Lumen.Api;
 [Authorize(Policy = Policies.RequiresElevation)]
 public sealed class AdminController : ControllerBase
 {
+    /// <summary>How many Seerr user lookups the users list runs at once.</summary>
+    public const int MaxConcurrentUserLookups = 4;
+
     private readonly ILumenConfigStore _store;
     private readonly IEnumerable<IHomeSectionProvider> _providers;
     private readonly DiagnosticsStore _diagnostics;
@@ -88,8 +91,9 @@ public sealed class AdminController : ControllerBase
         {
             var status = await _seerr.GetStatusAsync(endpoint, cancellationToken).ConfigureAwait(false);
 
-            // /status answers without a key, so prove the key works with a call that needs it.
-            await _seerr.GetUserByJellyfinIdAsync(endpoint, Guid.Empty, cancellationToken).ConfigureAwait(false);
+            // /status answers without a key, so prove the key works with a call that needs it. Admin lookups bypass the
+            // circuit breaker, so this really tries even right after an outage, and a failure here pauses nothing.
+            await _seerr.GetUserByJellyfinIdForAdminAsync(endpoint, Guid.Empty, cancellationToken).ConfigureAwait(false);
             var server = await TryGetJellyfinServerAsync(endpoint, cancellationToken).ConfigureAwait(false);
             return new SeerrTestResultDto(true, status.Version, null, server?.Name, server?.Is(_host.SystemId));
         }
@@ -101,7 +105,8 @@ public sealed class AdminController : ControllerBase
 
     /// <summary>
     /// Which Jellyfin server Seerr is linked to, and the users here with no Seerr account (they see no catalog).
-    /// Empty when requests are off.
+    /// Empty when requests are off. The lookups run a few at a time and bypass the circuit breaker, so a slow Seerr
+    /// neither makes this take minutes nor pauses request features for everyone.
     /// </summary>
     [HttpGet("Seerr/Users")]
     public async Task<ActionResult<SeerrUsersDto>> GetSeerrUsers(CancellationToken cancellationToken)
@@ -111,25 +116,26 @@ public sealed class AdminController : ControllerBase
             return new SeerrUsersDto(null, null, []);
         }
 
-        var unmapped = new List<UnmappedUserDto>();
-        SeerrJellyfinServer? server;
+        var users = _users.GetUsers().ToList();
+        var mapped = new bool[users.Count];
+        var server = TryGetJellyfinServerAsync(endpoint, cancellationToken);
         try
         {
-            server = await TryGetJellyfinServerAsync(endpoint, cancellationToken).ConfigureAwait(false);
-            foreach (var user in _users.GetUsers())
-            {
-                if (await _seerr.GetUserByJellyfinIdAsync(endpoint, user.Id, cancellationToken).ConfigureAwait(false) is null)
-                {
-                    unmapped.Add(new UnmappedUserDto(user.Id, user.Username));
-                }
-            }
+            await Parallel.ForEachAsync(
+                Enumerable.Range(0, users.Count),
+                new ParallelOptions { MaxDegreeOfParallelism = MaxConcurrentUserLookups, CancellationToken = cancellationToken },
+                async (i, ct) => mapped[i] = await _seerr.GetUserByJellyfinIdForAdminAsync(endpoint, users[i].Id, ct).ConfigureAwait(false) is not null)
+                .ConfigureAwait(false);
         }
         catch (SeerrException e)
         {
+            await server.ConfigureAwait(false);
             return StatusCode(StatusCodes.Status502BadGateway, new ValidationErrorsDto([e.Message]));
         }
 
-        return new SeerrUsersDto(server?.Name, server?.Is(_host.SystemId), unmapped);
+        var unmapped = users.Where((_, i) => !mapped[i]).Select(u => new UnmappedUserDto(u.Id, u.Username)).ToList();
+        var linked = await server.ConfigureAwait(false);
+        return new SeerrUsersDto(linked?.Name, linked?.Is(_host.SystemId), unmapped);
     }
 
     [HttpGet("Diagnostics")]

@@ -110,16 +110,14 @@ public class LumenConfigStoreTests
     }
 
     private LumenConfigStore CreateStore() => new(
-        _persistence,
-        _libraries,
+        new LumenConfigReader(_persistence, _libraries, NullLogger<LumenConfigReader>.Instance),
         new ConfigValidator(new[] { SectionTypes.ContinueWatching, SectionTypes.NextUp, SectionTypes.RecentlyAdded, SectionTypes.BecauseYouWatched, SectionTypes.NewForYou, SectionTypes.Genre }
             .Select(t => (IHomeSectionProvider)new FakeSectionProvider(
                 t,
                 new SectionParameter("libraryId", "Library", SectionParameterKind.Library),
                 new SectionParameter("maxRows", "Rows", SectionParameterKind.Integer),
                 new SectionParameter("days", "Days", SectionParameterKind.Integer),
-                new SectionParameter("genreCount", "Genres", SectionParameterKind.Integer)))),
-        NullLogger<LumenConfigStore>.Instance);
+                new SectionParameter("genreCount", "Genres", SectionParameterKind.Integer)))));
 
     private sealed class InMemoryPersistence : IPluginConfigPersistence
     {

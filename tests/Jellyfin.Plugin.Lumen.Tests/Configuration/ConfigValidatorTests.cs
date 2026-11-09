@@ -70,6 +70,15 @@ public class ConfigValidatorTests
     }
 
     [Fact]
+    public void RejectsAnUnknownHeroSource()
+    {
+        var config = Valid();
+        config.HeroSource = (HeroSource)42;
+
+        Assert.Contains(CreateValidator().Validate(config), e => e.Contains("Hero source", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void CollectionHeroRequiresCollection()
     {
         var config = Valid();

@@ -76,7 +76,7 @@ public class AdminControllerTests
 
         Assert.True(result.Ok);
         Assert.Equal("3.5.1", result.Version);
-        await _seerr.Received().GetUserByJellyfinIdAsync(
+        await _seerr.Received().GetUserByJellyfinIdForAdminAsync(
             Arg.Is<SeerrEndpoint>(e => e.ApiKey == "stored" && e.BaseUrl == new Uri("http://seerr:5055/")), Guid.Empty, Arg.Any<CancellationToken>());
     }
 
@@ -90,6 +90,7 @@ public class AdminControllerTests
         Assert.False(result.Ok);
         Assert.Contains("new address", result.Error, StringComparison.Ordinal);
         await _seerr.DidNotReceiveWithAnyArgs().GetStatusAsync(default!, default);
+        await _seerr.DidNotReceiveWithAnyArgs().GetUserByJellyfinIdForAdminAsync(default!, default, default);
         await _seerr.DidNotReceiveWithAnyArgs().GetUserByJellyfinIdAsync(default!, default, default);
     }
 
@@ -112,7 +113,7 @@ public class AdminControllerTests
     {
         _store.Current.Returns(new PluginConfiguration());
         _seerr.GetStatusAsync(Arg.Any<SeerrEndpoint>(), Arg.Any<CancellationToken>()).Returns(new SeerrStatus("3.5.1"));
-        _seerr.GetUserByJellyfinIdAsync(Arg.Any<SeerrEndpoint>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+        _seerr.GetUserByJellyfinIdForAdminAsync(Arg.Any<SeerrEndpoint>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException<SeerrUser?>(new SeerrException("Seerr rejected the API key.")));
 
         var result = (await Create().TestSeerr(new SeerrTestRequestDto("http://seerr:5055", "bad"), CancellationToken.None)).Value!;
@@ -128,7 +129,7 @@ public class AdminControllerTests
         var unmapped = TestData.User("unmapped");
         _store.Current.Returns(new PluginConfiguration { RequestsEnabled = true, SeerrUrl = "http://seerr:5055", SeerrApiKey = "k" });
         _users.GetUsers().Returns([mapped, unmapped]);
-        _seerr.GetUserByJellyfinIdAsync(Arg.Any<SeerrEndpoint>(), mapped.Id, Arg.Any<CancellationToken>()).Returns(new SeerrUser(2, 32));
+        _seerr.GetUserByJellyfinIdForAdminAsync(Arg.Any<SeerrEndpoint>(), mapped.Id, Arg.Any<CancellationToken>()).Returns(new SeerrUser(2, 32));
         _seerr.GetJellyfinServerAsync(Arg.Any<SeerrEndpoint>(), Arg.Any<CancellationToken>()).Returns(new SeerrJellyfinServer("Elsewhere", "ffff"));
 
         var result = (await Create().GetSeerrUsers(CancellationToken.None)).Value!;
@@ -147,6 +148,7 @@ public class AdminControllerTests
 
         Assert.Empty(result.Unmapped);
         Assert.Null(result.SameJellyfinServer);
+        await _seerr.DidNotReceiveWithAnyArgs().GetUserByJellyfinIdForAdminAsync(default!, default, default);
         await _seerr.DidNotReceiveWithAnyArgs().GetUserByJellyfinIdAsync(default!, default, default);
     }
 

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
@@ -5,108 +6,24 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using Jellyfin.Plugin.Lumen.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.Lumen.Requests;
 
-/// <summary>Typed access to the Seerr endpoints Lumen uses (see the requests design spec, §4).</summary>
-public interface ISeerrClient
-{
-    Task<SeerrStatus> GetStatusAsync(SeerrEndpoint endpoint, CancellationToken cancellationToken);
-
-    /// <summary>The Jellyfin server Seerr is linked to, or null if it isn't set up for Jellyfin.</summary>
-    Task<SeerrJellyfinServer?> GetJellyfinServerAsync(SeerrEndpoint endpoint, CancellationToken cancellationToken);
-
-    /// <summary>The Seerr account linked to a Jellyfin user, or null if there is none.</summary>
-    Task<SeerrUser?> GetUserByJellyfinIdAsync(SeerrEndpoint endpoint, Guid jellyfinUserId, CancellationToken cancellationToken);
-
-    /// <summary>Movies, shows and people matching <paramref name="query"/>, as the Seerr user <paramref name="seerrUserId"/>.</summary>
-    Task<SeerrPage> SearchAsync(SeerrEndpoint endpoint, int seerrUserId, string query, int page, CancellationToken cancellationToken);
-
-    /// <summary>A movie's details, as the given Seerr user.</summary>
-    Task<SeerrTitle> GetMovieAsync(SeerrEndpoint endpoint, int seerrUserId, int tmdbId, CancellationToken cancellationToken);
-
-    /// <summary>A show's details, as the given Seerr user.</summary>
-    Task<SeerrTitle> GetTvAsync(SeerrEndpoint endpoint, int seerrUserId, int tmdbId, CancellationToken cancellationToken);
-
-    /// <summary>The first page of recommendations for a title (<paramref name="mediaType"/> is "movie" or "tv").</summary>
-    Task<SeerrPage> GetRecommendationsAsync(SeerrEndpoint endpoint, int seerrUserId, string mediaType, int tmdbId, CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Files a request as the given Seerr user, so Seerr applies their permissions, quota and auto-approval. For TV, a
-    /// null or empty <paramref name="seasons"/> requests all seasons; it is ignored for movies.
-    /// </summary>
-    Task<SeerrRequestResult> CreateRequestAsync(SeerrEndpoint endpoint, int seerrUserId, string mediaType, int tmdbId, IReadOnlyList<int>? seasons, CancellationToken cancellationToken);
-
-    /// <summary>The first page of a discover list. Shared by all users, so cached server-wide for 10 minutes.</summary>
-    Task<SeerrPage> DiscoverAsync(SeerrEndpoint endpoint, int seerrUserId, SeerrDiscoverList list, CancellationToken cancellationToken);
-
-    /// <summary>The user's 20 most recent requests, newest first (no title or art; see <see cref="GetTitleSummaryAsync"/>).</summary>
-    Task<IReadOnlyList<SeerrUserRequest>> GetUserRequestsAsync(SeerrEndpoint endpoint, int seerrUserId, CancellationToken cancellationToken);
-
-    /// <summary>
-    /// A title's details for a card (title, year, art, rating, genres), cached server-wide for 10 minutes per title. Its
-    /// <c>MediaInfo</c> may be stale, so never read the request state from it.
-    /// </summary>
-    Task<SeerrTitle> GetTitleSummaryAsync(SeerrEndpoint endpoint, int seerrUserId, string mediaType, int tmdbId, CancellationToken cancellationToken);
-}
-
-/// <summary>Where and how to reach Seerr: base URL plus the admin API key.</summary>
-public sealed record SeerrEndpoint(Uri BaseUrl, string ApiKey)
-{
-    /// <summary>The configured endpoint, or null when requests are off or not fully configured.</summary>
-    public static SeerrEndpoint? From(PluginConfiguration config) =>
-        config.RequestsEnabled && ConfigValidator.IsHttpUrl(config.SeerrUrl) && !string.IsNullOrWhiteSpace(config.SeerrApiKey)
-            ? new SeerrEndpoint(new Uri(config.SeerrUrl!.TrimEnd('/') + "/"), config.SeerrApiKey!)
-            : null;
-}
-
-/// <summary>Seerr's version, from <c>GET /api/v1/status</c>.</summary>
-public sealed record SeerrStatus(string Version);
-
 /// <summary>
-/// The Jellyfin server Seerr is linked to. Seerr's settings response also contains its Jellyfin API key, so only the
-/// name and server id are kept.
-/// </summary>
-public sealed record SeerrJellyfinServer(string Name, string ServerId)
-{
-    /// <summary>True when <paramref name="systemId"/> (this server's id) is the server Seerr is linked to.</summary>
-    public bool Is(string systemId) => Normalize(ServerId) == Normalize(systemId);
-
-    private static string Normalize(string id) => id.Replace("-", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
-}
-
-/// <summary>
-/// The only parts of a Seerr user Lumen keeps. Seerr's user object (fetched with the admin key) also carries the user's
-/// Jellyfin and Plex tokens, so it is never stored or passed on whole.
-/// </summary>
-public sealed record SeerrUser(int Id, long Permissions);
-
-/// <summary>A Seerr call failed: unreachable, timed out, rejected the key, or returned something unexpected.</summary>
-public sealed class SeerrException : Exception
-{
-    public SeerrException(string message, HttpStatusCode? status = null, Exception? inner = null, string? seerrMessage = null)
-        : base(message, inner)
-    {
-        Status = status;
-        SeerrMessage = seerrMessage;
-    }
-
-    public HttpStatusCode? Status { get; }
-
-    /// <summary>The <c>message</c> from Seerr's error body (e.g. a quota or permission explanation), if it sent one.</summary>
-    public string? SeerrMessage { get; }
-
-    /// <summary>Gets a value indicating whether the call was refused by the circuit breaker without contacting Seerr.</summary>
-    public bool IsCircuitOpen { get; init; }
-}
-
-/// <summary>
-/// <see cref="ISeerrClient"/> over <see cref="IHttpClientFactory"/>, with a per-call timeout. User-facing calls (and the
-/// user lookup) go through a <see cref="SeerrCircuitBreaker"/>; the admin calls (<see cref="GetStatusAsync"/>,
-/// <see cref="GetJellyfinServerAsync"/>) bypass it so the dashboard's Test connection always really tries. Discover lists
-/// and title summaries are cached in a <see cref="SeerrResponseCache"/>.
+/// <see cref="ISeerrClient"/> over <see cref="IHttpClientFactory"/>, with a per-call timeout. The named client
+/// (<see cref="HttpClientName"/>) never follows redirects (see ServiceRegistrator), so the API key only ever goes to the
+/// configured address; a redirect is reported as an error.
+/// <para>
+/// User-facing calls (and the user lookup behind them) go through a <see cref="SeerrCircuitBreaker"/>, one per endpoint.
+/// The admin calls (<see cref="GetStatusAsync"/>, <see cref="GetJellyfinServerAsync"/>,
+/// <see cref="GetUserByJellyfinIdForAdminAsync"/>) bypass it, so the dashboard's Test connection always really tries.
+/// </para>
+/// <para>
+/// Discover lists and title summaries are cached in a <see cref="SeerrResponseCache"/>. Seerr answers them in the acting
+/// user's language and discover region, so a cached answer is only shared between users whose Seerr settings for those
+/// match (learnt from their user lookup); a user whose settings Lumen hasn't seen gets entries of their own.
+/// </para>
 /// </summary>
 public sealed class SeerrClient : ISeerrClient
 {
@@ -114,17 +31,26 @@ public sealed class SeerrClient : ISeerrClient
     public const int RequestsTake = 20;
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
 
+    /// <summary>More endpoints than this (an admin trying addresses) and the per-endpoint state starts over.</summary>
+    private const int MaxEndpoints = 16;
+
+    /// <summary>More users than this and the learnt content scopes start over (users fall back to their own cache entries).</summary>
+    private const int MaxScopes = 10_000;
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly IHttpClientFactory _http;
+    private readonly TimeProvider _time;
+    private readonly ILogger<SeerrClient> _logger;
+    private readonly ConcurrentDictionary<string, SeerrCircuitBreaker> _breakers = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<(string Endpoint, int User), string> _scopes = new();
 
     public SeerrClient(IHttpClientFactory http, TimeProvider time, ILogger<SeerrClient> logger)
     {
         _http = http;
-        Breaker = new SeerrCircuitBreaker(time, logger);
+        _time = time;
+        _logger = logger;
         Cache = new SeerrResponseCache(time);
     }
-
-    internal SeerrCircuitBreaker Breaker { get; }
 
     internal SeerrResponseCache Cache { get; }
 
@@ -140,19 +66,11 @@ public sealed class SeerrClient : ISeerrClient
         return string.IsNullOrEmpty(settings?.ServerId) ? null : new SeerrJellyfinServer(settings.Name ?? "Jellyfin", settings.ServerId);
     }
 
-    public async Task<SeerrUser?> GetUserByJellyfinIdAsync(SeerrEndpoint endpoint, Guid jellyfinUserId, CancellationToken cancellationToken)
-    {
-        var path = "api/v1/user/jellyfin/" + jellyfinUserId.ToString("N", CultureInfo.InvariantCulture);
-        try
-        {
-            var user = await GetAsync<UserBody>(endpoint, path, null, cancellationToken).ConfigureAwait(false);
-            return user is { Id: > 0 } ? new SeerrUser(user.Id, user.Permissions) : null;
-        }
-        catch (SeerrException e) when (e.Status == HttpStatusCode.NotFound)
-        {
-            return null;
-        }
-    }
+    public Task<SeerrUser?> GetUserByJellyfinIdAsync(SeerrEndpoint endpoint, Guid jellyfinUserId, CancellationToken cancellationToken) =>
+        LookUpUserAsync(endpoint, jellyfinUserId, true, cancellationToken);
+
+    public Task<SeerrUser?> GetUserByJellyfinIdForAdminAsync(SeerrEndpoint endpoint, Guid jellyfinUserId, CancellationToken cancellationToken) =>
+        LookUpUserAsync(endpoint, jellyfinUserId, false, cancellationToken);
 
     public async Task<SeerrPage> SearchAsync(SeerrEndpoint endpoint, int seerrUserId, string query, int page, CancellationToken cancellationToken)
     {
@@ -222,6 +140,47 @@ public sealed class SeerrClient : ISeerrClient
         await GetCachedAsync<SeerrTitle>(endpoint, "api/v1/" + ValidMediaType(mediaType) + "/" + tmdbId.ToString(CultureInfo.InvariantCulture), seerrUserId, cancellationToken)
             .ConfigureAwait(false);
 
+    /// <summary>The circuit breaker for user-facing calls to <paramref name="endpoint"/>.</summary>
+    internal SeerrCircuitBreaker BreakerFor(SeerrEndpoint endpoint)
+    {
+        var key = endpoint.CacheKey;
+        if (_breakers.TryGetValue(key, out var breaker))
+        {
+            return breaker;
+        }
+
+        if (_breakers.Count >= MaxEndpoints)
+        {
+            _breakers.Clear();
+        }
+
+        return _breakers.GetOrAdd(key, _ => new SeerrCircuitBreaker(_time, _logger));
+    }
+
+    /// <summary>
+    /// Which users may share cached discover lists and title summaries: those whose Seerr language and region settings
+    /// are the same. A user Lumen hasn't looked up (or whose settings Seerr didn't include) gets a scope of their own.
+    /// </summary>
+    internal string ContentScope(SeerrEndpoint endpoint, int seerrUserId) =>
+        _scopes.TryGetValue((endpoint.CacheKey, seerrUserId), out var scope)
+            ? scope
+            : "user:" + seerrUserId.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// The user settings that change what Seerr's discover and title responses contain, as a cache scope; null when the
+    /// user object has no settings (then the user is not shared with anyone).
+    /// </summary>
+    private static string? ScopeOf(JsonElement? settings)
+    {
+        if (settings is not { ValueKind: JsonValueKind.Object } value)
+        {
+            return null;
+        }
+
+        string Read(string name) => value.TryGetProperty(name, out var field) && field.ValueKind != JsonValueKind.Null ? field.GetRawText() : string.Empty;
+        return string.Join('|', "locale:" + Read("locale"), "region:" + Read("region"), "discover:" + Read("discoverRegion"), "original:" + Read("originalLanguage"));
+    }
+
     private static string ValidMediaType(string mediaType) =>
         CatalogMediaType.IsValid(mediaType) ? mediaType : throw new ArgumentException("Unknown media type.", nameof(mediaType));
 
@@ -259,21 +218,61 @@ public sealed class SeerrClient : ISeerrClient
     {
         HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Seerr rejected the API key.",
         HttpStatusCode.NotFound => "Seerr returned 404. Is this Seerr's address?",
+        >= HttpStatusCode.MultipleChoices and < HttpStatusCode.BadRequest =>
+            "Seerr's address redirected somewhere else (often a login page in front of Seerr). Use Seerr's direct address, like http://seerr:5055.",
         _ => string.Create(CultureInfo.InvariantCulture, $"Seerr returned HTTP {(int)status}."),
     };
 
     /// <summary>Whether a failed call counts against the breaker: Seerr unreachable, too slow, a 5xx, or not JSON.</summary>
     private static bool IsOutage(SeerrException e) => e.Status is null || (int)e.Status >= 500;
 
+    private async Task<SeerrUser?> LookUpUserAsync(SeerrEndpoint endpoint, Guid jellyfinUserId, bool guarded, CancellationToken cancellationToken)
+    {
+        var path = "api/v1/user/jellyfin/" + jellyfinUserId.ToString("N", CultureInfo.InvariantCulture);
+        UserBody? user;
+        try
+        {
+            user = await SendAsync<UserBody>(endpoint, HttpMethod.Get, path, null, null, guarded, cancellationToken).ConfigureAwait(false);
+        }
+        catch (SeerrException e) when (e.Status == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        if (user is not { Id: > 0 })
+        {
+            return null;
+        }
+
+        RememberScope(endpoint, user.Id, ScopeOf(user.Settings));
+        return new SeerrUser(user.Id, user.Permissions);
+    }
+
+    private void RememberScope(SeerrEndpoint endpoint, int seerrUserId, string? scope)
+    {
+        var key = (endpoint.CacheKey, seerrUserId);
+        if (scope is null)
+        {
+            _scopes.TryRemove(key, out _);
+            return;
+        }
+
+        if (_scopes.Count >= MaxScopes)
+        {
+            _scopes.Clear();
+        }
+
+        _scopes[key] = scope;
+    }
+
     private Task<T?> GetAsync<T>(SeerrEndpoint endpoint, string path, int? actAsUser, CancellationToken cancellationToken) =>
         SendAsync<T>(endpoint, HttpMethod.Get, path, actAsUser, null, true, cancellationToken);
 
-    /// <summary>A GET whose (non-null) result is shared by all users of <paramref name="endpoint"/> for <see cref="SeerrResponseCache.Ttl"/>.</summary>
+    /// <summary>A GET whose (non-null) result is shared, for <see cref="SeerrResponseCache.Ttl"/>, by users in the same <see cref="ContentScope"/>.</summary>
     private async Task<T> GetCachedAsync<T>(SeerrEndpoint endpoint, string path, int actAsUser, CancellationToken cancellationToken)
         where T : class
     {
-        // Keyed by endpoint (address + key) so changing either in the dashboard takes effect immediately.
-        var key = endpoint.BaseUrl + "#" + endpoint.ApiKey.GetHashCode(StringComparison.Ordinal).ToString(CultureInfo.InvariantCulture) + "|" + path;
+        var key = endpoint.CacheKey + "|" + ContentScope(endpoint, actAsUser) + "|" + path;
         if (Cache.TryGet<T>(key, out var cached))
         {
             return cached;
@@ -285,8 +284,8 @@ public sealed class SeerrClient : ISeerrClient
     }
 
     /// <summary>
-    /// One Seerr call through the breaker when <paramref name="guarded"/>. Error statuses (and 202 to a POST, Seerr's
-    /// "nothing to request") become a <see cref="SeerrException"/> carrying Seerr's <c>message</c>.
+    /// One Seerr call, through the endpoint's breaker when <paramref name="guarded"/>. Error statuses (and 202 to a POST,
+    /// Seerr's "nothing to request") become a <see cref="SeerrException"/> carrying Seerr's <c>message</c>.
     /// </summary>
     private async Task<T?> SendAsync<T>(SeerrEndpoint endpoint, HttpMethod method, string path, int? actAsUser, JsonNode? body, bool guarded, CancellationToken cancellationToken)
     {
@@ -295,7 +294,8 @@ public sealed class SeerrClient : ISeerrClient
             return await SendCoreAsync<T>(endpoint, method, path, actAsUser, body, cancellationToken).ConfigureAwait(false);
         }
 
-        if (Breaker.TryEnter() is not { } generation)
+        var breaker = BreakerFor(endpoint);
+        if (breaker.TryEnter() is not { } generation)
         {
             throw new SeerrException("Seerr is temporarily unavailable.") { IsCircuitOpen = true };
         }
@@ -304,20 +304,20 @@ public sealed class SeerrClient : ISeerrClient
         try
         {
             var result = await SendCoreAsync<T>(endpoint, method, path, actAsUser, body, cancellationToken).ConfigureAwait(false);
-            Breaker.RecordSuccess(generation);
+            breaker.RecordSuccess(generation);
             reported = true;
             return result;
         }
         catch (SeerrException e) when (IsOutage(e))
         {
-            Breaker.RecordFailure(generation);
+            breaker.RecordFailure(generation);
             reported = true;
             throw;
         }
         catch (SeerrException)
         {
-            // Seerr answered (a 4xx): it's up.
-            Breaker.RecordSuccess(generation);
+            // Seerr answered (a 3xx or 4xx): it's up.
+            breaker.RecordSuccess(generation);
             reported = true;
             throw;
         }
@@ -325,7 +325,7 @@ public sealed class SeerrClient : ISeerrClient
         {
             if (!reported)
             {
-                Breaker.Abandon(generation);
+                breaker.Abandon(generation);
             }
         }
     }
@@ -415,5 +415,9 @@ public sealed class SeerrClient : ISeerrClient
 
         [JsonPropertyName("permissions")]
         public long Permissions { get; set; }
+
+        /// <summary>Read loosely (see <see cref="ScopeOf"/>): its shape varies between Seerr versions.</summary>
+        [JsonPropertyName("settings")]
+        public JsonElement? Settings { get; set; }
     }
 }

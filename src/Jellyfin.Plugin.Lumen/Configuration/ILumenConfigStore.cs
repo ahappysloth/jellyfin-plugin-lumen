@@ -1,10 +1,18 @@
 namespace Jellyfin.Plugin.Lumen.Configuration;
 
-/// <summary>Reads (migrated) configuration and saves validated configuration.</summary>
-public interface ILumenConfigStore
+/// <summary>
+/// Reads the (migrated) configuration. Services that only read it depend on this rather than
+/// <see cref="ILumenConfigStore"/>, which also needs the section providers to validate saves; that keeps providers that
+/// read the configuration (through the Seerr user map) out of a dependency cycle.
+/// </summary>
+public interface ILumenConfigReader
 {
     PluginConfiguration Current { get; }
+}
 
+/// <summary>Reads (migrated) configuration and saves validated configuration.</summary>
+public interface ILumenConfigStore : ILumenConfigReader
+{
     ConfigSaveResult Save(PluginConfiguration configuration);
 
     void ResetToDefaults();

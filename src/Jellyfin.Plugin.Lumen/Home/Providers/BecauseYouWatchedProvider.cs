@@ -49,6 +49,7 @@ public sealed class BecauseYouWatchedProvider : IHomeSectionProvider
         var seriesRows = new List<(string Title, List<BaseItem> Items)>();
         foreach (var seriesId in history.Entries.Where(e => e.SeriesId is not null).Select(e => e.SeriesId!.Value).Distinct().Take(maxRows))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var series = _libraryManager.GetItemById<Series>(seriesId, context.User);
             if (series is null)
             {

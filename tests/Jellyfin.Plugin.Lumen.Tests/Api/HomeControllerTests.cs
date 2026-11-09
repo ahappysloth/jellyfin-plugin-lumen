@@ -1,10 +1,12 @@
 using System.Security.Claims;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.Lumen.Api;
+using Jellyfin.Plugin.Lumen.Configuration;
 using Jellyfin.Plugin.Lumen.Home;
 using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -14,6 +16,9 @@ public class HomeControllerTests
 {
     private readonly IHomeService _home = Substitute.For<IHomeService>();
     private readonly IUserManager _users = Substitute.For<IUserManager>();
+    private readonly ILumenConfigReader _config = Substitute.For<ILumenConfigReader>();
+
+    public HomeControllerTests() => _config.Current.Returns(new PluginConfiguration());
 
     [Fact]
     public async Task UnknownUser_IsUnauthorized()
@@ -36,7 +41,20 @@ public class HomeControllerTests
         Assert.Same(response, result.Value);
     }
 
-    private HomeController Create(params Claim[] claims) => new(_home, _users)
+    [Fact]
+    public async Task IsNotFound_WhileLumenIsSwitchedOff()
+    {
+        var user = TestData.User();
+        _users.GetUserById(user.Id).Returns(user);
+        _config.Current.Returns(new PluginConfiguration { Enabled = false });
+
+        var result = await Create(new Claim("Jellyfin-UserId", user.Id.ToString("N"))).GetHome(CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result.Result);
+        await _home.DidNotReceiveWithAnyArgs().GetHomeAsync(default!, default);
+    }
+
+    private HomeController Create(params Claim[] claims) => new(_home, _users, _config, NullLogger<HomeController>.Instance)
     {
         ControllerContext = new ControllerContext
         {

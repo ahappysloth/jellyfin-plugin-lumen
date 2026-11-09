@@ -1,7 +1,9 @@
+using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using Jellyfin.Plugin.Lumen.Assets;
+using Jellyfin.Plugin.Lumen.Configuration;
 using Jellyfin.Plugin.Lumen.Injection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -10,6 +12,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using NSubstitute;
 using Xunit;
 
 namespace Jellyfin.Plugin.Lumen.Tests.Injection;
@@ -53,7 +56,7 @@ public sealed class IndexHtmlMiddlewareTests : IDisposable
     }
 
     [Fact]
-    public async Task ReturnsUncompressedInjectedHtml_WhenClientAcceptsGzip()
+    public async Task ReturnsUncompressedInjectedHtml_WhenThePageIsSmall()
     {
         using var host = await StartAsync();
         var request = new HttpRequestMessage(HttpMethod.Get, "/web/index.html");
@@ -63,6 +66,86 @@ public sealed class IndexHtmlMiddlewareTests : IDisposable
 
         Assert.Empty(response.Content.Headers.ContentEncoding);
         Assert.Contains(HtmlInjector.Marker, await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("gzip", "gzip", "-gz\"")]
+    [InlineData("gzip, deflate, br", "br", "-br\"")]
+    [InlineData("br;q=0, gzip", "gzip", "-gz\"")]
+    [InlineData("identity", null, null)]
+    public async Task CompressesTheRewrittenPage_ForClientsThatAcceptIt(string accept, string? encoding, string? etagSuffix)
+    {
+        File.WriteAllText(Path.Combine(_webRoot, "index.html"), IndexHtml.Replace("</head>", "<!--" + new string('x', 4096) + "--></head>", StringComparison.Ordinal));
+        using var host = await StartAsync();
+        var request = new HttpRequestMessage(HttpMethod.Get, "/web/index.html");
+        request.Headers.TryAddWithoutValidation("Accept-Encoding", accept);
+
+        var response = await host.GetTestClient().SendAsync(request);
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+        Stream body = new MemoryStream(bytes);
+        body = encoding switch
+        {
+            "gzip" => new GZipStream(body, CompressionMode.Decompress),
+            "br" => new BrotliStream(body, CompressionMode.Decompress),
+            _ => body,
+        };
+        var html = await new StreamReader(body).ReadToEndAsync();
+
+        Assert.Equal(encoding is null ? [] : [encoding], response.Content.Headers.ContentEncoding);
+        Assert.Contains("Accept-Encoding", response.Headers.Vary);
+        Assert.Equal(bytes.Length, response.Content.Headers.ContentLength);
+        Assert.Contains(HtmlInjector.Marker, html, StringComparison.Ordinal);
+        if (etagSuffix is null)
+        {
+            Assert.DoesNotContain("-", response.Headers.ETag!.Tag[5..], StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.EndsWith(etagSuffix, response.Headers.ETag!.Tag, StringComparison.Ordinal);
+        }
+
+        // A revalidation with that representation's ETag is a 304.
+        var again = new HttpRequestMessage(HttpMethod.Get, "/web/index.html");
+        again.Headers.TryAddWithoutValidation("Accept-Encoding", accept);
+        again.Headers.TryAddWithoutValidation("If-None-Match", "\"other\", " + response.Headers.ETag!.Tag);
+        Assert.Equal(HttpStatusCode.NotModified, (await host.GetTestClient().SendAsync(again)).StatusCode);
+    }
+
+    [Fact]
+    public async Task FailsOpen_ServingTheOriginalPage_WhenLumenCantReadItsConfig()
+    {
+        var config = Substitute.For<ILumenConfigReader>();
+        config.Current.Returns(_ => throw new InvalidOperationException("The Lumen plugin has not been initialized."));
+        using var host = await StartAsync(services: s => s.AddSingleton(config));
+
+        var response = await host.GetTestClient().GetAsync("/web/index.html");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(IndexHtml, await response.Content.ReadAsStringAsync());
+        Assert.DoesNotContain("lmn-", response.Headers.ETag?.Tag ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheRewrittenPage_FollowsConfigChanges_AndPageChanges()
+    {
+        var current = new PluginConfiguration { ConfigVersion = 1, StyleStockPages = true };
+        var config = Substitute.For<ILumenConfigReader>();
+        config.Current.Returns(_ => current);
+        using var host = await StartAsync(services: s => s.AddSingleton(config));
+        var client = host.GetTestClient();
+
+        var first = await client.GetAsync("/web/index.html");
+        var same = await client.GetAsync("/web/index.html");
+        current = new PluginConfiguration { ConfigVersion = 2, StyleStockPages = false };
+        var restyled = await client.GetStringAsync("/web/index.html");
+        File.WriteAllText(Path.Combine(_webRoot, "index.html"), IndexHtml.Replace("Jellyfin", "Jellyfin 12.2", StringComparison.Ordinal));
+        var upgraded = await client.GetStringAsync("/web/index.html");
+
+        Assert.Contains("data-lmn-skin", await first.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(first.Headers.ETag, same.Headers.ETag);
+        Assert.DoesNotContain("data-lmn-skin", restyled, StringComparison.Ordinal);
+        Assert.Contains("Jellyfin 12.2", upgraded, StringComparison.Ordinal);
+        Assert.Contains(HtmlInjector.Marker, upgraded, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -110,15 +193,16 @@ public sealed class IndexHtmlMiddlewareTests : IDisposable
         }
     }
 
-    private async Task<IHost> StartAsync(Action<IApplicationBuilder>? outer = null, Action<IApplicationBuilder>? inner = null)
+    private async Task<IHost> StartAsync(Action<IApplicationBuilder>? outer = null, Action<IApplicationBuilder>? inner = null, Action<IServiceCollection>? services = null)
     {
         var host = new HostBuilder()
             .ConfigureWebHost(web => web
                 .UseTestServer()
-                .ConfigureServices(services =>
+                .ConfigureServices(collection =>
                 {
-                    services.AddSingleton(new AssetCatalog(new Dictionary<string, byte[]> { ["lumen.js"] = "x"u8.ToArray() }));
-                    services.AddResponseCompression();
+                    collection.AddSingleton(new AssetCatalog(new Dictionary<string, byte[]> { ["lumen.js"] = "x"u8.ToArray() }));
+                    collection.AddResponseCompression();
+                    services?.Invoke(collection);
                 })
                 .Configure(app =>
                 {

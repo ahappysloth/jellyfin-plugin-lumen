@@ -26,13 +26,22 @@ public sealed record HeroItem(BaseItem Item, Guid? TrailerItemId);
 /// Runs the enabled section providers in parallel, each with its own timeout and exception boundary, and assembles the
 /// response in configured order, then adds card badges (also guarded; a failure leaves them empty). Results are cached
 /// per user in <see cref="HomeCache"/>.
+/// <para>
+/// Providers make synchronous library queries that can't be interrupted, so a provider that times out is cancelled (it
+/// checks its token between queries) but may run on for a while. At most <see cref="MaxConcurrentWork"/> pieces of
+/// provider work run at once across all users, abandoned ones included, so a slow database can't pile up work on the
+/// thread pool: new work waits for a slot, inside its own timeout.
+/// </para>
 /// </summary>
 public sealed class HomeService : IHomeService
 {
     public static readonly TimeSpan ProviderTimeout = TimeSpan.FromSeconds(3);
 
+    /// <summary>Enough for a few home loads at once (a load runs one piece per section, plus hero and badges).</summary>
+    public static readonly int MaxConcurrentWork = Math.Max(32, Environment.ProcessorCount * 4);
+
     private readonly Dictionary<string, IHomeSectionProvider> _providers;
-    private readonly ILumenConfigStore _config;
+    private readonly ILumenConfigReader _config;
     private readonly IHeroService _hero;
     private readonly IWatchHistoryService _history;
     private readonly IHomeDtoMapper _mapper;
@@ -43,7 +52,7 @@ public sealed class HomeService : IHomeService
 
     public HomeService(
         IEnumerable<IHomeSectionProvider> providers,
-        ILumenConfigStore config,
+        ILumenConfigReader config,
         IHeroService hero,
         IWatchHistoryService history,
         IHomeDtoMapper mapper,
@@ -65,6 +74,9 @@ public sealed class HomeService : IHomeService
 
     /// <summary>Per-provider timeout; overridable so tests need not race a fake clock against the thread pool.</summary>
     internal TimeSpan Timeout { get; init; } = ProviderTimeout;
+
+    /// <summary>Gets the gate on concurrently running provider work (see the class remarks); replaceable for tests.</summary>
+    internal SemaphoreSlim WorkSlots { get; init; } = new(MaxConcurrentWork);
 
     public async Task<HomeResponseDto> GetHomeAsync(User user, CancellationToken cancellationToken)
     {
@@ -177,7 +189,21 @@ public sealed class HomeService : IHomeService
         try
         {
             // Task.Run: providers make synchronous library calls; this lets them run in parallel and be abandoned on timeout.
-            return await Task.Run(() => work(linked.Token), linked.Token).WaitAsync(timeout, _time, cancellationToken);
+            // The slot is held until the work really ends, even after the timeout gives up on it.
+            return await Task.Run(
+                async () =>
+                {
+                    await WorkSlots.WaitAsync(linked.Token).ConfigureAwait(false);
+                    try
+                    {
+                        return await work(linked.Token).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        WorkSlots.Release();
+                    }
+                },
+                linked.Token).WaitAsync(timeout, _time, cancellationToken);
         }
         catch (TimeoutException)
         {

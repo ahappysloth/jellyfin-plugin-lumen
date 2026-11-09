@@ -27,7 +27,12 @@ public static partial class HtmlInjector
     /// <param name="installAsLumen">
     /// Points the web app manifest, Apple touch icon and theme colour at Lumen's, so a home-screen install gets the J.
     /// </param>
-    public static string Inject(string html, string buildHash, string? guardScript = null, bool styleStockPages = false, bool installAsLumen = false)
+    /// <param name="notFound">
+    /// With <paramref name="installAsLumen"/>, receives the names of jellyfin-web's tags that weren't there to replace
+    /// (Lumen's are added anyway), so the caller can warn that index.html changed shape.
+    /// </param>
+    public static string Inject(
+        string html, string buildHash, string? guardScript = null, bool styleStockPages = false, bool installAsLumen = false, ICollection<string>? notFound = null)
     {
         if (html.Contains(Marker, StringComparison.Ordinal))
         {
@@ -50,26 +55,45 @@ public static partial class HtmlInjector
             + $"<script defer src=\"{AssetBase}lumen.js?v={version}\"></script>";
 
         var page = string.Concat(html.AsSpan(0, headClose), tags, html.AsSpan(headClose));
-        return installAsLumen ? UseLumenAppIdentity(page, version) : page;
+        return installAsLumen ? UseLumenAppIdentity(page, version, notFound) : page;
     }
 
-    /// <summary>Swaps jellyfin-web's manifest, touch icons and theme colour for Lumen's (only those tags).</summary>
-    internal static string UseLumenAppIdentity(string html, string version)
+    /// <summary>
+    /// Swaps jellyfin-web's manifest, touch icons and theme colour for Lumen's (only those tags). The tags are found
+    /// whatever the order, quoting and case of their attributes; Lumen's manifest and theme colour take the place of the
+    /// first match, and any further matches are removed.
+    /// </summary>
+    internal static string UseLumenAppIdentity(string html, string version, ICollection<string>? notFound = null)
     {
-        html = ManifestLink().Replace(html, "<link rel=\"manifest\" href=\"../Lumen/Manifest\">", 1);
-        html = TouchIconLink().Replace(html, string.Empty);
-        html = ThemeColorMeta().Replace(html, $"<meta id=\"themeColor\" name=\"theme-color\" content=\"{Api.LumenController.PwaColor}\">", 1);
+        html = ReplaceAll(html, ManifestLink(), "<link rel=\"manifest\" href=\"../Lumen/Manifest\">", "manifest link", notFound);
+        html = ReplaceAll(html, TouchIconLink(), string.Empty, "apple-touch-icon link", notFound);
+        html = ReplaceAll(html, ThemeColorMeta(), $"<meta id=\"themeColor\" name=\"theme-color\" content=\"{Api.LumenController.PwaColor}\">", "theme-color meta", notFound);
         var touchIcon = $"<link rel=\"apple-touch-icon\" sizes=\"180x180\" href=\"{AssetBase}lumen-icon-180.png?v={version}\">";
         var marker = html.IndexOf(Marker, StringComparison.Ordinal);
         return marker < 0 ? html : html.Insert(marker + Marker.Length, touchIcon);
     }
 
-    [GeneratedRegex("<link\\s+rel=\"manifest\"[^>]*>", RegexOptions.IgnoreCase)]
+    private static string ReplaceAll(string html, Regex pattern, string replacement, string name, ICollection<string>? notFound)
+    {
+        var count = 0;
+        var result = pattern.Replace(html, _ => count++ == 0 ? replacement : string.Empty);
+        if (count == 0)
+        {
+            notFound?.Add(name);
+        }
+
+        return result;
+    }
+
+    /// <summary>A &lt;link&gt; with <c>rel="manifest"</c>, wherever <c>rel</c> sits among its attributes.</summary>
+    [GeneratedRegex("<link\\b[^>]*?\\srel\\s*=\\s*(?:\"manifest\"|'manifest'|manifest(?=[\\s/>]))[^>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex ManifestLink();
 
-    [GeneratedRegex("<link\\s+rel=\"apple-touch-icon\"[^>]*>", RegexOptions.IgnoreCase)]
+    /// <summary>A &lt;link&gt; with <c>rel="apple-touch-icon"</c> (any sizes).</summary>
+    [GeneratedRegex("<link\\b[^>]*?\\srel\\s*=\\s*(?:\"apple-touch-icon\"|'apple-touch-icon'|apple-touch-icon(?=[\\s/>]))[^>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex TouchIconLink();
 
-    [GeneratedRegex("<meta\\s+id=\"themeColor\"[^>]*>", RegexOptions.IgnoreCase)]
+    /// <summary>jellyfin-web's theme colour: <c>&lt;meta id="themeColor"&gt;</c> or <c>&lt;meta name="theme-color"&gt;</c>.</summary>
+    [GeneratedRegex("<meta\\b[^>]*?\\s(?:id\\s*=\\s*(?:\"themeColor\"|'themeColor'|themeColor(?=[\\s/>]))|name\\s*=\\s*(?:\"theme-color\"|'theme-color'|theme-color(?=[\\s/>])))[^>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex ThemeColorMeta();
 }
