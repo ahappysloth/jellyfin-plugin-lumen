@@ -46,7 +46,7 @@ describe('SeriesDetails', () => {
     render(<DetailsView id="sr" ctx={makeContext(client())} />);
 
     expect(await screen.findByRole('button', { name: 'Play S1:E1' })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Season' })).toHaveValue('s1');
+    expect(screen.getByRole('button', { name: 'Season: Season 1' })).toBeInTheDocument();
     expect(screen.getByText('1. Episode 1')).toBeInTheDocument();
   });
 
@@ -67,7 +67,7 @@ describe('SeriesDetails', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /Resume S2:E1/ }));
 
-    expect(screen.getByRole('combobox', { name: 'Season' })).toHaveValue('s2');
+    expect(screen.getByRole('button', { name: 'Season: Season 2' })).toBeInTheDocument();
     await waitFor(() => expect(c.requests.at(-1)?.url).toContain('itemIds=s2e1&startPositionTicks=50'));
   });
 
@@ -75,7 +75,8 @@ describe('SeriesDetails', () => {
     const c = client();
     render(<DetailsView id="sr" ctx={makeContext(c)} />);
 
-    fireEvent.change(await screen.findByRole('combobox', { name: 'Season' }), { target: { value: 's2' } });
+    fireEvent.click(await screen.findByRole('button', { name: /^Season:/ }));
+    fireEvent.click(screen.getByRole('option', { name: 'Season 2' }));
     fireEvent.click(await screen.findByRole('button', { name: /2\. Episode 2/ }));
 
     await waitFor(() => expect(c.requests.at(-1)?.url).toContain('itemIds=s2e2'));
@@ -85,12 +86,13 @@ describe('SeriesDetails', () => {
     render(<DetailsView id="s2" ctx={makeContext(client())} />);
 
     expect(await screen.findByRole('heading', { name: 'Lumen Show' })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Season' })).toHaveValue('s2'));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Season: Season 2' })).toBeInTheDocument());
   });
 
   it('labels season 0 as Specials', async () => {
     render(<DetailsView id="sr" ctx={makeContext(client())} />);
 
-    expect(await screen.findByRole('option', { name: 'Specials' })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /^Season:/ }));
+    expect(screen.getByRole('option', { name: 'Specials' })).toBeInTheDocument();
   });
 });

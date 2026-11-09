@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { BaseItem } from '../../api/types';
-import { detailsHash } from '../../compat/jellyfin';
 import { Icon } from '../../components/icons';
 import type { CardVariant } from '../../components/images';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
+import { cardMenuHandler, infoHash } from '../cardMenu';
 import { BrowseGrid } from './BrowseGrid';
 import { getChoice, saveChoice, saveSnapshot } from './browseStore';
 import { PageHeader, Segmented } from './Toolbar';
@@ -111,7 +111,7 @@ function FavoritesGrid({ tab, ctx }: { tab: FavoritesTab; ctx: ViewContext }) {
   const select = (item: BaseItem): void => {
     if (state.total !== null)
       saveSnapshot(queryKey, { items: state.items, total: state.total, scrollY: window.scrollY });
-    ctx.navigate(detailsHash(item.Id, item.ServerId));
+    ctx.navigate(infoHash(item));
   };
   return (
     <BrowseGrid
@@ -120,6 +120,7 @@ function FavoritesGrid({ tab, ctx }: { tab: FavoritesTab; ctx: ViewContext }) {
       variant={variant}
       label={label}
       onSelect={select}
+      onMenu={cardMenuHandler(ctx)}
       empty={<EmptyFavorites />}
     />
   );

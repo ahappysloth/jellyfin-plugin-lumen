@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { makeContext } from '../../../test/viewContext';
 import type { HomeResponse } from '../../api/types';
+import { ContextMenuHost } from '../../components/ContextMenu';
 import { HomeView } from './HomeView';
 import { getCachedHome, getSelection, setCachedHome } from './homeStore';
 
@@ -81,7 +82,7 @@ describe('HomeView', () => {
     expect(ctx.navigate).toHaveBeenCalledWith('#/details?id=m1&serverId=s');
   });
 
-  it('resumes continue-watching items in place', async () => {
+  it("opens a card's page on click (an episode opens its season), and plays from the right-click menu", async () => {
     const client = createFakeClient(
       routes({
         'Lumen/Home': home,
@@ -89,9 +90,20 @@ describe('HomeView', () => {
         'Sessions/s1/Playing': {},
       }),
     );
-    render(<HomeView ctx={makeContext(client)} />);
+    const ctx = makeContext(client);
+    render(
+      <>
+        <HomeView ctx={ctx} />
+        <ContextMenuHost />
+      </>,
+    );
 
-    fireEvent.click(await screen.findByRole('button', { name: /Pilot/ }));
+    const card = await screen.findByRole('button', { name: /Pilot/ });
+    fireEvent.click(card);
+    expect(ctx.navigate).toHaveBeenCalledWith('#/details?id=e1');
+
+    fireEvent.contextMenu(card, { clientX: 40, clientY: 40 });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Resume' }));
 
     await waitFor(() =>
       expect(client.requests.at(-1)?.url).toContain(

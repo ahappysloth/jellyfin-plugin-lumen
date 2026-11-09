@@ -1,4 +1,7 @@
+import { ContextMenuHost } from '../components/ContextMenu';
+import { useEffect } from 'preact/hooks';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { liftVeil } from '../veil/veil';
 import type { TakeoverRoute } from '../takeover/routes';
 import { FavoritesView } from './browse/FavoritesView';
 import { LibraryView } from './browse/LibraryView';
@@ -26,6 +29,10 @@ function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
 }
 
 export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
+  // Home and details lift the veil when their data lands; the library pages draw their header at once.
+  useEffect(() => {
+    if (route.kind === 'library' || route.kind === 'favorites') liftVeil();
+  }, [route.kind]);
   return (
     <ErrorBoundary fallback={null} onError={ctx.onFallback}>
       {route.kind !== 'details' && (
@@ -34,6 +41,7 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
         </ErrorBoundary>
       )}
       <Page route={route} ctx={ctx} />
+      <ContextMenuHost />
     </ErrorBoundary>
   );
 }

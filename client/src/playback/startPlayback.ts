@@ -1,0 +1,19 @@
+import type { BaseItem } from '../api/types';
+import type { ViewContext } from '../views/context';
+import { resolveSeriesPlayTarget } from '../views/details/smartPlay';
+import { playItem, resumeTicks } from './play';
+
+/**
+ * Plays any card's item: a series resumes or starts its next episode; anything else plays from its resume point.
+ * Resolves false when there was nothing to play (a series with no episodes).
+ */
+export async function startPlayback(ctx: ViewContext, item: BaseItem): Promise<boolean> {
+  if (item.Type === 'Series') {
+    const target = await resolveSeriesPlayTarget(ctx.api, item.Id);
+    if (!target) return false;
+    await playItem(ctx.api, ctx.client, target.episodeId, target.startTicks);
+    return true;
+  }
+  await playItem(ctx.api, ctx.client, item.Id, resumeTicks(item));
+  return true;
+}

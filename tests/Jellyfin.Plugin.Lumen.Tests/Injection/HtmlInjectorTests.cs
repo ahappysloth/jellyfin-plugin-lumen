@@ -20,13 +20,22 @@ public class HtmlInjectorTests
     }
 
     [Fact]
-    public void AddsPendingGuard_BeforeStylesheet()
+    public void InlinesTheGuard_BeforeStylesheet_EscapingClosingTags()
+    {
+        var result = HtmlInjector.Inject(Page, "h", "var s='</script>';guard()");
+
+        var guard = result.IndexOf("guard()", StringComparison.Ordinal);
+        Assert.True(guard > result.IndexOf(HtmlInjector.Marker, StringComparison.Ordinal));
+        Assert.True(guard < result.IndexOf("lumen.css", StringComparison.Ordinal));
+        Assert.Contains("<script>var s='<\\/script>';guard()</script>", result, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OmitsTheGuard_WhenNoneIsGiven()
     {
         var result = HtmlInjector.Inject(Page, "h");
 
-        var guard = result.IndexOf("lmn-pending", StringComparison.Ordinal);
-        Assert.True(guard > result.IndexOf(HtmlInjector.Marker, StringComparison.Ordinal));
-        Assert.True(guard < result.IndexOf("lumen.css", StringComparison.Ordinal));
+        Assert.DoesNotContain("<script>", result, StringComparison.Ordinal);
     }
 
     [Fact]

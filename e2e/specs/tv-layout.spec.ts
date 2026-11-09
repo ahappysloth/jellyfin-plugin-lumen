@@ -6,8 +6,8 @@ test('TV layout: focus starts on the hero and arrow keys move through rows', asy
   await page.addInitScript(() => localStorage.setItem('layout', 'tv'));
   await login(page, ADMIN);
 
-  await expect(page.locator('#lmn-root .lmn-hero .lmn-button--primary')).toBeFocused();
-  await expect(page.locator('#lmn-root .lmn-hero .lmn-button--primary')).toBeInViewport();
+  await expect(page.locator('#lmn-root .lmn-hero__slide.is-current .lmn-button--primary')).toBeFocused();
+  await expect(page.locator('#lmn-root .lmn-hero__slide.is-current .lmn-button--primary')).toBeInViewport();
 
   await page.keyboard.press('ArrowDown');
   await expect(page.locator('#lmn-root .lmn-card:focus')).toHaveCount(1);

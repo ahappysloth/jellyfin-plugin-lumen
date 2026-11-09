@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { BadgeKey, BaseItem, HomeRow } from '../../api/types';
 import type { JellyfinApiClient } from '../../compat/jellyfin';
-import { Card } from '../../components/Card';
+import { Card, useMenuHandlers } from '../../components/Card';
 import { Icon } from '../../components/icons';
 import { imageUrl, resolveImage } from '../../components/images';
 import { strings } from '../../strings';
+import type { CardMenuHandler } from '../cardMenu';
 
 export function captionFor(item: BaseItem): string | undefined {
   if (item.Type !== 'Episode') return undefined;
@@ -16,9 +17,10 @@ interface Props {
   client: Pick<JellyfinApiClient, 'getUrl'>;
   badges?: Record<string, BadgeKey>;
   onSelect: (item: BaseItem, row: HomeRow) => void;
+  onMenu?: CardMenuHandler;
 }
 
-export function Row({ row, client, badges, onSelect }: Props) {
+export function Row({ row, client, badges, onSelect, onMenu }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ start: true, end: true });
   useEffect(() => {
@@ -56,7 +58,13 @@ export function Row({ row, client, badges, onSelect }: Props) {
         <div ref={scroller} class="lmn-row__scroller focuscontainer-x">
           {row.Items.map((item) =>
             genres ? (
-              <GenreTile key={item.Id} item={item} client={client} onSelect={(g) => onSelect(g, row)} />
+              <GenreTile
+                key={item.Id}
+                item={item}
+                client={client}
+                onSelect={(g) => onSelect(g, row)}
+                onMenu={onMenu}
+              />
             ) : (
               <Card
                 key={item.Id}
@@ -66,6 +74,7 @@ export function Row({ row, client, badges, onSelect }: Props) {
                 caption={captionFor(item)}
                 badge={badges?.[item.Id]}
                 onSelect={(selected) => onSelect(selected, row)}
+                onMenu={onMenu}
               />
             ),
           )}
@@ -92,11 +101,14 @@ export function GenreTile({
   item,
   client,
   onSelect,
+  onMenu,
 }: {
   item: BaseItem;
   client: Pick<JellyfinApiClient, 'getUrl'>;
   onSelect: (item: BaseItem) => void;
+  onMenu?: CardMenuHandler;
 }) {
+  const { consumeClick, ...handlers } = useMenuHandlers(item, onMenu);
   const art = resolveImage(item, ['Backdrop', 'Thumb', 'Primary']);
   return (
     <button
@@ -104,7 +116,10 @@ export function GenreTile({
       class="lmn-genre"
       data-item-id={item.Id}
       aria-label={item.Name}
-      onClick={() => onSelect(item)}
+      onClick={() => {
+        if (!consumeClick()) onSelect(item);
+      }}
+      {...handlers}
     >
       {art && <img src={imageUrl(client, art, TILE)} alt="" loading="lazy" decoding="async" />}
       <span class="lmn-genre__label">{item.Name}</span>

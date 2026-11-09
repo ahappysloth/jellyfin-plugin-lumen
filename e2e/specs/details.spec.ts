@@ -23,7 +23,9 @@ test('series details offer smart play and season browsing', async ({ page }) => 
 
   const details = page.locator('#lmn-root .lmn-details--series');
   await expect(details.getByRole('button', { name: /S1:E1/ })).toBeVisible();
-  await expect(details.getByRole('combobox', { name: 'Season' }).locator('option')).toHaveText(['Season 1', 'Season 2']);
+  await details.getByRole('button', { name: /^Season:/ }).click();
+  await expect(details.getByRole('option')).toHaveText(['Season 1', 'Season 2']);
+  await page.keyboard.press('Escape');
   await expect(details.locator('.lmn-episode')).toHaveCount(3);
 });
 

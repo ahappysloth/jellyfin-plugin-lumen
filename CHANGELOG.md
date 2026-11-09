@@ -11,11 +11,19 @@ All notable changes to Lumen are documented here. Versions follow SemVer; Jellyf
 - "Replace the Movies, Shows and Favorites pages" admin switch.
 - The hero can be swiped (touch) or dragged (mouse) between slides.
 - The ribbon "J" mark in the header and as the browser tab icon.
+- A loading veil (black, the mark and server name, a red edge) covers jellyfin-web's splash logo and spinner on a
+  cold load, then rises like a curtain once the page is ready.
+- Right-click (or long-press on touch) any card for Play/Resume, More info, Open in new tab, favorite and watched.
+- Custom dropdowns for genre, sort and season.
 
 ### Changed
 - The nav pill is centred at the top of the page on wider screens.
 - The hero keeps rotating while hovered or focused by the page; only keyboard navigation inside it pauses it.
 - Popular Genres keeps the most popular genres but lists them alphabetically.
+- Clicking a card always opens its page (an episode opens its season); play from the page or the card menu.
+- The hero slides follow the pointer one-to-one while dragging, and auto-advance slides the same way.
+- The details "My List" button is now "Favorite", with a heart.
+- The header has no bar, only a soft top fade; the nav pill and its labels are a little larger.
 
 ### Fixed
 - jellyfin-web's own header no longer flashes for a moment before Lumen loads.

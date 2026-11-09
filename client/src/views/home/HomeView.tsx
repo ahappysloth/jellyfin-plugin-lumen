@@ -1,13 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { BaseItem, HomeResponse, HomeRow } from '../../api/types';
-import { detailsHash, genreHash } from '../../compat/jellyfin';
+import { detailsHash } from '../../compat/jellyfin';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { useAutoFocus } from '../../components/useAutoFocus';
-import { playItem, resumeTicks } from '../../playback/play';
+import { startPlayback } from '../../playback/startPlayback';
 import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
-import { resolveSeriesPlayTarget } from '../details/smartPlay';
+import { cardMenuHandler, infoHash } from '../cardMenu';
 import { Hero } from './Hero';
 import {
   clearCachedHome,
@@ -19,6 +19,7 @@ import {
   setCachedHome,
   usableCachedHome,
 } from './homeStore';
+import { liftVeil } from '../../veil/veil';
 import { Row } from './Row';
 
 export function HomeView({ ctx }: { ctx: ViewContext }) {
@@ -34,6 +35,10 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
     restores.current += 1;
     window.scrollTo({ top: restoreScrollTop(rootRef.current, previous, window.scrollY) });
   }, [home]);
+
+  useEffect(() => {
+    if (home) liftVeil();
+  }, [home !== null]);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,15 +64,11 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
   const open = (item: BaseItem): void => ctx.navigate(detailsHash(item.Id, item.ServerId));
   const play = (item: BaseItem): void => {
     setError(null);
-    const started =
-      item.Type === 'Series'
-        ? resolveSeriesPlayTarget(ctx.api, item.Id).then((target) => {
-            if (!target) return open(item);
-            return playItem(ctx.api, ctx.client, target.episodeId, target.startTicks);
-          })
-        : playItem(ctx.api, ctx.client, item.Id, resumeTicks(item));
-    started.catch(() => setError(strings.playbackFailed));
+    startPlayback(ctx, item)
+      .then((played) => played || open(item))
+      .catch(() => setError(strings.playbackFailed));
   };
+  const onMenu = cardMenuHandler(ctx, { onError: setError });
   const select = (item: BaseItem, row: HomeRow): void => {
     const card = rootRef.current?.querySelector(`[data-row-id="${row.Id}"] [data-item-id="${item.Id}"]`);
     rememberSelection(ctx.userId, {
@@ -76,9 +77,8 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
       scrollY: window.scrollY,
       top: card?.getBoundingClientRect().top,
     });
-    if (item.Type === 'Genre') return ctx.navigate(genreHash(item.Id, item.ServerId));
-    if (item.Type === 'Episode' || row.Type === 'ContinueWatching') play(item);
-    else open(item);
+    // A card always opens its page (an episode opens its season); playing is one click away there, or in the menu.
+    ctx.navigate(infoHash(item));
   };
 
   if (!home) return <div class="lmn-home lmn-home--loading" aria-busy="true" />;
@@ -104,7 +104,7 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
       )}
       {home.Rows.map((row) => (
         <ErrorBoundary key={row.Id} fallback={null}>
-          <Row row={row} client={ctx.client} badges={home.Badges} onSelect={select} />
+          <Row row={row} client={ctx.client} badges={home.Badges} onSelect={select} onMenu={onMenu} />
         </ErrorBoundary>
       ))}
     </div>

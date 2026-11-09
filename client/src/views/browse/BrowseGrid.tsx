@@ -6,6 +6,7 @@ import { Card } from '../../components/Card';
 import type { CardVariant } from '../../components/images';
 import { strings } from '../../strings';
 import { captionFor } from '../home/Row';
+import type { CardMenuHandler } from '../cardMenu';
 import type { BrowseState } from './useBrowseItems';
 
 interface Props {
@@ -14,6 +15,7 @@ interface Props {
   variant: CardVariant;
   label: string;
   onSelect: (item: BaseItem) => void;
+  onMenu?: CardMenuHandler;
   /** Shown when the query has no results at all. */
   empty: ComponentChildren;
 }
@@ -21,7 +23,7 @@ interface Props {
 const SKELETONS = 18;
 
 /** A responsive grid of cards that loads the next page as its end nears the viewport. */
-export function BrowseGrid({ state, client, variant, label, onSelect, empty }: Props) {
+export function BrowseGrid({ state, client, variant, label, onSelect, onMenu, empty }: Props) {
   const sentinel = useRef<HTMLDivElement>(null);
   const { items, total, loading, error, hasMore, loadMore, restoredScrollY } = state;
 
@@ -65,6 +67,7 @@ export function BrowseGrid({ state, client, variant, label, onSelect, empty }: P
               variant={variant}
               caption={captionFor(item)}
               onSelect={onSelect}
+              onMenu={onMenu}
             />
           </div>
         ))}
