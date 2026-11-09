@@ -70,6 +70,32 @@ export default async function globalSetup(): Promise<void> {
   const libraries = await api<{ Name: string; ItemId: string }[]>('/Library/VirtualFolders', { token: admin.token });
   const libraryId = (name: string) => libraries.find((l) => l.Name === name)!.ItemId;
 
+  // Trickplay (seek-bar thumbnails) is off by default: switch it on for Movies and generate the images.
+  const movies = (await api<{ Name: string; ItemId: string; LibraryOptions: Record<string, unknown> }[]>(
+    '/Library/VirtualFolders',
+    { token: admin.token },
+  )).find((l) => l.Name === 'Movies')!;
+  if (!movies.LibraryOptions.EnableTrickplayImageExtraction) {
+    await api('/Library/VirtualFolders/LibraryOptions', {
+      method: 'POST',
+      token: admin.token,
+      body: { Id: movies.ItemId, LibraryOptions: { ...movies.LibraryOptions, EnableTrickplayImageExtraction: true } },
+    });
+  }
+  const tasks = await api<{ Id: string; Key: string; State: string }[]>('/ScheduledTasks', { token: admin.token });
+  const trickplay = tasks.find((t) => t.Key === 'RefreshTrickplayImages')!;
+  await api(`/ScheduledTasks/Running/${trickplay.Id}`, { method: 'POST', token: admin.token });
+  await waitFor(
+    async () => {
+      const task = (await api<{ Id: string; State: string }[]>('/ScheduledTasks', { token: admin.token })).find(
+        (t) => t.Id === trickplay.Id,
+      )!;
+      return task.State === 'Idle' ? true : undefined;
+    },
+    180_000,
+    'trickplay images',
+  );
+
   const users = await api<{ Name: string; Id: string }[]>('/Users', { token: admin.token });
   const kidId =
     users.find((u) => u.Name === KID.name)?.Id ??

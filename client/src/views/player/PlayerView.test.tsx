@@ -154,6 +154,74 @@ describe('PlayerView', () => {
     video.remove();
   });
 
+  it('does nothing when the current quality, audio or subtitle track is picked again', async () => {
+    const pm = fakeManager();
+    vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+    render(<PlayerView ctx={makeContext(createFakeClient())} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Quality/ }));
+    fireEvent.click(screen.getAllByRole('menuitemradio', { name: /^Auto/ })[0]!); // Quality's (Aspect ratio has one too)
+    expect(pm.setMaxStreamingBitrate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Audio & Subtitles/ }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /^English/ }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /^Off/ }));
+    expect(pm.setAudioStreamIndex).not.toHaveBeenCalled();
+    expect(pm.setSubtitleStreamIndex).not.toHaveBeenCalled();
+  });
+
+  it('holds the last frame with "Switching to …" while a change restarts the stream', async () => {
+    const pm = fakeManager();
+    vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+    render(<PlayerView ctx={makeContext(createFakeClient())} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    const video = document.createElement('video');
+    document.body.appendChild(video);
+
+    fireEvent.click(screen.getByRole('button', { name: /Audio & Subtitles/ }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Spanish/ }));
+    expect(screen.queryByText('Switching to Spanish…')).toBeNull(); // nothing yet: it may switch in place
+
+    fireEvent(video, new Event('emptied')); // jellyfin-web restarted the stream
+    expect(await screen.findByText('Switching to Spanish…')).toBeInTheDocument();
+
+    Object.defineProperty(video, 'paused', { value: false });
+    Object.defineProperty(video, 'readyState', { value: 4 });
+    fireEvent(video, new Event('timeupdate'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.queryByText('Switching to Spanish…')).toBeNull();
+    video.remove();
+  });
+
+  it('shows nothing when a change is made in place', async () => {
+    const pm = fakeManager();
+    vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+    render(<PlayerView ctx={makeContext(createFakeClient())} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Audio & Subtitles/ }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Spanish/ }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2500);
+    });
+    const video = document.createElement('video');
+    document.body.appendChild(video);
+    fireEvent(video, new Event('emptied')); // much later: not from this change
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.queryByText(/Switching to/)).toBeNull();
+    video.remove();
+  });
+
   it('hands the page back to the stock player at once when there is no playback manager', async () => {
     vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(null);
     const ctx = makeContext(createFakeClient());

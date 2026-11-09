@@ -59,6 +59,58 @@ test("the scroll wheel shows Lumen's volume pill, not jellyfin-web's card or the
   await expect(pill).not.toHaveClass(/is-shown/, { timeout: 4000 });
 });
 
+test('the seek bar stays where you click and shows trickplay thumbnails', async ({ page }) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
+  await expect(page.locator('video.htmlvideoplayer')).toBeVisible();
+  const seek = page.getByRole('slider', { name: 'Seek' });
+  await expect(seek).toBeVisible();
+  const box = (await seek.boundingBox())!;
+
+  // Hovering shows the frame for that time (global-setup generated trickplay images for Movies).
+  await page.mouse.move(box.x + box.width * 0.75, box.y + box.height / 2);
+  await expect(page.locator('.lmn-seek__thumbnail')).toHaveCSS('background-image', /blob:/);
+
+  // Clicking at 75%: the bar never shows the old position again on the way there.
+  const duration = Number(await seek.getAttribute('aria-valuemax'));
+  await page.mouse.click(box.x + box.width * 0.75, box.y + box.height / 2);
+  const target = duration * 0.75;
+  for (let i = 0; i < 10; i++) {
+    expect(Number(await seek.getAttribute('aria-valuenow'))).toBeGreaterThanOrEqual(Math.floor(target) - 1);
+    await page.waitForTimeout(100);
+  }
+});
+
+test('a quality change that restarts the stream holds the last frame with "Switching to …"', async ({ page }) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
+  await expect.poll(() => page.locator('video.htmlvideoplayer').evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0.5);
+
+  // On this tiny local file the restart takes milliseconds, so record the note appearing rather than racing it.
+  await page.evaluate(() => {
+    const seen: string[] = [];
+    (window as unknown as { __switching: string[] }).__switching = seen;
+    new MutationObserver(() => {
+      const note = document.querySelector('.lmn-switching__note');
+      if (note?.textContent && !seen.includes(note.textContent)) seen.push(note.textContent);
+    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+  });
+  await page.getByRole('button', { name: /Quality/ }).click();
+  const fixed = page.getByRole('menu', { name: 'Quality' }).getByRole('menuitemradio').nth(1);
+  const label = (await fixed.locator('.lmn-panel__option-label').textContent())!;
+  await fixed.click();
+
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { __switching: string[] }).__switching))
+    .toContain(`Switching to ${label}…`);
+  await expect(page.locator('.lmn-switching')).toHaveCount(0, { timeout: 20_000 });
+  await expect.poll(() => page.locator('video.htmlvideoplayer').evaluate((v: HTMLVideoElement) => !v.paused)).toBe(true);
+});
+
 test("Lumen's player controls drive jellyfin-web's player, including subtitle tracks", async ({ page }) => {
   const { items } = loadState();
   await login(page, ADMIN);

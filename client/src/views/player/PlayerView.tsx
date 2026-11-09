@@ -1,3 +1,5 @@
+import { SwitchOverlay, useStreamSwitch } from './streamSwitch';
+import { useTrickplay } from './trickplay';
 import { othersInGroup, useSyncPlayState } from '../syncplay/syncPlayState';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { getPlaybackManager, type PlaybackManager, type Player } from '../../compat/playbackManager';
@@ -133,6 +135,9 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   // Seed the starting point from the first snapshot too (a player may not fire volumechange as it starts).
   if (snap && !lastVolume.current) lastVolume.current = { level: Math.round(snap.volume), muted: snap.muted };
 
+  const preview = useTrickplay(ctx.api, ctx.client, snap?.item?.Id, snap?.mediaSourceId);
+  const switching = useStreamSwitch();
+
   if (!snap || !pm.current) return null;
   const manager = pm.current;
   const player: Player = snap.player;
@@ -163,6 +168,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
       }}
     >
       <VolumePill volume={volume} />
+      <SwitchOverlay state={switching.state} />
       {/* Clicking the picture toggles play (closes a menu first); double-click toggles full screen. */}
       <div
         class="lmn-player__surface"
@@ -216,10 +222,20 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             <span class="lmn-player__pill-label">{strings.player.audioSubtitles}</span>
           </button>
           {panel === 'quality' && (
-            <QualityPanel manager={manager} snap={snap} onClose={() => setPanel(null)} />
+            <QualityPanel
+              manager={manager}
+              snap={snap}
+              onClose={() => setPanel(null)}
+              onSwitch={switching.begin}
+            />
           )}
           {panel === 'tracks' && (
-            <AudioSubtitlesPanel manager={manager} snap={snap} onClose={() => setPanel(null)} />
+            <AudioSubtitlesPanel
+              manager={manager}
+              snap={snap}
+              onClose={() => setPanel(null)}
+              onSwitch={switching.begin}
+            />
           )}
         </div>
       </header>
@@ -234,6 +250,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
           bufferedMs={snap.bufferedMs}
           disabled={!snap.canSeek}
           onSeek={(ms) => act(() => manager.seek(Math.round(ms * 10_000), player))()}
+          preview={preview}
         />
         <div class="lmn-player__controls">
           <div class="lmn-player__group">

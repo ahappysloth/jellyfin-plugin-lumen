@@ -81,21 +81,28 @@ export function QualityPanel({
   manager,
   snap,
   onClose,
+  onSwitch,
 }: {
   manager: PlaybackManager;
   snap: PlayerSnapshot;
   onClose: () => void;
+  /** Called with a label ("720p") before a change that may restart the stream. */
+  onSwitch?: (label: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useOutsideClose(ref, onClose);
   const sourceHeight = snap.videoHeight ?? 0;
   const presets = QUALITY_PRESETS.filter((p) => sourceHeight === 0 || p.minHeight <= sourceHeight);
   const current = snap.autoQuality ? null : presetFor(snap.maxBitrate).bitrate;
-  const setQuality = (bitrate: number | null): void =>
+  // jellyfin-web restarts the stream for any quality change, so picking the current choice does nothing.
+  const setQuality = (bitrate: number | null, label: string): void => {
+    if (bitrate === current) return;
+    onSwitch?.(label);
     manager.setMaxStreamingBitrate(
       { enableAutomaticBitrateDetection: bitrate === null, maxBitrate: bitrate ?? snap.maxBitrate },
       snap.player,
     );
+  };
   const speeds = SPEEDS.filter((s) => snap.rates.length === 0 || snap.rates.includes(s));
 
   return (
@@ -107,7 +114,7 @@ export function QualityPanel({
             selected={current === null}
             label={strings.player.auto}
             detail={heightLabel(snap.videoHeight)}
-            onSelect={() => setQuality(null)}
+            onSelect={() => setQuality(null, strings.player.auto)}
           />
           {presets.map((p) => (
             <Option
@@ -115,7 +122,7 @@ export function QualityPanel({
               selected={current === p.bitrate}
               label={p.label}
               detail={[p.detail, `${p.bitrate / 1_000_000} Mbps`].filter(Boolean).join(' · ')}
-              onSelect={() => setQuality(p.bitrate)}
+              onSelect={() => setQuality(p.bitrate, p.label)}
             />
           ))}
         </section>
@@ -176,11 +183,25 @@ export function AudioSubtitlesPanel({
   manager,
   snap,
   onClose,
+  onSwitch,
 }: {
   manager: PlaybackManager;
   snap: PlayerSnapshot;
   onClose: () => void;
+  /** Called with a label before a change that may restart the stream. */
+  onSwitch?: (label: string) => void;
 }) {
+  // Picking the current track is a no-op; otherwise jellyfin-web may restart the stream (see SwitchOverlay).
+  const setAudio = (index: number, label: string): void => {
+    if (index === snap.audioIndex) return;
+    onSwitch?.(label);
+    manager.setAudioStreamIndex(index, snap.player);
+  };
+  const setSubtitles = (index: number, label: string): void => {
+    if (index === snap.subtitleIndex) return;
+    onSwitch?.(label);
+    manager.setSubtitleStreamIndex(index, snap.player);
+  };
   const ref = useRef<HTMLDivElement>(null);
   useOutsideClose(ref, onClose);
   const offset = snap.subtitleOffset;
@@ -198,7 +219,7 @@ export function AudioSubtitlesPanel({
                 key={t.Index}
                 selected={snap.audioIndex === t.Index}
                 {...trackParts(t)}
-                onSelect={() => manager.setAudioStreamIndex(t.Index, snap.player)}
+                onSelect={() => setAudio(t.Index, trackParts(t).label)}
               />
             ))
           ) : (
@@ -210,7 +231,7 @@ export function AudioSubtitlesPanel({
           <Option
             selected={snap.subtitleIndex === -1}
             label={strings.player.off}
-            onSelect={() => manager.setSubtitleStreamIndex(-1, snap.player)}
+            onSelect={() => setSubtitles(-1, strings.player.subtitlesOff)}
           />
           {snap.subtitleTracks.length > 0 ? (
             snap.subtitleTracks.map((t) => (
@@ -218,7 +239,7 @@ export function AudioSubtitlesPanel({
                 key={t.Index}
                 selected={snap.subtitleIndex === t.Index}
                 {...trackParts(t)}
-                onSelect={() => manager.setSubtitleStreamIndex(t.Index, snap.player)}
+                onSelect={() => setSubtitles(t.Index, trackParts(t).label)}
               />
             ))
           ) : (
