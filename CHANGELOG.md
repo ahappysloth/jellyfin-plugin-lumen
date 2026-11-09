@@ -2,6 +2,27 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.3.1] - 2026-11-09
+
+### Added
+- Watch together (SyncPlay): a button in the nav and a row on the Me page list the groups you can join with who's in
+  them, create a group, and in a group show its members, Leave group and Start/Stop group playback. The player shows
+  who you're watching with, and Jellyfin's notices take Lumen's toast look.
+- Trickplay: hovering or dragging the seek bar shows the server's thumbnail for that time (when the library has
+  trickplay images).
+- A volume pill drops down from the top of the player when the volume changes (scroll wheel, keys, mute), without
+  bringing back the controls.
+
+### Changed
+- Play and Resume show "Starting…" until the player opens.
+- Picking the quality, audio or subtitle track that's already selected does nothing. When a change restarts the
+  stream, the last frame stays up with "Switching to …" until playback is going again.
+
+### Fixed
+- The seek bar stays where you click instead of snapping back to the old position while the player seeks.
+- Jellyfin's volume card no longer pops up over the player.
+- The scroll wheel no longer brings back the player controls.
+
 ## [0.3.0] - 2026-11-09
 
 ### Added
