@@ -77,36 +77,113 @@ describe('Takeover', () => {
     expect(document.documentElement.classList.contains('lmn-active')).toBe(false);
   });
 
-  it('reports a failed compatibility check once and never takes over', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const { takeover, options } = create({ selfTest: vi.fn(() => ({ ok: false, failed: ['stockPage'] })) });
+  describe('a failing compatibility check', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+      document.body.innerHTML = '';
+    });
 
-    takeover.handle({ kind: 'home' });
-    takeover.handle({ kind: 'home' });
+    it('is retried while jellyfin-web renders, and takes over without reporting once it passes', async () => {
+      document.body.innerHTML = '<div id="reactRoot"></div>';
+      const selfTest = vi.fn(() =>
+        document.querySelector('#reactRoot .skinBody')
+          ? { ok: true, failed: [] }
+          : { ok: false, failed: ['stockPage'] },
+      );
+      const { takeover, options } = create({ selfTest });
+      options.retry = vi.fn(() => takeover.handle({ kind: 'home' }));
 
-    expect(options.report).toHaveBeenCalledTimes(1);
-    expect(options.mount).not.toHaveBeenCalled();
-    warn.mockRestore();
+      expect(takeover.handle({ kind: 'home' })).toBe('waiting');
+      expect(options.mount).not.toHaveBeenCalled();
+
+      document.getElementById('reactRoot')!.innerHTML = '<div class="skinBody"></div>';
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(options.retry).toHaveBeenCalledTimes(1);
+      expect(options.mount).toHaveBeenCalledTimes(1);
+      expect(options.report).not.toHaveBeenCalled();
+      // The window is closed: nothing fires later.
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(options.retry).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives the page back and reports once when the retry window runs out', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const { takeover, options } = create({ selfTest: vi.fn(() => ({ ok: false, failed: ['stockPage'] })) });
+      const results: string[] = [];
+      options.retry = vi.fn(() => results.push(takeover.handle({ kind: 'home' })));
+
+      expect(takeover.handle({ kind: 'home' })).toBe('waiting');
+      await vi.advanceTimersByTimeAsync(2900);
+      expect(options.report).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(200);
+
+      expect(results).toEqual(['released']);
+      expect(options.report).toHaveBeenCalledTimes(1);
+      expect(options.report).toHaveBeenCalledWith({ ok: false, failed: ['stockPage'] });
+      expect(takeover.handle({ kind: 'home' })).toBe('released');
+      expect(options.report).toHaveBeenCalledTimes(1);
+      expect(options.mount).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it('is still re-run after the window, so a later pass takes over', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const selfTest = vi.fn<() => CompatReport>().mockReturnValue({ ok: false, failed: ['stockPage'] });
+      const { takeover, options } = create({ selfTest, retryMs: 10 });
+      takeover.handle({ kind: 'home' });
+      await vi.advanceTimersByTimeAsync(20);
+      expect(takeover.handle({ kind: 'home' })).toBe('released');
+
+      selfTest.mockReturnValue({ ok: true, failed: [] });
+      expect(takeover.handle({ kind: 'home' })).toBe('active');
+      expect(options.mount).toHaveBeenCalledTimes(1);
+      expect(options.report).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops retrying when the session is disposed', async () => {
+      const { takeover, options } = create({ selfTest: vi.fn(() => ({ ok: false, failed: ['x'] })) });
+      options.retry = vi.fn();
+      takeover.handle({ kind: 'home' });
+      takeover.dispose();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(options.retry).not.toHaveBeenCalled();
+    });
   });
 
-  it('re-runs a failed compatibility check and takes over once it passes, reporting only once', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const selfTest = vi
-      .fn<() => CompatReport>()
-      .mockReturnValueOnce({ ok: false, failed: ['stockPage'] })
-      .mockReturnValue({ ok: true, failed: [] });
-    const { takeover, options } = create({ selfTest });
+  it('leaves the stock player alone, and reports why, when the playback manager is missing', () => {
+    const failed = { ok: false, failed: ['playbackManager.seek'] };
+    const { takeover, options } = create({ playerCheck: vi.fn(() => failed) });
 
-    takeover.handle({ kind: 'home' });
+    expect(takeover.handle({ kind: 'player' })).toBe('released');
+    takeover.handle({ kind: 'player' });
+
     expect(options.mount).not.toHaveBeenCalled();
-
-    takeover.handle({ kind: 'home' });
-    takeover.handle({ kind: 'home' });
-
-    expect(options.mount).toHaveBeenCalledTimes(1);
-    expect(selfTest).toHaveBeenCalledTimes(2);
+    expect(document.documentElement.classList.contains('lmn-skin-player')).toBe(false);
     expect(options.report).toHaveBeenCalledTimes(1);
-    warn.mockRestore();
+    expect(options.report).toHaveBeenCalledWith(failed);
+  });
+
+  it('reports stock elements it hides that are missing a while after mounting', async () => {
+    vi.useFakeTimers();
+    try {
+      document.body.innerHTML = '<div id="reactRoot"><div class="skinBody"></div></div>';
+      const { takeover, options } = create({ probeMs: 100 });
+      takeover.handle({ kind: 'home' });
+      await vi.advanceTimersByTimeAsync(150);
+      expect(options.report).toHaveBeenCalledWith({ ok: false, failed: ['selector.appBar'] });
+
+      const ok = create({ probeMs: 100, config: { ...config, StyleVideoPlayer: true } });
+      document.body.innerHTML = '<div class="videoOsdBottom"></div>';
+      ok.takeover.handle({ kind: 'player' });
+      await vi.advanceTimersByTimeAsync(150);
+      expect(ok.options.report).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+      document.body.innerHTML = '';
+    }
   });
 
   it('release unmounts and clears classes', () => {

@@ -38,7 +38,7 @@ describe('startLumen', () => {
   const start = () => {
     const mount = vi.fn();
     const unmount = vi.fn();
-    stop = startLumen({ mount, unmount, pollMs: 5, timeoutMs: 1000 });
+    stop = startLumen({ mount, unmount, pollMs: 5, timeoutMs: 1000, compatRetryMs: 100, signInWaitMs: 300 });
     return { mount, unmount };
   };
 
@@ -162,5 +162,75 @@ describe('startLumen', () => {
     );
     const report = client.requests.find((r) => r.url.endsWith('Lumen/Diagnostics'))!;
     expect(JSON.parse(report.data!)).toMatchObject({ ServerVersion: '12.1.0', FailedChecks: ['forced'] });
+  });
+
+  it('retries the compatibility check on a cold load, keeping the stock page hidden until it passes', async () => {
+    document.body.innerHTML = '<div id="reactRoot"></div>';
+    document.documentElement.classList.add('lmn-pending');
+    const { mount } = start();
+    await new Promise((r) => setTimeout(r, 40));
+    expect(mount).not.toHaveBeenCalled();
+    expect(document.documentElement.classList.contains('lmn-pending')).toBe(true);
+
+    // jellyfin-web renders its page shell after loading its plugins.
+    document.getElementById('reactRoot')!.innerHTML = '<div class="skinBody"></div>';
+
+    await vi.waitFor(() => expect(mount).toHaveBeenCalledTimes(1));
+    expect(document.documentElement.classList.contains('lmn-active')).toBe(true);
+    expect(client.requests.some((r) => r.url.endsWith('Lumen/Diagnostics'))).toBe(false);
+  });
+
+  it('reports only after the retry window, then lifts the veil onto the stock page', async () => {
+    document.body.innerHTML = '<div id="reactRoot"></div>';
+    document.documentElement.classList.add('lmn-pending');
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    start();
+    await new Promise((r) => setTimeout(r, 40));
+    expect(client.requests.some((r) => r.url.endsWith('Lumen/Diagnostics'))).toBe(false);
+
+    await vi.waitFor(() =>
+      expect(client.requests.some((r) => r.url.endsWith('Lumen/Diagnostics'))).toBe(true),
+    );
+    expect(document.documentElement.classList.contains('lmn-pending')).toBe(false);
+    expect(document.documentElement.classList.contains('lmn-active')).toBe(false);
+  });
+
+  it('takes over when jellyfin-web sets the user just after navigating home from sign-in', async () => {
+    const { mount, unmount } = start();
+    await vi.waitFor(() => expect(mount).toHaveBeenCalledTimes(1));
+    client.userId = null;
+    history.pushState(null, '', '#/login');
+    await vi.waitFor(() => expect(unmount).toHaveBeenCalled());
+
+    // Signed in again: jellyfin-web navigates first, and sets the user a moment later.
+    history.pushState(null, '', '#/home');
+    await new Promise((r) => setTimeout(r, 30));
+    expect(document.documentElement.classList.contains('lmn-pending')).toBe(true);
+    client.userId = 'user1';
+
+    await vi.waitFor(() => expect(mount).toHaveBeenCalledTimes(2));
+    expect(document.documentElement.classList.contains('lmn-pending')).toBe(false);
+  });
+
+  it('gives a signed-out page back once the sign-in wait runs out, without looping', async () => {
+    client.userId = 'user1';
+    const { mount, unmount } = start();
+    await vi.waitFor(() => expect(mount).toHaveBeenCalledTimes(1));
+    client.userId = null;
+    const getUser = vi.spyOn(client, 'getCurrentUserId');
+    history.pushState(null, '', '#/home?tab=0');
+    await vi.waitFor(() => expect(unmount).toHaveBeenCalled());
+
+    await vi.waitFor(() => expect(document.documentElement.classList.contains('lmn-pending')).toBe(false));
+    const calls = getUser.mock.calls.length;
+    await new Promise((r) => setTimeout(r, 400));
+    expect(getUser.mock.calls.length).toBe(calls);
+  });
+
+  it("takes the veil's safety net over from the inline guard", async () => {
+    const clear = vi.spyOn(window, 'clearTimeout');
+    Object.assign(window, { __lmnVeilSafety: 4242 });
+    start();
+    expect(clear).toHaveBeenCalledWith(4242);
   });
 });
