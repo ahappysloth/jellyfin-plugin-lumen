@@ -3,6 +3,7 @@ using Jellyfin.Plugin.Lumen.Configuration;
 using Jellyfin.Plugin.Lumen.Diagnostics;
 using Jellyfin.Plugin.Lumen.Home;
 using Jellyfin.Plugin.Lumen.Requests;
+using MediaBrowser.Controller;
 using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Mvc;
 using NSubstitute;
@@ -15,6 +16,43 @@ public class AdminControllerTests
     private readonly ILumenConfigStore _store = Substitute.For<ILumenConfigStore>();
     private readonly ISeerrClient _seerr = Substitute.For<ISeerrClient>();
     private readonly IUserManager _users = Substitute.For<IUserManager>();
+    private readonly IServerApplicationHost _host = Substitute.For<IServerApplicationHost>();
+
+    public AdminControllerTests()
+    {
+        _host.SystemId.Returns("a1b2c3d4e5f60718293a4b5c6d7e8f90");
+    }
+
+    [Theory]
+    [InlineData("a1b2c3d4e5f60718293a4b5c6d7e8f90", true)]
+    [InlineData("A1B2C3D4-E5F6-0718-293A-4B5C6D7E8F90", true)]
+    [InlineData("ffffffffffffffffffffffffffffffff", false)]
+    public async Task TestSeerr_SaysWhetherSeerrIsLinkedToThisJellyfinServer(string seerrServerId, bool same)
+    {
+        _store.Current.Returns(new PluginConfiguration());
+        _seerr.GetStatusAsync(Arg.Any<SeerrEndpoint>(), Arg.Any<CancellationToken>()).Returns(new SeerrStatus("3.5.1"));
+        _seerr.GetJellyfinServerAsync(Arg.Any<SeerrEndpoint>(), Arg.Any<CancellationToken>()).Returns(new SeerrJellyfinServer("Home", seerrServerId));
+
+        var result = (await Create().TestSeerr(new SeerrTestRequestDto("http://seerr:5055", "k"), CancellationToken.None)).Value!;
+
+        Assert.True(result.Ok);
+        Assert.Equal("Home", result.JellyfinServerName);
+        Assert.Equal(same, result.SameJellyfinServer);
+    }
+
+    [Fact]
+    public async Task TestSeerr_StillSucceedsWhenSeerrsJellyfinSettingsCantBeRead()
+    {
+        _store.Current.Returns(new PluginConfiguration());
+        _seerr.GetStatusAsync(Arg.Any<SeerrEndpoint>(), Arg.Any<CancellationToken>()).Returns(new SeerrStatus("3.5.1"));
+        _seerr.GetJellyfinServerAsync(Arg.Any<SeerrEndpoint>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<SeerrJellyfinServer?>(new SeerrException("nope")));
+
+        var result = (await Create().TestSeerr(new SeerrTestRequestDto("http://seerr:5055", "k"), CancellationToken.None)).Value!;
+
+        Assert.True(result.Ok);
+        Assert.Null(result.SameJellyfinServer);
+    }
 
     [Fact]
     public void GetConfig_NeverReturnsTheSeerrKey()
@@ -71,28 +109,31 @@ public class AdminControllerTests
     }
 
     [Fact]
-    public async Task UnmappedUsers_ListsJellyfinUsersWithoutASeerrAccount()
+    public async Task SeerrUsers_ListsJellyfinUsersWithoutASeerrAccount_AndTheLinkedServer()
     {
         var mapped = TestData.User("mapped");
         var unmapped = TestData.User("unmapped");
         _store.Current.Returns(new PluginConfiguration { RequestsEnabled = true, SeerrUrl = "http://seerr:5055", SeerrApiKey = "k" });
         _users.GetUsers().Returns([mapped, unmapped]);
         _seerr.GetUserByJellyfinIdAsync(Arg.Any<SeerrEndpoint>(), mapped.Id, Arg.Any<CancellationToken>()).Returns(new SeerrUser(2, 32));
+        _seerr.GetJellyfinServerAsync(Arg.Any<SeerrEndpoint>(), Arg.Any<CancellationToken>()).Returns(new SeerrJellyfinServer("Elsewhere", "ffff"));
 
-        var result = await Create().GetUnmappedUsers(CancellationToken.None);
+        var result = (await Create().GetSeerrUsers(CancellationToken.None)).Value!;
 
-        var list = Assert.IsAssignableFrom<IReadOnlyList<UnmappedUserDto>>(Assert.IsType<OkObjectResult>(result.Result).Value);
-        Assert.Equal("unmapped", Assert.Single(list).Name);
+        Assert.Equal("unmapped", Assert.Single(result.Unmapped).Name);
+        Assert.Equal("Elsewhere", result.JellyfinServerName);
+        Assert.False(result.SameJellyfinServer);
     }
 
     [Fact]
-    public async Task UnmappedUsers_IsEmptyWhenRequestsAreOff()
+    public async Task SeerrUsers_IsEmptyWhenRequestsAreOff()
     {
         _store.Current.Returns(new PluginConfiguration { SeerrUrl = "http://seerr:5055", SeerrApiKey = "k" });
 
-        var result = await Create().GetUnmappedUsers(CancellationToken.None);
+        var result = (await Create().GetSeerrUsers(CancellationToken.None)).Value!;
 
-        Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<UnmappedUserDto>>(Assert.IsType<OkObjectResult>(result.Result).Value));
+        Assert.Empty(result.Unmapped);
+        Assert.Null(result.SameJellyfinServer);
         await _seerr.DidNotReceiveWithAnyArgs().GetUserByJellyfinIdAsync(default!, default, default);
     }
 
@@ -137,5 +178,6 @@ public class AdminControllerTests
         [new FakeSectionProvider("Zeta"), new FakeSectionProvider("Alpha", new SectionParameter("n", "N", SectionParameterKind.Integer, Min: 1, Max: 3))],
         new DiagnosticsStore(),
         _seerr,
-        _users);
+        _users,
+        _host);
 }

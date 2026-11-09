@@ -51,6 +51,15 @@ export interface SeerrTestResult {
   Ok: boolean;
   Version: string | null;
   Error: string | null;
+  /** The Jellyfin server Seerr is linked to; SameJellyfinServer is null when unknown. */
+  JellyfinServerName?: string | null;
+  SameJellyfinServer?: boolean | null;
+}
+
+export interface SeerrUsers {
+  JellyfinServerName: string | null;
+  SameJellyfinServer: boolean | null;
+  Unmapped: UnmappedUser[];
 }
 
 export interface UnmappedUser {
@@ -82,7 +91,7 @@ export interface AdminApi {
   getCollections(): Promise<Option[]>;
   getPlaylists(): Promise<Option[]>;
   testSeerr(url: string, apiKey: string): Promise<SeerrTestResult>;
-  getUnmappedUsers(): Promise<UnmappedUser[]>;
+  getSeerrUsers(): Promise<SeerrUsers>;
 }
 
 const isResponse = (value: unknown): value is Response =>
@@ -142,6 +151,6 @@ export function createAdminApi(client: JellyfinApiClient): AdminApi {
         contentType: 'application/json',
         dataType: 'json',
       })) as SeerrTestResult,
-    getUnmappedUsers: () => getJson('Lumen/Admin/Seerr/UnmappedUsers'),
+    getSeerrUsers: () => getJson('Lumen/Admin/Seerr/Users'),
   };
 }

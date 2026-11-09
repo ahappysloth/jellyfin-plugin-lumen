@@ -36,6 +36,17 @@ public sealed class SeerrClientTests : IDisposable
     }
 
     [Fact]
+    public async Task JellyfinServer_KeepsOnlyNameAndServerId()
+    {
+        _http.Respond = _ => FakeHttp.Json("""{"name":"Home","ip":"10.0.0.2","serverId":"abc","apiKey":"secret"}""");
+
+        var server = await Client().GetJellyfinServerAsync(Endpoint, CancellationToken.None);
+
+        Assert.Equal(new SeerrJellyfinServer("Home", "abc"), server);
+        Assert.EndsWith("/api/v1/settings/jellyfin", _http.Requests[0].RequestUri!.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task UserLookup_404MeansNoAccount()
     {
         _http.Respond = _ => FakeHttp.Json("""{"message":"not found"}""", HttpStatusCode.NotFound);

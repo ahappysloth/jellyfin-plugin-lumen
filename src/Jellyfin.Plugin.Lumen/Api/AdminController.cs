@@ -3,6 +3,7 @@ using Jellyfin.Plugin.Lumen.Diagnostics;
 using Jellyfin.Plugin.Lumen.Home;
 using Jellyfin.Plugin.Lumen.Requests;
 using MediaBrowser.Common.Api;
+using MediaBrowser.Controller;
 using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -21,19 +22,22 @@ public sealed class AdminController : ControllerBase
     private readonly DiagnosticsStore _diagnostics;
     private readonly ISeerrClient _seerr;
     private readonly IUserManager _users;
+    private readonly IServerApplicationHost _host;
 
     public AdminController(
         ILumenConfigStore store,
         IEnumerable<IHomeSectionProvider> providers,
         DiagnosticsStore diagnostics,
         ISeerrClient seerr,
-        IUserManager users)
+        IUserManager users,
+        IServerApplicationHost host)
     {
         _store = store;
         _providers = providers;
         _diagnostics = diagnostics;
         _seerr = seerr;
         _users = users;
+        _host = host;
     }
 
     /// <summary>The configuration, minus the Seerr API key (the page only learns whether one is set).</summary>
@@ -73,13 +77,15 @@ public sealed class AdminController : ControllerBase
             return new SeerrTestResultDto(false, null, "Enter Seerr's API key.");
         }
 
+        var endpoint = new SeerrEndpoint(new Uri(body.Url!.TrimEnd('/') + "/"), key);
         try
         {
-            var status = await _seerr.GetStatusAsync(new SeerrEndpoint(new Uri(body.Url!.TrimEnd('/') + "/"), key), cancellationToken).ConfigureAwait(false);
+            var status = await _seerr.GetStatusAsync(endpoint, cancellationToken).ConfigureAwait(false);
 
             // /status answers without a key, so prove the key works with a call that needs it.
-            await _seerr.GetUserByJellyfinIdAsync(new SeerrEndpoint(new Uri(body.Url!.TrimEnd('/') + "/"), key), Guid.Empty, cancellationToken).ConfigureAwait(false);
-            return new SeerrTestResultDto(true, status.Version, null);
+            await _seerr.GetUserByJellyfinIdAsync(endpoint, Guid.Empty, cancellationToken).ConfigureAwait(false);
+            var server = await TryGetJellyfinServerAsync(endpoint, cancellationToken).ConfigureAwait(false);
+            return new SeerrTestResultDto(true, status.Version, null, server?.Name, server?.Is(_host.SystemId));
         }
         catch (SeerrException e)
         {
@@ -87,18 +93,23 @@ public sealed class AdminController : ControllerBase
         }
     }
 
-    /// <summary>Jellyfin users with no Seerr account (they see no catalog). Empty when requests are off.</summary>
-    [HttpGet("Seerr/UnmappedUsers")]
-    public async Task<ActionResult<IReadOnlyList<UnmappedUserDto>>> GetUnmappedUsers(CancellationToken cancellationToken)
+    /// <summary>
+    /// Which Jellyfin server Seerr is linked to, and the users here with no Seerr account (they see no catalog).
+    /// Empty when requests are off.
+    /// </summary>
+    [HttpGet("Seerr/Users")]
+    public async Task<ActionResult<SeerrUsersDto>> GetSeerrUsers(CancellationToken cancellationToken)
     {
         if (SeerrEndpoint.From(_store.Current) is not { } endpoint)
         {
-            return Ok(Array.Empty<UnmappedUserDto>());
+            return new SeerrUsersDto(null, null, []);
         }
 
         var unmapped = new List<UnmappedUserDto>();
+        SeerrJellyfinServer? server;
         try
         {
+            server = await TryGetJellyfinServerAsync(endpoint, cancellationToken).ConfigureAwait(false);
             foreach (var user in _users.GetUsers())
             {
                 if (await _seerr.GetUserByJellyfinIdAsync(endpoint, user.Id, cancellationToken).ConfigureAwait(false) is null)
@@ -112,9 +123,22 @@ public sealed class AdminController : ControllerBase
             return StatusCode(StatusCodes.Status502BadGateway, new ValidationErrorsDto([e.Message]));
         }
 
-        return Ok(unmapped);
+        return new SeerrUsersDto(server?.Name, server?.Is(_host.SystemId), unmapped);
     }
 
     [HttpGet("Diagnostics")]
     public ActionResult<IReadOnlyList<DiagnosticEntry>> GetDiagnostics() => Ok(_diagnostics.GetAll());
+
+    /// <summary>Seerr's linked Jellyfin server; null if Seerr uses Plex/Emby, or the settings can't be read.</summary>
+    private async Task<SeerrJellyfinServer?> TryGetJellyfinServerAsync(SeerrEndpoint endpoint, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _seerr.GetJellyfinServerAsync(endpoint, cancellationToken).ConfigureAwait(false);
+        }
+        catch (SeerrException)
+        {
+            return null;
+        }
+    }
 }

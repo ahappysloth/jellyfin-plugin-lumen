@@ -54,7 +54,7 @@ function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     getCollections: vi.fn(async () => [{ id: 'col1', name: 'Holiday' }]),
     getPlaylists: vi.fn(async () => []),
     testSeerr: vi.fn(async () => ({ Ok: true, Version: '3.5.1', Error: null })),
-    getUnmappedUsers: vi.fn(async () => []),
+    getSeerrUsers: vi.fn(async () => ({ JellyfinServerName: null, SameJellyfinServer: null, Unmapped: [] })),
     ...overrides,
   };
 }
@@ -74,6 +74,7 @@ describe('AdminApp', () => {
     const key = await screen.findByLabelText('Seerr API key');
     expect(key).toHaveValue('');
     expect(key).toHaveAttribute('placeholder', 'Saved (leave blank to keep it)');
+    await waitFor(() => expect(key).toHaveAccessibleDescription('Seerr → Settings → General'));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(api.saveConfig).toHaveBeenCalledTimes(1));
     expect(vi.mocked(api.saveConfig).mock.calls[0]![0].SeerrApiKey ?? '').toBe('');
@@ -100,6 +101,27 @@ describe('AdminApp', () => {
     expect(api.testSeerr).toHaveBeenCalledWith('http://seerr:5055', 'k1');
   });
 
+  it('explains when Seerr is linked to a different Jellyfin server instead of suggesting an import', async () => {
+    const api = fakeApi({
+      getConfig: vi.fn(async () => ({
+        ...config(),
+        RequestsEnabled: true,
+        SeerrUrl: 'http://seerr:5055',
+        SeerrApiKeySet: true,
+      })),
+      getSeerrUsers: vi.fn(async () => ({
+        JellyfinServerName: 'Main',
+        SameJellyfinServer: false,
+        Unmapped: [{ Id: 'u2', Name: 'kid' }],
+      })),
+    });
+    render(<AdminApp api={api} />);
+
+    expect(await screen.findByText('Seerr is linked to a different Jellyfin server')).toBeInTheDocument();
+    expect(screen.getByText(/Seerr uses “Main”/)).toBeInTheDocument();
+    expect(screen.queryByText('Users without a Seerr account')).toBeNull();
+  });
+
   it('lists users without a Seerr account once requests are set up', async () => {
     const api = fakeApi({
       getConfig: vi.fn(async () => ({
@@ -108,12 +130,16 @@ describe('AdminApp', () => {
         SeerrUrl: 'http://seerr:5055',
         SeerrApiKeySet: true,
       })),
-      getUnmappedUsers: vi.fn(async () => [{ Id: 'u2', Name: 'kid' }]),
+      getSeerrUsers: vi.fn(async () => ({
+        JellyfinServerName: 'Home',
+        SameJellyfinServer: true,
+        Unmapped: [{ Id: 'u2', Name: 'kid' }],
+      })),
     });
     render(<AdminApp api={api} />);
 
     expect(await screen.findByText('kid')).toBeInTheDocument();
-    expect(screen.getByText(/have no Seerr account/)).toBeInTheDocument();
+    expect(screen.getByText('Users without a Seerr account')).toBeInTheDocument();
   });
 
   it('lists sections in order and saves a reordered list', async () => {

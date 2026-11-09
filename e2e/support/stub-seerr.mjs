@@ -3,8 +3,10 @@
 //
 //   GET  /api/v1/status                         → { version }
 //   GET  /api/v1/user/jellyfin/:jellyfinUserId  → the mapped user, 404 if unmapped, 403 without the right key
+//   GET  /api/v1/settings/jellyfin              → the Jellyfin server this "Seerr" is linked to
 //   GET  /t/p/:size/:file                       → a tiny PNG (TMDB image stand-in)
 //   POST /__stub/users  { [jellyfinUserId]: { id, permissions } }   → replaces the user map (test control)
+//   POST /__stub/jellyfin  { name, serverId }                       → sets the linked Jellyfin server (test control)
 //   GET  /__stub/health
 import { createServer } from 'node:http';
 
@@ -16,6 +18,7 @@ const PNG = Buffer.from(
   'base64',
 );
 let users = {};
+let jellyfin = { name: 'Stub Jellyfin', serverId: '' };
 
 const json = (res, status, body) => {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -26,11 +29,12 @@ createServer((req, res) => {
   const url = new URL(req.url, 'http://stub');
   const path = url.pathname;
   if (path === '/__stub/health') return json(res, 200, { ok: true });
-  if (path === '/__stub/users' && req.method === 'POST') {
+  if ((path === '/__stub/users' || path === '/__stub/jellyfin') && req.method === 'POST') {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
     req.on('end', () => {
-      users = JSON.parse(body || '{}');
+      if (path === '/__stub/users') users = JSON.parse(body || '{}');
+      else jellyfin = JSON.parse(body || '{}');
       json(res, 200, { ok: true });
     });
     return;
@@ -41,6 +45,8 @@ createServer((req, res) => {
   }
   if (path === '/api/v1/status') return json(res, 200, { version: '3.5.1-stub', commitTag: 'stub' });
   if (req.headers['x-api-key'] !== STUB_API_KEY) return json(res, 403, { message: 'You do not have permission' });
+  // Real Seerr also returns its Jellyfin API key here; Lumen must only read name and serverId.
+  if (path === '/api/v1/settings/jellyfin') return json(res, 200, { ...jellyfin, ip: 'jellyfin', apiKey: 'must-not-leak' });
   const user = path.match(/^\/api\/v1\/user\/jellyfin\/([0-9a-f]{32})$/);
   if (user) {
     const found = users[user[1]];

@@ -12,6 +12,9 @@ public interface ISeerrClient
 {
     Task<SeerrStatus> GetStatusAsync(SeerrEndpoint endpoint, CancellationToken cancellationToken);
 
+    /// <summary>The Jellyfin server Seerr is linked to, or null if it isn't set up for Jellyfin.</summary>
+    Task<SeerrJellyfinServer?> GetJellyfinServerAsync(SeerrEndpoint endpoint, CancellationToken cancellationToken);
+
     /// <summary>The Seerr account linked to a Jellyfin user, or null if there is none.</summary>
     Task<SeerrUser?> GetUserByJellyfinIdAsync(SeerrEndpoint endpoint, Guid jellyfinUserId, CancellationToken cancellationToken);
 }
@@ -28,6 +31,18 @@ public sealed record SeerrEndpoint(Uri BaseUrl, string ApiKey)
 
 /// <summary>Seerr's version, from <c>GET /api/v1/status</c>.</summary>
 public sealed record SeerrStatus(string Version);
+
+/// <summary>
+/// The Jellyfin server Seerr is linked to. Seerr's settings response also contains its Jellyfin API key, so only the
+/// name and server id are kept.
+/// </summary>
+public sealed record SeerrJellyfinServer(string Name, string ServerId)
+{
+    /// <summary>True when <paramref name="systemId"/> (this server's id) is the server Seerr is linked to.</summary>
+    public bool Is(string systemId) => Normalize(ServerId) == Normalize(systemId);
+
+    private static string Normalize(string id) => id.Replace("-", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+}
 
 /// <summary>
 /// The only parts of a Seerr user Lumen keeps. Seerr's user object (fetched with the admin key) also carries the user's
@@ -65,6 +80,12 @@ public sealed class SeerrClient : ISeerrClient
     {
         var status = await GetAsync<StatusBody>(endpoint, "api/v1/status", null, cancellationToken).ConfigureAwait(false);
         return new SeerrStatus(status?.Version ?? "unknown");
+    }
+
+    public async Task<SeerrJellyfinServer?> GetJellyfinServerAsync(SeerrEndpoint endpoint, CancellationToken cancellationToken)
+    {
+        var settings = await GetAsync<JellyfinSettingsBody>(endpoint, "api/v1/settings/jellyfin", null, cancellationToken).ConfigureAwait(false);
+        return string.IsNullOrEmpty(settings?.ServerId) ? null : new SeerrJellyfinServer(settings.Name ?? "Jellyfin", settings.ServerId);
     }
 
     public async Task<SeerrUser?> GetUserByJellyfinIdAsync(SeerrEndpoint endpoint, Guid jellyfinUserId, CancellationToken cancellationToken)
@@ -131,6 +152,15 @@ public sealed class SeerrClient : ISeerrClient
     {
         [JsonPropertyName("version")]
         public string? Version { get; set; }
+    }
+
+    private sealed class JellyfinSettingsBody
+    {
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
+
+        [JsonPropertyName("serverId")]
+        public string? ServerId { get; set; }
     }
 
     private sealed class UserBody
