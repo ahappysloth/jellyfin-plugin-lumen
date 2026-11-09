@@ -70,14 +70,43 @@ public class LumenConfigStoreTests
     public void Save_WithoutAKey_KeepsTheStoredSeerrKey()
     {
         var store = CreateStore();
-        Assert.True(store.Save(new PluginConfiguration { SeerrApiKey = "stored" }).Success);
+        Assert.True(store.Save(new PluginConfiguration { SeerrUrl = "http://seerr:5055", SeerrApiKey = "stored" }).Success);
 
-        var fromAdminPage = new PluginConfiguration { SeerrApiKey = "stored" }.WithoutSecrets();
+        var fromAdminPage = new PluginConfiguration { SeerrUrl = "http://seerr:5055/", SeerrApiKey = "stored" }.WithoutSecrets();
         fromAdminPage.AccentColor = "#123456";
         Assert.True(store.Save(fromAdminPage).Success);
 
         Assert.Equal("stored", _persistence.Stored.SeerrApiKey);
         Assert.Equal("#123456", _persistence.Stored.AccentColor);
+    }
+
+    [Fact]
+    public void Save_WithoutAKey_ForANewSeerrAddress_DropsTheStoredKey()
+    {
+        var store = CreateStore();
+        Assert.True(store.Save(new PluginConfiguration { SeerrUrl = "http://seerr:5055", SeerrApiKey = "stored" }).Success);
+
+        // Requests off, so a missing key isn't a validation error; the old key must not follow the new address.
+        Assert.True(store.Save(new PluginConfiguration { SeerrUrl = "http://other:5055" }).Success);
+
+        Assert.Null(_persistence.Stored.SeerrApiKey);
+    }
+
+    [Fact]
+    public void SeerrKey_IsWriteOnlyInJson_ButStillPersisted()
+    {
+        var config = new PluginConfiguration { SeerrApiKey = "stored" };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(config);
+        Assert.DoesNotContain("stored", json, StringComparison.Ordinal);
+
+        var posted = System.Text.Json.JsonSerializer.Deserialize<PluginConfiguration>("{\"SeerrApiKey\":\"typed\"}")!;
+        Assert.Equal("typed", posted.SeerrApiKey);
+
+        var xml = new System.Xml.Serialization.XmlSerializer(typeof(PluginConfiguration));
+        using var writer = new StringWriter();
+        xml.Serialize(writer, config);
+        Assert.Contains("<SeerrApiKey>stored</SeerrApiKey>", writer.ToString(), StringComparison.Ordinal);
     }
 
     private LumenConfigStore CreateStore() => new(

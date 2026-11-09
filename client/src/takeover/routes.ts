@@ -2,7 +2,7 @@ export type LibraryCollection = 'movies' | 'tvshows';
 
 export type Route =
   | { kind: 'home' }
-  | { kind: 'details'; id: string }
+  | { kind: 'details'; id: string; serverId?: string }
   | { kind: 'library'; id: string; collection: LibraryCollection }
   | { kind: 'favorites' }
   | { kind: 'search'; query: string }
@@ -62,7 +62,8 @@ export function parseRoute(hash: string): Route {
   }
   if (path === '/details') {
     const id = query.get('id');
-    if (id && ITEM_ID.test(id)) return { kind: 'details', id };
+    const serverId = query.get('serverId');
+    if (id && ITEM_ID.test(id)) return serverId ? { kind: 'details', id, serverId } : { kind: 'details', id };
   }
   if (path === '/search') return { kind: 'search', query: query.get('query') ?? '' };
   if (path === '/mypreferencesmenu') return { kind: 'profile' };

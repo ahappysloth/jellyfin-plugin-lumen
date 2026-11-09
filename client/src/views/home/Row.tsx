@@ -31,8 +31,12 @@ export function Row({ row, client, badges, onSelect, onMenu, onSelectCatalog }: 
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
-    const update = (): void =>
-      setEdges({ start: el.scrollLeft <= 2, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 2 });
+    // Only re-render when an edge flag actually flips, not on every scroll event.
+    const update = (): void => {
+      const start = el.scrollLeft <= 2;
+      const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 2;
+      setEdges((prev) => (prev.start === start && prev.end === end ? prev : { start, end }));
+    };
     update();
     el.addEventListener('scroll', update, { passive: true });
     window.addEventListener('resize', update);

@@ -37,5 +37,10 @@ function mount(): void {
 }
 
 mount();
-document.addEventListener('viewshow', mount);
-document.addEventListener('pageshow', mount);
+// The dashboard can run this bundle again on later visits; install the page listeners only once.
+const flagged = window as Window & { __lmnAdminListening?: boolean };
+if (!flagged.__lmnAdminListening) {
+  flagged.__lmnAdminListening = true;
+  document.addEventListener('viewshow', mount);
+  document.addEventListener('pageshow', mount);
+}

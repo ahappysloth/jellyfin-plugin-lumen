@@ -34,7 +34,7 @@ public sealed class CatalogRowAccess
     public async Task<(SeerrEndpoint Endpoint, int SeerrUserId)?> GetAsync(Guid jellyfinUserId, CancellationToken cancellationToken)
     {
         var access = await _users.Value.GetAccessAsync(jellyfinUserId, cancellationToken).ConfigureAwait(false);
-        return access.Enabled && access.SeerrUserId is { } seerrUserId && SeerrEndpoint.From(_config.Value.Current) is { } endpoint
+        return access.Enabled && access.SeerrUserId is { } seerrUserId && access.Endpoint is { } endpoint
             ? (endpoint, seerrUserId)
             : null;
     }
@@ -252,6 +252,9 @@ public sealed class MyRequestsProvider : CatalogSectionProvider
     public const int MaxConcurrentDetails = 6;
     private const int Declined = 3;
 
+    /// <summary>How long title lookups may take before the row is returned with the titles resolved so far.</summary>
+    private static readonly TimeSpan DetailsBudget = TimeSpan.FromSeconds(4);
+
     public MyRequestsProvider(CatalogRowAccess access, ISeerrClient seerr, CatalogMapper mapper, ILogger<MyRequestsProvider> logger)
         : base(access, seerr, mapper, logger)
     {
@@ -275,10 +278,18 @@ public sealed class MyRequestsProvider : CatalogSectionProvider
             .Take(context.ItemLimit)
             .ToList();
 
-        using var gate = new SemaphoreSlim(MaxConcurrentDetails);
-        var items = await Task.WhenAll(wanted.Select(r => ResolveAsync(endpoint, seerrUserId, r.MediaType!, r.Request.Media!, context.User, gate, cancellationToken)))
-            .ConfigureAwait(false);
-        return items.OfType<CatalogItemDto>().ToList();
+        // Not disposed: lookups still running after the budget below keep using it (it holds no OS handle).
+        var gate = new SemaphoreSlim(MaxConcurrentDetails);
+        var lookups = wanted
+            .Select(r => ResolveAsync(endpoint, seerrUserId, r.MediaType!, r.Request.Media!, context.User, gate, cancellationToken))
+            .ToList();
+        var all = Task.WhenAll(lookups);
+
+        // Return what has resolved within the budget rather than lose the whole row to the provider timeout on a cold
+        // cache; the rest finish in the background and warm the shared cache for the next home load.
+        await Task.WhenAny(all, Task.Delay(DetailsBudget, cancellationToken)).ConfigureAwait(false);
+        _ = all.ContinueWith(t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+        return lookups.Where(t => t.IsCompletedSuccessfully).Select(t => t.Result).OfType<CatalogItemDto>().ToList();
     }
 
     /// <summary>The card for one requested title, or null if Seerr couldn't give its details.</summary>

@@ -14,7 +14,7 @@ describe('parseRoute', () => {
     ['#/home?title=movie-0', { kind: 'home' }],
     [
       '#/details?id=0123456789abcdef0123456789abcdef&serverId=s',
-      { kind: 'details', id: '0123456789abcdef0123456789abcdef' },
+      { kind: 'details', id: '0123456789abcdef0123456789abcdef', serverId: 's' },
     ],
     ['#/details?id=not-an-id', { kind: 'other' }],
     ['#/details', { kind: 'other' }],

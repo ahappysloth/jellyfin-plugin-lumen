@@ -8,6 +8,7 @@ import {
   PREFERENCES_HASH,
   SEARCH_HASH,
 } from '../compat/jellyfin';
+import { openContextMenu } from '../components/ContextMenu';
 import { Icon, type IconName } from '../components/icons';
 import { LumenMark } from '../components/LumenMark';
 import { strings } from '../strings';
@@ -63,6 +64,11 @@ export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavAc
     };
   }, [ctx.userId]);
 
+  const libraries = data?.libraries ?? [];
+  const fits = libraries.length <= MAX_TAB_LIBRARIES;
+  const libraryTabs = fits ? libraries : libraries.slice(0, MAX_TAB_LIBRARIES - 1);
+  const overflow = fits ? [] : libraries.slice(MAX_TAB_LIBRARIES - 1);
+
   return (
     <header class="lmn-nav">
       <a class="lmn-nav__brand" href={HOME_HASH}>
@@ -115,7 +121,7 @@ export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavAc
       </a>
       <nav class="lmn-tabbar" aria-label={strings.tabs}>
         <Tab href={HOME_HASH} icon="home" label={strings.home} current={active === 'home'} />
-        {data?.libraries.slice(0, MAX_TAB_LIBRARIES).map((view) => (
+        {libraryTabs.map((view) => (
           <Tab
             key={view.Id}
             href={libraryHash(view)}
@@ -124,6 +130,30 @@ export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavAc
             current={active === view.Id}
           />
         ))}
+        {overflow.length > 0 && (
+          <button
+            type="button"
+            class={`lmn-tab${overflow.some((v) => v.Id === active) ? ' is-active' : ''}`}
+            aria-haspopup="menu"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              openContextMenu({
+                x: rect.left,
+                y: rect.top - 8,
+                returnFocus: e.currentTarget,
+                label: strings.moreLibraries,
+                entries: overflow.map((view) => ({
+                  label: view.Name,
+                  icon: LIBRARY_ICONS[view.CollectionType ?? ''] ?? 'folder',
+                  onSelect: () => ctx.navigate(libraryHash(view)),
+                })),
+              });
+            }}
+          >
+            <Icon name="folder" size={22} />
+            <span class="lmn-tab__label">{strings.more}</span>
+          </button>
+        )}
         <Tab href={FAVORITES_HASH} icon="heart" label={strings.favorites} current={active === 'favorites'} />
         <Tab href={PREFERENCES_HASH} icon="user" label={strings.me} current={active === 'profile'} />
       </nav>
@@ -131,7 +161,8 @@ export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavAc
   );
 }
 
-/** Home, up to two libraries, Favorites and Me: five tabs at most fit a phone. */
+/** Home, two library slots, Favorites and Me: five tabs at most fit a phone. With more libraries, the second slot
+ * becomes "More", a menu of the rest. */
 const MAX_TAB_LIBRARIES = 2;
 
 function Tab({

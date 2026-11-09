@@ -239,7 +239,7 @@ public sealed class RequestsController : ControllerBase
         }
 
         var access = await _users.GetAccessAsync(userId, cancellationToken).ConfigureAwait(false);
-        if (!access.Enabled || access.SeerrUserId is not { } seerrUserId || SeerrEndpoint.From(_config.Current) is not { } endpoint)
+        if (!access.Enabled || access.SeerrUserId is not { } seerrUserId || access.Endpoint is not { } endpoint)
         {
             return new Caller(NotFound());
         }

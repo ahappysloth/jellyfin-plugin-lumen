@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { makeContext } from '../../../test/viewContext';
@@ -6,7 +6,8 @@ import type { AjaxRequest } from '../../compat/jellyfin';
 import type { BaseItem } from '../../api/types';
 import { clearBrowseState } from './browseStore';
 import { LibraryView, sortParams } from './LibraryView';
-import { PAGE_SIZE } from './useBrowseItems';
+import { LumenApi } from '../../api/lumenApi';
+import { PAGE_SIZE, useBrowseItems } from './useBrowseItems';
 
 const LIB = '0123456789abcdef0123456789abcdef';
 const movie = (i: number): BaseItem => ({ Id: `m${i}`, Name: `Movie ${i}`, Type: 'Movie', ServerId: 's' });
@@ -85,5 +86,48 @@ describe('LibraryView', () => {
       sortBy: 'CommunityRating,SortName',
       sortOrder: 'Descending',
     });
+  });
+});
+
+describe('LibraryView paging', () => {
+  afterEach(() => clearBrowseState());
+
+  it('advances by the server offset, so a page of repeats does not stall loading', async () => {
+    // Page 2 repeats page 1 entirely (titles were added meanwhile); paging must still move on to page 3.
+    const page1 = Array.from({ length: PAGE_SIZE }, (_, i) => movie(i));
+    const page3 = [movie(1000)];
+    const starts: number[] = [];
+    const client = createFakeClient(
+      routes({
+        [`Items/${LIB}`]: { Id: LIB, Name: 'Films', Type: 'CollectionFolder' },
+        Genres: { Items: [] },
+        Items: (r: AjaxRequest) => {
+          const start = Number(params(r).get('startIndex'));
+          starts.push(start);
+          const items = start === 0 ? page1 : start === PAGE_SIZE ? page1 : page3;
+          return { Items: items, TotalRecordCount: PAGE_SIZE * 2 + 1 };
+        },
+      }),
+    );
+    const { result } = await import('@testing-library/preact').then(({ renderHook }) =>
+      renderHook(() =>
+        useBrowseItems('k', (page) =>
+          new LumenApi(client).getBrowseItems({
+            parentId: LIB,
+            includeItemTypes: 'Movie',
+            sortBy: 'SortName',
+            sortOrder: 'Ascending',
+            ...page,
+          }),
+        ),
+      ),
+    );
+    await waitFor(() => expect(result.current.items).toHaveLength(PAGE_SIZE));
+    act(() => result.current.loadMore());
+    await waitFor(() => expect(starts).toEqual([0, PAGE_SIZE]));
+    act(() => result.current.loadMore());
+    await waitFor(() => expect(starts).toEqual([0, PAGE_SIZE, PAGE_SIZE * 2]));
+    await waitFor(() => expect(result.current.hasMore).toBe(false));
+    expect(result.current.items).toHaveLength(PAGE_SIZE + 1);
   });
 });

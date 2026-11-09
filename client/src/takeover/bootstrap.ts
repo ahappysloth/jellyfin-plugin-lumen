@@ -13,9 +13,10 @@ import {
 } from '../compat/jellyfin';
 import type { ViewContext } from '../views/context';
 import { onNavigate } from './navigation';
-import { parseRoute, type TakeoverRoute } from './routes';
+import { parseRoute, type Route, type TakeoverRoute } from './routes';
 import { applySignInSkin, isSignInRoute } from '../veil/skin';
 import { liftVeil, PENDING_CLASS, rememberVeilName } from '../veil/veil';
+import { resetSessionCaches } from '../util/sessionCaches';
 import { Takeover } from './takeover';
 
 export interface BootstrapOptions {
@@ -25,6 +26,16 @@ export interface BootstrapOptions {
   doc?: Document;
   pollMs?: number;
   timeoutMs?: number;
+}
+
+/**
+ * A details link for another connected server stays stock: Lumen only talks to the current server's ApiClient, and
+ * looking the id up there would show the wrong item (or fail).
+ */
+function forThisServer(route: Route, client: JellyfinApiClient | null): Route {
+  if (route.kind !== 'details' || !route.serverId) return route;
+  const current = client?.serverId?.();
+  return current && current.toLowerCase() !== route.serverId.toLowerCase() ? { kind: 'other' } : route;
 }
 
 /** How long a taken-over page may keep the veil down while it loads. */
@@ -129,6 +140,8 @@ export function startLumen(options: BootstrapOptions): () => void {
       if (session && (session.client !== client || session.userId !== userId)) {
         session.takeover?.release();
         session = null;
+        // Per-user caches (request permissions, optimistic states, saved grids) must not outlive the session.
+        resetSessionCaches();
       }
       if (session || !client || !userId) break;
 
@@ -137,9 +150,12 @@ export function startLumen(options: BootstrapOptions): () => void {
       }
       const entry = pending;
       const created = await entry.promise;
-      if (pending === entry) pending = null;
+      // Only the newest creation counts: after A → B → A, the first A's result is stale (older config).
+      const current = pending === entry;
+      if (current) pending = null;
       if (stopped) return;
       if (
+        current &&
         !session &&
         getApiClient(win) === entry.client &&
         entry.client.getCurrentUserId() === entry.userId
@@ -147,7 +163,7 @@ export function startLumen(options: BootstrapOptions): () => void {
         session = created;
       }
     }
-    const route = parseRoute(win.location.hash);
+    const route = forThisServer(parseRoute(win.location.hash), session?.client ?? null);
     session?.takeover?.handle(route);
     // The inline guard hid the stock chrome and showed the veil while this was undecided. If Lumen now owns the page,
     // its view lifts the veil once its content is ready (with a fallback here); otherwise lift it right away.

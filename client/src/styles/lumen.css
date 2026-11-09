@@ -493,6 +493,10 @@ html.lmn-active #lmn-root {
   align-items: center;
   gap: 6px;
 }
+.lmn-hero__dash:focus-visible {
+  outline: 2px solid var(--lmn-focus);
+  outline-offset: 3px;
+}
 .lmn-hero__dash {
   width: 14px;
   height: 3px;
@@ -1681,6 +1685,10 @@ a.lmn-button {
     pointer-events: auto;
   }
   .lmn-tab {
+    border: 0;
+    background: none;
+    font-family: inherit;
+    cursor: pointer;
     display: flex;
     flex: 1;
     flex-direction: column;
@@ -1841,7 +1849,8 @@ a.lmn-button {
     transform: translateX(50%);
   }
   .lmn-hero__controls .lmn-icon-button {
-    display: none;
+    width: 30px;
+    height: 30px;
   }
   .lmn-button {
     height: 42px;

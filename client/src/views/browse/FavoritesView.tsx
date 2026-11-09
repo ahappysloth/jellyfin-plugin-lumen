@@ -108,9 +108,18 @@ function FavoritesGrid({ tab, ctx }: { tab: FavoritesTab; ctx: ViewContext }) {
       ...page,
     }),
   );
-  const select = (item: BaseItem): void => {
+  /** Remembers the grid and scroll position, so Back from a title lands on the same card. */
+  const save = (): void => {
     if (state.total !== null)
-      saveSnapshot(queryKey, { items: state.items, total: state.total, scrollY: window.scrollY });
+      saveSnapshot(queryKey, {
+        items: state.items,
+        total: state.total,
+        scrollY: window.scrollY,
+        offset: state.offset,
+      });
+  };
+  const select = (item: BaseItem): void => {
+    save();
     ctx.navigate(infoHash(item));
   };
   return (
@@ -120,7 +129,7 @@ function FavoritesGrid({ tab, ctx }: { tab: FavoritesTab; ctx: ViewContext }) {
       variant={variant}
       label={label}
       onSelect={select}
-      onMenu={cardMenuHandler(ctx)}
+      onMenu={cardMenuHandler(ctx, { beforeNavigate: save })}
       empty={<EmptyFavorites />}
     />
   );

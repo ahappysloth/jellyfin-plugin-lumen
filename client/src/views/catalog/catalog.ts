@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useState } from 'preact/hooks';
 import type { CatalogItem, CatalogState, RequestStatus } from '../../api/types';
 import { detailsHash, type JellyfinApiClient } from '../../compat/jellyfin';
 import { strings } from '../../strings';
 import { titleHash } from '../../takeover/routes';
+import { registerSessionCache } from '../../util/sessionCaches';
 import type { ViewContext } from '../context';
 
 export type CatalogImageSize = 'w185' | 'w300' | 'w780' | 'w1280';
@@ -15,7 +16,10 @@ const statusByUser = new Map<string, Promise<RequestStatus>>();
 export function loadRequestStatus(ctx: ViewContext): Promise<RequestStatus> {
   let status = statusByUser.get(ctx.userId);
   if (!status) {
-    status = ctx.api.getRequestStatus().catch(() => NO_ACCESS);
+    status = ctx.api.getRequestStatus().catch(() => {
+      statusByUser.delete(ctx.userId); // a transient failure is retried next time, not remembered
+      return NO_ACCESS;
+    });
     statusByUser.set(ctx.userId, status);
   }
   return status;
@@ -58,9 +62,14 @@ export function setCatalogState(key: string, state: CatalogState): void {
   listeners.forEach((l) => l());
 }
 
+/** Fresh state from Seerr for this title (its page just loaded): it replaces this session's optimistic one. */
+export function forgetCatalogState(key: string): void {
+  if (stateOverrides.delete(key)) listeners.forEach((l) => l());
+}
+
 export function useCatalogState(item: CatalogItem): CatalogState {
   const [, bump] = useState(0);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const listener = (): void => bump((n) => n + 1);
     listeners.add(listener);
     return () => {
@@ -90,3 +99,5 @@ export function stateLabel(state: CatalogState): string | null {
       return null;
   }
 }
+
+registerSessionCache(clearRequestStatus);

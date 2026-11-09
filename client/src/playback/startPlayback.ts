@@ -9,8 +9,10 @@ import { playItem, resumeTicks } from './play';
  */
 export async function startPlayback(ctx: ViewContext, item: BaseItem): Promise<boolean> {
   if (item.Type === 'Series') {
+    const userId = ctx.client.getCurrentUserId();
     const target = await resolveSeriesPlayTarget(ctx.api, item.Id);
     if (!target) return false;
+    if (ctx.client.getCurrentUserId() !== userId) return false; // signed out meanwhile
     await playItem(ctx.api, ctx.client, target.episodeId, target.startTicks);
     return true;
   }

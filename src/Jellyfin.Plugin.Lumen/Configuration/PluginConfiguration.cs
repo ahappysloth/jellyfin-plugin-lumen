@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization;
 using System.Xml.Serialization;
 using MediaBrowser.Model.Plugins;
 
@@ -63,10 +64,26 @@ public class PluginConfiguration : BasePluginConfiguration
     public string? SeerrUrl { get; set; }
 
     /// <summary>
-    /// Gets or sets Seerr's admin API key. Write-only from the admin page: <see cref="WithoutSecrets"/> blanks it, and a
-    /// save with a null or empty key keeps the stored one (see LumenConfigStore).
+    /// Gets or sets Seerr's admin API key. Persisted in the plugin's XML config, but never serialized to JSON: Jellyfin's
+    /// own <c>GET /Plugins/{id}/Configuration</c> returns this object, and the key must not be readable through it.
+    /// The admin page writes it through <see cref="SeerrApiKeyInput"/>; a save with an empty key keeps the stored one
+    /// for the same Seerr address (see LumenConfigStore).
     /// </summary>
+    [JsonIgnore]
     public string? SeerrApiKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets the key in JSON, write-only: reading always gives null, writing sets <see cref="SeerrApiKey"/>. This
+    /// is what the admin page's <c>SeerrApiKey</c> field binds to.
+    /// </summary>
+    [XmlIgnore]
+    [JsonPropertyName("SeerrApiKey")]
+    [SuppressMessage("Design", "CA1044:Properties should not be write only", Justification = "Reads as null on purpose.")]
+    public string? SeerrApiKeyInput
+    {
+        get => null;
+        set => SeerrApiKey = value;
+    }
 
     /// <summary>Gets or sets the TMDB image cache cap, in megabytes.</summary>
     public int ImageCacheMb { get; set; } = 500;

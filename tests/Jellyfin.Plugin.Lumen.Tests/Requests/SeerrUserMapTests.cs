@@ -39,7 +39,7 @@ public class SeerrUserMapTests
         _time.Advance(TimeSpan.FromMinutes(9));
         await map.GetAccessAsync(_user, CancellationToken.None);
 
-        Assert.Equal(new RequestAccess(true, true, false, 4), access);
+        Assert.Equal(new RequestAccess(true, true, false, 4, new SeerrEndpoint(new Uri("http://seerr:5055/"), "k")), access);
         await _seerr.Received(1).GetUserByJellyfinIdAsync(Arg.Any<SeerrEndpoint>(), _user, Arg.Any<CancellationToken>());
 
         _time.Advance(TimeSpan.FromMinutes(2));

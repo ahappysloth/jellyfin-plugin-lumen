@@ -43,13 +43,14 @@ describe('Nav', () => {
       '#/mypreferencesmenu',
     );
 
-    // Phones: up to two libraries as tabs, plus Home, Favorites and Me; search on its own at the top.
+    // Phones: five tabs. With three libraries the second slot is "More", a menu of the other two.
     const tabs = screen.getByRole('navigation', { name: 'Tabs' });
     expect(
       within(tabs)
         .getAllByRole('link')
         .map((l) => l.textContent),
-    ).toEqual(['Home', 'Movies', 'Shows', 'Favorites', 'Me']);
+    ).toEqual(['Home', 'Movies', 'Favorites', 'Me']);
+    expect(within(tabs).getByRole('button', { name: 'More' })).toHaveAttribute('aria-haspopup', 'menu');
     expect(within(tabs).getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
   });
 

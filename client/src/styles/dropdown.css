@@ -39,6 +39,10 @@
   outline: 2px solid var(--lmn-focus, #fff);
   outline-offset: 2px;
 }
+.lmn-dropdown__button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 .lmn-dropdown__label {
   color: var(--lmn-text-3, #8c8c8c);
   font-weight: 500;

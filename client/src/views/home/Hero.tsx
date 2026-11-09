@@ -38,6 +38,9 @@ interface DragState {
 
 const mod = (n: number, m: number): number => ((n % m) + m) % m;
 
+/** Backdrop width for this screen (CSS px; imageUrl applies the pixel density, capped at 2×). */
+const heroWidth = (): number => Math.min(1920, Math.max(640, Math.ceil(window.innerWidth / 160) * 160));
+
 /**
  * The home carousel. Slides sit side by side on a track: the previous, current and next. Dragging moves the track
  * exactly with the pointer; letting go past a threshold (or flicking) slides to the neighbour, otherwise it springs
@@ -204,7 +207,21 @@ export function Hero({ items, client, config, badges, onPlay, onInfo }: Props) {
       </div>
       {count > 1 && (
         <div class="lmn-hero__controls">
-          <div class="lmn-hero__pager" role="tablist">
+          {/* Tabs with roving focus: Tab reaches the current one, arrows pick another (and pause rotation). */}
+          <div
+            class="lmn-hero__pager"
+            role="tablist"
+            aria-label="Featured titles"
+            onKeyDown={(e) => {
+              const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+              if (!step || sliding !== 0) return;
+              e.preventDefault();
+              const next = mod(index + step, count);
+              setIndex(next);
+              const tabs = e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]');
+              requestAnimationFrame(() => tabs[next]?.focus());
+            }}
+          >
             {items.map((h, i) => {
               const active = i === mod(index + sliding, count);
               return (
@@ -212,7 +229,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo }: Props) {
                   key={h.Item.Id}
                   type="button"
                   role="tab"
-                  tabIndex={-1}
+                  tabIndex={active ? 0 : -1}
                   aria-selected={active}
                   aria-label={`Show ${h.Item.Name}`}
                   class={`lmn-hero__dash${active ? ' is-active' : ''}`}
@@ -224,7 +241,6 @@ export function Hero({ items, client, config, badges, onPlay, onInfo }: Props) {
           <button
             type="button"
             class="lmn-icon-button"
-            tabIndex={-1}
             aria-label={stopped ? strings.resumeRotation : strings.pauseRotation}
             onClick={() => setStopped((s) => !s)}
           >
@@ -268,7 +284,12 @@ function Slide({
       {backdrop && (
         <img
           class="lmn-hero__backdrop"
-          src={imageUrl(client, backdrop, { width: 1920 })}
+          src={imageUrl(
+            client,
+            backdrop,
+            { width: heroWidth() },
+            Math.min(2, globalThis.devicePixelRatio || 1),
+          )}
           alt=""
           draggable={false}
         />

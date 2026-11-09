@@ -6,6 +6,7 @@ import type { ViewContext } from '../context';
 import { formatRuntime } from '../details/badges';
 import { AudioSubtitlesPanel, QualityPanel, qualityLabel } from './PlayerPanels';
 import { ProgressBar } from './ProgressBar';
+import { setUserData, useUserData } from '../userDataStore';
 import { readPlayerState, type PlayerSnapshot } from './playerState';
 
 /** How often the controls re-read jellyfin-web's player (cheap: it reads cached state). */
@@ -26,7 +27,6 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   const [visible, setVisible] = useState(true);
   const [panel, setPanel] = useState<Panel>(null);
   const [fullscreen, setFullscreen] = useState(!!document.fullscreenElement);
-  const [favorite, setFavorite] = useState<boolean | null>(null);
   const idleTimer = useRef<number | undefined>(undefined);
   const missing = useRef(0);
 
@@ -55,7 +55,6 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   }, []);
 
   const itemId = snap?.item?.Id;
-  useEffect(() => setFavorite(snap?.item?.UserData?.IsFavorite ?? null), [itemId]);
 
   // Is there an episode after this one in the play queue? (Read once per item; the queue is a promise.)
   const [hasNext, setHasNext] = useState(false);
@@ -224,22 +223,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
                 <span class="lmn-player__next-label">{strings.player.nextEpisode}</span>
               </button>
             )}
-            {item && favorite !== null && (
-              <button
-                type="button"
-                class={`lmn-player__icon${favorite ? ' is-on' : ''}`}
-                aria-label={strings.player.favorite}
-                aria-pressed={favorite}
-                title={strings.player.favorite}
-                onClick={() => {
-                  const next = !favorite;
-                  setFavorite(next);
-                  ctx.api.setFavorite(item.Id, next).catch(() => setFavorite(!next));
-                }}
-              >
-                <Icon name={favorite ? 'heart' : 'heartOutline'} size={22} />
-              </button>
-            )}
+            {item && <FavoriteButton ctx={ctx} item={item} />}
             {manager.togglePictureInPicture && document.pictureInPictureEnabled && (
               <button
                 type="button"
@@ -316,4 +300,22 @@ export function formatClock(ms: number, totalMs: number): string {
   const sec = String(s % 60).padStart(2, '0');
   if (totalMs >= 3_600_000) return `${h}:${String(m).padStart(2, '0')}:${sec}`;
   return `${m}:${sec}`;
+}
+
+/** The playing item's favorite toggle, shared with the details page and card menus (userDataStore). */
+function FavoriteButton({ ctx, item }: { ctx: ViewContext; item: NonNullable<PlayerSnapshot['item']> }) {
+  const asItem = { Id: item.Id, Name: item.Name ?? '', Type: item.Type ?? '', UserData: item.UserData };
+  const favorite = useUserData(asItem, 'IsFavorite');
+  return (
+    <button
+      type="button"
+      class={`lmn-player__icon${favorite ? ' is-on' : ''}`}
+      aria-label={strings.player.favorite}
+      aria-pressed={favorite}
+      title={strings.player.favorite}
+      onClick={() => void setUserData(ctx, asItem, 'IsFavorite', !favorite)}
+    >
+      <Icon name={favorite ? 'heart' : 'heartOutline'} size={22} />
+    </button>
+  );
 }

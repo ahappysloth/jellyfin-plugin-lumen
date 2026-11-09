@@ -41,6 +41,7 @@ interface AdminAppProps {
 }
 
 export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm(m) }: AdminAppProps) {
+  const [savedUrl, setSavedUrl] = useState<string | null | undefined>(null);
   const [config, setConfig] = useState<LumenConfig | null>(null);
   const [types, setTypes] = useState<SectionTypeDef[]>([]);
   const [lookups, setLookups] = useState<Lookups>({ Library: [], Collection: [], Playlist: [] });
@@ -60,6 +61,7 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
         api.getDiagnostics(),
       ]);
       setConfig(normalizeConfig(c));
+      setSavedUrl(c.SeerrUrl);
       setTypes(t);
       setLookups({ Library: libraries, Collection: collections, Playlist: playlists });
       setDiagnostics(d);
@@ -79,6 +81,8 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
   if (!config) return <p>Loading Lumen settings…</p>;
 
   const update = (patch: Partial<LumenConfig>): void => {
+    // While a save is in flight its result replaces the form; edits made meanwhile would be silently lost.
+    if (status === 'saving') return;
     setConfig({ ...config, ...patch });
     setDirty(true);
     if (status === 'saved') setStatus('ready');
@@ -93,7 +97,9 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
       const result = await api.saveConfig(config);
       if (result.ok) {
         setErrors([]);
-        setConfig(normalizeConfig(await api.getConfig()));
+        const fresh = await api.getConfig();
+        setConfig(normalizeConfig(fresh));
+        setSavedUrl(fresh.SeerrUrl);
         setDirty(false);
         setStatus('saved');
       } else {
@@ -298,7 +304,7 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
         />
       </Card>
 
-      <RequestsSettings api={api} config={config} update={update} />
+      <RequestsSettings api={api} config={config} savedUrl={savedUrl} update={update} />
 
       <Card
         title="Diagnostics"
@@ -344,7 +350,12 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
             {status === 'saving' ? 'Saving…' : dirty ? 'Unsaved changes' : 'All changes saved'}
           </p>
         )}
-        <button type="button" class="lmna-btn lmna-btn--ghost" onClick={() => void reset()}>
+        <button
+          type="button"
+          class="lmna-btn lmna-btn--ghost"
+          disabled={status === 'saving'}
+          onClick={() => void reset()}
+        >
           Reset to defaults
         </button>
         <button type="submit" class="lmna-btn lmna-btn--primary" disabled={status === 'saving'}>
@@ -367,13 +378,22 @@ const NO_PASSWORD_MANAGER = {
 } as const;
 
 /** Seerr connection for catalog browsing and requests. The API key is write-only: the server never sends it back. */
+/** Mirrors the server's rule (ConfigValidator.SameSeerr): the saved key is only reused for the saved address. */
+function sameSeerrAddress(a: string | null | undefined, b: string | null | undefined): boolean {
+  const norm = (u: string | null | undefined): string => (u ?? '').trim().replace(/\/+$/, '').toLowerCase();
+  return norm(a) === norm(b);
+}
+
 function RequestsSettings({
   api,
   config,
+  savedUrl,
   update,
 }: {
   api: AdminApi;
   config: LumenConfig;
+  /** The Seerr address as last saved (the stored key belongs to it). */
+  savedUrl: string | null | undefined;
   update: (patch: Partial<LumenConfig>) => void;
 }) {
   const [test, setTest] = useState<SeerrTestResult | 'testing' | null>(null);
@@ -437,7 +457,13 @@ function RequestsSettings({
             autoComplete="new-password"
             spellcheck={false}
             {...NO_PASSWORD_MANAGER}
-            placeholder={config.SeerrApiKeySet ? 'Saved (leave blank to keep it)' : 'Paste the API key'}
+            placeholder={
+              !config.SeerrApiKeySet
+                ? 'Paste the API key'
+                : sameSeerrAddress(config.SeerrUrl, savedUrl)
+                  ? 'Saved (leave blank to keep it)'
+                  : 'Enter the key for this address'
+            }
             value={config.SeerrApiKey ?? ''}
             onInput={(e) => update({ SeerrApiKey: inputValue(e) })}
           />

@@ -1,3 +1,4 @@
+import { registerSessionCache } from '../../util/sessionCaches';
 import type { BaseItem } from '../../api/types';
 
 /**
@@ -8,6 +9,8 @@ export interface GridSnapshot {
   items: BaseItem[];
   total: number;
   scrollY: number;
+  /** The server offset the next page starts at (de-duplicated items can be fewer). */
+  offset?: number;
 }
 
 const MAX_SNAPSHOTS = 12;
@@ -34,7 +37,14 @@ export function saveChoice<T>(key: string, value: T): void {
   choices.set(key, value);
 }
 
+/** Forget saved grids (their contents may be stale after a favorite/watched change); keep sort/filter choices. */
+export function clearSnapshots(): void {
+  snapshots.clear();
+}
+
 export function clearBrowseState(): void {
   snapshots.clear();
   choices.clear();
 }
+
+registerSessionCache(clearBrowseState);
