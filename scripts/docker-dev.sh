@@ -8,12 +8,12 @@
 #   scripts/docker-dev.sh logs   follow the Jellyfin container's logs
 #   scripts/docker-dev.sh down   stop and remove the container (data in artifacts/docker is kept)
 #
-# Environment: JELLYFIN_IMAGE (default jellyfin/jellyfin:12.2), LUMEN_PUBLISHED_URL (default http://<LAN IP>:8096).
+# Environment: JELLYFIN_IMAGE (default jellyfin/jellyfin:12.4), LUMEN_PUBLISHED_URL (default http://<LAN IP>:8096).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/env.sh"
 
-JELLYFIN_IMAGE="${JELLYFIN_IMAGE:-jellyfin/jellyfin:12.2}"
+JELLYFIN_IMAGE="${JELLYFIN_IMAGE:-jellyfin/jellyfin:12.4}"
 NODE_IMAGE="node:24"
 DOTNET_IMAGE="mcr.microsoft.com/dotnet/sdk:10.0"
 CONTAINER="lumen-jellyfin"
