@@ -161,7 +161,7 @@ describe('startLumen', () => {
       expect(client.requests.some((r) => r.url.endsWith('Lumen/Diagnostics'))).toBe(true),
     );
     const report = client.requests.find((r) => r.url.endsWith('Lumen/Diagnostics'))!;
-    expect(JSON.parse(report.data!)).toMatchObject({ ServerVersion: '12.1.0', FailedChecks: ['forced'] });
+    expect(JSON.parse(report.data!)).toMatchObject({ ServerVersion: '12.4.0', FailedChecks: ['forced'] });
   });
 
   it('retries the compatibility check on a cold load, keeping the stock page hidden until it passes', async () => {

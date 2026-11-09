@@ -30,7 +30,7 @@ export function createFakeClient(
       client.requests.push(request);
       return client.respond(request);
     },
-    getPublicSystemInfo: async () => ({ Version: '12.1.0' }),
+    getPublicSystemInfo: async () => ({ Version: '12.4.0' }),
   };
   return client;
 }
