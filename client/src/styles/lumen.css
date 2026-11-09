@@ -194,6 +194,8 @@ html.lmn-active #lmn-root {
   display: flex;
   justify-self: start;
   align-items: center;
+  /* Stay inside its column so a long server name truncates instead of running under the centred pill. */
+  max-width: 100%;
   gap: 10px;
   min-width: 0;
   color: #fff;
@@ -1636,12 +1638,13 @@ a.lmn-button {
   outline-offset: 3px;
 }
 
-/* ---- Phone tab bar (Nav.tsx) ----------------------------------------------------------------------------------- */
+/* ---- Tab bar (Nav.tsx) ----------------------------------------------------------------------------------------- */
 .lmn-nav__search,
 .lmn-tabbar {
   display: none;
 }
-@media (max-width: 720px) {
+/* Tabs below 910px (phones, small tablets, narrow windows); the centred pill from 910px up. */
+@media (max-width: 909.98px) {
   .lmn-nav {
     grid-template-columns: minmax(0, 1fr) auto !important;
   }

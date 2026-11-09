@@ -12,7 +12,10 @@ All notable changes to Lumen are documented here. Versions follow SemVer; Jellyf
 - Jellyfin's settings pages (Playback, Subtitles, Home, Quick Connect, …) use Lumen's dropdown over their own selects,
   which stay in charge of the value; the Display page's menus are restyled to match.
 
+- The bottom tab bar is used below 910px wide (phones, small tablets, narrow windows); the centred pill from 910px.
+
 ### Fixed
+- A long server name truncates instead of running under the centred nav pill.
 - A dropdown near the left edge (Genre on phones) no longer opens off screen; lists open toward the side with room.
 
 ## [0.2.0] - 2026-11-08
