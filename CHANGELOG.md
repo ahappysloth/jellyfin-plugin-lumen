@@ -2,6 +2,34 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.2.3] - 2026-11-09
+
+### Changed
+- Back returns to the same spot in a grid, and only Back: opening Movies, Shows, a genre or Favorites from the nav
+  loads them fresh. Favoriting or marking a title watched no longer resets the grids you scrolled.
+- Errors are never silent: a failed play, favorite or watched change shows a short message on every page, and pages
+  that fail to load offer Try again. Search says when it failed instead of "No results".
+- Jellyfin's start page (index.html) is served compressed.
+- The admin page is organised into sections; a failed save, reset or lookup says what happened without hiding the
+  rest of the page.
+- The release workflow waits for CI on the tagged commit and can be re-run safely.
+
+### Fixed
+- The Seerr API key is never sent to another host when Seerr answers with a redirect (for example behind a sign-in
+  proxy); Lumen reports the redirect instead.
+- If Lumen hits an error while preparing Jellyfin's start page, the stock page is served instead of an error page.
+- Saving Lumen's settings through Jellyfin's own plugin-settings endpoint keeps the Seerr key, validates and refreshes
+  caches, like the Lumen admin page.
+- Seerr's discover lists and titles are no longer shared between users with different language or region settings.
+  Home shows a new request straight away, and Test connection works even while Seerr requests are paused after errors.
+- Turning Lumen off now also turns off its home and request endpoints.
+- A slow page load retries before falling back to the stock UI, the stock player takes over at once if Lumen can't
+  attach to Jellyfin's player, and the sign-in look can no longer stay on after signing in.
+- TV layout: browse, search and profile pages start with a focused item.
+- Phones: the request dialog fits on iOS and can't be closed mid-request, text buttons keep their text, and poster
+  grids show three across.
+- Screen readers hear a short result count in search instead of every result.
+
 ## [0.2.2] - 2026-11-09
 
 ### Added
