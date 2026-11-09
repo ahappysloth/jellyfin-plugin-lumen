@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/ahappysloth/jellyfin-plugin-lumen/main/assets/lumen-plugin.png",
     "versions": [
       {
+        "version": "0.3.0.0",
+        "changelog": "\n### Added\n- Episode pages: the episode's still, its show (linking to that season) and number, air date, runtime and overview,\n  Play/Resume, Favorite and Watched, previous/next episode across seasons, guest stars and cast, and the rest of the\n  season as a row. More info on an episode card opens it, and each row of a season's episode list links to it.\n- Library tabs on Movies and Shows, in Jellyfin's tab order: Suggestions (continue watching, latest, and Jellyfin's\n  recommendations such as \"Because you watched…\"), Upcoming (Shows, by air day), Favorites (Movies), Collections,\n  Genres and Studios (tiles opening that genre or studio within the library), and Episodes (Shows, newest first).\n- Studio pages (`#/list?studioId=…`), like the genre pages.\n\n### Changed\n- Lumen is tested on Jellyfin 12.4 only; CI and the nightly run on 12.4. Older 12.x servers still work and show as\n  untested in diagnostics.",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/ahappysloth/jellyfin-plugin-lumen/releases/download/v0.3.0/lumen_0.3.0.0.zip",
+        "checksum": "93e9581b819ebfa5b83c0798f96f9b1e",
+        "timestamp": "2026-11-09T21:44:35Z"
+      },
+      {
         "version": "0.2.4.0",
         "changelog": "\n### Fixed\n- Play starts in the tab you pressed it in. With more than one Jellyfin tab open in a browser, it could start in\n  another tab instead, leaving the current one unchanged.\n- Seerr artwork URLs no longer carry your Jellyfin access token (which could end up in proxy logs and browser\n  history). They use a per-user token that only opens catalog artwork.",
         "targetAbi": "12.1.0.0",
