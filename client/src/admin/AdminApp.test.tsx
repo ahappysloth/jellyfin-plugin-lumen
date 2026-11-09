@@ -229,4 +229,106 @@ describe('AdminApp', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load Lumen settings");
   });
+
+  describe('failure handling', () => {
+    it('keeps the form when one lookup fails, and says which lists are missing', async () => {
+      const api = fakeApi({
+        getPlaylists: vi.fn(() => Promise.reject(new Error('x'))),
+        getCollections: vi.fn(() => Promise.reject(new Error('x'))),
+        getDiagnostics: vi.fn(() => Promise.reject(new Error('x'))),
+      });
+      render(<AdminApp api={api} />);
+
+      expect(await screen.findByText('Genre rows')).toBeInTheDocument();
+      expect(
+        screen.getByText(/Couldn't load the collections and playlists to choose from/),
+      ).toBeInTheDocument();
+      // A failed diagnostics request doesn't read as "no problems".
+      expect(screen.getByText(/Couldn't load the diagnostics/)).toBeInTheDocument();
+      expect(screen.queryByText('No compatibility problems reported.')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    });
+
+    it('still fails the page when the section types fail', async () => {
+      render(<AdminApp api={fakeApi({ getSectionTypes: vi.fn(() => Promise.reject(new Error('x'))) })} />);
+
+      expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load Lumen settings");
+    });
+
+    it('reports a save that throws', async () => {
+      const api = fakeApi({ saveConfig: vi.fn(() => Promise.reject(new Error('x'))) });
+      render(<AdminApp api={api} />);
+
+      await screen.findByText('Genre rows');
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Saving failed. Check the server log.');
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    });
+
+    it('says saved, not "Saving failed", when only the reload after a save fails', async () => {
+      const getConfig = vi.fn(async () => config());
+      const api = fakeApi({ getConfig });
+      render(<AdminApp api={api} />);
+
+      await screen.findByText('Genre rows');
+      getConfig.mockRejectedValueOnce(new Error('x'));
+      fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      expect(await screen.findByRole('status')).toHaveTextContent('Settings saved.');
+      expect(screen.getByText(/Settings saved, but they couldn't be reloaded/)).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(api.saveConfig).toHaveBeenCalledTimes(1);
+    });
+
+    it('does nothing when the reset is not confirmed', async () => {
+      const api = fakeApi();
+      render(<AdminApp api={api} confirm={() => false} />);
+
+      await screen.findByText('Genre rows');
+      fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }));
+
+      expect(api.reset).not.toHaveBeenCalled();
+    });
+
+    it('reloads the settings after a reset', async () => {
+      const getConfig = vi.fn(async () => config());
+      const api = fakeApi({ getConfig });
+      render(<AdminApp api={api} confirm={() => true} />);
+
+      await screen.findByText('Genre rows');
+      getConfig.mockResolvedValueOnce({ ...config(), Sections: [] });
+      fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }));
+
+      await waitFor(() => expect(screen.queryByText('Genre rows')).toBeNull());
+      expect(api.reset).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('All changes saved')).toBeInTheDocument();
+    });
+
+    it('reports a failed reset and keeps the form', async () => {
+      const api = fakeApi({ reset: vi.fn(() => Promise.reject(new Error('x'))) });
+      render(<AdminApp api={api} confirm={() => true} />);
+
+      await screen.findByText('Genre rows');
+      fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't reset the settings.");
+      expect(screen.getByText('Genre rows')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Reset to defaults' })).toBeEnabled();
+    });
+
+    it('says the reset worked when only the reload after it fails', async () => {
+      const getConfig = vi.fn(async () => config());
+      render(<AdminApp api={fakeApi({ getConfig })} confirm={() => true} />);
+
+      await screen.findByText('Genre rows');
+      getConfig.mockRejectedValueOnce(new Error('x'));
+      fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        "Lumen settings were reset to their defaults, but they couldn't be reloaded.",
+      );
+    });
+  });
 });
