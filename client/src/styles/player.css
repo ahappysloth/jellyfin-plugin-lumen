@@ -548,3 +548,54 @@ html.lmn-skin-player .volumeOsd {
     transform: translate(-50%, 0);
   }
 }
+
+/* Quality/audio/subtitle switch that restarts the stream: the last frame stays up with a small note. */
+.lmn-switching {
+  position: fixed;
+  z-index: 1;
+  inset: 0;
+  display: grid;
+  place-items: end center;
+  padding-bottom: 18vh;
+  pointer-events: none;
+}
+.lmn-switching__frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+.lmn-switching__note {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.82);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Trickplay thumbnail above the seek bar */
+.lmn-seek__tip.has-thumbnail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 6px;
+}
+.lmn-seek__thumbnail-box {
+  overflow: hidden;
+  border-radius: 6px;
+  background: #000;
+}
+.lmn-seek__thumbnail {
+  transform-origin: 0 0;
+  background-repeat: no-repeat;
+}

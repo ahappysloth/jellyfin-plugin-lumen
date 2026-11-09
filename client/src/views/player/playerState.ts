@@ -4,6 +4,8 @@ import type { PlaybackManager, Player, PlayerState, Stream } from '../../compat/
 export interface PlayerSnapshot {
   player: Player;
   item: PlayerState['NowPlayingItem'];
+  /** The playing media source (for trickplay). */
+  mediaSourceId: string | undefined;
   positionMs: number;
   durationMs: number;
   /** End of the buffered range that contains the playhead. */
@@ -51,6 +53,7 @@ export function readPlayerState(pm: PlaybackManager, player: Player): PlayerSnap
   return {
     player,
     item: state.NowPlayingItem,
+    mediaSourceId: state.MediaSource?.Id,
     positionMs,
     durationMs,
     bufferedMs: buffered ? buffered.end / TICKS_PER_MS : positionMs,

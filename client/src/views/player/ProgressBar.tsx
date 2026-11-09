@@ -1,6 +1,14 @@
-import { useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { strings } from '../../strings';
 import { formatClock } from './PlayerView';
+import type { TrickplayPreview } from './trickplay';
+
+/** A seek counts as arrived once the player reports a time this close to it. */
+const ARRIVED_MS = 1500;
+/** Give up waiting after this long (a seek the player refused, or a stream restart that took longer). */
+const PENDING_MAX_MS = 15_000;
+/** Trickplay thumbnails are shown at this width (the tiles' own width is usually 320 px). */
+const PREVIEW_WIDTH = 192;
 
 interface Props {
   positionMs: number;
@@ -8,17 +16,36 @@ interface Props {
   bufferedMs: number;
   disabled: boolean;
   onSeek: (ms: number) => void;
+  /** Trickplay thumbnails, when the server has them. */
+  preview?: TrickplayPreview | null;
 }
 
 /**
  * A slim scrubber: played (white), buffered (grey) and a thumb that grows on hover. Dragging previews the time and
  * seeks on release; arrow keys step 10 s (it is a slider for assistive tech).
  */
-export function ProgressBar({ positionMs, durationMs, bufferedMs, disabled, onSeek }: Props) {
+export function ProgressBar({ positionMs, durationMs, bufferedMs, disabled, onSeek, preview }: Props) {
   const track = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<number | null>(null);
   const [hover, setHover] = useState<number | null>(null);
-  const shown = drag ?? positionMs;
+  // Where the user asked to go: shown until the player reports a time near it, so the bar doesn't jump back to the
+  // old position while jellyfin-web seeks (or restarts a converted stream).
+  const [pending, setPending] = useState<{ ms: number; at: number } | null>(null);
+  useEffect(() => {
+    if (
+      pending &&
+      (Math.abs(positionMs - pending.ms) < ARRIVED_MS || Date.now() - pending.at > PENDING_MAX_MS)
+    )
+      setPending(null);
+  }, [positionMs, pending]);
+  const seek = (ms: number): void => {
+    setPending({ ms, at: Date.now() });
+    onSeek(ms);
+  };
+  const shown = drag ?? (pending ? pending.ms : positionMs);
+  const tipAt = drag ?? hover;
+  const frame = tipAt !== null && preview ? preview(tipAt) : null;
+  const scale = frame ? PREVIEW_WIDTH / frame.width : 1;
   const pct = (ms: number): string =>
     `${durationMs > 0 ? Math.min(100, Math.max(0, (ms / durationMs) * 100)) : 0}%`;
   const at = (clientX: number): number => {
@@ -52,7 +79,7 @@ export function ProgressBar({ positionMs, durationMs, bufferedMs, disabled, onSe
         if (drag === null) return;
         const ms = at(e.clientX);
         setDrag(null);
-        onSeek(ms);
+        seek(ms);
       }}
       onPointerCancel={() => setDrag(null)}
       onPointerLeave={() => setHover(null)}
@@ -62,7 +89,7 @@ export function ProgressBar({ positionMs, durationMs, bufferedMs, disabled, onSe
         if (!step) return;
         e.preventDefault();
         e.stopPropagation(); // jellyfin-web also seeks on arrows; don't do it twice
-        onSeek(Math.min(durationMs, Math.max(0, positionMs + step)));
+        seek(Math.min(durationMs, Math.max(0, (pending?.ms ?? positionMs) + step)));
       }}
     >
       <div class="lmn-seek__rail">
@@ -70,9 +97,26 @@ export function ProgressBar({ positionMs, durationMs, bufferedMs, disabled, onSe
         <div class="lmn-seek__played" style={{ width: pct(shown) }} />
       </div>
       <div class="lmn-seek__thumb" style={{ left: pct(shown) }} />
-      {(hover ?? drag) !== null && (
-        <div class="lmn-seek__tip" style={{ left: pct((drag ?? hover)!) }}>
-          {formatClock((drag ?? hover)!, durationMs)}
+      {tipAt !== null && (
+        <div class={`lmn-seek__tip${frame ? ' has-thumbnail' : ''}`} style={{ left: pct(tipAt) }}>
+          {frame && (
+            <div
+              class="lmn-seek__thumbnail-box"
+              style={{ width: `${PREVIEW_WIDTH}px`, height: `${Math.round(frame.height * scale)}px` }}
+            >
+              <div
+                class="lmn-seek__thumbnail"
+                style={{
+                  width: `${frame.width}px`,
+                  height: `${frame.height}px`,
+                  backgroundImage: `url("${frame.url}")`,
+                  backgroundPosition: `-${frame.x}px -${frame.y}px`,
+                  transform: `scale(${scale})`,
+                }}
+              />
+            </div>
+          )}
+          {formatClock(tipAt, durationMs)}
         </div>
       )}
     </div>

@@ -202,6 +202,8 @@ export const strings = {
     unmute: 'Unmute',
     volume: 'Volume',
     muted: 'Muted',
+    subtitlesOff: 'Subtitles off',
+    switching: (to: string) => `Switching to ${to}…`,
     seek: 'Seek',
     quality: 'Quality',
     audioSubtitles: 'Audio & Subtitles',

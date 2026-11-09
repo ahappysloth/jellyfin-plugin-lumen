@@ -91,7 +91,7 @@ export interface PlayerState {
     ProductionYear?: number;
     UserData?: { IsFavorite?: boolean };
   };
-  MediaSource?: { MediaStreams?: { Type?: string; Height?: number; Width?: number }[] };
+  MediaSource?: { Id?: string; MediaStreams?: { Type?: string; Height?: number; Width?: number }[] };
 }
 
 type WebpackModule = { exports?: unknown };
