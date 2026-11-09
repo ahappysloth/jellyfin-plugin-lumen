@@ -16,7 +16,13 @@ public enum HeroSource
 /// <summary>Lumen settings, persisted by Jellyfin as XML.</summary>
 public class PluginConfiguration : BasePluginConfiguration
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
+
+    /// <summary>The accent every release before 0.2.2 shipped as its default.</summary>
+    public const string LegacyDefaultAccent = "#e12d39";
+
+    /// <summary>The default accent: the red of the J's front ribbon.</summary>
+    public const string DefaultAccent = "#e30b17";
 
     /// <summary>Gets or sets the stored schema version; 0 means "never migrated".</summary>
     public int SchemaVersion { get; set; }
@@ -39,7 +45,7 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets a value indicating whether Lumen replaces jellyfin-web's video player controls.</summary>
     public bool StyleVideoPlayer { get; set; } = true;
 
-    public string AccentColor { get; set; } = "#e12d39";
+    public string AccentColor { get; set; } = DefaultAccent;
 
     public HeroSource HeroSource { get; set; } = HeroSource.RecentlyAdded;
 

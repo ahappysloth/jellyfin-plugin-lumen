@@ -122,7 +122,7 @@
   font-weight: 600;
 }
 .lmn-dropdown__check {
-  color: var(--lmn-accent, #e12d39);
+  color: var(--lmn-accent, #e30b17);
 }
 @keyframes lmn-dropdown-pop {
   from {

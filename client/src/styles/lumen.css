@@ -1,6 +1,6 @@
 /* Lumen theme. Every selector targets Lumen-owned elements or is scoped by html.lmn-active. */
 :root {
-  --lmn-accent: #e12d39;
+  --lmn-accent: #e30b17;
   --lmn-bg: #0f0f0f;
   --lmn-surface: #181818;
   --lmn-surface-2: #212121;
