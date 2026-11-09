@@ -1,7 +1,18 @@
 /**
- * The ONLY module that knows jellyfin-web internals: globals, selectors, routes, and layout classes.
- * Evidence for each is in docs/reference/jellyfin-web-12.1-notes.md. When jellyfin-web changes, fix it here.
+ * Lumen's adapter to jellyfin-web: globals, the compatibility check, layout and the hashes Lumen links to. The names
+ * themselves (selectors, routes, methods) live in ./registry.ts, the single list of jellyfin-web internals Lumen
+ * depends on. Evidence for each is in docs/reference/jellyfin-web-12.1-notes.md. When jellyfin-web changes, fix it there.
  */
+import {
+  API_CLIENT_METHODS,
+  LAYOUT_CLASSES,
+  LIBRARY_ROUTES,
+  PIGGY_BACKED_PARAMS,
+  SETTINGS_ROUTES,
+  STOCK_ROUTES,
+  STOCK_SELECTORS,
+} from './registry';
+
 export interface AjaxRequest {
   type: 'GET' | 'POST' | 'DELETE';
   url: string;
@@ -24,12 +35,12 @@ export interface JellyfinApiClient {
 }
 
 export const SELECTORS = {
-  reactRoot: '#reactRoot',
+  reactRoot: STOCK_SELECTORS.reactRoot.selector,
   /** Routed page content in both the Modern and Legacy layouts. Hidden via CSS only. */
-  stockPage: '#reactRoot .skinBody',
-  backdrop: '.backdropContainer',
-  modernAppBar: '.MuiAppBar-root',
-  legacyHeader: '.skinHeader',
+  stockPage: STOCK_SELECTORS.stockPage.selector,
+  backdrop: STOCK_SELECTORS.backdrop.selector,
+  modernAppBar: STOCK_SELECTORS.modernAppBar.selector,
+  legacyHeader: STOCK_SELECTORS.legacyHeader.selector,
 } as const;
 
 export type Layout = 'tv' | 'mobile' | 'desktop';
@@ -47,8 +58,8 @@ export function getApiClient(win: Window = window): JellyfinApiClient | undefine
 
 export function getLayout(doc: Document = document): Layout {
   const classes = doc.documentElement.classList;
-  if (classes.contains('layout-tv')) return 'tv';
-  if (classes.contains('layout-mobile')) return 'mobile';
+  if (classes.contains(LAYOUT_CLASSES.tv)) return 'tv';
+  if (classes.contains(LAYOUT_CLASSES.mobile)) return 'mobile';
   return 'desktop';
 }
 
@@ -68,16 +79,10 @@ export function selfTest(win: Window = window, doc: Document = document): Compat
   const client = getApiClient(win) as unknown as Record<string, unknown> | undefined;
 
   const checks: Record<string, boolean> = {
-    apiClient:
-      client !== undefined &&
-      ['getCurrentUserId', 'accessToken', 'deviceId', 'getUrl', 'ajax'].every(
-        (m) => typeof client[m] === 'function',
-      ),
+    apiClient: client !== undefined && API_CLIENT_METHODS.every((m) => typeof client[m] === 'function'),
     reactRoot: doc.querySelector(SELECTORS.reactRoot) !== null,
     stockPage: doc.querySelector(SELECTORS.stockPage) !== null,
-    layoutClass: ['layout-tv', 'layout-mobile', 'layout-desktop'].some((c) =>
-      doc.documentElement.classList.contains(c),
-    ),
+    layoutClass: Object.values(LAYOUT_CLASSES).some((c) => doc.documentElement.classList.contains(c)),
     history: typeof win.history?.pushState === 'function' && typeof win.history?.replaceState === 'function',
     hashRouting: /^#!?\//.test(win.location.hash),
   };
@@ -94,39 +99,33 @@ export function navigateTo(hash: string, win: Window = window): void {
 
 export function detailsHash(itemId: string, serverId?: string): string {
   const server = serverId ? `&serverId=${encodeURIComponent(serverId)}` : '';
-  return `#/details?id=${encodeURIComponent(itemId)}${server}`;
+  return `#${STOCK_ROUTES.details}?id=${encodeURIComponent(itemId)}${server}`;
 }
 
 /** jellyfin-web's own library page for a user view (mirrors appRouter.getRouteUrl in 12.x). */
 export function libraryHash(view: { Id: string; CollectionType?: string; ServerId?: string }): string {
   const id = encodeURIComponent(view.Id);
-  const routes: Record<string, string> = {
-    movies: 'movies',
-    tvshows: 'tv',
-    music: 'music',
-    musicvideos: 'musicvideos',
-    books: 'books',
-    playlists: 'playlists',
-  };
-  const route = view.CollectionType ? routes[view.CollectionType] : undefined;
-  if (route) return `#/${route}?topParentId=${id}&collectionType=${view.CollectionType}`;
+  const route = view.CollectionType ? LIBRARY_ROUTES[view.CollectionType] : undefined;
+  if (route) return `#${route}?topParentId=${id}&collectionType=${view.CollectionType}`;
   const server = view.ServerId ? `&serverId=${encodeURIComponent(view.ServerId)}` : '';
-  // Tagged so Lumen can take the Collections library over; jellyfin-web's list page ignores the extra parameter.
-  if (view.CollectionType === 'boxsets') return `#/list?parentId=${id}&collectionType=boxsets${server}`;
-  return `#/list?parentId=${id}${server}`;
+  // Tagged so Lumen can take the Collections library over; jellyfin-web's list page ignores the extra parameter
+  // (registry.ts PIGGY_BACKED_PARAMS), so without Lumen it's the stock list of the library.
+  if (view.CollectionType === 'boxsets')
+    return `#${STOCK_ROUTES.list}?parentId=${id}&${PIGGY_BACKED_PARAMS.collectionType}=boxsets${server}`;
+  return `#${STOCK_ROUTES.list}?parentId=${id}${server}`;
 }
 
 /** jellyfin-web's item list filtered to one genre. */
 export function genreHash(genreId: string, serverId?: string): string {
   const server = serverId ? `&serverId=${encodeURIComponent(serverId)}` : '';
-  return `#/list?genreId=${encodeURIComponent(genreId)}${server}`;
+  return `#${STOCK_ROUTES.list}?genreId=${encodeURIComponent(genreId)}${server}`;
 }
 
-export const HOME_HASH = '#/home';
+export const HOME_HASH = `#${STOCK_ROUTES.home}`;
 /** jellyfin-web's Favorites tab of home, which Lumen takes over. */
-export const FAVORITES_HASH = '#/home?tab=1';
-export const SEARCH_HASH = '#/search';
-export const PREFERENCES_HASH = '#/mypreferencesmenu';
+export const FAVORITES_HASH = `#${STOCK_ROUTES.home}?tab=1`;
+export const SEARCH_HASH = `#${STOCK_ROUTES.search}`;
+export const PREFERENCES_HASH = `#${STOCK_ROUTES.preferencesMenu}`;
 
 /** The server's display name for the nav, or null. */
 export async function getServerName(client: JellyfinApiClient): Promise<string | null> {
@@ -178,14 +177,15 @@ export function signOut(win: Window = window): void {
 }
 
 /** jellyfin-web's settings pages, linked from Lumen's profile page. */
+const settingsHash = (path: string) => (userId: string) => `#${path}?userId=${encodeURIComponent(userId)}`;
 export const SETTINGS_HASHES = {
-  profile: (userId: string) => `#/userprofile?userId=${encodeURIComponent(userId)}`,
-  quickConnect: (userId: string) => `#/quickconnect?userId=${encodeURIComponent(userId)}`,
-  display: (userId: string) => `#/mypreferencesdisplay?userId=${encodeURIComponent(userId)}`,
-  home: (userId: string) => `#/mypreferenceshome?userId=${encodeURIComponent(userId)}`,
-  playback: (userId: string) => `#/mypreferencesplayback?userId=${encodeURIComponent(userId)}`,
-  subtitles: (userId: string) => `#/mypreferencessubtitles?userId=${encodeURIComponent(userId)}`,
-  controls: (userId: string) => `#/mypreferencescontrols?userId=${encodeURIComponent(userId)}`,
-  dashboard: () => '#/dashboard',
-  metadata: () => '#/metadata',
+  profile: settingsHash(SETTINGS_ROUTES.profile),
+  quickConnect: settingsHash(SETTINGS_ROUTES.quickConnect),
+  display: settingsHash(SETTINGS_ROUTES.display),
+  home: settingsHash(SETTINGS_ROUTES.home),
+  playback: settingsHash(SETTINGS_ROUTES.playback),
+  subtitles: settingsHash(SETTINGS_ROUTES.subtitles),
+  controls: settingsHash(SETTINGS_ROUTES.controls),
+  dashboard: () => `#${STOCK_ROUTES.dashboard}`,
+  metadata: () => `#${STOCK_ROUTES.metadata}`,
 } as const;

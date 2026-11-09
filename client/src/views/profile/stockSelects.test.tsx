@@ -63,6 +63,31 @@ describe('enhanceStockSelects', () => {
     expect(screen.getByRole('button', { name: 'Skip forward: 30 seconds' })).toBeInTheDocument();
   });
 
+  it('follows option.selected set as a property, including on options added later', async () => {
+    const root = stockPage();
+    const select = root.querySelector('select')!;
+    act(() => {
+      undo = enhanceStockSelects(root);
+    });
+
+    act(() => {
+      select.options[2]!.selected = true;
+    });
+    expect(screen.getByRole('button', { name: 'Home network quality: 4 Mbps' })).toBeInTheDocument();
+
+    const option = document.createElement('option');
+    option.value = '2';
+    option.textContent = '2 Mbps';
+    await act(async () => {
+      select.appendChild(option);
+      await Promise.resolve();
+    });
+    act(() => {
+      option.selected = true;
+    });
+    expect(screen.getByRole('button', { name: 'Home network quality: 2 Mbps' })).toBeInTheDocument();
+  });
+
   it('restores the stock select when undone', () => {
     const root = stockPage();
     act(() => {
@@ -73,5 +98,6 @@ describe('enhanceStockSelects', () => {
 
     expect(root.querySelector('.lmn-stock-select')).toBeNull();
     expect(root.querySelector('select')!.classList.contains('lmn-hidden-select')).toBe(false);
+    expect(Object.getOwnPropertyDescriptor(root.querySelector('option')!, 'selected')).toBeUndefined();
   });
 });

@@ -1,6 +1,7 @@
 import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { Dropdown } from '../../components/Dropdown';
+import { STOCK_SELECTORS } from '../../compat/registry';
 
 /**
  * Lumen's dropdown over jellyfin-web's own `<select is="emby-select">` on the restyled settings pages. The native
@@ -10,36 +11,56 @@ import { Dropdown } from '../../components/Dropdown';
  */
 const ENHANCED = 'data-lmn-enhanced';
 const HIDDEN = 'lmn-hidden-select';
-const SELECTOR = 'select.emby-select, select[is="emby-select"]';
+const SELECTOR = STOCK_SELECTORS.embySelect.selector;
 
 type Listener = () => void;
 
+/** Wraps an accessor property on one element so setting it from script also calls `onSet`. Returns undo. */
+function wrapSetter(element: object, prop: string, onSet: Listener): (() => void) | null {
+  let proto: object | null = Object.getPrototypeOf(element);
+  let descriptor: PropertyDescriptor | undefined;
+  while (proto && !descriptor) {
+    descriptor = Object.getOwnPropertyDescriptor(proto, prop);
+    proto = Object.getPrototypeOf(proto);
+  }
+  if (!descriptor?.get || !descriptor.set) return null;
+  const { get, set } = descriptor;
+  Object.defineProperty(element, prop, {
+    configurable: true,
+    get() {
+      return get.call(this);
+    },
+    set(v: unknown) {
+      set.call(this, v);
+      onSet();
+    },
+  });
+  return () => Reflect.deleteProperty(element, prop);
+}
+
 /** Notifies when the select's value is set from script (no event fires for that) by wrapping its own setters. */
 function watchValue(select: HTMLSelectElement, onChange: Listener): () => void {
-  const restore: string[] = [];
+  const restore: (() => void)[] = [];
   for (const prop of ['value', 'selectedIndex'] as const) {
-    let proto: object | null = Object.getPrototypeOf(select);
-    let descriptor: PropertyDescriptor | undefined;
-    while (proto && !descriptor) {
-      descriptor = Object.getOwnPropertyDescriptor(proto, prop);
-      proto = Object.getPrototypeOf(proto);
-    }
-    if (!descriptor?.get || !descriptor.set) continue;
-    const { get, set } = descriptor;
-    Object.defineProperty(select, prop, {
-      configurable: true,
-      get() {
-        return get.call(this);
-      },
-      set(v: unknown) {
-        set.call(this, v);
-        onChange();
-      },
-    });
-    restore.push(prop);
+    const undo = wrapSetter(select, prop, onChange);
+    if (undo) restore.push(undo);
   }
-  // Options added or removed, or option.selected toggled, also change what the dropdown shows.
-  const observer = new MutationObserver(onChange);
+  // `option.selected = true` changes the value without touching the select or the `selected` attribute.
+  const wrapped = new WeakSet<HTMLOptionElement>();
+  const watchOptions = (): void => {
+    for (const option of Array.from(select.options)) {
+      if (wrapped.has(option)) continue;
+      wrapped.add(option);
+      const undo = wrapSetter(option, 'selected', onChange);
+      if (undo) restore.push(undo);
+    }
+  };
+  watchOptions();
+  // Options added or removed, or the `selected` attribute toggled, also change what the dropdown shows.
+  const observer = new MutationObserver(() => {
+    watchOptions();
+    onChange();
+  });
   observer.observe(select, {
     childList: true,
     subtree: true,
@@ -50,7 +71,7 @@ function watchValue(select: HTMLSelectElement, onChange: Listener): () => void {
   return () => {
     observer.disconnect();
     select.removeEventListener('change', onChange);
-    for (const prop of restore) Reflect.deleteProperty(select, prop);
+    for (const undo of restore) undo();
   };
 }
 
