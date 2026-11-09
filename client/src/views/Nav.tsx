@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { BaseItem } from '../api/types';
-import markSvg from '../assets/lumen-j.svg?raw';
 import {
   FAVORITES_HASH,
   getServerName,
@@ -10,6 +9,7 @@ import {
   SEARCH_HASH,
 } from '../compat/jellyfin';
 import { Icon, type IconName } from '../components/icons';
+import { LumenMark } from '../components/LumenMark';
 import { strings } from '../strings';
 import { rememberVeilName } from '../veil/veil';
 import type { ViewContext } from './context';
@@ -66,7 +66,7 @@ export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavAc
   return (
     <header class="lmn-nav">
       <a class="lmn-nav__brand" href={HOME_HASH}>
-        <span class="lmn-nav__mark" aria-hidden="true" dangerouslySetInnerHTML={{ __html: markSvg }} />
+        <LumenMark class="lmn-nav__mark" />
         <span class="lmn-nav__name">{data?.serverName ?? 'Lumen'}</span>
       </a>
       <nav class="lmn-nav__pill focuscontainer-x" aria-label="Main">

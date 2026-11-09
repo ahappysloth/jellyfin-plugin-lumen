@@ -202,7 +202,7 @@ html.lmn-active #lmn-root {
   letter-spacing: -0.02em;
   text-decoration: none;
 }
-/* The "J" ribbon mark (assets/lumen-j.svg), inlined. */
+/* Lumen's J (components/LumenMark.tsx). */
 .lmn-nav__mark {
   display: block;
   flex: none;

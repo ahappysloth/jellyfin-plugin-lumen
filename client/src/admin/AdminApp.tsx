@@ -1,3 +1,4 @@
+import { LumenMark } from '../components/LumenMark';
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type {
@@ -117,7 +118,7 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
       onSubmit={(e) => void save(e)}
     >
       <header class="lmn-admin__header">
-        <span class="lmn-admin__logo" aria-hidden="true" />
+        <LumenMark class="lmn-admin__logo" />
         <div>
           <h1>Lumen</h1>
           <p>Cinematic home and details pages, and catalog requests through Seerr.</p>
