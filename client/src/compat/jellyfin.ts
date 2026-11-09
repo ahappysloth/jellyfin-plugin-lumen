@@ -160,3 +160,28 @@ export function setFavicon(svg: string, doc: Document = document): void {
     link.href = href;
   }
 }
+
+type DashboardWindow = Window & { Dashboard?: { logout?: () => void } };
+
+/** True when jellyfin-web exposes its sign-out (window.Dashboard.logout, all 10.9+ releases). */
+export function canSignOut(win: Window = window): boolean {
+  return typeof (win as DashboardWindow).Dashboard?.logout === 'function';
+}
+
+/** Signs out through jellyfin-web, which clears credentials and shows the login (or server select) page. */
+export function signOut(win: Window = window): void {
+  (win as DashboardWindow).Dashboard?.logout?.();
+}
+
+/** jellyfin-web's settings pages, linked from Lumen's profile page. */
+export const SETTINGS_HASHES = {
+  profile: (userId: string) => `#/userprofile?userId=${encodeURIComponent(userId)}`,
+  quickConnect: (userId: string) => `#/quickconnect?userId=${encodeURIComponent(userId)}`,
+  display: (userId: string) => `#/mypreferencesdisplay?userId=${encodeURIComponent(userId)}`,
+  home: (userId: string) => `#/mypreferenceshome?userId=${encodeURIComponent(userId)}`,
+  playback: (userId: string) => `#/mypreferencesplayback?userId=${encodeURIComponent(userId)}`,
+  subtitles: (userId: string) => `#/mypreferencessubtitles?userId=${encodeURIComponent(userId)}`,
+  controls: (userId: string) => `#/mypreferencescontrols?userId=${encodeURIComponent(userId)}`,
+  dashboard: () => '#/dashboard',
+  metadata: () => '#/metadata',
+} as const;

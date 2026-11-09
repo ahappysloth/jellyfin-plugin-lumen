@@ -29,7 +29,7 @@ public class PluginConfiguration : BasePluginConfiguration
 
     public bool DetailsTakeover { get; set; } = true;
 
-    /// <summary>Gets or sets a value indicating whether Lumen replaces the Movies and Shows library pages and Favorites.</summary>
+    /// <summary>Gets or sets a value indicating whether Lumen replaces the Movies and Shows library pages, Favorites, Search and the settings menu.</summary>
     public bool LibraryTakeover { get; set; } = true;
 
     public string AccentColor { get; set; } = "#e12d39";

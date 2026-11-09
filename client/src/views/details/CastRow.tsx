@@ -6,7 +6,7 @@ import { strings } from '../../strings';
 const MAX_CAST = 15;
 const PHOTO = { width: 116, height: 154 };
 
-const initials = (name: string): string =>
+export const initials = (name: string): string =>
   name
     .split(/\s+/)
     .filter(Boolean)

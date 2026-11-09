@@ -25,6 +25,10 @@ describe('parseRoute', () => {
     ],
     ['#/tv?topParentId=0123456789abcdef0123456789abcdef&tab=2', { kind: 'other' }],
     ['#/music?topParentId=0123456789abcdef0123456789abcdef', { kind: 'other' }],
+    ['#/search', { kind: 'search', query: '' }],
+    ['#/search?query=star%20wars', { kind: 'search', query: 'star wars' }],
+    ['#/mypreferencesmenu', { kind: 'profile' }],
+    ['#/mypreferencesdisplay?userId=x', { kind: 'other' }],
     ['', { kind: 'other' }],
   ])('%s', (hash, expected) => {
     expect(parseRoute(hash)).toEqual(expected);

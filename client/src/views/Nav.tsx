@@ -17,7 +17,7 @@ import type { ViewContext } from './context';
 const MAX_LIBRARIES = 4;
 const LIBRARY_ICONS: Record<string, IconName> = { movies: 'film', tvshows: 'tv', music: 'music' };
 
-/** Which pill item is current: 'home', 'favorites', or a library's id. */
+/** Which pill item is current: 'home', 'favorites', 'search', 'profile', or a library's id. */
 export type NavActive = string;
 
 interface NavData {
@@ -81,10 +81,20 @@ export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavAc
           current={active === 'favorites'}
         />
         <span class="lmn-nav__divider" aria-hidden="true" />
-        <a class="lmn-nav__item lmn-nav__item--icon" href={SEARCH_HASH} aria-label={strings.search}>
+        <a
+          class={`lmn-nav__item lmn-nav__item--icon${active === 'search' ? ' is-active' : ''}`}
+          href={SEARCH_HASH}
+          aria-label={strings.search}
+          aria-current={active === 'search' ? 'page' : undefined}
+        >
           <Icon name="search" size={18} />
         </a>
-        <a class="lmn-nav__item lmn-nav__item--icon" href={PREFERENCES_HASH} aria-label={strings.profile}>
+        <a
+          class={`lmn-nav__item lmn-nav__item--icon${active === 'profile' ? ' is-active' : ''}`}
+          href={PREFERENCES_HASH}
+          aria-label={strings.profile}
+          aria-current={active === 'profile' ? 'page' : undefined}
+        >
           <Icon name="user" size={18} />
         </a>
       </nav>
