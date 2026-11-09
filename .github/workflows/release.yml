@@ -5,6 +5,12 @@ on:
 
 permissions:
   contents: write
+  actions: read # to check CI passed on the tagged commit
+
+# Every step is safe to re-run: the release and the manifest entry are created or reused, never duplicated.
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -24,6 +30,23 @@ jobs:
         run: |
           [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Tag '$GITHUB_REF_NAME' is not vMAJOR.MINOR.PATCH"; exit 1; }
           git merge-base --is-ancestor "$GITHUB_REF_NAME" origin/main || { echo "Tag '$GITHUB_REF_NAME' is not on main"; exit 1; }
+      - name: Require CI to have passed on the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # CI (ci.yml, including E2E) runs on every push to main. Wait for it if the tag was pushed right after the commit.
+          SHA="$(git rev-parse "$GITHUB_REF_NAME^{commit}")"
+          for attempt in $(seq 1 60); do
+            runs="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$SHA" --event push --json status,conclusion)"
+            if jq -e 'any(.[]; .conclusion == "success")' <<<"$runs" >/dev/null; then echo "CI passed on $SHA"; exit 0; fi
+            if ! jq -e 'any(.[]; .status != "completed")' <<<"$runs" >/dev/null; then
+              echo "No successful CI run on $SHA (runs: $runs). Push the commit to main and let CI pass, then re-run this job."
+              exit 1
+            fi
+            echo "CI is still running on $SHA; waiting ($attempt/60)"
+            sleep 30
+          done
+          echo "Timed out waiting for CI on $SHA"; exit 1
       - name: Compute version
         id: v
         run: |
@@ -33,7 +56,7 @@ jobs:
       - name: Build and test
         run: |
           git checkout "$GITHUB_REF_NAME"
-          (cd client && npm ci && npm run lint && npm test && npm run build && npm run size)
+          (cd client && npm ci && npm run lint && npm run typecheck && npm test && npm run build && npm run size)
           dotnet test --nologo -p:SkipClientBuild=true
           node --test scripts/update-manifest.test.mjs
           dotnet publish src/Jellyfin.Plugin.Lumen -c Release -o artifacts/plugin --nologo -p:SkipClientBuild=true \
@@ -43,19 +66,40 @@ jobs:
         run: |
           awk "/^## \\[${{ steps.v.outputs.semver }}\\]/{flag=1;next}/^## \\[/{flag=0}flag" CHANGELOG.md > release-notes.md
           test -s release-notes.md || { echo "CHANGELOG.md has no section for ${{ steps.v.outputs.semver }}"; exit 1; }
-      - name: Create GitHub release
+      - name: Create (or reuse) the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "artifacts/lumen_${{ steps.v.outputs.jellyfin }}.zip" --title "Lumen ${{ steps.v.outputs.semver }}" --notes-file release-notes.md
-      - name: Publish to the plugin repository manifest
+          ZIP: lumen_${{ steps.v.outputs.jellyfin }}.zip
         run: |
-          git checkout main
-          node scripts/update-manifest.mjs --version "${{ steps.v.outputs.jellyfin }}" \
-            --zip "artifacts/lumen_${{ steps.v.outputs.jellyfin }}.zip" \
-            --url "https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/lumen_${{ steps.v.outputs.jellyfin }}.zip" \
-            --changelog "$(cat release-notes.md)"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            # A re-run: keep the zip users may already have downloaded (the manifest checksum must match it).
+            if gh release download "$GITHUB_REF_NAME" --pattern "$ZIP" --dir artifacts --clobber; then
+              echo "Release $GITHUB_REF_NAME exists; using its $ZIP"
+            else
+              gh release upload "$GITHUB_REF_NAME" "artifacts/$ZIP"
+            fi
+            gh release edit "$GITHUB_REF_NAME" --notes-file release-notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" "artifacts/$ZIP" --title "Lumen ${{ steps.v.outputs.semver }}" --notes-file release-notes.md
+          fi
+      - name: Publish to the plugin repository manifest
+        env:
+          ZIP: lumen_${{ steps.v.outputs.jellyfin }}.zip
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore(release): publish ${{ steps.v.outputs.semver }} to manifest"
-          git pull --rebase origin main
-          git push origin main
+          # Rebuild the commit on the newest main each time, so a push race (or a re-run) never loses anyone's work.
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git checkout -B publish-manifest origin/main
+            node scripts/update-manifest.mjs --version "${{ steps.v.outputs.jellyfin }}" \
+              --zip "artifacts/$ZIP" \
+              --url "https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/$ZIP" \
+              --changelog "$(cat release-notes.md)"
+            if git diff --quiet -- manifest.json; then echo "manifest.json already lists ${{ steps.v.outputs.semver }}"; exit 0; fi
+            git commit -m "chore(release): publish ${{ steps.v.outputs.semver }} to manifest" -- manifest.json
+            if git push origin HEAD:main; then exit 0; fi
+            echo "Push failed (attempt $attempt); retrying on the new main"
+            sleep $((attempt * 5))
+          done
+          echo "Could not push manifest.json; re-run this job"; exit 1

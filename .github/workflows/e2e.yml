@@ -52,6 +52,20 @@ jobs:
           LUMEN_E2E_BASE_URL: http://localhost:8096
           LUMEN_E2E_MEDIA_PATH: /media
           LUMEN_E2E_SEERR_URL: http://host.docker.internal:5055
+      - name: Record the Jellyfin version the suite passed on
+        run: |
+          VERSION="$(curl -fsS http://localhost:8096/System/Info/Public | jq -r .Version)"
+          RELEASE="$(cut -d. -f1,2 <<<"$VERSION")"
+          echo "E2E passed on Jellyfin $VERSION (\`${{ inputs.jellyfin-image }}\`)" >> "$GITHUB_STEP_SUMMARY"
+          echo "$VERSION ${{ inputs.jellyfin-image }} $(date -u +%Y-%m-%dT%H:%M:%SZ)" > tested-jellyfin.txt
+          # Diagnostics flag servers on releases missing from this list as "untested" (client/src/compat/testedVersions.ts).
+          if ! jq -e --arg r "$RELEASE" '.versions | index($r)' client/src/compat/tested-jellyfin.json >/dev/null; then
+            echo "::warning title=Untested Jellyfin release passed::E2E passed on Jellyfin $VERSION. Add \"$RELEASE\" to client/src/compat/tested-jellyfin.json."
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.report-name }}-jellyfin-version-${{ github.run_attempt }}
+          path: tested-jellyfin.txt
       - if: failure()
         run: docker logs jellyfin > jellyfin.log 2>&1 || true
       - if: failure()
