@@ -44,7 +44,7 @@ One-time setup (no sudo):
 ./scripts/setup-dev.sh
 ```
 
-This installs the .NET 10 SDK into `~/.dotnet`, plus portable builds of Jellyfin 12.2 and jellyfin-ffmpeg for your OS and CPU into `~/.local/share/lumen-dev`. Set `LUMEN_DEV_HOME` to put them elsewhere, or `JELLYFIN_VERSION` to pick another server version (delete `$LUMEN_DEV_HOME/jellyfin` first). `scripts/env.sh` sets up `PATH` and `DOTNET_ROOT`. The other scripts source it, and you can too: `source scripts/env.sh` puts `dotnet` on your path.
+This installs the .NET 10 SDK into `~/.dotnet`, plus portable builds of Jellyfin 12.4 and jellyfin-ffmpeg for your OS and CPU into `~/.local/share/lumen-dev`. Set `LUMEN_DEV_HOME` to put them elsewhere, or `JELLYFIN_VERSION` to pick another server version (delete `$LUMEN_DEV_HOME/jellyfin` first). `scripts/env.sh` sets up `PATH` and `DOTNET_ROOT`. The other scripts source it, and you can too: `source scripts/env.sh` puts `dotnet` on your path.
 
 Day to day:
 
@@ -102,7 +102,7 @@ Both loops listen on all network interfaces. Other devices on the same network c
 
 ## CI and releases
 
-- `ci.yml` runs on every PR and on pushes to `main`. It does client lint, typecheck, tests, build and size check, then `dotnet test` and publish, then E2E against `jellyfin/jellyfin:12.2` (`e2e.yml`).
+- `ci.yml` runs on every PR and on pushes to `main`. It does client lint, typecheck, tests, build and size check, then `dotnet test` and publish, then E2E against `jellyfin/jellyfin:12.4` (`e2e.yml`).
 - `nightly.yml` runs the E2E suite against `jellyfin/jellyfin:latest` and `:unstable`.
 - `release.yml` runs on `v*` tags.
   - It requires a successful `ci.yml` run (including E2E) on the tagged commit, and waits for one that's still running.

@@ -54,4 +54,4 @@ jobs:
     needs: server
     uses: ./.github/workflows/e2e.yml
     with:
-      jellyfin-image: jellyfin/jellyfin:12.2
+      jellyfin-image: jellyfin/jellyfin:12.4

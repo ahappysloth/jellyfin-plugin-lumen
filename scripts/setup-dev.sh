@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/env.sh"
 
-JELLYFIN_VERSION="${JELLYFIN_VERSION:-12.2}"
+JELLYFIN_VERSION="${JELLYFIN_VERSION:-12.4}"
 FFMPEG_SERIES="${FFMPEG_SERIES:-latest-8.x}"
 REPO="https://repo.jellyfin.org/files"
 

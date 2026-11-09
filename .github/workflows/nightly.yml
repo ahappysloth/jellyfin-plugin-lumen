@@ -29,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: ['jellyfin/jellyfin:latest', 'jellyfin/jellyfin:unstable']
+        image: ['jellyfin/jellyfin:12.4', 'jellyfin/jellyfin:latest', 'jellyfin/jellyfin:unstable']
     uses: ./.github/workflows/e2e.yml
     with:
       jellyfin-image: ${{ matrix.image }}
