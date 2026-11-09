@@ -1,0 +1,223 @@
+/* ---- Cards ----------------------------------------------------------------------------------------------------- */
+.lmn-card {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  width: var(--lmn-card-w);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  scroll-snap-align: start;
+}
+.lmn-card--poster {
+  width: 180px;
+}
+.lmn-card__art {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--lmn-radius);
+  background: var(--lmn-surface);
+  transition:
+    border-color 0.25s,
+    box-shadow 0.25s;
+}
+.lmn-card--poster .lmn-card__art {
+  aspect-ratio: 2 / 3;
+}
+.lmn-card__art > img:first-child {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s var(--lmn-ease);
+}
+.lmn-card:hover .lmn-card__art,
+.lmn-card:focus-visible .lmn-card__art {
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 12px 28px -14px rgba(0, 0, 0, 0.9);
+}
+.lmn-card:hover .lmn-card__art > img:first-child {
+  transform: scale(1.04);
+}
+.lmn-card:focus-visible {
+  outline: none;
+}
+.lmn-card:focus-visible .lmn-card__art {
+  outline: 2px solid var(--lmn-focus);
+  outline-offset: 2px;
+}
+.lmn-card__logo {
+  position: absolute;
+  bottom: 14%;
+  left: 50%;
+  max-width: 62%;
+  max-height: 40%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6));
+  transform: translateX(-50%);
+}
+.lmn-card__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: linear-gradient(135deg, var(--lmn-surface-2), var(--lmn-surface));
+  color: var(--lmn-text-2);
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+}
+.lmn-card__badge {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  padding: 4px 8px;
+  border-radius: 4px 4px 0 0;
+  background: var(--lmn-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.lmn-card__title {
+  display: block;
+  margin: 8px 2px 0;
+  overflow: hidden;
+  color: var(--lmn-text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.375;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+.lmn-card:hover .lmn-card__title,
+.lmn-card:focus-visible .lmn-card__title {
+  color: var(--lmn-accent);
+}
+.lmn-card__meta {
+  display: flex;
+  align-items: center;
+  margin: 4px 2px 0;
+  overflow: hidden;
+  color: var(--lmn-text-3);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.lmn-card__meta > span {
+  display: inline-flex;
+  align-items: center;
+}
+.lmn-card__meta > span + span::before {
+  content: '·';
+  margin: 0 6px;
+  color: rgba(255, 255, 255, 0.2);
+}
+.lmn-card__meta .lmn-star {
+  margin-right: 3px;
+  vertical-align: 0;
+}
+
+/* Genre tiles */
+.lmn-genre {
+  position: relative;
+  flex: 0 0 auto;
+  width: 268px;
+  aspect-ratio: 16 / 9;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--lmn-radius);
+  background: var(--lmn-surface-2);
+  color: #fff;
+  cursor: pointer;
+  scroll-snap-align: start;
+}
+.lmn-genre img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s var(--lmn-ease);
+}
+.lmn-genre::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.78) 0%,
+    rgba(0, 0, 0, 0.15) 60%,
+    rgba(0, 0, 0, 0.3) 100%
+  );
+}
+.lmn-genre:hover img {
+  transform: scale(1.06);
+}
+.lmn-genre:focus-visible {
+  outline: 2px solid var(--lmn-focus);
+  outline-offset: 2px;
+}
+.lmn-genre__label {
+  position: absolute;
+  z-index: 1;
+  bottom: 14px;
+  left: 14px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+/* Progress */
+.lmn-progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: block;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.25);
+}
+.lmn-progress__fill {
+  display: block;
+  height: 100%;
+  background: var(--lmn-accent);
+}
+.lmn-button .lmn-progress {
+  position: static;
+  align-self: center;
+  width: 56px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Small screens (official mobile apps). */
+@media (max-width: 720px) {
+  .lmn-genre {
+    width: 200px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lmn-card__art,
+  .lmn-card__art > img:first-child,
+  .lmn-genre img {
+    transition: none;
+    animation: none;
+  }
+}

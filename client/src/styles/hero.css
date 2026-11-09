@@ -1,0 +1,180 @@
+/* ---- Hero ---------------------------------------------------------------------------------------------------- */
+.lmn-hero {
+  position: relative;
+  height: min(88vh, 62vw);
+  min-height: 520px;
+  overflow: hidden;
+  background: var(--lmn-surface);
+  /* Horizontal swipes/drags flip slides; vertical ones still scroll the page. */
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.lmn-hero.is-dragging {
+  cursor: grabbing;
+}
+.lmn-hero__controls {
+  transition: opacity 0.2s;
+}
+.lmn-hero.is-dragging .lmn-hero__controls {
+  opacity: 0;
+}
+/* Slides sit side by side on a track that follows the pointer 1:1 (Hero.tsx). */
+.lmn-hero__track {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+.lmn-hero__track.is-animated {
+  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.lmn-hero__slide {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.lmn-hero__backdrop,
+.lmn-hero__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: lmn-fade 0.8s var(--lmn-ease);
+}
+.lmn-hero__trailer {
+  position: absolute;
+  inset: 0;
+}
+.lmn-hero__scrim,
+.lmn-details__scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.45) 0, transparent 160px),
+    linear-gradient(90deg, rgba(15, 15, 15, 0.92) 0%, rgba(15, 15, 15, 0.55) 30%, transparent 62%),
+    linear-gradient(to top, var(--lmn-bg) 0%, rgba(15, 15, 15, 0.6) 18%, transparent 42%);
+}
+.lmn-hero__content {
+  position: absolute;
+  bottom: clamp(96px, 17%, 180px);
+  left: var(--lmn-gutter);
+  width: min(544px, calc(100% - 2 * var(--lmn-gutter)));
+  animation: lmn-rise 0.7s var(--lmn-ease);
+}
+.lmn-hero__logo,
+.lmn-details__logo {
+  display: block;
+  max-width: min(420px, 100%);
+  max-height: 140px;
+  margin-bottom: 18px;
+  object-fit: contain;
+  object-position: left bottom;
+  filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.45));
+}
+.lmn-hero__title,
+.lmn-details__title {
+  margin: 0 0 16px;
+  color: #fff;
+  font-size: clamp(36px, 4.2vw, 56px);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+.lmn-hero__badge {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--lmn-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+.lmn-hero__meta {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.lmn-hero__meta > span:first-child {
+  font-weight: 600;
+}
+.lmn-hero__overview,
+.lmn-details__overview {
+  display: -webkit-box;
+  max-width: 544px;
+  margin: 14px 0 0;
+  overflow: hidden;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.55;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+.lmn-hero__controls {
+  position: absolute;
+  right: var(--lmn-gutter);
+  bottom: clamp(96px, 17%, 180px);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.lmn-hero__pager {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lmn-hero__dash:focus-visible {
+  outline: 2px solid var(--lmn-focus);
+  outline-offset: 3px;
+}
+.lmn-hero__dash {
+  width: 14px;
+  height: 3px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  transition:
+    width 0.35s var(--lmn-ease),
+    background-color 0.35s;
+}
+.lmn-hero__dash.is-active {
+  width: 28px;
+  background: #fff;
+}
+
+/* Small screens (official mobile apps). */
+@media (max-width: 720px) {
+  .lmn-hero {
+    height: 78vh;
+    min-height: 460px;
+  }
+  .lmn-hero__content {
+    bottom: 56px;
+  }
+  .lmn-hero__controls {
+    right: 50%;
+    bottom: 22px;
+    transform: translateX(50%);
+  }
+  .lmn-hero__controls .lmn-icon-button {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lmn-hero__backdrop,
+  .lmn-hero__video,
+  .lmn-hero__content,
+  .lmn-hero__dash {
+    transition: none;
+    animation: none;
+  }
+}

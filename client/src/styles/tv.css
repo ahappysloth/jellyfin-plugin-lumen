@@ -1,0 +1,16 @@
+/* TV layout: large, always-visible focus for D-pad navigation. */
+.layout-tv .lmn-card:focus .lmn-card__art,
+.layout-tv .lmn-genre:focus,
+.layout-tv .lmn-episode:focus,
+.layout-tv .lmn-button:focus,
+.layout-tv .lmn-icon-button:focus,
+.layout-tv .lmn-nav__item:focus,
+.layout-tv .lmn-person:focus,
+.layout-tv .lmn-chip:focus,
+.layout-tv .lmn-dropdown__button:focus {
+  outline: 3px solid var(--lmn-focus);
+  outline-offset: 3px;
+}
+.layout-tv .lmn-card:focus .lmn-card__art > img:first-child {
+  transform: scale(1.06);
+}
