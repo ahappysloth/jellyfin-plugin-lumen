@@ -35,6 +35,7 @@ describe('parseRoute', () => {
     ['#/mypreferencesdisplay?userId=x', { kind: 'settings', page: 'display' }],
     ['#/userprofile?userId=x', { kind: 'settings', page: 'profile' }],
     ['#/login', { kind: 'other' }],
+    ['#/video', { kind: 'player' }],
     ['', { kind: 'other' }],
   ])('%s', (hash, expected) => {
     expect(parseRoute(hash)).toEqual(expected);

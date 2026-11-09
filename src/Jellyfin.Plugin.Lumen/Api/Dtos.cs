@@ -18,6 +18,8 @@ public sealed class ClientConfigDto
 
     public bool StyleStockPages { get; init; }
 
+    public bool StyleVideoPlayer { get; init; }
+
     public string AccentColor { get; init; } = string.Empty;
 
     public int HeroIntervalSeconds { get; init; }
@@ -35,6 +37,7 @@ public sealed class ClientConfigDto
         DetailsTakeover = config.DetailsTakeover,
         LibraryTakeover = config.LibraryTakeover,
         StyleStockPages = config.StyleStockPages,
+        StyleVideoPlayer = config.StyleVideoPlayer,
         AccentColor = config.AccentColor,
         HeroIntervalSeconds = config.HeroIntervalSeconds,
         TrailerPreview = config.TrailerPreview,

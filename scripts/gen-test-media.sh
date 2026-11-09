@@ -78,6 +78,10 @@ logo() { # path title
     -frames:v 1 "$1"
 }
 
+subtitles() { # base path: English and Spanish sidecar subtitles, for the player's track menu
+  printf '1\n00:00:01,000 --> 00:00:06,000\nHello from Lumen.\n\n2\n00:00:07,000 --> 00:00:12,000\nThis is a test subtitle.\n' > "$1.en.srt"
+  printf '1\n00:00:01,000 --> 00:00:06,000\nHola desde Lumen.\n\n2\n00:00:07,000 --> 00:00:12,000\nEsto es un subtitulo de prueba.\n' > "$1.es.srt"
+}
 cast() { # "Name:Role" ...
   for pair in "$@"; do echo "<actor><name>${pair%%:*}</name><role>${pair#*:}</role><type>Actor</type></actor>"; done
 }
@@ -89,6 +93,7 @@ movie() { # title year genres(comma) rating hue color with_logo(1|0)
   art "$dir/poster.jpg" 400x600 "$6" "$1" 44
   art "$dir/backdrop.jpg" 1280x720 "$6"
   if [[ "$7" == 1 ]]; then logo "$dir/logo.png" "$1"; fi
+  if [[ "$1" == "Lumen Alpha" ]]; then subtitles "$dir/$1 ($2)"; fi
   {
     echo '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
     echo "<movie><title>$1</title><year>$2</year><rating>$4</rating><mpaa>PG-13</mpaa><plot>$1 is a Lumen test movie.</plot>"

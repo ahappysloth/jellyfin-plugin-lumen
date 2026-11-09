@@ -35,6 +35,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets a value indicating whether Lumen restyles jellyfin-web's sign-in and settings pages.</summary>
     public bool StyleStockPages { get; set; } = true;
 
+    /// <summary>Gets or sets a value indicating whether Lumen replaces jellyfin-web's video player controls.</summary>
+    public bool StyleVideoPlayer { get; set; } = true;
+
     public string AccentColor { get; set; } = "#e12d39";
 
     public HeroSource HeroSource { get; set; } = HeroSource.RecentlyAdded;

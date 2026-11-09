@@ -10,6 +10,7 @@ const config: ClientConfig = {
   DetailsTakeover: true,
   LibraryTakeover: true,
   StyleStockPages: true,
+  StyleVideoPlayer: true,
   AccentColor: '#f5a524',
   HeroIntervalSeconds: 8,
   TrailerPreview: true,

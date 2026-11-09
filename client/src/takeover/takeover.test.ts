@@ -9,6 +9,7 @@ const config: ClientConfig = {
   DetailsTakeover: false,
   LibraryTakeover: false,
   StyleStockPages: true,
+  StyleVideoPlayer: true,
   AccentColor: '#f5a524',
   HeroIntervalSeconds: 8,
   TrailerPreview: true,
@@ -45,7 +46,7 @@ describe('Takeover', () => {
 
     expect(document.getElementById('lmn-root')?.parentElement).toBe(document.body);
     expect(document.documentElement.classList.contains('lmn-active')).toBe(true);
-    expect(document.documentElement.classList.contains('lmn-home')).toBe(true);
+    expect(document.documentElement.classList.contains('lmn-route-home')).toBe(true);
     expect(options.mount).toHaveBeenCalledTimes(1);
   });
 
@@ -163,14 +164,14 @@ describe('Takeover', () => {
 
     const on = create({ config: { ...config, LibraryTakeover: true } });
     on.takeover.handle({ kind: 'library', id: 'lib', collection: 'movies' });
-    expect(document.documentElement.classList.contains('lmn-library')).toBe(true);
+    expect(document.documentElement.classList.contains('lmn-route-library')).toBe(true);
     on.takeover.handle({ kind: 'library', id: 'lib', collection: 'movies' });
     expect(on.options.mount).toHaveBeenCalledTimes(1);
 
     on.takeover.handle({ kind: 'favorites' });
     expect(on.options.mount).toHaveBeenCalledTimes(2);
-    expect(document.documentElement.classList.contains('lmn-favorites')).toBe(true);
-    expect(document.documentElement.classList.contains('lmn-library')).toBe(false);
+    expect(document.documentElement.classList.contains('lmn-route-favorites')).toBe(true);
+    expect(document.documentElement.classList.contains('lmn-route-library')).toBe(false);
   });
 
   it('frames settings pages without hiding them, when StyleStockPages is on', () => {

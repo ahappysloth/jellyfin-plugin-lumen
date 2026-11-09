@@ -170,6 +170,12 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
           checked={config.StyleStockPages}
           onChange={(v) => update({ StyleStockPages: v })}
         />
+        <Switch
+          label="Use Lumen's video player controls"
+          hint="Jellyfin's player keeps playing the video; Lumen replaces its controls and menus."
+          checked={config.StyleVideoPlayer}
+          onChange={(v) => update({ StyleVideoPlayer: v })}
+        />
         <Field label="Accent color" hint="Badges, ratings, progress bars and this page's buttons.">
           <input
             type="color"

@@ -32,6 +32,7 @@ function config(): LumenConfig {
     DetailsTakeover: true,
     LibraryTakeover: true,
     StyleStockPages: true,
+    StyleVideoPlayer: true,
     AccentColor: '#f5a524',
     HeroSource: 0,
     HeroCollectionId: null,
