@@ -73,6 +73,16 @@ export interface ItemsResult {
   TotalRecordCount?: number;
 }
 
+/** One row of GET /Movies/Recommendations. */
+export interface MovieRecommendation {
+  Items: BaseItem[];
+  /** SimilarToRecentlyPlayed, SimilarToLikedItem, HasDirectorFromRecentlyPlayed, HasActorFromRecentlyPlayed, … */
+  RecommendationType: string;
+  /** The movie or person the row is based on. */
+  BaselineItemName?: string;
+  CategoryId?: string;
+}
+
 export interface HomeRow {
   Id: string;
   Type: string;

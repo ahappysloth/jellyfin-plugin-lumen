@@ -18,7 +18,14 @@ test('Movies has Lumen tabs; Genres and Studios open their titles inside the lib
   await login(page, ADMIN);
   await page.goto(`/web/#/movies?topParentId=${movies}&collectionType=movies`);
 
-  await expect(tabs(page).getByRole('link')).toHaveText(['Movies', 'Favorites', 'Collections', 'Genres', 'Studios']);
+  await expect(tabs(page).getByRole('link')).toHaveText([
+    'Movies',
+    'Suggestions',
+    'Favorites',
+    'Collections',
+    'Genres',
+    'Studios',
+  ]);
 
   await tabs(page).getByRole('link', { name: 'Genres' }).click();
   await expect(page).toHaveURL(/tab=4/);
@@ -89,10 +96,28 @@ test('Shows has an Episodes tab, newest first, opening the episode page', async 
   await expect(page.locator('#lmn-root .lmn-details--episode')).toBeVisible();
 });
 
+test('Suggestions shows Jellyfin rows for each library; Upcoming says when nothing is scheduled', async ({ page }) => {
+  const movies = await libraryId('movies');
+  const shows = await libraryId('tvshows');
+  await login(page, ADMIN);
+
+  await page.goto(`/web/#/movies?topParentId=${movies}&collectionType=movies&tab=1`);
+  await expect(page.getByRole('region', { name: 'Latest movies' }).getByRole('button').first()).toBeVisible();
+
+  await page.goto(`/web/#/tv?topParentId=${shows}&collectionType=tvshows&tab=1`);
+  await expect(page.getByRole('region', { name: 'Latest episodes' }).getByRole('button').first()).toBeVisible();
+
+  // The test show's episodes have no future air dates.
+  await tabs(page).getByRole('link', { name: 'Upcoming' }).click();
+  await expect(page).toHaveURL(/tab=2/);
+  await expect(page.getByText('No upcoming episodes.')).toBeVisible();
+});
+
 test('tabs Lumen has not built stay stock', async ({ page }) => {
   const shows = await libraryId('tvshows');
   await login(page, ADMIN);
-  await page.goto(`/web/#/tv?topParentId=${shows}&collectionType=tvshows&tab=2`);
+  // Playlists.
+  await page.goto(`/web/#/tv?topParentId=${shows}&collectionType=tvshows&tab=7`);
 
   await expect(page.locator('#lmn-root')).toBeHidden();
 });

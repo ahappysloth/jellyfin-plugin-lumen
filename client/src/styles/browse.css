@@ -271,3 +271,15 @@
     font-size: 15px;
   }
 }
+
+/* Suggestions and Upcoming */
+.lmn-suggestions .lmn-row,
+.lmn-upcoming__day {
+  margin: 0 calc(-1 * var(--lmn-gutter)) 8px;
+}
+.lmn-upcoming__day {
+  margin: 0 0 32px;
+}
+.lmn-upcoming__day .lmn-row__title {
+  margin-left: 0;
+}

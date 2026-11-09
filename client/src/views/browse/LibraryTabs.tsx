@@ -12,6 +12,7 @@ import { strings } from '../../strings';
 import type { LibraryTab } from '../../takeover/routes';
 import type { ViewContext } from '../context';
 import { BrowseGrid } from './BrowseGrid';
+import { SuggestionsTab, UpcomingTab } from './SuggestionsTabs';
 import { PageHeader } from './Toolbar';
 import { useGridPage } from './useGridPage';
 
@@ -66,7 +67,7 @@ export function LibraryTabBar({
   );
 }
 
-/** A library tab other than its main grid: Favorites, Collections, Episodes, Genres or Studios. */
+/** A library tab other than its main grid. */
 export function LibraryTabView({
   id,
   collection,
@@ -81,6 +82,9 @@ export function LibraryTabView({
   const name = useLibraryName(id, ctx);
   const title = name ?? (collection === 'movies' ? strings.movies : strings.shows);
   const tabs = <LibraryTabBar id={id} collection={collection} current={tab} />;
+  if (tab === 'suggestions')
+    return <SuggestionsTab id={id} collection={collection} title={title} tabs={tabs} ctx={ctx} />;
+  if (tab === 'upcoming') return <UpcomingTab id={id} title={title} tabs={tabs} ctx={ctx} />;
   if (tab === 'genres' || tab === 'studios')
     return <FacetTab id={id} collection={collection} facet={tab} title={title} tabs={tabs} ctx={ctx} />;
   return <ItemsTab id={id} collection={collection} tab={tab} title={title} tabs={tabs} ctx={ctx} />;
