@@ -133,3 +133,13 @@
     font-size: 24px;
   }
 }
+
+button.lmn-profile__link {
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}

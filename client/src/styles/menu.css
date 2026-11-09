@@ -45,3 +45,29 @@
 .lmn-genre {
   -webkit-touch-callout: none;
 }
+
+.lmn-menu__header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--lmn-line-subtle);
+}
+.lmn-menu__title {
+  font-size: 14px;
+  font-weight: 700;
+}
+.lmn-menu__subtitle,
+.lmn-menu__detail {
+  color: var(--lmn-text-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+.lmn-menu__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+}

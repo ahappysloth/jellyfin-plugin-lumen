@@ -1,3 +1,4 @@
+import { othersInGroup, useSyncPlayState } from '../syncplay/syncPlayState';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { getPlaybackManager, type PlaybackManager, type Player } from '../../compat/playbackManager';
 import { Icon } from '../../components/icons';
@@ -24,6 +25,7 @@ type Panel = 'quality' | 'tracks' | null;
  */
 export function PlayerView({ ctx }: { ctx: ViewContext }) {
   const pm = useRef<PlaybackManager | null>(getPlaybackManager());
+  const syncPlay = useSyncPlayState(ctx);
   const [snap, setSnap] = useState<PlayerSnapshot | null>(null);
   const [visible, setVisible] = useState(true);
   const [panel, setPanel] = useState<Panel>(null);
@@ -147,6 +149,14 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
         <div class="lmn-player__titles">
           <h1 class="lmn-player__title">{title}</h1>
           {subtitle && <p class="lmn-player__subtitle">{subtitle}</p>}
+          {syncPlay.group && (
+            <p class="lmn-player__syncplay">
+              <Icon name="group" size={16} />
+              {othersInGroup(syncPlay).length > 0
+                ? strings.watchingWith(othersInGroup(syncPlay))
+                : strings.inGroup(syncPlay.group.GroupName)}
+            </p>
+          )}
         </div>
         <div class="lmn-player__pills">
           <button

@@ -51,6 +51,9 @@ export const STOCK_SELECTORS = {
   sectionTitle: { selector: '.sectionTitle', probe: 'settings', css: 'stock-skin.css' },
   /** The Display page's MUI inputs. */
   muiInput: { selector: '.MuiFilledInput-root', probe: 'display', css: 'stock-skin.css' },
+  /** jellyfin-web's toasts (components/toast/toast.ts), e.g. SyncPlay's "joined the group" notices. */
+  toastContainer: { selector: '.toastContainer', probe: null, css: 'stock-skin.css' },
+  toast: { selector: '.toastContainer .toast', probe: null, css: 'stock-skin.css' },
   /** jellyfin-web's "Page not found" page (react-router's catch-all). Lumen never shows it; e2e uses it as a marker. */
   notFoundPage: { selector: '#fallbackPage', probe: null },
 } as const satisfies Record<string, StockSelector>;
@@ -98,6 +101,21 @@ export const LIBRARY_TABS = {
 
 /** jellyfin-web's list page filtered to one studio (`#/list?studioId=`), like its genre list. */
 export const LIST_PARAMS = { genre: 'genreId', studio: 'studioId', parent: 'parentId' } as const;
+
+/**
+ * jellyfin-web's SyncPlay core (plugins/syncPlay/core/index.js): its default export is `{ Helper, Manager,
+ * PlayerFactory, Players: { GenericPlayer } }`, found by those keys. Lumen reads the Manager's state and asks it to
+ * start or stop group playback; the syncing itself stays jellyfin-web's. Missing: no Watch together button.
+ */
+export const SYNCPLAY_CORE_KEYS = ['Helper', 'Manager', 'PlayerFactory', 'Players'] as const;
+export const SYNCPLAY_MANAGER_METHODS = [
+  'isSyncPlayEnabled',
+  'getGroupInfo',
+  'isPlaylistEmpty',
+  'isPlaybackActive',
+  'resumeGroupPlayback',
+  'haltGroupPlayback',
+] as const;
 
 /** The stock settings pages Lumen restyles and frames (the page itself stays jellyfin-web's). */
 export const SETTINGS_ROUTES = {

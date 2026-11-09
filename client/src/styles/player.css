@@ -476,3 +476,15 @@ html.lmn-skin-player .upNextContainer {
     animation: none;
   }
 }
+
+.lmn-player__syncplay {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 13px;
+  font-weight: 600;
+}

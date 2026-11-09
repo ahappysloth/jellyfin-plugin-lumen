@@ -11,6 +11,7 @@ import type {
   RequestStatus,
   SessionInfo,
   UserInfo,
+  SyncPlayGroup,
   MovieRecommendation,
 } from './types';
 
@@ -308,6 +309,23 @@ export class LumenApi {
       url: this.client.getUrl(path, params?.()),
       dataType: 'json',
     })) as T;
+  }
+
+  /** SyncPlay groups this user can join. */
+  getSyncPlayGroups(): Promise<SyncPlayGroup[]> {
+    return this.get('SyncPlay/List');
+  }
+
+  createSyncPlayGroup(name: string): Promise<void> {
+    return this.send('POST', 'SyncPlay/New', undefined, { GroupName: name });
+  }
+
+  joinSyncPlayGroup(groupId: string): Promise<void> {
+    return this.send('POST', 'SyncPlay/Join', undefined, { GroupId: groupId });
+  }
+
+  leaveSyncPlayGroup(): Promise<void> {
+    return this.send('POST', 'SyncPlay/Leave');
   }
 
   private async send(type: 'POST' | 'DELETE', path: string, params?: Params, body?: unknown): Promise<void> {
