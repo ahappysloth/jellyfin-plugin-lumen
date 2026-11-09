@@ -60,8 +60,9 @@
 .lmn-dropdown__list {
   position: absolute;
   z-index: 60;
-  right: 0;
+  left: 0;
   min-width: max(100%, 200px);
+  max-width: calc(100vw - 16px);
   max-height: min(340px, 60vh);
   margin: 0;
   padding: 6px;
@@ -75,6 +76,11 @@
   list-style: none;
   outline: none;
   animation: lmn-dropdown-pop 0.16s var(--lmn-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+/* Line up with the button's right edge when its left edge would run off screen (Dropdown.tsx measures). */
+.lmn-dropdown__list--end {
+  right: 0;
+  left: auto;
 }
 .lmn-dropdown__list--down {
   top: calc(100% + 6px);
@@ -96,6 +102,12 @@
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
+}
+.lmn-dropdown__option > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .lmn-dropdown__option.is-active {
   background: rgba(255, 255, 255, 0.08);
