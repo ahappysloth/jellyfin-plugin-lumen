@@ -1,0 +1,143 @@
+/* ---- Collection and person pages --------------------------------------------------------------------------------- */
+/* A grid under a details header (a collection's titles, a person's filmography). */
+.lmn-details__section {
+  padding: 8px var(--lmn-gutter) 56px;
+}
+.lmn-details__section > .lmn-row__title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+.lmn-row__count {
+  color: var(--lmn-text-dim, rgba(255, 255, 255, 0.55));
+  font-size: 15px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.lmn-link-button {
+  margin: 8px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.35);
+  text-underline-offset: 3px;
+}
+.lmn-link-button:hover {
+  text-decoration-color: var(--lmn-accent);
+}
+.lmn-link-button:focus-visible {
+  outline: 2px solid var(--lmn-focus);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.lmn-person-page {
+  min-height: 100vh;
+  background: var(--lmn-bg);
+}
+.lmn-person-page__header {
+  position: relative;
+  overflow: hidden;
+  padding: calc(env(safe-area-inset-top) + 88px) var(--lmn-gutter) 40px;
+  background: radial-gradient(
+    1100px 460px at 12% -80px,
+    color-mix(in srgb, var(--lmn-accent) 18%, transparent),
+    transparent 70%
+  );
+}
+/* The portrait, blown up and blurred into an ambient wash behind the header. */
+.lmn-person-page__ambient {
+  position: absolute;
+  inset: -80px -10% auto auto;
+  width: min(70vw, 900px);
+  height: calc(100% + 160px);
+  object-fit: cover;
+  opacity: 0.22;
+  filter: blur(60px) saturate(1.2);
+  pointer-events: none;
+  mask-image: linear-gradient(to left, #000 30%, transparent);
+}
+.lmn-person-page__topbar {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 24px);
+  left: var(--lmn-gutter);
+  z-index: 2;
+}
+.lmn-person-page__intro {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(20px, 3.5vw, 48px);
+}
+.lmn-person-page__photo {
+  flex: none;
+  width: clamp(140px, 17vw, 220px);
+  aspect-ratio: 2 / 3;
+  height: auto;
+  border-radius: 12px;
+  object-fit: cover;
+  background: #1c1c1c;
+  box-shadow:
+    0 24px 48px -20px rgba(0, 0, 0, 0.8),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.lmn-person-page__photo--empty {
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 44px;
+  font-weight: 700;
+}
+.lmn-person-page__info {
+  min-width: 0;
+  max-width: 720px;
+  padding-bottom: 4px;
+}
+.lmn-person-page__name {
+  margin: 0;
+  font-size: clamp(32px, 4.6vw, 56px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+}
+.lmn-person-page__dates {
+  margin: 12px 0 0;
+}
+.lmn-person-page__bio {
+  margin: 16px 0 0;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 15px;
+  line-height: 1.6;
+  white-space: pre-line;
+}
+.lmn-person-page__bio.is-clamped {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+}
+
+@media (max-width: 640px) {
+  .lmn-person-page__header {
+    padding-top: calc(env(safe-area-inset-top) + 76px);
+  }
+  .lmn-person-page__intro {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .lmn-person-page__photo {
+    width: 132px;
+  }
+}
+/* A clamped bio flows as one paragraph, so the ellipsis lands at the end of a line, not on its own. */
+.lmn-person-page__bio.is-clamped {
+  white-space: normal;
+}

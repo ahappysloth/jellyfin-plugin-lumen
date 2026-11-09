@@ -1,0 +1,190 @@
+/* Lumen theme: tokens, the takeover, the loading veil, the root container and shared keyframes. Imported in
+   order by lumen.css. Every selector targets Lumen-owned elements or is scoped by html.lmn-active. */
+:root {
+  --lmn-accent: #e30b17;
+  --lmn-bg: #0f0f0f;
+  --lmn-surface: #181818;
+  --lmn-surface-2: #212121;
+  --lmn-text: #f2f2f2;
+  --lmn-text-2: #b3b3b3;
+  --lmn-text-3: #8c8c8c;
+  --lmn-text-4: #4d4d4d;
+  --lmn-line: rgba(255, 255, 255, 0.08);
+  --lmn-line-strong: rgba(255, 255, 255, 0.16);
+  --lmn-focus: #fff;
+  --lmn-radius: 10px;
+  --lmn-gutter: clamp(16px, 6.25vw, 96px);
+  --lmn-card-w: 320px;
+  --lmn-nav-h: 80px;
+  --lmn-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --lmn-font: -apple-system, system-ui, Inter, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+}
+
+/* ---- Takeover ------------------------------------------------------------------------------------------------ */
+
+/* Hide the stock page (both layouts) and jellyfin-web's app bar while Lumen owns the route; Lumen draws its own
+   header. The stock page keeps running hidden. */
+html.lmn-active #reactRoot .skinBody,
+html.lmn-active .backdropContainer,
+html.lmn-active .MuiAppBar-root,
+html.lmn-active .skinHeader,
+html.lmn-pending #reactRoot .skinBody,
+html.lmn-pending .backdropContainer,
+html.lmn-pending .MuiAppBar-root,
+html.lmn-pending .skinHeader {
+  display: none !important;
+}
+/* jellyfin-web's splash logo and loading spinner never show on Lumen's pages; the veil covers the cold load. */
+html.lmn-pending .splashLogo,
+html.lmn-pending .docspinner,
+html.lmn-active .splashLogo,
+html.lmn-active .docspinner {
+  display: none !important;
+}
+
+/* ---- Loading veil (veil/veil.ts): black, the mark and server name, a red edge; rises like a curtain. ---------- */
+#lmn-veil {
+  display: grid;
+  place-items: center;
+  border-bottom: 3px solid var(--lmn-accent);
+  box-shadow: 0 6px 32px -4px color-mix(in srgb, var(--lmn-accent) 55%, transparent);
+  font-family: var(--lmn-font);
+  transition: transform 0.85s cubic-bezier(0.76, 0, 0.24, 1);
+  will-change: transform;
+}
+#lmn-veil.is-lifting {
+  transform: translateY(calc(-100% - 40px));
+}
+.lmn-veil__brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #fff;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  animation: lmn-veil-in 0.6s var(--lmn-ease) both;
+}
+#lmn-veil.is-lifting .lmn-veil__brand {
+  opacity: 0;
+  transform: translateY(-24px);
+  transition:
+    opacity 0.35s,
+    transform 0.5s var(--lmn-ease);
+}
+.lmn-veil__mark {
+  display: block;
+  width: 56px;
+  height: 56px;
+  animation: lmn-veil-breathe 1.8s ease-in-out 0.6s infinite;
+}
+.lmn-veil__mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+@keyframes lmn-veil-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+@keyframes lmn-veil-breathe {
+  50% {
+    filter: drop-shadow(0 0 14px color-mix(in srgb, var(--lmn-accent) 70%, transparent));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #lmn-veil {
+    transition: opacity 0.3s;
+  }
+  #lmn-veil.is-lifting {
+    transform: none;
+    opacity: 0;
+  }
+  .lmn-veil__brand,
+  .lmn-veil__mark {
+    animation: none;
+  }
+}
+
+/* lmn-pending: set by an inline guard in index.html until lumen.js decides whether to take over (no stock flash). */
+html.lmn-pending body,
+html.lmn-active body {
+  background: var(--lmn-bg);
+}
+
+#lmn-root {
+  display: none;
+}
+
+/* Pinned to the top of the document rather than placed after #reactRoot: the Modern layout's MUI shell keeps
+   its full viewport height even with the stock page hidden, which would push Lumen one screen down.
+   Being positioned and later in the DOM, it paints over the hidden stock page. */
+html.lmn-active #lmn-root {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  min-height: 100vh;
+  padding-bottom: 96px; /* clears the now-playing bar */
+  background: var(--lmn-bg);
+  color: var(--lmn-text);
+  font-family: var(--lmn-font);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+#lmn-root *,
+#lmn-root *::before,
+#lmn-root *::after {
+  box-sizing: border-box;
+}
+#lmn-root button {
+  font-family: inherit;
+}
+
+.lmn-icon {
+  flex: none;
+}
+.lmn-star {
+  margin-right: 4px;
+  color: var(--lmn-accent);
+  vertical-align: -1px;
+}
+
+/* ---- Shared keyframes ---------------------------------------------------------------------------------------- */
+@keyframes lmn-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes lmn-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes lmn-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Small screens (official mobile apps). */
+@media (max-width: 720px) {
+  :root {
+    --lmn-card-w: 232px;
+    --lmn-nav-h: 64px;
+  }
+}

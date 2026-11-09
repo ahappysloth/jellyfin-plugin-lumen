@@ -1,0 +1,230 @@
+/* ---- Header / nav -------------------------------------------------------------------------------------------- */
+/* Brand on the left, the pill centred on the page: equal flexible side columns keep it centred whatever the brand's
+   width. The empty third column only balances the first. */
+.lmn-nav {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  height: var(--lmn-nav-h);
+  padding: 0 var(--lmn-gutter);
+  /* No bar: a soft fade from dark at the top to clear at the bottom keeps the nav legible over any artwork. The
+     extra height lets the fade finish below the nav. */
+  pointer-events: none;
+}
+.lmn-nav::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 -40px;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.72) 0%,
+    rgba(0, 0, 0, 0.45) 45%,
+    rgba(0, 0, 0, 0.15) 75%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+.lmn-nav > * {
+  pointer-events: auto;
+}
+.lmn-nav__brand {
+  display: flex;
+  justify-self: start;
+  align-items: center;
+  /* Stay inside its column so a long server name truncates instead of running under the centred pill. */
+  max-width: 100%;
+  gap: 10px;
+  min-width: 0;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+/* Lumen's J (components/LumenMark.tsx). */
+.lmn-nav__mark {
+  display: block;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+}
+.lmn-nav__mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.lmn-nav__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lmn-nav__pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 48px;
+  padding: 0 5px;
+  border: 1px solid var(--lmn-line);
+  border-radius: 12px;
+  background: var(--lmn-surface);
+  box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.85);
+}
+.lmn-nav__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 15px;
+  border-radius: 9px;
+  color: var(--lmn-text-2);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color 0.2s,
+    background-color 0.2s;
+}
+.lmn-nav__item:hover {
+  color: #fff;
+}
+.lmn-nav__item.is-active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-weight: 600;
+}
+.lmn-nav__item--icon {
+  justify-content: center;
+  width: 38px;
+  padding: 0;
+}
+.lmn-nav__divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: var(--lmn-line-strong);
+}
+
+/* ---- Tab bar (Nav.tsx) ----------------------------------------------------------------------------------------- */
+.lmn-nav__search,
+.lmn-tabbar {
+  display: none;
+}
+/* Tabs below 910px (phones, small tablets, narrow windows); the centred pill from 910px up. */
+@media (max-width: 909.98px) {
+  .lmn-nav {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+  }
+  .lmn-nav__pill {
+    display: none !important;
+  }
+  .lmn-nav__search {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: rgba(20, 20, 20, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    color: #fff;
+  }
+  .lmn-nav__search.is-active {
+    background: rgba(255, 255, 255, 0.16);
+  }
+  .lmn-tabbar {
+    position: fixed;
+    z-index: 55;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--lmn-line);
+    background: rgba(12, 12, 12, 0.82);
+    -webkit-backdrop-filter: blur(20px) saturate(1.5);
+    backdrop-filter: blur(20px) saturate(1.5);
+    pointer-events: auto;
+  }
+  .lmn-tab {
+    border: 0;
+    background: none;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    min-width: 0;
+    padding: 6px 2px 4px;
+    border-radius: 10px;
+    color: var(--lmn-text-3);
+    font-size: 11px;
+    font-weight: 600;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .lmn-tab.is-active {
+    color: #fff;
+  }
+  .lmn-tab.is-active .lmn-icon {
+    color: var(--lmn-accent);
+  }
+  .lmn-tab__label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lmn-tab:focus-visible,
+  .lmn-nav__search:focus-visible {
+    outline: 2px solid var(--lmn-focus);
+    outline-offset: -2px;
+  }
+  /* Room for the tab bar, and jellyfin-web's now-playing bar sits on top of it. */
+  html.lmn-has-tabbar #lmn-root {
+    padding-bottom: calc(96px + 64px + env(safe-area-inset-bottom));
+  }
+  html.lmn-has-tabbar.lmn-skin-settings .page {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important;
+  }
+  html.lmn-has-tabbar .nowPlayingBar {
+    bottom: calc(64px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+/* Small screens (official mobile apps). */
+@media (max-width: 720px) {
+  /* No room to centre: brand left, icon-only pill right. */
+  .lmn-nav {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .lmn-nav__label,
+  .lmn-nav__divider {
+    display: none;
+  }
+  .lmn-nav__item {
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+  }
+  .lmn-nav__pill {
+    gap: 2px;
+    height: 44px;
+    padding: 0 4px;
+  }
+  .lmn-nav__name {
+    font-size: 16px;
+  }
+}
