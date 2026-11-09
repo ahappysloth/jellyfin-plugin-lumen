@@ -10,7 +10,7 @@
   margin: 0 0 16px;
 }
 .lmn-row__count {
-  color: var(--lmn-text-dim, rgba(255, 255, 255, 0.55));
+  color: var(--lmn-text-dim);
   font-size: 15px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -26,7 +26,7 @@
   font-weight: 600;
   cursor: pointer;
   text-decoration: underline;
-  text-decoration-color: rgba(255, 255, 255, 0.35);
+  text-decoration-color: var(--lmn-text-faint);
   text-underline-offset: 3px;
 }
 .lmn-link-button:hover {
@@ -87,12 +87,12 @@
   background: #1c1c1c;
   box-shadow:
     0 24px 48px -20px rgba(0, 0, 0, 0.8),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    inset 0 0 0 1px var(--lmn-line);
 }
 .lmn-person-page__photo--empty {
   display: grid;
   place-items: center;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--lmn-text-dim);
   font-size: 44px;
   font-weight: 700;
 }

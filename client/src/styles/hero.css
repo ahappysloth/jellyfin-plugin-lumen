@@ -138,7 +138,7 @@
   padding: 0;
   border: 0;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.35);
+  background: var(--lmn-text-faint);
   cursor: pointer;
   transition:
     width 0.35s var(--lmn-ease),

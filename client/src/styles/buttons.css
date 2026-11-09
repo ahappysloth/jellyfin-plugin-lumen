@@ -82,7 +82,7 @@
 .lmn-meta > span + span:not(.lmn-badge)::before {
   content: '·';
   margin: 0 8px;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--lmn-text-faint);
 }
 .lmn-badge {
   height: 18px;
