@@ -2,11 +2,12 @@ import type { Locator, Page } from '@playwright/test';
 
 /**
  * What jellyfin-web's D-pad navigation (focusManager.nav) can move focus to: its focusable query skips
- * [tabindex="-1"] and :disabled controls and range inputs.
+ * [tabindex="-1"] and :disabled controls, range and file inputs.
  */
 const FOCUSABLE =
-  'a[href], button:not([tabindex="-1"]):not(:disabled), input:not([type="range"]):not([tabindex="-1"]):not(:disabled), ' +
-  'select:not(:disabled), textarea:not(:disabled), [tabindex="0"], .focusable:not([tabindex="-1"])';
+  'a[href]:not([tabindex="-1"]), button:not([tabindex="-1"]):not(:disabled), ' +
+  'input:not([type="range"]):not([type="file"]):not([tabindex="-1"]):not(:disabled), ' +
+  'select:not([tabindex="-1"]):not(:disabled), textarea:not(:disabled), [tabindex="0"], .focusable:not([tabindex="-1"])';
 const KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'] as const;
 
 export interface Control {

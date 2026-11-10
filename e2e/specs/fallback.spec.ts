@@ -31,7 +31,7 @@ test('the master switch off shows the stock UI everywhere', async ({ page }) => 
   await expect(page.locator('#lmn-root .lmn-details')).toHaveCount(0);
 });
 
-test('a failed compatibility check shows the stock UI and is reported to admins', async ({ page }) => {
+test('a failed compatibility check shows the stock UI and is reported to admins', { tag: '@smoke' }, async ({ page }) => {
   const { admin } = loadState();
   await page.addInitScript(() => {
     (window as unknown as { __LUMEN_FORCE_COMPAT_FAIL__: boolean }).__LUMEN_FORCE_COMPAT_FAIL__ = true;
