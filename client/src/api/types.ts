@@ -33,6 +33,8 @@ export interface MediaSourceInfo {
   /** ffprobe's format, normalized and comma-separated: `mov,mp4,m4a,3gp,3g2,mj2`, `mkv`, `mkv,webm`, `ts`. */
   Container?: string;
   DefaultAudioStreamIndex?: number;
+  /** False when this user may not transcode: the server would then copy the video whatever was asked. */
+  SupportsTranscoding?: boolean;
   MediaStreams?: MediaStream[];
 }
 

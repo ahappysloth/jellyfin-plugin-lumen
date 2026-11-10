@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { setJellyfinLocale } from '../../../test/locale';
-import { makeContext } from '../../../test/viewContext';
+import { makeContext, testConfig } from '../../../test/viewContext';
 import type { BaseItem } from '../../api/types';
 import * as compat from '../../compat/playbackManager';
 import { PAGE_SIZE } from '../browse/useBrowseItems';
@@ -38,6 +38,46 @@ function client() {
 }
 
 describe('DetailsView', () => {
+  it('lets its trailer preview be transcoded when the browser cannot play the file (HEVC in Matroska, Safari)', async () => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15',
+    );
+    vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockImplementation((type) =>
+      /^video\/mp4; codecs="avc1\.64|^application\/vnd\.apple\.mpegurl$/.test(type) ? 'maybe' : '',
+    );
+    const c = createFakeClient(
+      routes({
+        'Items/m1': movie,
+        'Items/m1/LocalTrailers': [{ Id: 't1', Name: 'Trailer', Type: 'Trailer' }],
+        'Items/t1': {
+          Id: 't1',
+          Name: 'Trailer',
+          Type: 'Trailer',
+          MediaSources: [
+            {
+              Id: 't1',
+              Container: 'mkv',
+              MediaStreams: [
+                { Type: 'Video', Codec: 'hevc', Profile: 'Main 10', Level: 150, BitDepth: 10 },
+                { Type: 'Audio', Codec: 'aac', Profile: 'LC' },
+              ],
+            },
+          ],
+        },
+        'Items/m1/Similar': { Items: [] },
+        'Videos/ActiveEncodings': undefined,
+      }),
+    );
+    const { container, unmount } = render(
+      <DetailsView id="m1" ctx={makeContext(c, { config: { ...testConfig, TrailerPreview: true } })} />,
+    );
+
+    await waitFor(() => expect(container.querySelector('video')).not.toBeNull(), { timeout: 4000 });
+    expect(container.querySelector('video')!.getAttribute('src')).toContain('/Videos/t1/master.m3u8?');
+    unmount();
+    vi.restoreAllMocks();
+  });
+
   it('renders a movie with resume, trailer, badges, cast, and similar titles', async () => {
     render(<DetailsView id="m1" ctx={makeContext(client())} />);
 

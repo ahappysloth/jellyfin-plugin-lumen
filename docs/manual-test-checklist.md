@@ -17,8 +17,14 @@ Run against the release build on the latest stable Jellyfin.
 
 ## Safari (macOS or iOS)
 
-- [ ] With a local trailer Safari can't open as it is (MKV, or AV1): the preview still plays on home and on details,
-      transcoded to HLS. The Dashboard shows the transcode, and it ends within seconds of the preview stopping.
+- [ ] With an MKV trailer holding H.264: the preview plays on home and on details (remuxed to HLS).
+- [ ] With an HEVC-in-MKV or AV1 trailer: no preview on home (the backdrop stays); on details the preview plays,
+      transcoded to HLS. The Dashboard shows the transcode, and it ends within seconds of leaving the page, closing the
+      tab or reloading.
+
+## Firefox
+
+- [ ] With an MKV trailer holding H.264: the preview starts promptly (remuxed to MP4, not the whole file loaded first).
 
 ## Official iOS app
 

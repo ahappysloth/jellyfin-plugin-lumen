@@ -1,31 +1,47 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MediaSourceInfo, MediaStream } from '../../api/types';
 import { createFakeClient } from '../../../test/fakeClient';
 import {
   audioCodecString,
   canDirectPlay,
+  detectBrowser,
+  isAppleWebKit,
+  stopTrailerTranscode,
   trailerOptions,
   trailerUrl,
   videoCodecString,
-  type CanPlay,
+  type Browser,
 } from './trailerStream';
 
-/** A canPlayType stand-in that says yes to any type matching one of the patterns. */
-const browser =
-  (...supported: RegExp[]): CanPlay =>
-  (type) =>
-    supported.some((pattern) => pattern.test(type));
+/** A browser whose canPlayType says yes to any type matching one of the patterns. */
+const browser = (flags: Partial<Browser>, ...supported: RegExp[]): Browser => ({
+  canPlay: (type) => supported.some((pattern) => pattern.test(type)),
+  appleWebKit: false,
+  firefox: false,
+  saveData: false,
+  ...flags,
+});
 
-// Roughly what each browser says to the questions the preview asks: 8-bit H.264 profiles only, any level.
+// Roughly what each browser says to the questions the preview asks (any level). Safari claims High 10 too.
 const safari = browser(
-  /^video\/mp4; codecs="(avc1\.(42|4D|64)|hvc1\.)[^,]*(, mp4a\.40\.\d+)?"$/,
+  { appleWebKit: true },
+  /^video\/mp4; codecs="(avc1\.(42|4D|64|6E)|hvc1\.)[^,]*(, mp4a\.40\.\d+)?"$/,
   /^application\/vnd\.apple\.mpegurl$/,
 );
+// Chrome answers "maybe" for HLS, and plays HEVC where the hardware decodes it.
+const chrome = browser(
+  {},
+  /^video\/mp4; codecs="(avc1\.(42|4D|64)|hvc1\.|av01\.)[^,]*(, (mp4a\.40\.\d+|opus))?"$/,
+  /^video\/webm; codecs="(vp09|vp8|av01)[^,]*(, (opus|vorbis))?"$/,
+  /^application\/vnd\.apple\.mpegurl$/,
+);
+// Firefox 145 plays Matroska, but jellyfin-web (and Lumen) don't use it there.
 const firefox = browser(
-  /^video\/mp4; codecs="(avc1\.(42|4D|64)|av01\.)[^,]*(, (mp4a\.40\.\d+|opus))?"$/,
+  { firefox: true },
+  /^video\/(mp4|x-matroska); codecs="(avc1\.(42|4D|64)|av01\.)[^,]*(, (mp4a\.40\.\d+|opus))?"$/,
   /^video\/webm; codecs="(vp09|vp8|av01)[^,]*(, (opus|vorbis))?"$/,
 );
-const nothing = browser();
+const nothing = browser({});
 
 const h264: MediaStream = { Type: 'Video', Index: 0, Codec: 'h264', Profile: 'High', Level: 41, BitDepth: 8 };
 const hevc10: MediaStream = {
@@ -87,12 +103,17 @@ describe('audioCodecString', () => {
 
 describe('canDirectPlay', () => {
   it('asks the browser about the container with both codecs', () => {
-    const canPlay = browser(/^video\/mp4; codecs="avc1\.640029, mp4a\.40\.2"$/);
-    expect(canDirectPlay(source(MP4, h264, aac), canPlay)).toBe(true);
+    const exact = browser({}, /^video\/mp4; codecs="avc1\.640029, mp4a\.40\.2"$/);
+    expect(canDirectPlay(source(MP4, h264, aac), exact)).toBe(true);
   });
 
   it('is false for Matroska where only MP4 plays (Safari)', () => {
     expect(canDirectPlay(source('mkv', h264, aac), safari)).toBe(false);
+  });
+
+  it('is false for Matroska on Firefox even though it says it plays it, like jellyfin-web', () => {
+    expect(canDirectPlay(source('mkv', h264, aac), firefox)).toBe(false);
+    expect(canDirectPlay(source('mkv', h264, aac), { ...firefox, firefox: false })).toBe(true);
   });
 
   it('is false for HEVC where it is not decoded (Firefox), true where it is (Safari)', () => {
@@ -103,6 +124,12 @@ describe('canDirectPlay', () => {
   it('is false for AV1 where it is not decoded (Safari), true where it is (Firefox)', () => {
     expect(canDirectPlay(source(MP4, av1, aac), safari)).toBe(false);
     expect(canDirectPlay(source(MP4, av1, aac), firefox)).toBe(true);
+  });
+
+  it('is false for 10-bit H.264 on Apple WebKit, which claims it but cannot decode it', () => {
+    const high10: MediaStream = { ...h264, Profile: 'High 10', BitDepth: 10 };
+    expect(canDirectPlay(source(MP4, high10, aac), safari)).toBe(false);
+    expect(canDirectPlay(source(MP4, high10, aac), { ...safari, appleWebKit: false })).toBe(true);
   });
 
   it('is false when the audio is undecodable, even with playable video', () => {
@@ -125,49 +152,204 @@ describe('canDirectPlay', () => {
   });
 
   it('is false for a codec or container no browser plays', () => {
-    const canPlay = browser(/.*/);
-    expect(canDirectPlay(source('avi', { Type: 'Video', Codec: 'mpeg4' }, aac), canPlay)).toBe(false);
-    expect(canDirectPlay(source('avi', h264, aac), canPlay)).toBe(false);
+    const everything = browser({}, /.*/);
+    expect(canDirectPlay(source('avi', { Type: 'Video', Codec: 'mpeg4' }, aac), everything)).toBe(false);
+    expect(canDirectPlay(source('avi', h264, aac), everything)).toBe(false);
   });
 });
 
 describe('trailerOptions', () => {
-  it('plays a playable file directly, with transcodes behind it', () => {
-    expect(trailerOptions(source(MP4, h264, aac), safari)).toEqual([
+  it('plays a playable file directly, with a remux behind it', () => {
+    expect(trailerOptions(source(MP4, h264, aac), safari, false)).toEqual([
       { kind: 'direct' },
       { kind: 'hls', copyVideo: true },
-      { kind: 'mp4', copyVideo: true },
     ]);
   });
 
-  it('transcodes HEVC in Matroska to HLS first where the browser plays HLS itself (Safari)', () => {
-    expect(trailerOptions(source('mkv', hevc10, aac), safari)).toEqual([
+  it('transcodes HEVC in Matroska to HLS, and never to MP4, on Apple WebKit', () => {
+    expect(trailerOptions(source('mkv', hevc10, aac), safari, true)).toEqual([
       { kind: 'hls', copyVideo: false },
+    ]);
+    // Whatever it says about MP4: Jellyfin's progressive stream has no byte ranges, which WebKit needs.
+    const mp4Too = { ...safari, canPlay: (type: string) => type.startsWith('video/mp4') };
+    expect(trailerOptions(source('mkv', hevc10, aac), mp4Too, true)).toEqual([
+      { kind: 'hls', copyVideo: false },
+    ]);
+  });
+
+  it('prefers a progressive MP4 everywhere else, though Chrome answers "maybe" for HLS', () => {
+    expect(trailerOptions(source('mkv', hevc10, aac), chrome, true)).toEqual([
+      { kind: 'mp4', copyVideo: false },
+    ]);
+    expect(trailerOptions(source(MP4, hevc10, aac), firefox, true)).toEqual([
       { kind: 'mp4', copyVideo: false },
     ]);
   });
 
-  it('transcodes HEVC to a progressive MP4 where it does not (Firefox)', () => {
-    expect(trailerOptions(source(MP4, hevc10, aac), firefox)).toEqual([{ kind: 'mp4', copyVideo: false }]);
+  it('uses HLS off Apple WebKit only when the browser plays no MP4 (a TV engine)', () => {
+    const tv = browser({}, /^application\/vnd\.apple\.mpegurl$/);
+    expect(trailerOptions(source('mkv', hevc10, aac), tv, true)).toEqual([{ kind: 'hls', copyVideo: false }]);
   });
 
   it('only remuxes H.264 the browser plays, when the container or audio is the problem', () => {
-    expect(trailerOptions(source('mkv', h264, dts), firefox)).toEqual([{ kind: 'mp4', copyVideo: true }]);
-    expect(trailerOptions(source('mkv', { ...h264, Profile: 'High 10' }, aac), firefox)).toEqual([
+    expect(trailerOptions(source('mkv', h264, dts), firefox, true)).toEqual([
+      { kind: 'mp4', copyVideo: true },
+    ]);
+    expect(trailerOptions(source('mkv', h264, aac), firefox, false)).toEqual([
+      { kind: 'mp4', copyVideo: true },
+    ]);
+    expect(trailerOptions(source('mkv', { ...h264, Profile: 'High 10' }, aac), firefox, true)).toEqual([
       { kind: 'mp4', copyVideo: false },
     ]);
   });
 
+  it('never fully transcodes unless the caller allows it (the hero)', () => {
+    expect(trailerOptions(source('mkv', hevc10, aac), safari, false)).toEqual([]);
+    expect(trailerOptions(source('mkv', hevc10, aac), chrome, false)).toEqual([]);
+    expect(trailerOptions({ Id: 'ms1' }, chrome, false)).toEqual([{ kind: 'direct' }]);
+  });
+
+  it('never fully transcodes for a user the server will not transcode for, but still remuxes', () => {
+    const denied = (s: MediaSourceInfo): MediaSourceInfo => ({ ...s, SupportsTranscoding: false });
+    expect(trailerOptions(denied(source('mkv', hevc10, aac)), safari, true)).toEqual([]);
+    expect(trailerOptions(denied(source('mkv', h264, dts)), safari, true)).toEqual([
+      { kind: 'hls', copyVideo: true },
+    ]);
+  });
+
+  it('offers only the file when the user saves data', () => {
+    const saving = { ...chrome, saveData: true };
+    expect(trailerOptions(source('mkv', hevc10, aac), saving, true)).toEqual([]);
+    expect(trailerOptions(source('mkv', h264, aac), saving, true)).toEqual([]);
+    expect(trailerOptions(source(MP4, h264, aac), saving, true)).toEqual([{ kind: 'direct' }]);
+  });
+
   it('tries the file as before when its streams are unknown', () => {
-    expect(trailerOptions(null, nothing)).toEqual([{ kind: 'direct' }]);
-    expect(trailerOptions({ Id: 'ms1' }, firefox)).toEqual([
+    expect(trailerOptions(null, nothing, true)).toEqual([{ kind: 'direct' }]);
+    expect(trailerOptions({ Id: 'ms1' }, firefox, true)).toEqual([
       { kind: 'direct' },
       { kind: 'mp4', copyVideo: false },
     ]);
   });
 
   it('has nothing to offer when the browser plays neither the file nor H.264', () => {
-    expect(trailerOptions(source('mkv', hevc10, aac), nothing)).toEqual([]);
+    expect(trailerOptions(source('mkv', hevc10, aac), nothing, true)).toEqual([]);
+  });
+});
+
+describe('isAppleWebKit', () => {
+  it.each<[string, string, boolean]>([
+    [
+      'Safari on macOS',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15',
+      true,
+    ],
+    [
+      'Safari on iPhone',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1',
+      true,
+    ],
+    [
+      'Chrome on iPhone',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/140.0.7339.122 Mobile/15E148 Safari/604.1',
+      true,
+    ],
+    [
+      'Firefox on iPhone',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/143.0 Mobile/15E148 Safari/605.1.15',
+      true,
+    ],
+    [
+      'the Jellyfin iOS app',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+      true,
+    ],
+    [
+      'Chrome on macOS',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+      false,
+    ],
+    [
+      'Chrome on Android',
+      'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36',
+      false,
+    ],
+    [
+      'Edge',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0',
+      false,
+    ],
+    ['Firefox', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:145.0) Gecko/20100101 Firefox/145.0', false],
+    [
+      'Samsung Tizen',
+      'Mozilla/5.0 (SMART-TV; LINUX; Tizen 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Version/5.0 TV Safari/537.36',
+      false,
+    ],
+    [
+      'LG webOS',
+      'Mozilla/5.0 (Web0S; Linux/SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36 WebAppManager',
+      false,
+    ],
+  ])('%s', (_, userAgent, expected) => {
+    expect(isAppleWebKit(userAgent)).toBe(expected);
+  });
+});
+
+describe('detectBrowser', () => {
+  afterEach(() => vi.restoreAllMocks());
+  const SAFARI_UA =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15';
+
+  it('calls it Apple WebKit only with HLS of its own as well (not WebKitGTK without it)', () => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(SAFARI_UA);
+    const canPlayType = vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('maybe');
+    expect(detectBrowser().appleWebKit).toBe(true);
+    canPlayType.mockReturnValue('');
+    expect(detectBrowser().appleWebKit).toBe(false);
+  });
+
+  it('reads Save-Data and Firefox', () => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (X11; rv:145.0) Gecko/20100101 Firefox/145.0',
+    );
+    Object.defineProperty(navigator, 'connection', { configurable: true, value: { saveData: true } });
+    try {
+      expect(detectBrowser()).toMatchObject({ firefox: true, saveData: true, appleWebKit: false });
+    } finally {
+      delete (navigator as { connection?: unknown }).connection;
+    }
+  });
+});
+
+describe('stopTrailerTranscode', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('never asks without a session, which would stop every transcode of the device', () => {
+    const client = createFakeClient();
+    const fetch = vi.fn(() => Promise.resolve(new Response()));
+    vi.stubGlobal('fetch', fetch);
+    stopTrailerTranscode(client, '');
+    stopTrailerTranscode(client, '', true);
+    expect(client.requests).toEqual([]);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('sends a keepalive request, authorized by header, as the page goes', () => {
+    const client = createFakeClient();
+    const fetch = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(new Response()),
+    );
+    vi.stubGlobal('fetch', fetch);
+    stopTrailerTranscode(client, 'ps1', true);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://jf/Videos/ActiveEncodings?deviceId=dev%2Bice&playSessionId=ps1',
+      {
+        method: 'DELETE',
+        keepalive: true,
+        headers: { Authorization: 'MediaBrowser Token="token1"' },
+      },
+    );
+    expect(client.requests).toEqual([]);
   });
 });
 
