@@ -311,12 +311,14 @@ function Slide({
       <div class="lmn-hero__scrim" />
       <div class="lmn-hero__content">
         {logo ? (
-          <img
-            class="lmn-hero__logo"
-            src={imageUrl(client, logo, TITLE_LOGO)}
-            alt={item.Name}
-            draggable={false}
-          />
+          <h2 class="lmn-logo-heading">
+            <img
+              class="lmn-hero__logo"
+              src={imageUrl(client, logo, TITLE_LOGO)}
+              alt={item.Name}
+              draggable={false}
+            />
+          </h2>
         ) : (
           <h2 class="lmn-hero__title">{item.Name}</h2>
         )}
