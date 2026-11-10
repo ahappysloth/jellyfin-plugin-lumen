@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/ahappysloth/jellyfin-plugin-lumen/main/assets/lumen-plugin.png",
     "versions": [
       {
+        "version": "0.3.3.0",
+        "changelog": "\n### Added\n- Check for updates: on Lumen's settings page, and as \"Check for Lumen updates\" on Jellyfin's Plugins page. It reads\n  Lumen's releases on GitHub straight away, shows the new version's notes, installs it through Jellyfin's own\n  installer and offers to restart Jellyfin.\n\n### Changed\n- Admin pages: room under the top bar for page titles; the Dashboard's Activity and Paths widgets and the Tasks list\n  as cards; neutral disk-usage bars; rounded user cards; quieter field hints.\n- Dependency updates (Vite, Vitest, Playwright, GitHub Actions, test packages). Preact stays on 11.1: 11.2 breaks\n  rendering under jellyfin-web.",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/ahappysloth/jellyfin-plugin-lumen/releases/download/v0.3.3/lumen_0.3.3.0.zip",
+        "checksum": "dd2e967c6c3ce45ae5d29b0e1ec37602",
+        "timestamp": "2026-11-10T02:18:37Z"
+      },
+      {
         "version": "0.3.2.0",
         "changelog": "\n### Added\n- Dashboard look: the admin Dashboard, the metadata manager and plugin settings pages take Lumen's colours, accent,\n  type and shapes (drawer, cards, buttons, tables, dialogs, inputs), with Lumen's mark in the drawer. Restart,\n  Shutdown, Delete and Uninstall are outlined in red so they never look like the accent. CSS only, behind the\n  (renamed) \"Restyle Jellyfin's sign-in, settings and Dashboard pages\" switch.\n\n### Changed\n- Settings pages use the settings menu's width, so titles, fields and the menu line up.\n- Checkboxes on settings and admin pages: a smaller rounded box centred on its label, the accent with a white tick.\n- Save and other primary buttons darken on hover.\n- The \"Switching to …\" note stays up while a restarted stream is still loading (slow server transcodes took over\n  20 s and left a frozen picture that looked paused).\n\n### Fixed\n- The Watch together button in the nav looks like the other nav items.\n- Opening a dropdown on a long settings page no longer removes the scrollbar and shifts the page sideways.\n- No blue hover glow or blue focus border on checkboxes.",
         "targetAbi": "12.1.0.0",
