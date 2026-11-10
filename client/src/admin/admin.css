@@ -249,7 +249,7 @@
 }
 .lmn-admin .lmna-btn--primary:hover:not(:disabled) {
   border-color: transparent;
-  filter: brightness(1.1);
+  filter: brightness(0.85);
 }
 .lmn-admin .lmna-btn--ghost {
   border-color: transparent;
