@@ -27,6 +27,20 @@ public class AssetCatalogTests
     }
 
     [Fact]
+    public void CoreChunk_IsTheFileLumenJsImports_IfItExists()
+    {
+        static AssetCatalog With(params (string Name, string Text)[] files) =>
+            new(files.ToDictionary(f => f.Name, f => Encoding.UTF8.GetBytes(f.Text)));
+
+        Assert.Equal(
+            "lumen-chunk-main-B2.js",
+            With(("lumen.js", "import(`./lumen-chunk-main-B2.js`);"), ("lumen-chunk-main-A1.js", "old"), ("lumen-chunk-main-B2.js", "core")).CoreChunk);
+        Assert.Null(With(("lumen.js", "import(`./lumen-chunk-main-B2.js`);")).CoreChunk);
+        Assert.Null(With(("lumen.js", "console.log(1)")).CoreChunk);
+        Assert.Null(With(("lumen-chunk-main-B2.js", "core")).CoreChunk);
+    }
+
+    [Fact]
     public void EmptyCatalog_HasHash()
     {
         Assert.Equal(16, new AssetCatalog(new Dictionary<string, byte[]>()).BuildHash.Length);

@@ -1,3 +1,4 @@
+using System.Text;
 using Jellyfin.Plugin.Lumen.Assets;
 using Xunit;
 
@@ -15,6 +16,8 @@ public class EmbeddedAssetsTests
 
         // lumen.js loads the code from content-named chunks: the core at startup, the player when a video plays.
         Assert.StartsWith("lumen-chunk-main-", catalog.CoreChunk, StringComparison.Ordinal);
+        Assert.True(catalog.TryGet("lumen.js", out var entry));
+        Assert.Contains(catalog.CoreChunk!, Encoding.UTF8.GetString(entry.Content), StringComparison.Ordinal);
         Assert.Contains(catalog.Names, n => n.StartsWith("lumen-chunk-PlayerView-", StringComparison.Ordinal));
     }
 }

@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Jellyfin.Plugin.Lumen.Assets;
 
@@ -8,14 +9,12 @@ namespace Jellyfin.Plugin.Lumen.Assets;
 public sealed record LumenAsset(string Name, byte[] Content, string ContentType);
 
 /// <summary>The client files embedded in the plugin DLL, plus a content hash for cache busting.</summary>
-public sealed class AssetCatalog
+public sealed partial class AssetCatalog
 {
     public const string ResourcePrefix = "Lumen.Assets.";
 
     /// <summary>The client's content-named files (client/vite.config.ts): their names change with their content.</summary>
     public const string ChunkPrefix = "lumen-chunk-";
-
-    private const string CoreChunkPrefix = ChunkPrefix + "main-";
 
     private readonly Dictionary<string, LumenAsset> _assets;
 
@@ -26,14 +25,14 @@ public sealed class AssetCatalog
             f => new LumenAsset(f.Key, f.Value, ContentTypeFor(f.Key)),
             StringComparer.Ordinal);
         BuildHash = ComputeHash(files);
-        CoreChunk = files.Keys.Where(n => n.StartsWith(CoreChunkPrefix, StringComparison.Ordinal)).Order(StringComparer.Ordinal).FirstOrDefault();
+        CoreChunk = FindCoreChunk(files);
     }
 
     public string BuildHash { get; }
 
     /// <summary>
-    /// The content-named file with the client's code that lumen.js imports (client/src/entry.ts), or null if there isn't
-    /// one. Content-named files start with <see cref="ChunkPrefix"/> and are cached for good.
+    /// The content-named file with the client's code that lumen.js imports (client/src/entry.ts), read from lumen.js
+    /// itself, or null if there isn't one. Content-named files start with <see cref="ChunkPrefix"/> and are cached for good.
     /// </summary>
     public string? CoreChunk { get; }
 
@@ -63,6 +62,17 @@ public sealed class AssetCatalog
         _ => "application/octet-stream",
     };
 
+    private static string? FindCoreChunk(IReadOnlyDictionary<string, byte[]> files)
+    {
+        if (!files.TryGetValue("lumen.js", out var entry))
+        {
+            return null;
+        }
+
+        var match = CoreImport().Match(Encoding.UTF8.GetString(entry));
+        return match.Success && files.ContainsKey(match.Groups[1].Value) ? match.Groups[1].Value : null;
+    }
+
     private static string ComputeHash(IReadOnlyDictionary<string, byte[]> files)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -74,4 +84,7 @@ public sealed class AssetCatalog
 
         return Convert.ToHexStringLower(hash.GetHashAndReset())[..16];
     }
+
+    [GeneratedRegex(@"\./(lumen-chunk-[A-Za-z0-9_-]+\.js)")]
+    private static partial Regex CoreImport();
 }
