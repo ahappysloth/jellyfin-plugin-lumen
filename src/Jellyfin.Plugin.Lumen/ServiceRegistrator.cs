@@ -24,7 +24,9 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
 
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
-        serviceCollection.AddSingleton(AssetCatalog.FromEmbeddedResources(typeof(LumenPlugin).Assembly));
+        var assets = AssetCatalog.FromEmbeddedResources(typeof(LumenPlugin).Assembly);
+        _ = assets.PrecompressAsync();
+        serviceCollection.AddSingleton(assets);
         serviceCollection.AddTransient<IStartupFilter, LumenStartupFilter>();
         serviceCollection.TryAddSingleton(TimeProvider.System);
 

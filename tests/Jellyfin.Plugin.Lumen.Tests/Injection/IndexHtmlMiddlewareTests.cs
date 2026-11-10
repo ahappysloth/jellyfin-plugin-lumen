@@ -65,6 +65,29 @@ public sealed class IndexHtmlMiddlewareTests : IDisposable
     }
 
     [Fact]
+    public async Task InlinesTheGuardAndTheWebPluginDefinersRawBytes_AfterTheyWereServedCompressed()
+    {
+        const string Guard = "window.lumenGuard = 'raw';";
+        var definer = "window." + WebConfigInjector.PluginName + " = function () { return 'raw'; };";
+        var assets = new AssetCatalog(Build(Guard, definer));
+        foreach (var name in new[] { HtmlInjector.GuardAsset, HtmlInjector.WebPluginAsset })
+        {
+            Assert.True(assets.TryGet(name, out var asset));
+            Assert.Equal("br", asset.Select("br").ContentEncoding);
+            Assert.Equal("gzip", asset.Select("gzip").ContentEncoding);
+        }
+
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())), catalog: () => assets);
+        var client = host.GetTestClient();
+
+        var body = await client.GetStringAsync("/web/index.html");
+
+        Assert.Contains(Guard + "</script>", body, StringComparison.Ordinal); // after the skin flag, in the same script
+        Assert.Contains("<script>" + definer + "</script>", body, StringComparison.Ordinal);
+        Assert.Contains(WebConfigInjector.PluginName, Plugins(await client.GetStringAsync("/web/config.json")));
+    }
+
+    [Fact]
     public async Task ReturnsUncompressedInjectedHtml_WhenThePageIsSmall()
     {
         using var host = await StartAsync();

@@ -41,6 +41,19 @@ public class AssetCatalogTests
     }
 
     [Fact]
+    public async Task Precompress_MakesTheTextFilesEncodings_AndLeavesTheRawBytes()
+    {
+        var catalog = Catalog();
+
+        await catalog.PrecompressAsync();
+
+        Assert.True(catalog.TryGet("lumen.css", out var css));
+        Assert.Equal("br", css.Select("br").ContentEncoding);
+        Assert.Equal("gzip", css.Select("gzip").ContentEncoding);
+        Assert.Equal("body{}", Encoding.UTF8.GetString(css.Content));
+    }
+
+    [Fact]
     public void EmptyCatalog_HasHash()
     {
         Assert.Equal(16, new AssetCatalog(new Dictionary<string, byte[]>()).BuildHash.Length);
