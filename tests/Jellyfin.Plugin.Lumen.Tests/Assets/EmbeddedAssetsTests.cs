@@ -16,11 +16,13 @@ public class EmbeddedAssetsTests
         Assert.Contains("lumen.js", catalog.Names);
         Assert.Contains("lumen.css", catalog.Names);
 
-        // lumen.js loads the code from content-named chunks: the core at startup, the player when a video plays.
+        // lumen.js loads the code from content-named chunks: the core at startup, the player when a video plays, the
+        // trailer preview as a title with one shows.
         Assert.StartsWith("lumen-chunk-main-", catalog.CoreChunk, StringComparison.Ordinal);
         Assert.True(catalog.TryGet("lumen.js", out var entry));
         Assert.Contains(catalog.CoreChunk!, Encoding.UTF8.GetString(entry.Content), StringComparison.Ordinal);
         Assert.Contains(catalog.Names, n => n.StartsWith("lumen-chunk-PlayerView-", StringComparison.Ordinal));
+        Assert.Contains(catalog.Names, n => n.StartsWith("lumen-chunk-TrailerPreview-", StringComparison.Ordinal));
     }
 
     [Fact]

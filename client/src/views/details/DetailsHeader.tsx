@@ -8,7 +8,7 @@ import { ProgressBar } from '../../components/ProgressBar';
 import { usePrefersReducedMotion } from '../../components/usePrefersReducedMotion';
 import { strings } from '../../strings';
 import { formatDate } from '../../util/locale';
-import { TrailerPreview } from '../home/TrailerPreview';
+import { LazyTrailer } from '../home/lazyTrailer';
 import { formatRuntime } from './badges';
 
 /** The details trailer starts sooner than the home hero's: the user chose this title. */
@@ -91,7 +91,7 @@ export function DetailsHeader(props: Props) {
     <header class={`lmn-details__header${trailerPlaying ? ' is-playing' : ''}`}>
       {backdrop && <img class="lmn-details__backdrop" src={backdropUrl(client, backdrop)} alt="" />}
       {preview && (
-        <TrailerPreview
+        <LazyTrailer
           key={preview}
           trailerId={preview}
           delaySeconds={DETAILS_TRAILER_DELAY_SECONDS}

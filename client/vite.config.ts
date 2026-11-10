@@ -9,7 +9,8 @@ export default defineConfig({
     emptyOutDir: true,
     target,
     cssCodeSplit: false,
-    // An ES module, so the player can be a separate file that loads when it's needed (views/player/lazyPlayer.tsx).
+    // An ES module, so the player and the trailer preview can be separate files that load when they're needed
+    // (views/player/lazyPlayer.tsx, views/home/lazyTrailer.tsx).
     // Library mode: an app build would add Vite's preload helper to lumen.js and have the other files import it back.
     lib: {
       entry: 'src/entry.ts',
@@ -21,6 +22,10 @@ export default defineConfig({
       output: {
         // Content-hashed: the server caches them for good (Api/LumenController.cs).
         chunkFileNames: 'lumen-chunk-[name]-[hash].js',
+        // One core file: main.tsx and everything it imports, which the later files (the player, the trailer preview)
+        // import from. Left to itself, Rolldown puts the code all three share (Preact) in a file of its own, a second
+        // download the page waits for before Lumen can start.
+        codeSplitting: { groups: [{ name: 'main', test: /[\\/]src[\\/]main\.tsx$/ }] },
         // Library mode leaves ES output unminified for bundlers downstream; this one goes straight to browsers.
         minify: true,
       },
