@@ -68,7 +68,7 @@ export function imageUrl(
   client: Pick<JellyfinApiClient, 'getUrl'>,
   ref: ImageRef,
   size: { width: number; height?: number },
-  dpr: number = globalThis.devicePixelRatio || 1,
+  dpr: number = window.devicePixelRatio || 1,
 ): string {
   const width = ladderWidth(size.width);
   const height = size.height ? Math.round((width * size.height) / size.width) : undefined;
@@ -102,7 +102,7 @@ export const TITLE_LOGO = { width: 420 };
  */
 export function backdropUrl(client: Pick<JellyfinApiClient, 'getUrl'>, ref: ImageRef): string {
   const width = Math.min(1920, Math.max(640, Math.ceil(window.innerWidth / 160) * 160));
-  return exactImageUrl(client, ref, width, undefined, Math.min(2, globalThis.devicePixelRatio || 1));
+  return exactImageUrl(client, ref, width, undefined, Math.min(2, window.devicePixelRatio || 1));
 }
 
 /**

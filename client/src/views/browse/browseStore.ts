@@ -36,7 +36,7 @@ const snapshots = new Map<string, Stored>();
 
 type NavigationLike = { currentEntry?: { key?: string } | null };
 function historyEntry(): string | null {
-  const navigation = (globalThis as { navigation?: NavigationLike }).navigation;
+  const navigation = (window as { navigation?: NavigationLike }).navigation;
   return navigation?.currentEntry?.key ?? null;
 }
 
