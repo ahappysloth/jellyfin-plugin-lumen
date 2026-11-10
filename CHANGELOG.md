@@ -2,6 +2,18 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.3.4] - 2026-11-10
+
+### Added
+- Player: Watch together as a pill next to Quality, with the same menu as the nav.
+- Player: Cast, next to picture-in-picture and AirPlay, when Jellyfin can see another place to play (cast devices,
+  other Jellyfin apps). It moves what's playing there, from the same position.
+- Player: "Ends at" opposite the elapsed time, at the current speed.
+- Player: a settings (gear) pill with Repeat (movies: Off / Repeat; episodes: Off / This episode / All episodes) and
+  Playback info (direct play or transcode and why, codecs, resolution, container, bitrate, encode speed).
+- Player: a loading screen (the title's backdrop, its name and a spinner) until the video starts, and a spinner when
+  playback stalls.
+
 ## [0.3.3] - 2026-11-10
 
 ### Added
