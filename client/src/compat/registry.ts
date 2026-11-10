@@ -207,6 +207,17 @@ export const PIGGY_BACKED_PARAMS = { catalogTitle: 'title', collectionType: 'col
 /** The subset of `window.ApiClient` Lumen can't run without (the compatibility check requires all of them). */
 export const API_CLIENT_METHODS = ['getCurrentUserId', 'accessToken', 'deviceId', 'getUrl', 'ajax'] as const;
 
+/**
+ * jellyfin-web's display language and date/time locale settings (userSettings.language() / dateTimeLocale(), kept only
+ * in localStorage by appSettings, under `${userId}-${name}`), and the globalize functions that resolve them. Lumen
+ * formats dates and numbers with them (util/locale.ts). Same in 10.11.11, 12.1 and 12.4.
+ */
+export const LOCALE_SETTINGS = { language: 'language', dateTimeLocale: 'datetimelocale' } as const;
+export const GLOBALIZE_METHODS = {
+  language: 'getCurrentLocale',
+  dateTimeLocale: 'getCurrentDateTimeLocale',
+} as const;
+
 /** webpack's default `output.chunkLoadingGlobal`; Lumen finds jellyfin-web's PlaybackManager through it. */
 export const WEBPACK_CHUNK_GLOBAL = 'webpackChunk';
 

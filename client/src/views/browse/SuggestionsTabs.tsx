@@ -9,6 +9,7 @@ import { cardMenuHandler, infoHash } from '../cardMenu';
 import type { ViewContext } from '../context';
 import { captionFor, Row } from '../home/Row';
 import { PageHeader } from './Toolbar';
+import { formatDate } from '../../util/locale';
 import { registerSessionCache } from '../../util/sessionCaches';
 
 type Collection = 'movies' | 'tvshows';
@@ -148,7 +149,7 @@ export function groupByAirDay(
         ? strings.today
         : key === dayKey(tomorrow)
           ? strings.tomorrow
-          : date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+          : formatDate(date, { weekday: 'short', month: 'short', day: 'numeric' });
     const group = groups.get(key) ?? { label, items: [] };
     group.items.push(item);
     groups.set(key, group);

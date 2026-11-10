@@ -6,6 +6,7 @@ import { Icon } from '../../components/icons';
 import { showToast } from '../../components/Toast';
 import { findOwnSession } from '../../playback/play';
 import { strings } from '../../strings';
+import { formatTime } from '../../util/locale';
 import type { ViewContext } from '../context';
 import { openWatchTogether } from '../syncplay/WatchTogether';
 import { othersInGroup, type SyncPlayState } from '../syncplay/syncPlayState';
@@ -20,7 +21,7 @@ export function endsAt(
 ): string | null {
   if (!snap.durationMs) return null;
   const remaining = Math.max(0, snap.durationMs - snap.positionMs) / (snap.rate > 0 ? snap.rate : 1);
-  const time = new Date(now + remaining).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const time = formatTime(new Date(now + remaining), { hour: 'numeric', minute: '2-digit' });
   return strings.player.endsAt(time);
 }
 

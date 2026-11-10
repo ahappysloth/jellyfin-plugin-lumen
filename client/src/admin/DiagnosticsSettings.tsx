@@ -1,3 +1,4 @@
+import { formatDateTime } from '../util/locale';
 import type { DiagnosticEntry } from './adminApi';
 import { Card } from './controls';
 
@@ -28,7 +29,7 @@ export function DiagnosticsSettings({ diagnostics }: { diagnostics: DiagnosticEn
                 <td>{d.Client}</td>
                 <td>{d.ServerVersion}</td>
                 <td>{d.FailedChecks.join(', ')}</td>
-                <td>{new Date(d.LastSeen).toLocaleString()}</td>
+                <td>{formatDateTime(new Date(d.LastSeen))}</td>
               </tr>
             ))}
           </tbody>

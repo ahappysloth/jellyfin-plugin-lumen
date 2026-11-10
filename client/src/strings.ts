@@ -1,4 +1,9 @@
-/** All user-visible strings. English-only for v1; centralized for later localization. */
+import { formatNumber } from './util/locale';
+
+/**
+ * All user-visible strings. English-only for v1; centralized for later localization. Numbers in them follow the user's
+ * Jellyfin display language (util/locale.ts).
+ */
 export const strings = {
   play: 'Play',
   resume: 'Resume',
@@ -130,9 +135,9 @@ export const strings = {
     if (type === 'HasActorFromRecentlyPlayed' || type === 'HasLikedActor') return `Starring ${name}`;
     return 'Recommended';
   },
-  titleCount: (n: number) => (n === 1 ? '1 title' : `${n.toLocaleString()} titles`),
-  genreCount: (n: number) => (n === 1 ? '1 genre' : `${n.toLocaleString()} genres`),
-  studioCount: (n: number) => (n === 1 ? '1 studio' : `${n.toLocaleString()} studios`),
+  titleCount: (n: number) => (n === 1 ? '1 title' : `${formatNumber(n)} titles`),
+  genreCount: (n: number) => (n === 1 ? '1 genre' : `${formatNumber(n)} genres`),
+  studioCount: (n: number) => (n === 1 ? '1 studio' : `${formatNumber(n)} studios`),
   loadFailed: "Couldn't load this page.",
   retry: 'Try again',
   noMatches: 'Nothing matches these filters.',
@@ -149,7 +154,7 @@ export const strings = {
   noResultsHint: 'Check the spelling, or try a title, an actor or a director.',
   searching: 'Searching…',
   searchFailed: "Couldn't search right now.",
-  resultCount: (n: number) => (n === 1 ? '1 result' : `${n.toLocaleString()} results`),
+  resultCount: (n: number) => (n === 1 ? '1 result' : `${formatNumber(n)} results`),
   settingsMenu: 'Settings',
   account: 'Account',
   preferences: 'Preferences',
