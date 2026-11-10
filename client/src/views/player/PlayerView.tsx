@@ -1,5 +1,6 @@
 import { SwitchOverlay, useStreamSwitch } from './streamSwitch';
 import { useTrickplay } from './trickplay';
+import { LoadingScreen } from './LoadingScreen';
 import { othersInGroup, useSyncPlayState } from '../syncplay/syncPlayState';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { getPlaybackManager, type PlaybackManager, type Player } from '../../compat/playbackManager';
@@ -14,7 +15,6 @@ import { setUserData, useUserData } from '../userDataStore';
 import { clearStarting, useStarting } from '../../playback/starting';
 import {
   endsAt,
-  LoadingScreen,
   openCastMenu,
   PlaybackInfoCard,
   SettingsPanel,

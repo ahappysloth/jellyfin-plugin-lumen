@@ -8,12 +8,21 @@ export default defineConfig({
     emptyOutDir: true,
     target: 'es2020',
     cssCodeSplit: false,
+    // An ES module, so the player can be a separate file that loads when it's needed (views/player/lazyPlayer.tsx).
+    // Library mode: an app build would add Vite's preload helper to lumen.js and have the other files import it back.
     lib: {
-      entry: 'src/main.tsx',
-      formats: ['iife'],
-      name: 'Lumen',
+      entry: 'src/entry.ts',
+      formats: ['es'],
       fileName: () => 'lumen.js',
       cssFileName: 'lumen',
+    },
+    rolldownOptions: {
+      output: {
+        // Content-hashed: the server caches them for good (Api/LumenController.cs).
+        chunkFileNames: 'lumen-chunk-[name]-[hash].js',
+        // Library mode leaves ES output unminified for bundlers downstream; this one goes straight to browsers.
+        minify: true,
+      },
     },
   },
   test: {

@@ -69,7 +69,7 @@ public static partial class HtmlInjector
                     : string.Empty)
             : string.Empty;
         var tags = $"{Marker}{guard}<link rel=\"stylesheet\" href=\"{AssetBase}lumen.css?v={version}\">{dashboard}"
-            + $"<script defer src=\"{AssetBase}lumen.js?v={version}\"></script>";
+            + $"<script type=\"module\" src=\"{AssetBase}lumen.js?v={version}\"></script>";
 
         var page = string.Concat(html.AsSpan(0, headClose), tags, html.AsSpan(headClose));
         return installAsLumen ? UseLumenAppIdentity(page, version, notFound) : page;
