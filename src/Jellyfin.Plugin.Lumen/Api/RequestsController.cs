@@ -130,6 +130,7 @@ public sealed class RequestsController : ControllerBase
 
     /// <summary>Catalog titles (movies and shows) matching <paramref name="query"/>, with their request state.</summary>
     [HttpGet("Search")]
+    [CompressOverHttps]
     public async Task<ActionResult<CatalogSearchDto>> Search([FromQuery] string? query, [FromQuery] int page = 1, CancellationToken cancellationToken = default)
     {
         query = query?.Trim();
@@ -157,6 +158,7 @@ public sealed class RequestsController : ControllerBase
 
     /// <summary>A movie or show's details for the title page, with season states and recommendations.</summary>
     [HttpGet("Title/{mediaType}/{tmdbId}")]
+    [CompressOverHttps]
     public async Task<ActionResult<CatalogTitleDto>> GetTitle([FromRoute] string mediaType, [FromRoute] int tmdbId, CancellationToken cancellationToken)
     {
         if (!CatalogMediaType.IsValid(mediaType) || tmdbId <= 0)
