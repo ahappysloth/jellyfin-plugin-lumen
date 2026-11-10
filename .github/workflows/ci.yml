@@ -49,9 +49,14 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: client/package-lock.json
-      - run: npm ci
+      # node_modules itself, keyed by the lockfile: a hit skips npm ci (~40 s).
+      - id: deps
+        uses: actions/cache@v6
+        with:
+          path: client/node_modules
+          key: client-node-modules-${{ runner.os }}-node24-${{ hashFiles('client/package-lock.json') }}
+      - if: steps.deps.outputs.cache-hit != 'true'
+        run: npm ci
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
@@ -70,6 +75,11 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
       - uses: actions/download-artifact@v8
         with:
           name: client-dist

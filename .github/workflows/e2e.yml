@@ -18,11 +18,21 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+      # Docker shares one download between this and `docker run` below, which then waits for it.
+      - name: Pull Jellyfin in the background
+        run: (docker pull -q "${{ inputs.jellyfin-image }}" >/dev/null 2>&1 &)
       - uses: actions/download-artifact@v8
         with:
           name: plugin
           path: plugin
+      # The fixtures only change with the script that makes them: a hit skips installing ffmpeg and encoding (~30 s).
+      - id: media
+        uses: actions/cache@v6
+        with:
+          path: media
+          key: e2e-media-${{ runner.os }}-${{ hashFiles('scripts/gen-test-media.sh', 'scripts/env.sh') }}
       - name: Generate fixture media
+        if: steps.media.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
           FFMPEG=ffmpeg ./scripts/gen-test-media.sh "$PWD/media"
@@ -40,13 +50,27 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: e2e/package-lock.json
-      - working-directory: e2e
+      # node_modules and Playwright's browser, keyed by the lockfile (which pins the Playwright version).
+      - id: e2e-deps
+        uses: actions/cache@v6
+        with:
+          path: |
+            e2e/node_modules
+            ~/.cache/ms-playwright
+          key: e2e-deps-${{ runner.os }}-node24-${{ hashFiles('e2e/package-lock.json') }}
+      - name: Install the e2e dependencies and browser
+        if: steps.e2e-deps.outputs.cache-hit != 'true'
+        working-directory: e2e
         run: |
           npm ci
-          npx playwright install --with-deps chromium
-          npx playwright test
+          npx playwright install chromium
+      # The browser's system libraries aren't in the cache.
+      - name: Install the browser's system dependencies
+        working-directory: e2e
+        run: npx playwright install-deps chromium
+      - name: Run the e2e suite
+        working-directory: e2e
+        run: npx playwright test
         env:
           CI: 'true'
           LUMEN_E2E_BASE_URL: http://localhost:8096
