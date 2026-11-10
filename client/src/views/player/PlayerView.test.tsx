@@ -367,6 +367,27 @@ describe('PlayerView', () => {
       expect(osd).toHaveClass('is-idle');
     });
 
+    it('lets go of keyboard focus on a click elsewhere, even one that leaves focus where it was', async () => {
+      const { pm, osd } = await open();
+      const playPause = stockPlayPause();
+      try {
+        const mute = screen.getByRole('button', { name: 'Mute' });
+        keyboardFocus(mute);
+        // A click on another button: WebKit doesn't move focus to a clicked button, so Mute keeps it.
+        const rewind = screen.getByRole('button', { name: 'Back 10 seconds' });
+        fireEvent.pointerDown(rewind);
+        fireEvent.click(rewind);
+        expect(pm.rewind).toHaveBeenCalled();
+        expect(mute).toHaveFocus();
+        await idle();
+        expect(osd).toHaveClass('is-idle');
+        space(mute);
+        expect(playPause.targets).toEqual([mute]); // play/pause, as after any click
+      } finally {
+        playPause.stop();
+      }
+    });
+
     it('puts the controls away on Escape from a control, leaving focus on the picture', async () => {
       const { osd } = await open();
       vi.spyOn(window.history, 'length', 'get').mockReturnValue(2);
