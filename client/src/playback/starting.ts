@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { BaseItem } from '../api/types';
 import type { JellyfinApiClient } from '../compat/jellyfin';
-import { type ImageRef, imageUrl, resolveImage } from '../components/images';
+import { loadingBackdropUrl, resolveImage } from '../components/images';
 
 /** What the loading screen shows while playback starts: the title and its backdrop. */
 export interface StartingInfo {
@@ -50,11 +50,6 @@ export function useStarting(): StartingInfo | null {
     return () => void listeners.delete(listener);
   }, []);
   return current;
-}
-
-/** The loading screen's backdrop, blurred and dimmed: 1280 px at any pixel density is plenty. */
-export function loadingBackdropUrl(client: Pick<JellyfinApiClient, 'getUrl'>, ref: ImageRef): string {
-  return imageUrl(client, ref, { width: 1280 }, 1);
 }
 
 /** The loading screen's title and backdrop for an item (an episode shows its show's name and art). */

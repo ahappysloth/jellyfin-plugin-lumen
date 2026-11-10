@@ -1,7 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient } from '../../test/fakeClient';
 import type { BaseItem } from '../api/types';
-import { backdropUrl, CARD_SIZES, cardArt, IMAGE_WIDTHS, imageUrl, resolveImage, TITLE_LOGO } from './images';
+import {
+  backdropUrl,
+  CARD_SIZES,
+  cardArt,
+  IMAGE_WIDTHS,
+  imageUrl,
+  loadingBackdropUrl,
+  resolveImage,
+  TITLE_LOGO,
+} from './images';
 
 const episode: BaseItem = {
   Id: 'ep',
@@ -117,15 +126,16 @@ describe('backdropUrl', () => {
     expect(width(backdropUrl(createFakeClient(), ref))).toBe(1280);
   });
 
-  it('asks every window between two ladder steps for the same backdrop', () => {
+  it("sizes a backdrop to the window in 160 px steps, not the card ladder, and shares the loading screen's", () => {
     vi.stubGlobal('devicePixelRatio', 1);
-    const urls = new Set(
-      [1281, 1366, 1440, 1536, 1600].map((w) => {
-        vi.stubGlobal('innerWidth', w);
-        return backdropUrl(createFakeClient(), ref);
-      }),
-    );
-    expect([...urls].map(width)).toEqual([1600]);
+    const at = (w: number): number => {
+      vi.stubGlobal('innerWidth', w);
+      return width(backdropUrl(createFakeClient(), ref));
+    };
+    expect([641, 800, 961, 1121, 1366, 1440].map(at)).toEqual([800, 800, 1120, 1280, 1440, 1440]);
+    // The loading screen's backdrop is one of the steps: a 1280 px window at 1x already has it.
+    at(1280);
+    expect(backdropUrl(createFakeClient(), ref)).toBe(loadingBackdropUrl(createFakeClient(), ref));
   });
 
   it('caps a wide sharp screen at 1920 CSS px, 2×', () => {

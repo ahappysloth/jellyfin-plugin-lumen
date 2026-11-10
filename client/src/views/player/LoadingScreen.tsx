@@ -1,5 +1,5 @@
-import { resolveImage } from '../../components/images';
-import { loadingBackdropUrl, type StartingInfo } from '../../playback/starting';
+import { loadingBackdropUrl, resolveImage } from '../../components/images';
+import type { StartingInfo } from '../../playback/starting';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import type { PlayerSnapshot } from './playerState';
