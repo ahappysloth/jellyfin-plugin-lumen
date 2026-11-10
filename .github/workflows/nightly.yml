@@ -34,3 +34,4 @@ jobs:
     with:
       jellyfin-image: ${{ matrix.image }}
       report-name: e2e-report-${{ strategy.job-index }}
+      all-browsers: true

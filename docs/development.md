@@ -109,8 +109,9 @@ Both loops listen on all network interfaces. Other devices on the same network c
 
 ## CI and releases
 
-- `ci.yml` runs on every PR and on pushes to `main`. It does client lint, typecheck, tests, build and size check, then `dotnet test` and publish, then E2E against `jellyfin/jellyfin:12.4` (`e2e.yml`).
-- `nightly.yml` runs the E2E suite against `jellyfin/jellyfin:latest` and `:unstable`.
+- `ci.yml` runs on every PR and on pushes to `main`. It does client lint, typecheck, tests, build and size check, then `dotnet test` and publish, then E2E against `jellyfin/jellyfin:12.4` (`e2e.yml`). E2E runs as one job per browser, in parallel: every spec on Chromium, and the specs tagged `@smoke` on Firefox and on WebKit as an iPhone (`webkit-iphone`).
+- `nightly.yml` runs every spec on all three browsers against `jellyfin/jellyfin:12.4`, `:latest` and `:unstable`.
+- Run one browser locally with `npx playwright test --project=firefox` (or `webkit-iphone`) in `e2e/`, after `npx playwright install firefox` (or `webkit`). Tag a spec `@smoke` (`test('…', { tag: '@smoke' }, …)`) when it's a cheap check of a whole page or flow that a browser engine could break. Tests with "TV layout" in their title run on Chromium only, and playback tests skip on `webkit-iphone`: jellyfin-web asks an iPhone for HLS, which Playwright's WebKit can't play (`e2e/support/browsers.ts`).
 - `release.yml` runs on `v*` tags.
   - It requires a successful `ci.yml` run (including E2E) on the tagged commit, and waits for one that's still running.
   - It re-runs the client and server checks, then builds the plugin zip.
