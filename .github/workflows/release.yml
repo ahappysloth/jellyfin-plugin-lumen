@@ -31,14 +31,19 @@ jobs:
           [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Tag '$GITHUB_REF_NAME' is not vMAJOR.MINOR.PATCH"; exit 1; }
           git merge-base --is-ancestor "$GITHUB_REF_NAME" origin/main || { echo "Tag '$GITHUB_REF_NAME' is not on main"; exit 1; }
       - name: Require CI to have passed on the tagged commit
+        id: ci
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           # CI (ci.yml, including E2E) runs on every push to main. Wait for it if the tag was pushed right after the commit.
           SHA="$(git rev-parse "$GITHUB_REF_NAME^{commit}")"
           for attempt in $(seq 1 60); do
-            runs="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$SHA" --event push --json status,conclusion)"
-            if jq -e 'any(.[]; .conclusion == "success")' <<<"$runs" >/dev/null; then echo "CI passed on $SHA"; exit 0; fi
+            runs="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$SHA" --event push --json databaseId,status,conclusion)"
+            if jq -e 'any(.[]; .conclusion == "success")' <<<"$runs" >/dev/null; then
+              echo "CI passed on $SHA"
+              echo "run=$(jq -r 'first(.[] | select(.conclusion == "success")).databaseId' <<<"$runs")" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
             # A tag pushed right after the merge can beat CI's run onto the commit: give it a few minutes to appear.
             if [ "$attempt" -le 10 ] && jq -e 'length == 0' <<<"$runs" >/dev/null; then
               echo "No CI run on $SHA yet; waiting ($attempt/10)"; sleep 30; continue
@@ -57,14 +62,33 @@ jobs:
           TAG="${GITHUB_REF_NAME#v}"
           echo "semver=$TAG" >> "$GITHUB_OUTPUT"
           echo "jellyfin=$TAG.0" >> "$GITHUB_OUTPUT"
-      - name: Build and test
+      # CI built and tested this exact commit (the step above requires it), and Directory.Build.props already carries the
+      # release version, so its plugin is the release's. Rebuild only if the versions disagree or the artifact is gone.
+      - name: Take the plugin CI built on the tagged commit
+        id: reuse
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git checkout "$GITHUB_REF_NAME"
+          built="$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props)"
+          if [ "$built" != "${{ steps.v.outputs.jellyfin }}" ]; then
+            echo "Directory.Build.props is at $built, the tag at ${{ steps.v.outputs.jellyfin }}: building instead"
+          elif gh run download "${{ steps.ci.outputs.run }}" --repo "$GITHUB_REPOSITORY" --name plugin --dir artifacts/plugin; then
+            echo "Using the plugin from CI run ${{ steps.ci.outputs.run }}"
+            echo "reused=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Couldn't download CI's plugin: building instead"
+          fi
+      - name: Build and test
+        if: steps.reuse.outputs.reused != 'true'
+        run: |
           (cd client && npm ci && npm run lint && npm run typecheck && npm test && npm run build && npm run size)
           dotnet test --nologo -p:SkipClientBuild=true
-          node --test scripts/update-manifest.test.mjs
           dotnet publish src/Jellyfin.Plugin.Lumen -c Release -o artifacts/plugin --nologo -p:SkipClientBuild=true \
             -p:Version=${{ steps.v.outputs.jellyfin }} -p:AssemblyVersion=${{ steps.v.outputs.jellyfin }} -p:FileVersion=${{ steps.v.outputs.jellyfin }}
+      - name: Package
+        run: |
+          node --test scripts/update-manifest.test.mjs
           (cd artifacts/plugin && zip -j "../lumen_${{ steps.v.outputs.jellyfin }}.zip" Jellyfin.Plugin.Lumen.dll)
       - name: Extract changelog section
         run: |
