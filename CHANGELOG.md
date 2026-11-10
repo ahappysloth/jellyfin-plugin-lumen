@@ -2,6 +2,41 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.3.7] - 2026-11-10
+
+### Added
+- Trailer previews now play in Safari, Firefox and on iOS: when a browser can't play a trailer as is, the details
+  page plays a converted copy (at most 720p). The home banner only plays trailers the browser can play directly.
+- Trailers can be paused, on the home banner and on details pages.
+- Cards have a More button (on hover or keyboard focus) for their actions; they're also real links now, so they can
+  be opened in a new tab.
+- Dates and numbers follow each user's Jellyfin display language and date format.
+- Setting: "Load Jellyfin's web app faster" (on by default). See Changed.
+
+### Changed
+- Faster loading:
+  - Jellyfin's web app downloads about half as much on a first visit: its files are compressed once at the highest
+    level and, where their names prove their content, cached for a week.
+  - Lumen's own files, and its home and request data, are compressed (also over HTTPS).
+  - The player and trailer previews load only when needed.
+  - Faster home page queries (Continue Watching, Recently Added), and playback starts one request sooner from
+    details pages.
+  - Images are requested at the size they're shown, so they're sharp on phones and in wide grids.
+- Lumen finds Jellyfin's player through the web app's plugin hook, so jellyfin-web updates are less likely to break it.
+- Older TV browsers (webOS TVs with Chrome 68, Safari 13) can run Lumen; on phones in landscape, controls and pages
+  clear the notch.
+
+### Fixed
+- TV remotes: Back closes Lumen's menus and dialogs instead of leaving the page, and the first Back in the player
+  leaves it; episode details links are reachable; a show's Play button gets focus; Books, Music Videos and Playlists
+  open in every layout.
+- Keyboard and screen readers: the player's volume slider no longer seeks; its panels, page headings and landmarks are
+  announced properly; buttons are named as they read; Space presses the focused player button.
+- Lumen no longer turns off until a reload when its settings fail to load once at startup.
+- Play buttons can no longer stay stuck on "Starting…".
+- Scrubbing after the next episode starts on its own shows that episode's thumbnails.
+- The arrow keys in the player seek from where the video is, even with the controls hidden.
+
 ## [0.3.6] - 2026-11-10
 
 ### Fixed
