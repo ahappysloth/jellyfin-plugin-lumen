@@ -1,9 +1,12 @@
 import { expect, test } from '@playwright/test';
 import { ADMIN, loadState } from '../support/api';
+import { CANNOT_PLAY, cannotPlay } from '../support/browsers';
 import { login } from '../support/login';
 import { expectPresentButHidden } from '../support/stock';
 
-test("Play hands off to jellyfin-web's own player", async ({ page }) => {
+test.skip(cannotPlay, CANNOT_PLAY);
+
+test("Play hands off to jellyfin-web's own player", { tag: '@smoke' }, async ({ page }) => {
   const { items } = loadState();
   await login(page, ADMIN);
   await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
@@ -111,7 +114,7 @@ test('a quality change that restarts the stream holds the last frame with "Switc
   await expect.poll(() => page.locator('video.htmlvideoplayer').evaluate((v: HTMLVideoElement) => !v.paused)).toBe(true);
 });
 
-test("Lumen's player controls drive jellyfin-web's player, including subtitle tracks", async ({ page }) => {
+test("Lumen's player controls drive jellyfin-web's player, including subtitle tracks", { tag: '@smoke' }, async ({ page }) => {
   const { items } = loadState();
   await login(page, ADMIN);
   await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
@@ -130,7 +133,9 @@ test("Lumen's player controls drive jellyfin-web's player, including subtitle tr
   await page.getByRole('button', { name: /Audio & Subtitles/ }).click();
   await page.getByRole('menuitemradio', { name: /^Spanish/ }).click();
   await expect(page.getByRole('menuitemradio', { name: /^Spanish/ })).toHaveAttribute('aria-checked', 'true');
-  // jellyfin-web renders these subtitles as the <video>'s own text track, so read its cues rather than the DOM.
+  // jellyfin-web renders these subtitles as the <video>'s own text track in Chromium, so read its cues; in Firefox and
+  // Safari it draws the current cue itself, into .videoSubtitles: move to the first one (1–6 s) for that.
+  await page.locator('video').first().evaluate((v: HTMLVideoElement) => (v.currentTime = 2));
   await expect
     .poll(() =>
       page
@@ -140,6 +145,7 @@ test("Lumen's player controls drive jellyfin-web's player, including subtitle tr
           [...v.textTracks]
             .filter((t) => t.mode === 'showing')
             .flatMap((t) => [...(t.cues ?? [])].map((c) => (c as VTTCue).text))
+            .concat(document.querySelector('.videoSubtitles')?.textContent ?? '')
             .some((text) => text.includes('Hola desde Lumen.')),
         ),
     )

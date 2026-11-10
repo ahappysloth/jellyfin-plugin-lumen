@@ -1,5 +1,6 @@
 import { type Browser, expect, type Page, test } from '@playwright/test';
 import { ADMIN, api, KID, loadState } from '../support/api';
+import { CANNOT_PLAY, cannotPlay } from '../support/browsers';
 import { login } from '../support/login';
 
 /** A second viewer: its own browser context, so its own device id and Jellyfin session. */
@@ -13,6 +14,9 @@ async function viewer(browser: Browser, user: { name: string; password: string }
 
 const watchTogether = (page: Page) =>
   page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: /^Watch together/ });
+
+// (Phones also have no Watch together button in the nav, which this spec drives.)
+test.skip(cannotPlay, CANNOT_PLAY);
 
 const opened: Page[] = [];
 let played: string[] = [];

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { ADMIN, api, loadState } from '../support/api';
 import { login } from '../support/login';
 
-test('movie details are rendered by Lumen, including the local trailer', async ({ page }) => {
+test('movie details are rendered by Lumen, including the local trailer', { tag: '@smoke' }, async ({ page }) => {
   const { items } = loadState();
   await login(page, ADMIN);
 
@@ -15,7 +15,7 @@ test('movie details are rendered by Lumen, including the local trailer', async (
   await expect(details.getByRole('button', { name: 'Trailer' })).toBeVisible();
 });
 
-test('series details offer smart play and season browsing', async ({ page }) => {
+test('series details offer smart play and season browsing', { tag: '@smoke' }, async ({ page }) => {
   const { items } = loadState();
   await login(page, ADMIN);
 

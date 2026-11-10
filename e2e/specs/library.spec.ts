@@ -1,11 +1,12 @@
 import { expect, test } from '@playwright/test';
 import { ADMIN, api, loadState } from '../support/api';
 import { login } from '../support/login';
+import { navLink } from '../support/nav';
 import { expectPresentButHidden } from '../support/stock';
 
-test('the Movies page lists the library as a poster grid with filters and sort', async ({ page }) => {
+test('the Movies page lists the library as a poster grid with filters and sort', { tag: '@smoke' }, async ({ page }) => {
   await login(page, ADMIN);
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Movies' }).click();
+  await navLink(page, 'Movies').click();
 
   await expect(page.getByRole('heading', { name: 'Movies', level: 1 })).toBeVisible();
   await expectPresentButHidden(page.locator('#reactRoot .skinBody'));
@@ -41,7 +42,7 @@ test.describe('favorites', () => {
       query: { userId: admin.userId },
     });
     await login(page, ADMIN);
-    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Favorites' }).click();
+    await navLink(page, 'Favorites').click();
 
     await expect(page.getByRole('heading', { name: 'Favorites', level: 1 })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Lumen Beta' })).toBeVisible();
@@ -73,7 +74,7 @@ test('a reload of home never paints the stock header', async ({ page }) => {
 test('right-clicking a card offers its actions, and favoriting from the menu shows up in Favorites', async ({ page }) => {
   const { admin, items } = loadState();
   await login(page, ADMIN);
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Movies' }).click();
+  await navLink(page, 'Movies').click();
 
   await page.getByRole('list', { name: 'Movies' }).getByRole('button', { name: 'Lumen Gamma' }).click({ button: 'right' });
   const menu = page.getByRole('menu', { name: 'Actions for Lumen Gamma' });
@@ -82,7 +83,7 @@ test('right-clicking a card offers its actions, and favoriting from the menu sho
   await expect(menu).toBeHidden();
 
   try {
-    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Favorites' }).click();
+    await navLink(page, 'Favorites').click();
     await expect(page.getByRole('button', { name: 'Lumen Gamma' })).toBeVisible();
   } finally {
     await api(`/UserFavoriteItems/${items['Lumen Gamma']}`, {
@@ -93,7 +94,7 @@ test('right-clicking a card offers its actions, and favoriting from the menu sho
   }
 });
 
-test('a cold load shows the veil and lifts it once home is ready', async ({ page }) => {
+test('a cold load shows the veil and lifts it once home is ready', { tag: '@smoke' }, async ({ page }) => {
   await login(page, ADMIN);
   await page.reload();
 
