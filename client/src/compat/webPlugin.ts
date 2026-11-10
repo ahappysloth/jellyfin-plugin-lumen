@@ -3,7 +3,8 @@
  * also a key on `window`, jellyfin-web's pluginManager (components/pluginManager.js, the same in 10.11, 12.1–12.4 and
  * master) calls `await window[name]()`, constructs the class it returns with its core services (`playbackManager`,
  * `ServerConnections`, `events`, …) and registers the instance, all before it renders. compat/playbackManager.ts reads
- * the playback manager from here first.
+ * the playback manager from here first, and compat/syncPlay.ts the SyncPlay plugin, through the pluginManager the
+ * definer catches as it registers the instance.
  *
  * The plugin itself is webPluginDefiner.js: plain ES5, because the server inlines it into index.html as a script of its
  * own (Injection/HtmlInjector.cs), ahead of the guard, and jellyfin-web still supports browsers that can't parse
@@ -33,6 +34,11 @@ export interface WebPluginDeps {
 export interface WebPluginSlot {
   /** Set when jellyfin-web constructs the plugin. */
   deps?: WebPluginDeps;
+  /**
+   * jellyfin-web's pluginManager (unchecked), caught as it registers the plugin (webPluginDefiner.js): not among the
+   * deps. compat/syncPlay.ts asks it for the SyncPlay plugin.
+   */
+  pluginManager?: unknown;
   /** How lumen.js found the playback manager (set by compat/playbackManager.ts; e2e and debugging read it). */
   via?: 'plugin' | 'webpack';
 }

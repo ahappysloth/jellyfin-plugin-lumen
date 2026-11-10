@@ -157,6 +157,12 @@ export const LIST_PARAMS = { genre: 'genreId', studio: 'studioId', parent: 'pare
  * start or stop group playback; the syncing itself stays jellyfin-web's. Missing: no Watch together button.
  */
 export const SYNCPLAY_CORE_KEYS = ['Helper', 'Manager', 'PlayerFactory', 'Players'] as const;
+/**
+ * The SyncPlay plugin's type (constants/pluginType.ts PluginType.SyncPlay; 'syncplay' in 10.11 too). jellyfin-web's own
+ * UI finds the core as `pluginManager.firstOfType('syncplay').instance`; Lumen does the same when its plugin has
+ * caught pluginManager (webPluginDefiner.js), and searches the bundle by SYNCPLAY_CORE_KEYS otherwise.
+ */
+export const SYNCPLAY_PLUGIN_TYPE = 'syncplay';
 export const SYNCPLAY_MANAGER_METHODS = [
   'isSyncPlayEnabled',
   'getGroupInfo',
@@ -218,7 +224,11 @@ export const GLOBALIZE_METHODS = {
   dateTimeLocale: 'getCurrentDateTimeLocale',
 } as const;
 
-/** webpack's default `output.chunkLoadingGlobal`; Lumen finds jellyfin-web's PlaybackManager through it. */
+/**
+ * webpack's `output.chunkLoadingGlobal` for a build without a `uniqueName` (jellyfin-web 10.11–12.4: its webpack
+ * `context` is src/, which has no package.json to take a name from). Lumen finds jellyfin-web's PlaybackManager and
+ * SyncPlay through it, and through any `webpackChunk<name>` should jellyfin-web's build ever get a name.
+ */
 export const WEBPACK_CHUNK_GLOBAL = 'webpackChunk';
 
 /**

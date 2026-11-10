@@ -185,19 +185,45 @@ function looksLikePlaybackManagerModule(source: string): boolean {
 
 const loaders = new WeakMap<Window, WebpackRequire>();
 
+/** The loader behind one chunk array, via a chunk with a runtime callback (webpack's supported way to get it). */
+function loaderOf(chunks: unknown[]): WebpackRequire | null {
+  let require: WebpackRequire | null = null;
+  chunks.push([[Symbol('lumen')], {}, (r: WebpackRequire) => (require = r)]);
+  return require;
+}
+
 /**
- * The webpack module loader, via a chunk with a runtime callback (webpack's supported way for a chunk to get it).
- * Remembered per window: each push leaves an entry in the chunk array.
+ * jellyfin-web's webpack module loader. Its chunk array is `window.webpackChunk` (WEBPACK_CHUNK_GLOBAL) because its
+ * build has no `uniqueName`; should it ever get one, the array becomes `webpackChunk<name>`. So: the exact name when
+ * it's there, else every window key that starts with it and holds an array, and of those, the loader with the most
+ * modules (another script on the page, a Jellyfin plugin's say, can bring a webpack bundle of its own; jellyfin-web's
+ * has thousands of modules). Remembered per window once found: each push leaves an entry in the chunk array.
  */
 export function webpackRequire(win: Window): WebpackRequire | null {
   const known = loaders.get(win);
   if (known) return known;
-  const chunks = (win as unknown as Record<string, unknown>)[WEBPACK_CHUNK_GLOBAL];
-  if (!Array.isArray(chunks)) return null;
-  let require: WebpackRequire | null = null;
-  chunks.push([[Symbol('lumen')], {}, (r: WebpackRequire) => (require = r)]);
-  if (require) loaders.set(win, require);
-  return require;
+  const globals = win as unknown as Record<string, unknown>;
+  const isChunks = (value: unknown): value is unknown[] =>
+    Array.isArray(value) && typeof value.push === 'function';
+  const exact = globals[WEBPACK_CHUNK_GLOBAL];
+  const arrays = isChunks(exact)
+    ? [exact]
+    : Object.keys(globals)
+        .filter((key) => key.startsWith(WEBPACK_CHUNK_GLOBAL))
+        .map((key) => globals[key])
+        .filter(isChunks);
+  let best: WebpackRequire | null = null;
+  let most = -1;
+  for (const chunks of arrays) {
+    const require = loaderOf(chunks);
+    const count = require ? Object.keys(require.m ?? {}).length : -1;
+    if (require && count > most) {
+      best = require;
+      most = count;
+    }
+  }
+  if (best) loaders.set(win, best);
+  return best;
 }
 
 /**

@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { findSyncPlay, resetSyncPlayCache } from './syncPlay';
 import { SYNCPLAY_MANAGER_METHODS } from './registry';
+import { createEvents, createPluginManager, runDefiner } from '../../test/webPluginDefiner';
+import { WEB_PLUGIN_NAME } from './webPlugin';
 
 const manager = (): Record<string, unknown> =>
   Object.fromEntries(SYNCPLAY_MANAGER_METHODS.map((m) => [m, () => false]));
@@ -57,6 +59,50 @@ describe('findSyncPlay', () => {
     expect(findSyncPlay(win)).toBeNull();
     expect(findSyncPlay(win)).toBeNull();
     expect(reads).toBe(1);
+  });
+
+  /** `win` as jellyfin-web leaves it once it has loaded its plugins: Lumen's, and a SyncPlay plugin of `instance`. */
+  async function withPlugins(win: Window, instance: unknown) {
+    runDefiner(win);
+    const pluginManager = createPluginManager(createEvents());
+    await pluginManager.loadPlugin(win, { id: 'syncplay', type: 'syncplay', priority: 1, instance } as never);
+    await pluginManager.loadPlugin(win, WEB_PLUGIN_NAME);
+    return win;
+  }
+
+  it("takes the Manager of jellyfin-web's SyncPlay plugin, as its own UI does, without reading the bundle", async () => {
+    const m = manager();
+    const { win, required } = fakeWebpack({
+      '2': { source: CORE, exports: { default: { Manager: manager() } } },
+    });
+    const push = (win as unknown as { webpackChunk: { push: ReturnType<typeof vi.fn> } }).webpackChunk.push;
+    await withPlugins(win, { Helper: {}, Manager: m, PlayerFactory: {}, Players: {} });
+
+    expect(findSyncPlay(win)).toBe(m);
+    expect(push).not.toHaveBeenCalled();
+    expect(required).toEqual([]);
+  });
+
+  it("searches the bundle when the SyncPlay plugin's Manager lacks a method, or there is no SyncPlay plugin", async () => {
+    // (The plugin's Manager, when whole, is the one taken: the bundle's is another object here.)
+    const whole = manager();
+    const first = fakeWebpack({ '2': { source: CORE, exports: { default: { Manager: manager() } } } }).win;
+    await withPlugins(first, { Manager: whole });
+    expect(findSyncPlay(first)).toBe(whole);
+    resetSyncPlayCache();
+
+    const partial = manager();
+    delete partial.getGroupInfo;
+    const m = manager();
+    const { win } = fakeWebpack({ '2': { source: CORE, exports: { default: { Manager: m } } } });
+    await withPlugins(win, { Manager: partial });
+    expect(findSyncPlay(win)).toBe(m);
+
+    resetSyncPlayCache();
+    const none = fakeWebpack({ '2': { source: CORE, exports: { default: { Manager: m } } } }).win;
+    runDefiner(none);
+    await createPluginManager(createEvents()).loadPlugin(none, WEB_PLUGIN_NAME);
+    expect(findSyncPlay(none)).toBe(m);
   });
 
   it('returns null without webpack', () => {
