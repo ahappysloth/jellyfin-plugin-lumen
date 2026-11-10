@@ -125,7 +125,8 @@ describe('Hero', () => {
     fireEvent.pointerMove(hero, { pointerId: 3, pointerType: 'mouse', clientX: 380, clientY: 100 });
 
     const track = container.querySelector<HTMLElement>('.lmn-hero__track')!;
-    expect(track.style.transform).toBe('translateX(calc(0% + -120px))');
+    // 120px left of the slide. jsdom 31, like browsers, serializes `calc(0% + -120px)` as `calc(0% - 120px)`.
+    expect(track.style.transform).toMatch(/^translateX\(calc\(0% (?:\+ -|- )120px\)\)$/);
     expect(track.classList.contains('is-animated')).toBe(false);
   });
 

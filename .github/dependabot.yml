@@ -19,6 +19,10 @@ updates:
       # elements polyfill calls toLowerCase() on it and Lumen fails to render anything. Stay on 11.1 until that changes.
       - dependency-name: 'preact'
         versions: ['>=11.2.0']
+      # typescript-eslint doesn't support TypeScript 7 yet (typescript-eslint#10940), so lint (and CI) fails on it.
+      # Lumen's code typechecks cleanly under 7.0; drop this once typescript-eslint supports it.
+      - dependency-name: 'typescript'
+        versions: ['>=7.0.0']
     groups:
       client:
         update-types: [minor, patch]
