@@ -1,6 +1,6 @@
 import { act, render } from '@testing-library/preact';
 import { useRef, useState } from 'preact/hooks';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Layout } from '../compat/jellyfin';
 import { useAutoFocus } from './useAutoFocus';
 
@@ -66,6 +66,29 @@ describe('useAutoFocus', () => {
     act(() => showPrimary(true));
 
     expect(document.activeElement).toBe(getByText('other'));
+  });
+
+  it('stops waiting for the primary action once the user points or scrolls', () => {
+    for (const input of ['pointerdown', 'wheel']) {
+      const { getByText, unmount } = render(<LateHarness />);
+      document.dispatchEvent(new Event(input));
+
+      act(() => showPrimary(true));
+
+      expect(document.activeElement).toBe(getByText('back'));
+      unmount();
+    }
+  });
+
+  it('moves on to the late primary action without scrolling the page', () => {
+    const { getByText } = render(<LateHarness />);
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+
+    act(() => showPrimary(true));
+
+    expect(document.activeElement).toBe(getByText('play'));
+    expect(focus).toHaveBeenLastCalledWith({ preventScroll: true });
+    focus.mockRestore();
   });
 
   it('does not take focus back after the user returned to the stand-in', () => {

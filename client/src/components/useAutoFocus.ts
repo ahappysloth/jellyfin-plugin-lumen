@@ -36,12 +36,14 @@ export function useAutoFocus(
     if (preferred || primary || !target) return;
 
     standIn.current = target;
-    // Any later focus change is the user's (or another view's) choice: the primary action no longer takes over.
+    // Any later focus change is the user's (or another view's) choice, and a pointer (a Magic Remote's) or wheel means
+    // the user is already on their way: the primary action no longer takes over.
+    const events = ['focusin', 'pointerdown', 'wheel'] as const;
     const settle = (): void => {
       standIn.current = null;
-      document.removeEventListener('focusin', settle);
+      events.forEach((type) => document.removeEventListener(type, settle, true));
     };
-    document.addEventListener('focusin', settle);
+    events.forEach((type) => document.addEventListener(type, settle, { capture: true, passive: true }));
     return settle;
   }, [ready, layout, preferredItemId]);
 
@@ -54,6 +56,7 @@ export function useAutoFocus(
     const primary = ref.current?.querySelector<HTMLElement>(PRIMARY);
     if (!primary) return;
     standIn.current = null;
-    primary.focus();
+    // The user may have scrolled on while it loaded; the page stays where they are.
+    primary.focus({ preventScroll: true });
   });
 }
