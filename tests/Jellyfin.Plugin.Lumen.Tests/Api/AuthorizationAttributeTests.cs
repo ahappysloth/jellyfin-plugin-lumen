@@ -18,6 +18,14 @@ public class AuthorizationAttributeTests
     }
 
     [Fact]
+    public void UpdatesController_RequiresElevation()
+    {
+        var attribute = Assert.Single(typeof(UpdatesController).GetCustomAttributes<AuthorizeAttribute>());
+
+        Assert.Equal(Policies.RequiresElevation, attribute.Policy);
+    }
+
+    [Fact]
     public void HomeController_RequiresAuthentication()
     {
         var attribute = Assert.Single(typeof(HomeController).GetCustomAttributes<AuthorizeAttribute>());

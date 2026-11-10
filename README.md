@@ -22,6 +22,10 @@ It is a single, self-contained server plugin, with no other plugins required. Wh
 2. Dashboard → Plugins → Catalog → **Lumen** → Install. Restart Jellyfin.
 3. Dashboard → Plugins → **Lumen** to configure the hero and home sections.
 
+To update, use **Check for Lumen updates** on the Plugins page (or **Check for updates** on Lumen's page). It reads
+Lumen's releases on GitHub straight away (no waiting for Jellyfin's daily plugin update task), installs the new version
+through Jellyfin's own installer, and offers to restart Jellyfin to load it.
+
 ## Where Lumen appears
 
 Lumen changes Jellyfin's *web* interface, so it appears wherever that interface runs:

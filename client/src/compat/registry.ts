@@ -12,7 +12,8 @@
  */
 
 /** A page the e2e probe opens to look for a selector; null means it can't be probed reliably (transient UI). */
-export type ProbePage = 'login' | 'home' | 'settings' | 'display' | 'player' | 'dashboard' | 'metadata';
+export type ProbePage =
+  'login' | 'home' | 'settings' | 'display' | 'player' | 'dashboard' | 'metadata' | 'plugins';
 
 export interface StockSelector {
   selector: string;
@@ -71,6 +72,8 @@ export const STOCK_SELECTORS = {
   metadataSidebar: { selector: '.editPageSidebar', probe: 'metadata', css: 'dashboard.css' },
   metadataTree: { selector: '.libraryTree', probe: 'metadata', css: 'dashboard.css' },
   metadataTreeIcon: { selector: '.metadataSidebarIcon', probe: 'metadata', css: 'dashboard.css' },
+  /** The Plugins page's Manage Repositories button; "Check for Lumen updates" goes beside it (takeover/pluginsButton.ts). */
+  manageRepositories: { selector: 'a[href$="/dashboard/plugins/repositories"]', probe: 'plugins' },
   /** jellyfin-web's "Page not found" page (react-router's catch-all). Lumen never shows it; e2e uses it as a marker. */
   notFoundPage: { selector: '#fallbackPage', probe: null },
 } as const satisfies Record<string, StockSelector>;
@@ -94,6 +97,9 @@ export const STOCK_ROUTES = {
   video: '/video',
   preferencesMenu: '/mypreferencesmenu',
   dashboard: '/dashboard',
+  plugins: '/dashboard/plugins',
+  /** A plugin's own settings page (`?name=<plugin>`). */
+  configurationPage: '/configurationpage',
   metadata: '/metadata',
 } as const;
 

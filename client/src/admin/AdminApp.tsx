@@ -7,15 +7,24 @@ import { GeneralSettings } from './GeneralSettings';
 import { HeroSettings } from './HeroSettings';
 import { HomeSectionsSettings } from './HomeSectionsSettings';
 import { RequestsSettings } from './RequestsSettings';
+import { UpdatesSettings } from './UpdatesSettings';
+import { wantsCheck } from './updatesLink';
 import { isBusy, useAdminConfig } from './useAdminConfig';
 
 interface AdminAppProps {
   api: AdminApi;
   newId?: () => string;
   confirm?: (message: string) => boolean;
+  /** The page's URL hash: `?check=updates` (from Jellyfin's Plugins page) checks for updates on open. */
+  hash?: string;
 }
 
-export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm(m) }: AdminAppProps) {
+export function AdminApp({
+  api,
+  newId = newUuid,
+  confirm = (m) => window.confirm(m),
+  hash = window.location.hash,
+}: AdminAppProps) {
   const admin = useAdminConfig(api);
   const { config, status, errors, warnings, dirty, update } = admin;
   const busy = isBusy(status);
@@ -64,6 +73,7 @@ export function AdminApp({ api, newId = newUuid, confirm = (m) => window.confirm
         </div>
       ))}
 
+      <UpdatesSettings api={api} autoCheck={wantsCheck(hash)} confirm={confirm} />
       <GeneralSettings config={config} update={update} />
       <HeroSettings config={config} lookups={admin.lookups} update={update} />
       <HomeSectionsSettings

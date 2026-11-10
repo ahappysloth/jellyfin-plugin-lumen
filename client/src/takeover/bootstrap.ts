@@ -21,6 +21,7 @@ import { parseRoute, type Route, type TakeoverRoute } from './routes';
 import { applyDashboardSkin, applySignInSkin, isSignInRoute } from '../veil/skin';
 import { liftVeil, PENDING_CLASS, rememberVeilName } from '../veil/veil';
 import { resetSessionCaches } from '../util/sessionCaches';
+import { createPluginsButton } from './pluginsButton';
 import { Takeover } from './takeover';
 
 export interface BootstrapOptions {
@@ -152,8 +153,10 @@ export function startLumen(options: BootstrapOptions): () => void {
   /**
    * Sign-in and admin pages need no session: style them from the route alone, and learn the server's name for sign-in.
    */
+  const pluginsButton = createPluginsButton(doc);
   const skinStockPages = (): void => {
     applyDashboardSkin(doc, win.location.hash);
+    pluginsButton.sync(win.location.hash);
     applySignInSkin(doc, win.location.hash);
     const client = getApiClient(win);
     if (!client || !isSignInRoute(win.location.hash) || !doc.documentElement.hasAttribute('data-lmn-skin'))
@@ -246,6 +249,7 @@ export function startLumen(options: BootstrapOptions): () => void {
     stopped = true;
     win.clearTimeout(safety);
     stopNavigation();
+    pluginsButton.stop();
     session?.takeover?.dispose();
   };
 }

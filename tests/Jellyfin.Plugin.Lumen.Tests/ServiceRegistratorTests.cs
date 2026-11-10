@@ -30,6 +30,7 @@ public class ServiceRegistratorTests
         services.AddSingleton(Substitute.For<IDtoService>());
         services.AddSingleton(Substitute.For<IHttpClientFactory>());
         services.AddSingleton(Substitute.For<IApplicationPaths>());
+        services.AddSingleton(Substitute.For<MediaBrowser.Common.Updates.IInstallationManager>());
 
         new ServiceRegistrator().RegisterServices(services, Substitute.For<IServerApplicationHost>());
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
