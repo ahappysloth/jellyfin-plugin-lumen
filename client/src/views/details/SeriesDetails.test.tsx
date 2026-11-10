@@ -104,4 +104,11 @@ describe('SeriesDetails', () => {
     fireEvent.click(await screen.findByRole('button', { name: /^Season:/ }));
     expect(screen.getByRole('option', { name: 'Specials' })).toBeInTheDocument();
   });
+
+  it('focuses Play in TV layout once it has loaded', async () => {
+    render(<DetailsView id="sr" ctx={makeContext(client(), { layout: 'tv' })} />);
+
+    const play = await screen.findByRole('button', { name: 'Play S1:E1' });
+    await waitFor(() => expect(play).toHaveFocus());
+  });
 });

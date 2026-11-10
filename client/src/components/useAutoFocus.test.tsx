@@ -1,5 +1,5 @@
-import { render } from '@testing-library/preact';
-import { useRef } from 'preact/hooks';
+import { act, render } from '@testing-library/preact';
+import { useRef, useState } from 'preact/hooks';
 import { describe, expect, it } from 'vitest';
 import type { Layout } from '../compat/jellyfin';
 import { useAutoFocus } from './useAutoFocus';
@@ -12,6 +12,23 @@ function Harness({ layout, preferred }: { layout: Layout; preferred?: string }) 
       <button>first</button>
       <button class="lmn-autofocus">primary</button>
       <button data-item-id="abc123">card</button>
+    </div>
+  );
+}
+
+let showPrimary: (show: boolean) => void = () => undefined;
+
+/** The primary action renders only once its data has loaded, as a series' Play does. */
+function LateHarness() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [primary, setPrimary] = useState(false);
+  showPrimary = setPrimary;
+  useAutoFocus(ref, true, 'tv');
+  return (
+    <div ref={ref}>
+      <button>back</button>
+      <button>other</button>
+      {primary && <button class="lmn-autofocus">play</button>}
     </div>
   );
 }
@@ -31,5 +48,33 @@ describe('useAutoFocus', () => {
     (document.activeElement as HTMLElement | null)?.blur();
     render(<Harness layout="desktop" />);
     expect(document.activeElement).toBe(document.body);
+  });
+
+  it('moves on to a primary action that renders after the view is ready', () => {
+    const { getByText } = render(<LateHarness />);
+    expect(document.activeElement).toBe(getByText('back'));
+
+    act(() => showPrimary(true));
+
+    expect(document.activeElement).toBe(getByText('play'));
+  });
+
+  it('leaves focus where the user moved it before the primary action appeared', () => {
+    const { getByText } = render(<LateHarness />);
+    getByText('other').focus();
+
+    act(() => showPrimary(true));
+
+    expect(document.activeElement).toBe(getByText('other'));
+  });
+
+  it('does not take focus back after the user returned to the stand-in', () => {
+    const { getByText } = render(<LateHarness />);
+    getByText('other').focus();
+    getByText('back').focus();
+
+    act(() => showPrimary(true));
+
+    expect(document.activeElement).toBe(getByText('back'));
   });
 });
