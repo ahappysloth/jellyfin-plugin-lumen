@@ -1,6 +1,7 @@
+import { Linter } from 'eslint';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DEFINER_SOURCE, runDefiner } from '../../test/webPluginDefiner';
 import {
-  defineWebPlugin,
   WEB_PLUGIN_KEY,
   WEB_PLUGIN_NAME,
   webPluginDeps,
@@ -25,13 +26,25 @@ describe("Lumen's jellyfin-web plugin", () => {
     Reflect.deleteProperty(window, WEB_PLUGIN_NAME);
     Reflect.deleteProperty(window, WEB_PLUGIN_KEY);
     vi.resetModules();
-    vi.doUnmock('../veil/runGuard');
     vi.doUnmock('../takeover/bootstrap');
+  });
+
+  it('is plain ES5, so browsers jellyfin-web supports but Lumen does not still define it', () => {
+    const messages = new Linter().verify(DEFINER_SOURCE, {
+      languageOptions: { ecmaVersion: 5, sourceType: 'script' },
+    });
+    expect(messages.filter((m) => m.fatal)).toEqual([]);
+    // The check itself rejects newer syntax.
+    const modern = new Linter().verify('let a = () => 1;', {
+      languageOptions: { ecmaVersion: 5, sourceType: 'script' },
+    });
+    expect(modern.some((m) => m.fatal)).toBe(true);
   });
 
   it('loads the way jellyfin-web loads window plugins, and keeps what jellyfin-web passes it', async () => {
     const win = {} as Window;
-    defineWebPlugin(win);
+    runDefiner(win);
+    expect(webPluginSlot(win)).toEqual({});
     expect(webPluginDeps(win)).toBeNull();
 
     const deps = { playbackManager: {}, ServerConnections: {}, events: {} };
@@ -46,43 +59,38 @@ describe("Lumen's jellyfin-web plugin", () => {
 
   it('hands back the class synchronously: jellyfin-web awaits every plugin before it renders', () => {
     const win = {} as Window;
-    defineWebPlugin(win);
+    runDefiner(win);
     const definition = (win as unknown as Record<string, () => unknown>)[WEB_PLUGIN_NAME]!;
     expect(typeof definition()).toBe('function');
   });
 
-  it('has nothing to read when no guard defined it', () => {
+  it('keeps a plugin already defined, which jellyfin-web may already have loaded', async () => {
+    const win = {} as Window;
+    runDefiner(win);
+    const deps = { playbackManager: {} };
+    await loadLikeJellyfinWeb(win, deps);
+    const definition = (win as unknown as Record<string, unknown>)[WEB_PLUGIN_NAME];
+
+    runDefiner(win);
+
+    expect((win as unknown as Record<string, unknown>)[WEB_PLUGIN_NAME]).toBe(definition);
+    expect(webPluginDeps(win)).toBe(deps);
+  });
+
+  it('never throws, even on a window it cannot write to', () => {
+    expect(() => runDefiner(Object.freeze({}) as Window)).not.toThrow();
+    expect(() => runDefiner(null as unknown as Window)).not.toThrow();
+  });
+
+  it('has nothing to read when nothing defined it', () => {
     expect(webPluginSlot({} as Window)).toBeNull();
     expect(webPluginDeps({} as Window)).toBeNull();
   });
 
-  it('is defined by the inline guard even when the rest of the guard throws', async () => {
-    vi.doMock('../veil/runGuard', () => ({
-      runGuard: () => {
-        throw new Error('boom');
-      },
-    }));
-    await import('../veil/guard');
+  it('is defined by lumen.js when the page has no inline definer', async () => {
+    vi.doMock('../takeover/bootstrap', () => ({ startLumen: vi.fn() }));
+    await import('../main');
     expect(typeof globals[WEB_PLUGIN_NAME]).toBe('function');
     expect(webPluginSlot(window)).toEqual({});
-  });
-
-  it('is defined by lumen.js when the guard did not run (a Content-Security-Policy blocked it)', async () => {
-    vi.doMock('../takeover/bootstrap', () => ({ startLumen: vi.fn() }));
-    await import('../main');
-    expect(typeof globals[WEB_PLUGIN_NAME]).toBe('function');
-  });
-
-  it("lumen.js keeps the guard's plugin, which jellyfin-web may already have loaded", async () => {
-    defineWebPlugin(window);
-    const deps = { playbackManager: {} };
-    await loadLikeJellyfinWeb(window, deps);
-    const definition = globals[WEB_PLUGIN_NAME];
-
-    vi.doMock('../takeover/bootstrap', () => ({ startLumen: vi.fn() }));
-    await import('../main');
-
-    expect(globals[WEB_PLUGIN_NAME]).toBe(definition);
-    expect(webPluginDeps(window)).toBe(deps);
   });
 });

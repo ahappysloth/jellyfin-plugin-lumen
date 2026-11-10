@@ -22,10 +22,10 @@ console.log(`lumen bundle: ${kb(total)} gzipped (budget ${BUDGET / 1024} KB): ${
 const PLAYER_BUDGET = 12 * 1024;
 const player = gz(`dist/${playerChunks[0]}`);
 console.log(`lumen player: ${kb(player)} gzipped (budget ${PLAYER_BUDGET / 1024} KB)`);
-// The guard is inlined into every index.html, so it gets its own small budget.
+// The guard and the web plugin's definer are inlined into every index.html, so they share a small budget.
 const GUARD_BUDGET = 4 * 1024;
-const guard = gzipSync(readFileSync('dist/lumen-guard.js')).length;
-console.log(`lumen guard: ${kb(guard)} gzipped (budget ${GUARD_BUDGET / 1024} KB)`);
+const guard = gz('dist/lumen-guard.js') + gz('dist/lumen-web-plugin.js');
+console.log(`lumen guard + web plugin: ${kb(guard)} gzipped (budget ${GUARD_BUDGET / 1024} KB)`);
 // The admin pages' stylesheet loads alongside lumen.css only where the Dashboard skin is on.
 const DASHBOARD_BUDGET = 8 * 1024;
 const dashboard = gzipSync(readFileSync('dist/lumen-dashboard.css')).length;

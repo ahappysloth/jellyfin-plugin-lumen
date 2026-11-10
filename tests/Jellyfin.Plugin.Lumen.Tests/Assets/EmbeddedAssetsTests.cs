@@ -23,12 +23,12 @@ public class EmbeddedAssetsTests
     }
 
     [Fact]
-    public void TheInlineGuard_DefinesTheWebPluginThatConfigJsonLists()
+    public void TheInlineDefiner_DefinesTheWebPluginThatConfigJsonLists()
     {
         var catalog = AssetCatalog.FromEmbeddedResources(typeof(LumenPlugin).Assembly);
 
-        // The server lists WebConfigInjector.PluginName in config.json only beside a guard that defines it under that name.
-        Assert.True(catalog.TryGet(HtmlInjector.GuardAsset, out var guard));
-        Assert.Contains(WebConfigInjector.PluginName, Encoding.UTF8.GetString(guard.Content), StringComparison.Ordinal);
+        // The server lists WebConfigInjector.PluginName in config.json only beside a definer that defines it under that name.
+        Assert.True(catalog.TryGet(HtmlInjector.WebPluginAsset, out var definer));
+        Assert.Contains("w." + WebConfigInjector.PluginName + " = function", Encoding.UTF8.GetString(definer.Content), StringComparison.Ordinal);
     }
 }

@@ -10,6 +10,9 @@ public static partial class HtmlInjector
     /// <summary>The client's inline guard bundle (client/src/veil/guard.ts).</summary>
     public const string GuardAsset = "lumen-guard.js";
 
+    /// <summary>The client's ES5 definer of Lumen's jellyfin-web plugin (client/src/compat/webPluginDefiner.js).</summary>
+    public const string WebPluginAsset = "lumen-web-plugin.js";
+
     // Relative to /web/ (or <BaseUrl>/web/), so "../Lumen" resolves to <BaseUrl>/Lumen.
     private const string AssetBase = "../Lumen/Assets/";
 
@@ -18,8 +21,7 @@ public static partial class HtmlInjector
     /// <param name="buildHash">Cache-busting hash for the asset URLs.</param>
     /// <param name="guardScript">
     /// The guard's JavaScript, inlined so it runs synchronously before jellyfin-web paints: on routes Lumen may take
-    /// over it hides the stock chrome and shows the loading veil until lumen.js (deferred) takes over. It also defines
-    /// Lumen's jellyfin-web plugin (<see cref="WebConfigInjector"/>). Null skips it.
+    /// over it hides the stock chrome and shows the loading veil until lumen.js (deferred) takes over. Null skips it.
     /// </param>
     /// <param name="styleStockPages">
     /// Marks the page (<c>data-lmn-skin</c> on &lt;html&gt;) so Lumen restyles the sign-in page, which loads before
@@ -41,6 +43,10 @@ public static partial class HtmlInjector
     /// The client's core file (<see cref="Assets.AssetCatalog.CoreChunk"/>), which lumen.js imports: preloaded alongside it, so
     /// the browser needn't run lumen.js before it starts downloading the code. Null skips it.
     /// </param>
+    /// <param name="webPluginScript">
+    /// The definer of Lumen's jellyfin-web plugin (<see cref="WebConfigInjector"/>), inlined as a script of its own ahead
+    /// of the guard: it's ES5, so it runs even in browsers that can't parse the guard. Null skips it.
+    /// </param>
     public static string Inject(
         string html,
         string buildHash,
@@ -49,7 +55,8 @@ public static partial class HtmlInjector
         bool installAsLumen = false,
         ICollection<string>? notFound = null,
         string? accentColor = null,
-        string? coreChunk = null)
+        string? coreChunk = null,
+        string? webPluginScript = null)
     {
         if (html.Contains(Marker, StringComparison.Ordinal))
         {
@@ -65,9 +72,7 @@ public static partial class HtmlInjector
         var version = Uri.EscapeDataString(buildHash);
         var skin = styleStockPages ? "document.documentElement.setAttribute('data-lmn-skin','');" : string.Empty;
         var script = skin + (guardScript ?? string.Empty);
-        var guard = script.Length == 0
-            ? string.Empty
-            : "<script>" + script.Replace("</", "<\\/", StringComparison.Ordinal) + "</script>";
+        var guard = InlineScript(webPluginScript) + InlineScript(script);
         var dashboard = styleStockPages
             ? $"<link rel=\"stylesheet\" href=\"{AssetBase}lumen-dashboard.css?v={version}\">"
                 + (accentColor is not null && HexColor().IsMatch(accentColor)
@@ -96,6 +101,10 @@ public static partial class HtmlInjector
         var marker = html.IndexOf(Marker, StringComparison.Ordinal);
         return marker < 0 ? html : html.Insert(marker + Marker.Length, touchIcon);
     }
+
+    private static string InlineScript(string? script) => string.IsNullOrEmpty(script)
+        ? string.Empty
+        : "<script>" + script.Replace("</", "<\\/", StringComparison.Ordinal) + "</script>";
 
     private static string ReplaceAll(string html, Regex pattern, string replacement, string name, ICollection<string>? notFound)
     {

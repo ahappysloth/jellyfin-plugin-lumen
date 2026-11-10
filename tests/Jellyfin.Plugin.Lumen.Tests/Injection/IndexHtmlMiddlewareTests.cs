@@ -23,12 +23,10 @@ public sealed class IndexHtmlMiddlewareTests : IDisposable
     private const string IndexHtml = "<!DOCTYPE html><html><head><title>Jellyfin</title></head><body><div id=\"reactRoot\"></div></body></html>";
     private const string ConfigJson = "{\"multiserver\":false,\"menuLinks\":[],\"plugins\":[\"htmlVideoPlayer/plugin\",\"syncPlay/plugin\"]}";
 
-    /// <summary>A build whose inline guard defines Lumen's jellyfin-web plugin, as client/src/veil/guard.ts does.</summary>
-    private static readonly Dictionary<string, byte[]> GuardedBuild = new()
-    {
-        ["lumen.js"] = "x"u8.ToArray(),
-        [HtmlInjector.GuardAsset] = Encoding.UTF8.GetBytes("window[\"" + WebConfigInjector.PluginName + "\"]=()=>class{}"),
-    };
+    /// <summary>A build with the guard and the definer of Lumen's jellyfin-web plugin (client/src/compat/webPluginDefiner.js).</summary>
+    private static readonly Dictionary<string, byte[]> PluginBuild = Build(
+        guard: "guard()",
+        webPlugin: "window." + WebConfigInjector.PluginName + "=function(){return function(){}};");
 
     private readonly string _webRoot = Directory.CreateTempSubdirectory("lumen-web").FullName;
 
@@ -210,7 +208,7 @@ public sealed class IndexHtmlMiddlewareTests : IDisposable
     public async Task ListsTheWebPlugin_InConfigJson_OnceThePageDefinesIt(string baseUrl)
     {
         var current = new PluginConfiguration { ConfigVersion = 3 };
-        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => current)), build: GuardedBuild);
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => current)), build: PluginBuild);
         var client = host.GetTestClient();
 
         var page = await client.GetStringAsync(baseUrl + "/web/");
@@ -238,7 +236,7 @@ public sealed class IndexHtmlMiddlewareTests : IDisposable
     {
         var listed = ConfigJson.Replace("\"syncPlay/plugin\"", "\"syncPlay/plugin\",\"" + WebConfigInjector.PluginName + "\"", StringComparison.Ordinal);
         File.WriteAllText(Path.Combine(_webRoot, "config.json"), listed);
-        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())), build: GuardedBuild);
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())), build: PluginBuild);
         var client = host.GetTestClient();
 
         await client.GetStringAsync("/web/");
@@ -250,7 +248,7 @@ public sealed class IndexHtmlMiddlewareTests : IDisposable
     public async Task LeavesConfigJsonAlone_WhenLumenIsOff()
     {
         var current = new PluginConfiguration { ConfigVersion = 1 };
-        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => current)), build: GuardedBuild);
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => current)), build: PluginBuild);
         var client = host.GetTestClient();
         await client.GetStringAsync("/web/");
         Assert.Contains(WebConfigInjector.PluginName, await client.GetStringAsync("/web/config.json"), StringComparison.Ordinal);
@@ -270,7 +268,7 @@ public sealed class IndexHtmlMiddlewareTests : IDisposable
     [Fact]
     public async Task LeavesConfigJsonAlone_UntilAPageWithTheGuardIsServed()
     {
-        using var noPage = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())), build: GuardedBuild);
+        using var noPage = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())), build: PluginBuild);
         using var noGuard = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())));
 
         // Nothing served yet (a fresh start), and a build without the guard.
@@ -283,7 +281,7 @@ public sealed class IndexHtmlMiddlewareTests : IDisposable
     public async Task LeavesConfigJsonAlone_WhenThePageCouldNotTakeTheGuard()
     {
         File.WriteAllText(Path.Combine(_webRoot, "index.html"), "<html><body>no head</body></html>");
-        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())), build: GuardedBuild);
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())), build: PluginBuild);
         var client = host.GetTestClient();
 
         Assert.DoesNotContain(WebConfigInjector.PluginName, await client.GetStringAsync("/web/"), StringComparison.Ordinal);
@@ -296,7 +294,7 @@ public sealed class IndexHtmlMiddlewareTests : IDisposable
         var fail = false;
         using var host = await StartAsync(
             services: s => s.AddSingleton(Config(() => fail ? throw new InvalidOperationException("store") : new PluginConfiguration())),
-            build: GuardedBuild);
+            build: PluginBuild);
         var client = host.GetTestClient();
         await client.GetStringAsync("/web/");
 
@@ -312,12 +310,93 @@ public sealed class IndexHtmlMiddlewareTests : IDisposable
     public async Task LeavesAnUnusableConfigJsonAlone()
     {
         File.WriteAllText(Path.Combine(_webRoot, "config.json"), "{\"themes\":[]}");
-        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())), build: GuardedBuild);
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())), build: PluginBuild);
         var client = host.GetTestClient();
         await client.GetStringAsync("/web/");
 
         Assert.Equal("{\"themes\":[]}", await client.GetStringAsync("/web/config.json"));
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/web/other/missing.json")).StatusCode);
+    }
+
+    [Fact]
+    public async Task ConfigJsonListing_FollowsEnabled_EvenWithoutANewConfigVersion()
+    {
+        var current = new PluginConfiguration { ConfigVersion = 4 };
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => current)), build: PluginBuild);
+        var client = host.GetTestClient();
+        await client.GetStringAsync("/web/");
+
+        current = new PluginConfiguration { ConfigVersion = 4, Enabled = false };
+
+        Assert.Equal(ConfigJson, await client.GetStringAsync("/web/config.json"));
+    }
+
+    [Fact]
+    public async Task LeavesConfigJsonAlone_AfterAnUpdate_UntilThatBuildsPageIsServed()
+    {
+        var current = new AssetCatalog(PluginBuild);
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())), catalog: () => current);
+        var client = host.GetTestClient();
+        await client.GetStringAsync("/web/");
+
+        // An update without the definer (or with a different one): the cached page was the old build's.
+        current = new AssetCatalog(Build(guard: "guard()", webPlugin: null));
+        Assert.Equal(ConfigJson, await client.GetStringAsync("/web/config.json"));
+    }
+
+    [Theory]
+    [InlineData("window.LumenGuard=1", "window.SomeoneElse=function(){}")]
+    [InlineData("window.LumenWebPlugin=function(){}", null)]
+    public async Task LeavesConfigJsonAlone_WhenThePagesScriptsDontDefineThePlugin(string guard, string? webPlugin)
+    {
+        // The definer must name the plugin; a guard that does is no substitute (it doesn't parse everywhere).
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())), build: Build(guard, webPlugin));
+        var client = host.GetTestClient();
+        await client.GetStringAsync("/web/");
+
+        Assert.Equal(ConfigJson, await client.GetStringAsync("/web/config.json"));
+    }
+
+    [Fact]
+    public async Task TheListingConfigJson_IsRevalidatedEveryTime()
+    {
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())), build: PluginBuild);
+        var client = host.GetTestClient();
+        var page = await client.GetAsync("/web/");
+        var config = await client.GetAsync("/web/config.json");
+
+        Assert.Contains(WebConfigInjector.PluginName, await config.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.True(config.Headers.CacheControl?.NoCache);
+        Assert.True(page.Headers.CacheControl?.NoCache);
+    }
+
+    [Fact]
+    public async Task ListsTheWebPlugin_InAConfigJsonSavedWithAByteOrderMark()
+    {
+        File.WriteAllText(Path.Combine(_webRoot, "config.json"), ConfigJson, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())), build: PluginBuild);
+        var client = host.GetTestClient();
+        await client.GetStringAsync("/web/");
+
+        var json = await client.GetStringAsync("/web/config.json");
+
+        Assert.Equal(["htmlVideoPlayer/plugin", "syncPlay/plugin", WebConfigInjector.PluginName], Plugins(json));
+    }
+
+    private static Dictionary<string, byte[]> Build(string? guard, string? webPlugin)
+    {
+        var files = new Dictionary<string, byte[]> { ["lumen.js"] = "x"u8.ToArray() };
+        if (guard is not null)
+        {
+            files[HtmlInjector.GuardAsset] = Encoding.UTF8.GetBytes(guard);
+        }
+
+        if (webPlugin is not null)
+        {
+            files[HtmlInjector.WebPluginAsset] = Encoding.UTF8.GetBytes(webPlugin);
+        }
+
+        return files;
     }
 
     private static ILumenConfigReader Config(Func<PluginConfiguration> current)
@@ -330,14 +409,15 @@ public sealed class IndexHtmlMiddlewareTests : IDisposable
     private static string[] Plugins(string json) =>
         JsonNode.Parse(json)!["plugins"]!.AsArray().Select(p => p!.GetValue<string>()).ToArray();
 
-    private async Task<IHost> StartAsync(Action<IApplicationBuilder>? outer = null, Action<IApplicationBuilder>? inner = null, Action<IServiceCollection>? services = null, Dictionary<string, byte[]>? build = null)
+    private async Task<IHost> StartAsync(Action<IApplicationBuilder>? outer = null, Action<IApplicationBuilder>? inner = null, Action<IServiceCollection>? services = null, Dictionary<string, byte[]>? build = null, Func<AssetCatalog>? catalog = null)
     {
         var host = new HostBuilder()
             .ConfigureWebHost(web => web
                 .UseTestServer()
                 .ConfigureServices(collection =>
                 {
-                    collection.AddSingleton(new AssetCatalog(build ?? new Dictionary<string, byte[]> { ["lumen.js"] = "x"u8.ToArray() }));
+                    var fixedCatalog = new AssetCatalog(build ?? new Dictionary<string, byte[]> { ["lumen.js"] = "x"u8.ToArray() });
+                    collection.AddScoped(_ => catalog?.Invoke() ?? fixedCatalog);
                     collection.AddResponseCompression();
                     services?.Invoke(collection);
                 })

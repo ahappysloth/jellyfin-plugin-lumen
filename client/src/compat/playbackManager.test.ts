@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { findPlaybackManager, getPlaybackManager, resetPlaybackManagerCache } from './playbackManager';
 import { PLAYBACK_MANAGER_METHODS } from './registry';
-import { defineWebPlugin, WEB_PLUGIN_NAME, webPluginSlot, type WebPluginDeps } from './webPlugin';
+import { runDefiner } from '../../test/webPluginDefiner';
+import { WEB_PLUGIN_NAME, webPluginSlot, type WebPluginDeps } from './webPlugin';
 
 const fullManager = (): Record<string, unknown> =>
   Object.fromEntries(PLAYBACK_MANAGER_METHODS.required.map((m) => [m, () => undefined]));
@@ -134,9 +135,9 @@ describe('findPlaybackManager', () => {
 describe('findPlaybackManager with the jellyfin-web plugin', () => {
   afterEach(resetPlaybackManagerCache);
 
-  /** A page whose inline guard defined Lumen's plugin and that jellyfin-web loaded with `deps`. */
+  /** A page whose inline script defined Lumen's plugin, and that jellyfin-web loaded with `deps`. */
   function withPlugin(win: Window, deps?: WebPluginDeps): Window {
-    defineWebPlugin(win);
+    runDefiner(win);
     if (deps) {
       const definition = (win as unknown as Record<string, () => new (d: WebPluginDeps) => unknown>)[
         WEB_PLUGIN_NAME
@@ -159,7 +160,7 @@ describe('findPlaybackManager with the jellyfin-web plugin', () => {
     expect(webPluginSlot(win)?.via).toBe('plugin');
   });
 
-  it("searches the bundle until jellyfin-web has loaded the plugin, or when the guard didn't run", () => {
+  it('searches the bundle until jellyfin-web has loaded the plugin, or when nothing defined it', () => {
     const manager = fullManager();
     const notYet = fakeWebpack({ '2': { source: PM_SOURCE, exports: { f: manager } } });
     withPlugin(notYet.win);

@@ -31,6 +31,17 @@ public class HtmlInjectorTests
     }
 
     [Fact]
+    public void InlinesTheWebPluginDefiner_AsItsOwnScript_BeforeTheGuard()
+    {
+        var result = HtmlInjector.Inject(Page, "h", "guard()", styleStockPages: true, webPluginScript: "var s='</script>';define()");
+
+        // Its own <script>: a guard the browser can't parse mustn't take the definer down with it.
+        Assert.Contains("<script>var s='<\\/script>';define()</script><script>document.documentElement", result, StringComparison.Ordinal);
+        Assert.True(result.IndexOf("define()", StringComparison.Ordinal) > result.IndexOf(HtmlInjector.Marker, StringComparison.Ordinal));
+        Assert.DoesNotContain("define()", HtmlInjector.Inject(Page, "h", "guard()"), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InlinesTheGuard_BeforeStylesheet_EscapingClosingTags()
     {
         var result = HtmlInjector.Inject(Page, "h", "var s='</script>';guard()");
