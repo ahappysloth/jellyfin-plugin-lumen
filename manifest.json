@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/ahappysloth/jellyfin-plugin-lumen/main/assets/lumen-plugin.png",
     "versions": [
       {
+        "version": "0.3.4.0",
+        "changelog": "\n### Added\n- Player: Watch together as a pill next to Quality, with the same menu as the nav.\n- Player: Cast, next to picture-in-picture and AirPlay, when Jellyfin can see another place to play (cast devices,\n  other Jellyfin apps). It moves what's playing there, from the same position.\n- Player: \"Ends at\" opposite the elapsed time, at the current speed.\n- Player: a settings (gear) pill with Repeat (movies: Off / Repeat; episodes: Off / This episode / All episodes) and\n  Playback info (direct play or transcode and why, codecs, resolution, container, bitrate, encode speed).\n- Player: a loading screen (the title's backdrop, its name and a spinner) until the video starts, and a spinner when\n  playback stalls.",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/ahappysloth/jellyfin-plugin-lumen/releases/download/v0.3.4/lumen_0.3.4.0.zip",
+        "checksum": "b9218443fc3783258b97eb58ad57658d",
+        "timestamp": "2026-11-10T02:57:51Z"
+      },
+      {
         "version": "0.3.3.0",
         "changelog": "\n### Added\n- Check for updates: on Lumen's settings page, and as \"Check for Lumen updates\" on Jellyfin's Plugins page. It reads\n  Lumen's releases on GitHub straight away, shows the new version's notes, installs it through Jellyfin's own\n  installer and offers to restart Jellyfin.\n\n### Changed\n- Admin pages: room under the top bar for page titles; the Dashboard's Activity and Paths widgets and the Tasks list\n  as cards; neutral disk-usage bars; rounded user cards; quieter field hints.\n- Dependency updates (Vite, Vitest, Playwright, GitHub Actions, test packages). Preact stays on 11.1: 11.2 breaks\n  rendering under jellyfin-web.",
         "targetAbi": "12.1.0.0",
