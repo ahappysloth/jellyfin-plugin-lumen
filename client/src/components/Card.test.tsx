@@ -37,6 +37,30 @@ describe('Card', () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
+  it('treats an Alt-click like a plain click (the browser would download the link)', () => {
+    const onSelect = vi.fn();
+    render(<Card item={movie} client={createFakeClient()} variant="poster" onSelect={onSelect} />);
+
+    expect(fireEvent.click(screen.getByRole('link', { name: 'Lumen Alpha' }), { altKey: true })).toBe(false);
+    expect(onSelect).toHaveBeenCalledWith(movie);
+  });
+
+  it("names an episode's More button after the whole card, not just the episode", () => {
+    const episode: BaseItem = { Id: 'e1', Name: 'Pilot', Type: 'Episode', SeriesName: 'Lumen Show' };
+    render(
+      <Card
+        item={episode}
+        client={createFakeClient()}
+        variant="landscape"
+        caption="S1:E2 · Pilot"
+        onSelect={vi.fn()}
+        onMenu={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button')).toHaveAccessibleName('More options for Lumen Show S1:E2 · Pilot');
+  });
+
   it('swallows the click that ends a touch long-press, which opened the menu', () => {
     vi.useFakeTimers();
     try {

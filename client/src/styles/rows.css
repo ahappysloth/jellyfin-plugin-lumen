@@ -107,6 +107,7 @@
   -webkit-user-select: none;
   user-select: none;
 }
+.lmn-row__scroller.is-dragging .lmn-card,
 .lmn-row__scroller.is-dragging .lmn-card-cell,
 .lmn-row__scroller.is-dragging .lmn-genre {
   pointer-events: none;

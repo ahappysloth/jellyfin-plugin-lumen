@@ -115,6 +115,10 @@ export function Card({ item, client, variant, caption, badge, onSelect, onMenu, 
   const title = item.Type === 'Episode' && item.SeriesName ? item.SeriesName : item.Name;
   const meta = cardMeta(item);
   // The link's name is what it shows: the title, and an episode's caption. The rest is read as its description.
+  const name = caption ? `${title} ${caption}` : title;
+  // Preact's useId starts over in each top-level render() root, so two roots can hand out the same id. That's safe
+  // while cards render only in the App's root (#lmn-root, one view at a time): the profile page's stock selects, the
+  // only other roots on a page with it, have no cards.
   const descriptionId = useId();
   const description = [
     badge && strings.badges[badge],
@@ -135,8 +139,8 @@ export function Card({ item, client, variant, caption, badge, onSelect, onMenu, 
         data-item-id={item.Id}
         onClick={(e) => {
           const longPress = consumeClick();
-          // Ctrl/Cmd/Shift-click: the browser opens the link in a new tab or window.
-          if (!longPress && (e.button || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)) return;
+          // Ctrl/Cmd/Shift-click: the browser opens the link in a new tab or window. (Alt-click would download it.)
+          if (!longPress && (e.button || e.ctrlKey || e.metaKey || e.shiftKey)) return;
           e.preventDefault();
           if (!longPress) onSelect(item);
         }}
@@ -199,7 +203,7 @@ export function Card({ item, client, variant, caption, badge, onSelect, onMenu, 
           type="button"
           class="lmn-card__more"
           aria-haspopup="menu"
-          aria-label={strings.moreFor(item.Name)}
+          aria-label={strings.moreFor(name)}
           onClick={(e) => {
             const from = e.currentTarget;
             const box = from.getBoundingClientRect();

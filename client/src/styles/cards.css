@@ -85,11 +85,13 @@
   transition: transform 0.5s var(--lmn-ease);
 }
 .lmn-card:hover .lmn-card__art,
+.lmn-card-cell:hover .lmn-card__art,
 .lmn-card:focus-visible .lmn-card__art {
   border-color: rgba(255, 255, 255, 0.3);
   box-shadow: 0 12px 28px -14px rgba(0, 0, 0, 0.9);
 }
-.lmn-card:hover .lmn-card__art > img:first-child {
+.lmn-card:hover .lmn-card__art > img:first-child,
+.lmn-card-cell:hover .lmn-card__art > img:first-child {
   transform: scale(1.04);
 }
 .lmn-card:focus-visible {
@@ -149,6 +151,7 @@
   transition: color 0.2s;
 }
 .lmn-card:hover .lmn-card__title,
+.lmn-card-cell:hover .lmn-card__title,
 .lmn-card:focus-visible .lmn-card__title {
   color: var(--lmn-accent);
 }
