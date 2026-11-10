@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { BaseItem, CatalogItem } from '../../api/types';
 import { Card } from '../../components/Card';
 import { Icon } from '../../components/icons';
-import { type CardVariant, imageUrl } from '../../components/images';
+import { type CardVariant, type ImageRef, imageUrl } from '../../components/images';
 import { LoadError } from '../../components/LoadError';
 import { useAutoFocus } from '../../components/useAutoFocus';
+import { boxAt, useImageWidth } from '../../components/useImageWidth';
 import { strings } from '../../strings';
 import { liftVeil } from '../../veil/veil';
 import { CatalogCard } from '../catalog/CatalogCard';
@@ -238,15 +239,9 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
               {shown.people.map((person) => (
                 <button key={person.Id} type="button" class="lmn-person" onClick={() => open(person)}>
                   {person.ImageTags?.Primary ? (
-                    <img
-                      class="lmn-person__photo"
-                      src={imageUrl(
-                        ctx.client,
-                        { itemId: person.Id, type: 'Primary', tag: person.ImageTags.Primary },
-                        { width: 116, height: 154 },
-                      )}
-                      alt=""
-                      loading="lazy"
+                    <PersonPhoto
+                      client={ctx.client}
+                      image={{ itemId: person.Id, type: 'Primary', tag: person.ImageTags.Primary }}
                     />
                   ) : (
                     <span class="lmn-person__photo lmn-person__photo--empty" aria-hidden="true">
@@ -318,5 +313,22 @@ function ResultSection({
         ))}
       </div>
     </section>
+  );
+}
+
+const PHOTO = { width: 116, height: 154 };
+
+/** A person's photo, as wide as its column in the people grid (minmax(116px, 1fr)). */
+function PersonPhoto({ client, image }: { client: ViewContext['client']; image: ImageRef }) {
+  const ref = useRef<HTMLImageElement>(null);
+  const width = useImageWidth(ref, PHOTO.width);
+  return (
+    <img
+      ref={ref}
+      class="lmn-person__photo"
+      src={width ? imageUrl(client, image, boxAt(PHOTO, width)) : undefined}
+      alt=""
+      loading="lazy"
+    />
   );
 }

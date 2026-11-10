@@ -5,6 +5,7 @@ import { strings } from '../strings';
 import { Icon } from './icons';
 import { CARD_SIZES, type CardVariant, cardArt, imageUrl } from './images';
 import { ProgressBar, playedPercent } from './ProgressBar';
+import { boxAt, useImageWidth } from './useImageWidth';
 
 interface CardProps {
   item: BaseItem;
@@ -105,6 +106,9 @@ export function Card({ item, client, variant, caption, badge, onSelect, onMenu, 
   const { consumeClick, ...handlers } = useMenuHandlers(item, onMenu);
   const art = cardArt(item, variant);
   const size = CARD_SIZES[variant];
+  // Rows give cards a fixed width; grids (browse, "You may like") stretch them to fill their columns.
+  const artRef = useRef<HTMLSpanElement>(null);
+  const width = useImageWidth(artRef, size.width);
   const progress = playedPercent(item);
   const title = item.Type === 'Episode' && item.SeriesName ? item.SeriesName : item.Name;
   const meta = cardMeta(item);
@@ -120,10 +124,10 @@ export function Card({ item, client, variant, caption, badge, onSelect, onMenu, 
       }}
       {...handlers}
     >
-      <span class="lmn-card__art">
+      <span class="lmn-card__art" ref={artRef}>
         {art.image ? (
           <img
-            src={imageUrl(client, art.image, size)}
+            src={width ? imageUrl(client, art.image, boxAt(size, width)) : undefined}
             alt=""
             loading="lazy"
             decoding="async"
@@ -133,10 +137,10 @@ export function Card({ item, client, variant, caption, badge, onSelect, onMenu, 
         ) : (
           <span class="lmn-card__placeholder">{title}</span>
         )}
-        {art.logo && (
+        {art.logo && width > 0 && (
           <img
             class="lmn-card__logo"
-            src={imageUrl(client, art.logo, { width: Math.round(size.width * 0.6) })}
+            src={imageUrl(client, art.logo, { width: Math.round(width * 0.6) })}
             alt=""
             loading="lazy"
             decoding="async"
