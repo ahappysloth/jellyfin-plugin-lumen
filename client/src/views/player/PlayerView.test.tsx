@@ -83,6 +83,17 @@ describe('PlayerView extras', () => {
     return pm;
   };
 
+  it("doesn't show the loading screen again when the video was already playing as the player opened", async () => {
+    // A fast server: jellyfin-web starts the video before it switches to the player page.
+    const video = document.createElement('video');
+    video.className = 'htmlvideoplayer';
+    Object.defineProperty(video, 'paused', { value: false, configurable: true });
+    Object.defineProperty(video, 'readyState', { value: 4, configurable: true });
+    document.body.appendChild(video);
+    await start();
+    expect(screen.queryByRole('status', { name: 'Starting…' })).toBeNull();
+  });
+
   it('shows a loading screen until the video plays, then a spinner only for a real stall', async () => {
     await start();
     expect(screen.getByRole('status', { name: 'Starting…' })).toHaveTextContent('Lumen Show');
