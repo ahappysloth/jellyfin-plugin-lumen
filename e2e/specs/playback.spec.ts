@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { ADMIN, loadState } from '../support/api';
 import { CANNOT_PLAY, cannotPlay } from '../support/browsers';
@@ -129,7 +130,7 @@ test('a quality change that restarts the stream holds the last frame with "Switc
     }).observe(document.body, { childList: true, subtree: true, characterData: true });
   });
   await page.getByRole('button', { name: /Quality/ }).click();
-  const fixed = page.getByRole('menu', { name: 'Quality' }).getByRole('menuitemradio').nth(1);
+  const fixed = page.getByRole('dialog', { name: 'Quality' }).getByRole('radio').nth(1);
   const label = (await fixed.locator('.lmn-panel__option-label').textContent())!;
   await fixed.click();
 
@@ -157,8 +158,8 @@ test("Lumen's player controls drive jellyfin-web's player, including subtitle tr
 
   // The test movie has English and Spanish sidecar subtitles (scripts/gen-test-media.sh).
   await page.getByRole('button', { name: /Audio & Subtitles/ }).click();
-  await page.getByRole('menuitemradio', { name: /^Spanish/ }).click();
-  await expect(page.getByRole('menuitemradio', { name: /^Spanish/ })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('radio', { name: /^Spanish/ }).click();
+  await expect(page.getByRole('radio', { name: /^Spanish/ })).toHaveAttribute('aria-checked', 'true');
   // jellyfin-web renders these subtitles as the <video>'s own text track in Chromium, so read its cues; in Firefox and
   // Safari it draws the current cue itself, into .videoSubtitles: move to the first one (1–6 s) for that.
   await page.locator('video').first().evaluate((v: HTMLVideoElement) => (v.currentTime = 2));
@@ -178,6 +179,33 @@ test("Lumen's player controls drive jellyfin-web's player, including subtitle tr
     .toBe(true);
 });
 
+test("the player's panels are labelled dialogs that pass axe", async ({ page }) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
+  await expect.poll(() => page.locator('video.htmlvideoplayer').evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0.3);
+  await page.getByRole('button', { name: 'Pause' }).click(); // the controls stay up
+
+  for (const [pill, name, current] of [
+    [/^Quality/, 'Quality', 'aria-checked'],
+    [/^Audio & Subtitles$/, 'Audio & Subtitles', 'aria-checked'],
+    [/^Settings$/, 'Settings', 'aria-pressed'], // Repeat's choice
+  ] as const) {
+    await page.getByRole('button', { name: pill }).click();
+    const dialog = page.getByRole('dialog', { name });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator(':focus')).toHaveAttribute(current, 'true'); // the current choice has focus
+    const { violations } = await new AxeBuilder({ page })
+      .include('#lmn-root .lmn-player__pills')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
+      .analyze();
+    expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join(', ')}`)).toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+  }
+});
+
 test('the player says when it ends, repeats, and shows playback info', async ({ page }) => {
   const { items } = loadState();
   await login(page, ADMIN);
@@ -191,12 +219,12 @@ test('the player says when it ends, repeats, and shows playback info', async ({ 
 
   await page.getByRole('button', { name: 'Settings' }).click();
   // Watch together lives in the settings panel.
-  await expect(page.getByRole('menu', { name: 'Settings' }).getByRole('menuitem', { name: /Watch together/ })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: /Watch together/ })).toBeVisible();
   // A movie repeats itself.
   await page.getByRole('button', { name: 'Repeat', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Repeat', exact: true })).toHaveAttribute('aria-pressed', 'true');
 
-  await page.getByRole('menuitemcheckbox', { name: 'Playback info' }).click();
+  await page.getByRole('button', { name: 'Playback info' }).click();
   const info = page.getByRole('complementary', { name: 'Playback info' });
   await expect(info).toContainText('Direct play');
   await expect(info).toContainText('VP9');

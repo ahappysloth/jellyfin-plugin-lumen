@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/preact';
+import { act, fireEvent, render, screen, within } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient } from '../../../test/fakeClient';
 import { pressRemoteBack, REMOTE_BACK_KEY_CODES } from '../../../test/remoteBack';
@@ -134,7 +134,7 @@ describe('PlayerView extras', () => {
     fireEvent.click(screen.getByRole('button', { name: 'All episodes' }));
     expect(pm.setRepeatMode).toHaveBeenCalledWith('RepeatAll', pm.player);
 
-    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Playback info' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Playback info' }));
     const card = screen.getByRole('complementary', { name: 'Playback info' });
     expect(card).toHaveTextContent('Direct play');
     expect(card).toHaveTextContent('1080p');
@@ -145,7 +145,7 @@ describe('PlayerView extras', () => {
   it("gives focus to the settings pill as Playback info's own close button goes", async () => {
     await start();
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Playback info' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Playback info' }));
     const close = screen.getByRole('button', { name: 'Hide playback info' });
     close.focus();
 
@@ -188,7 +188,7 @@ describe('PlayerView', () => {
     expect(pm.nextTrack).toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: /Audio & Subtitles/ }));
-    fireEvent.click(screen.getByRole('menuitemradio', { name: /Spanish/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /Spanish/ }));
     expect(pm.setSubtitleStreamIndex).toHaveBeenCalledWith(3, pm.player);
   });
 
@@ -359,9 +359,9 @@ describe('PlayerView', () => {
       const tracks = screen.getByRole('button', { name: /Audio & Subtitles/ });
       fireEvent.click(tracks);
 
-      const option = screen.getByRole('menuitemradio', { name: /Spanish/ });
+      const option = screen.getByRole('radio', { name: /Spanish/ });
       expect(pressRemoteBack(option, keyCode).reachedJellyfin).toBe(false);
-      expect(screen.queryByRole('menuitemradio')).toBeNull();
+      expect(screen.queryByRole('radio')).toBeNull();
       expect(tracks).toHaveAttribute('aria-expanded', 'false');
       // Focus goes back to the pill that opened it (not to nothing), and the controls stay up.
       expect(tracks).toHaveFocus();
@@ -457,7 +457,7 @@ describe('PlayerView', () => {
     it('closes Playback info first, and gives focus to the settings pill', async () => {
       const back = await open();
       fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-      fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Playback info' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Playback info' }));
       expect(screen.getByRole('complementary', { name: 'Playback info' })).toBeInTheDocument();
 
       pressRemoteBack(document.body, 461);
@@ -518,12 +518,101 @@ describe('PlayerView', () => {
     it('closes a panel open while focus is on nothing', async () => {
       const back = await open();
       fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-      expect(screen.getByRole('menu', { name: 'Settings' })).toBeInTheDocument();
+      expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument();
 
       pressRemoteBack(document.body, 461);
 
-      expect(screen.queryByRole('menu', { name: 'Settings' })).toBeNull();
+      expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull();
       expect(back).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('panels', () => {
+    let reachedJellyfin: string[] = [];
+    const stock = (e: KeyboardEvent): void => void reachedJellyfin.push(e.key);
+    beforeEach(() => {
+      reachedJellyfin = [];
+      document.addEventListener('keydown', stock);
+    });
+    afterEach(() => document.removeEventListener('keydown', stock));
+
+    const open = async (layout: 'tv' | 'desktop' = 'desktop') => {
+      const pm = fakeManager();
+      vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+      render(<PlayerView ctx={makeContext(createFakeClient(), { layout })} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      return pm;
+    };
+
+    it('are labelled dialogs of radio groups, and focus the current choice as they open', async () => {
+      await open();
+      const quality = screen.getByRole('button', { name: /Quality/ });
+      expect(quality).toHaveAttribute('aria-haspopup', 'dialog');
+      fireEvent.click(quality);
+      const dialog = screen.getByRole('dialog', { name: 'Quality' });
+      expect(dialog).not.toHaveAttribute('aria-modal');
+      const presets = screen.getByRole('radiogroup', { name: 'Quality' });
+      expect(within(presets).getByRole('radio', { name: /^Auto/ })).toHaveAttribute('aria-checked', 'true');
+      expect(within(presets).getByRole('radio', { name: /^720p/ })).toHaveAttribute('aria-checked', 'false');
+      expect(within(presets).getByRole('radio', { name: /^Auto/ })).toHaveFocus();
+      const ratios = screen.getByRole('radiogroup', { name: 'Aspect ratio' });
+      expect(within(ratios).getByRole('radio', { name: 'Zoom' })).toHaveAttribute('aria-checked', 'false');
+      expect(screen.queryByRole('menu')).toBeNull();
+
+      fireEvent.click(screen.getByRole('button', { name: /Audio & Subtitles/ }));
+      expect(screen.getByRole('dialog', { name: 'Audio & Subtitles' })).toBeInTheDocument();
+      const audio = screen.getByRole('radiogroup', { name: 'Audio' });
+      expect(within(audio).getByRole('radio', { name: /^English/ })).toHaveFocus();
+      const subtitles = screen.getByRole('radiogroup', { name: 'Subtitles' });
+      expect(within(subtitles).getByRole('radio', { name: 'Off' })).toHaveAttribute('aria-checked', 'true');
+      expect(within(subtitles).getByRole('radio', { name: /^Spanish/ })).toHaveAttribute(
+        'aria-checked',
+        'false',
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+      expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Off' })).toHaveFocus(); // Repeat's current choice
+    });
+
+    it('close on Escape and give focus back to their pill', async () => {
+      await open();
+      const tracks = screen.getByRole('button', { name: /Audio & Subtitles/ });
+      fireEvent.click(tracks);
+      fireEvent.keyDown(screen.getByRole('radio', { name: /^Spanish/ }), { key: 'Escape', keyCode: 27 });
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(tracks).toHaveFocus();
+      expect(reachedJellyfin).toEqual([]);
+    });
+
+    it('move between choices with the arrow keys, without picking one or reaching jellyfin-web', async () => {
+      const pm = await open();
+      fireEvent.click(screen.getByRole('button', { name: /Audio & Subtitles/ }));
+      const off = screen.getByRole('radio', { name: 'Off' });
+      const spanish = screen.getByRole('radio', { name: /^Spanish/ });
+      off.focus();
+      fireEvent.keyDown(off, { key: 'ArrowDown' });
+      expect(spanish).toHaveFocus();
+      fireEvent.keyDown(spanish, { key: 'ArrowRight' });
+      expect(off).toHaveFocus(); // round to the first
+      fireEvent.keyDown(off, { key: 'ArrowUp' });
+      expect(spanish).toHaveFocus();
+      fireEvent.keyDown(spanish, { key: 'ArrowLeft' });
+      expect(off).toHaveFocus();
+      expect(pm.setSubtitleStreamIndex).not.toHaveBeenCalled();
+      expect(reachedJellyfin).toEqual([]);
+    });
+
+    it("leave the arrow keys to jellyfin-web's D-pad navigation in the TV layout", async () => {
+      await open('tv');
+      fireEvent.click(screen.getByRole('button', { name: /Audio & Subtitles/ }));
+      const off = screen.getByRole('radio', { name: 'Off' });
+      off.focus();
+      fireEvent.keyDown(off, { key: 'ArrowDown' });
+      expect(off).toHaveFocus();
+      expect(reachedJellyfin).toEqual(['ArrowDown']);
     });
   });
 
@@ -536,12 +625,12 @@ describe('PlayerView', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: /Quality/ }));
-    fireEvent.click(screen.getAllByRole('menuitemradio', { name: /^Auto/ })[0]!); // Quality's (Aspect ratio has one too)
+    fireEvent.click(screen.getAllByRole('radio', { name: /^Auto/ })[0]!); // Quality's (Aspect ratio has one too)
     expect(pm.setMaxStreamingBitrate).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: /Audio & Subtitles/ }));
-    fireEvent.click(screen.getByRole('menuitemradio', { name: /^English/ }));
-    fireEvent.click(screen.getByRole('menuitemradio', { name: /^Off/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /^English/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /^Off/ }));
     expect(pm.setAudioStreamIndex).not.toHaveBeenCalled();
     expect(pm.setSubtitleStreamIndex).not.toHaveBeenCalled();
   });
@@ -557,7 +646,7 @@ describe('PlayerView', () => {
     document.body.appendChild(video);
 
     fireEvent.click(screen.getByRole('button', { name: /Audio & Subtitles/ }));
-    fireEvent.click(screen.getByRole('menuitemradio', { name: /Spanish/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /Spanish/ }));
     expect(screen.queryByText('Switching to Spanish…')).toBeNull(); // nothing yet: it may switch in place
 
     fireEvent(video, new Event('emptied')); // jellyfin-web restarted the stream
@@ -581,7 +670,7 @@ describe('PlayerView', () => {
       await vi.advanceTimersByTimeAsync(300);
     });
     fireEvent.click(screen.getByRole('button', { name: /Audio & Subtitles/ }));
-    fireEvent.click(screen.getByRole('menuitemradio', { name: /Spanish/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /Spanish/ }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2500);
     });

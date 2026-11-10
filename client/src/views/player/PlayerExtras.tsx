@@ -11,6 +11,7 @@ import { formatTime } from '../../util/locale';
 import type { ViewContext } from '../context';
 import { openWatchTogether } from '../syncplay/WatchTogether';
 import { othersInGroup, type SyncPlayState } from '../syncplay/syncPlayState';
+import { usePanel } from './PlayerPanels';
 import type { PlayerSnapshot } from './playerState';
 
 /* ---- Ends at ------------------------------------------------------------------------------------------------- */
@@ -71,16 +72,9 @@ export function SettingsPanel({
     pill.current?.focus();
     onClose();
   };
-  useEffect(() => {
-    const onDown = (e: PointerEvent): void => {
-      const pills = ref.current?.parentElement;
-      if (pills && !pills.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener('pointerdown', onDown, true);
-    return () => document.removeEventListener('pointerdown', onDown, true);
-  }, []);
+  usePanel(ref, onClose);
   return (
-    <div ref={ref} class="lmn-panel lmn-panel--settings" role="menu" aria-label={strings.player.settings}>
+    <div ref={ref} class="lmn-panel lmn-panel--settings" role="dialog" aria-label={strings.player.settings}>
       {snap.repeatMode !== null && manager.setRepeatMode && (
         <section class="lmn-panel__column">
           <h2 class="lmn-panel__heading">{strings.player.repeat}</h2>
@@ -109,7 +103,6 @@ export function SettingsPanel({
         {syncPlay.available && (
           <button
             type="button"
-            role="menuitem"
             aria-haspopup="menu"
             class={`lmn-panel__option lmn-panel__toggle${syncPlay.group ? ' is-selected' : ''}`}
             onClick={(e) => {
@@ -132,8 +125,6 @@ export function SettingsPanel({
         )}
         <button
           type="button"
-          role="menuitemcheckbox"
-          aria-checked={info}
           class={`lmn-panel__option lmn-panel__toggle${info ? ' is-selected' : ''}`}
           onClick={() => {
             onInfo(!info);
