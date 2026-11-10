@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/ahappysloth/jellyfin-plugin-lumen/main/assets/lumen-plugin.png",
     "versions": [
       {
+        "version": "0.3.2.0",
+        "changelog": "\n### Added\n- Dashboard look: the admin Dashboard, the metadata manager and plugin settings pages take Lumen's colours, accent,\n  type and shapes (drawer, cards, buttons, tables, dialogs, inputs), with Lumen's mark in the drawer. Restart,\n  Shutdown, Delete and Uninstall are outlined in red so they never look like the accent. CSS only, behind the\n  (renamed) \"Restyle Jellyfin's sign-in, settings and Dashboard pages\" switch.\n\n### Changed\n- Settings pages use the settings menu's width, so titles, fields and the menu line up.\n- Checkboxes on settings and admin pages: a smaller rounded box centred on its label, the accent with a white tick.\n- Save and other primary buttons darken on hover.\n- The \"Switching to …\" note stays up while a restarted stream is still loading (slow server transcodes took over\n  20 s and left a frozen picture that looked paused).\n\n### Fixed\n- The Watch together button in the nav looks like the other nav items.\n- Opening a dropdown on a long settings page no longer removes the scrollbar and shifts the page sideways.\n- No blue hover glow or blue focus border on checkboxes.",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/ahappysloth/jellyfin-plugin-lumen/releases/download/v0.3.2/lumen_0.3.2.0.zip",
+        "checksum": "8ad20f48a3c69d843f5792e168357939",
+        "timestamp": "2026-11-10T00:43:18Z"
+      },
+      {
         "version": "0.3.1.0",
         "changelog": "\n### Added\n- Watch together (SyncPlay): a button in the nav and a row on the Me page list the groups you can join with who's in\n  them, create a group, and in a group show its members, Leave group and Start/Stop group playback. The player shows\n  who you're watching with, and Jellyfin's notices take Lumen's toast look.\n- Trickplay: hovering or dragging the seek bar shows the server's thumbnail for that time (when the library has\n  trickplay images).\n- A volume pill drops down from the top of the player when the volume changes (scroll wheel, keys, mute), without\n  bringing back the controls.\n\n### Changed\n- Play and Resume show \"Starting…\" until the player opens.\n- Picking the quality, audio or subtitle track that's already selected does nothing. When a change restarts the\n  stream, the last frame stays up with \"Switching to …\" until playback is going again.\n\n### Fixed\n- The seek bar stays where you click instead of snapping back to the old position while the player seeks.\n- Jellyfin's volume card no longer pops up over the player.\n- The scroll wheel no longer brings back the player controls.",
         "targetAbi": "12.1.0.0",
