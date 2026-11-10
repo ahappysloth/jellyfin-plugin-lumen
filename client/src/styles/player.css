@@ -42,7 +42,10 @@ html.lmn-skin-player .upNextContainer {
   position: absolute;
   right: 0;
   left: 0;
-  padding: 0 clamp(16px, 3vw, 40px);
+  /* clamp(16px, 3vw, 40px), or more where a phone's notch is in landscape (jellyfin-web sets viewport-fit=cover).
+     Spelled with min() and max(): Safari 13.0 has them but not clamp(). */
+  padding-right: max(16px, min(3vw, 40px), env(safe-area-inset-right));
+  padding-left: max(16px, min(3vw, 40px), env(safe-area-inset-left));
   transition:
     opacity 0.35s ease,
     transform 0.35s var(--lmn-ease);
@@ -470,8 +473,8 @@ html.lmn-skin-player .upNextContainer {
   }
   .lmn-panel {
     top: calc(max(20px, env(safe-area-inset-top)) + 52px);
-    right: 16px;
-    left: 16px;
+    right: max(16px, env(safe-area-inset-right));
+    left: max(16px, env(safe-area-inset-left));
     width: auto;
   }
   .lmn-panel__columns {
@@ -662,7 +665,7 @@ html.lmn-skin-player .volumeOsd {
   position: absolute;
   z-index: 2;
   top: calc(max(20px, env(safe-area-inset-top)) + 96px);
-  left: clamp(16px, 3vw, 40px);
+  left: max(16px, min(3vw, 40px), env(safe-area-inset-left));
   width: min(360px, calc(100vw - 32px));
   padding: 14px 16px 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
