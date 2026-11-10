@@ -214,6 +214,7 @@ export const strings = {
     subtitlesOff: 'Subtitles off',
     switching: (to: string) => `Switching to ${to}…`,
     seek: 'Seek',
+    positionOf: (position: string, duration: string) => `${position} of ${duration}`,
     quality: 'Quality',
     audioSubtitles: 'Audio & Subtitles',
     audio: 'Audio',

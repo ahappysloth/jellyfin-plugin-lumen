@@ -393,6 +393,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
           }}
           preview={preview}
           livePositionMs={() => readPlayerState(manager, player).positionMs}
+          tv={ctx.layout === 'tv'}
         />
         <div class="lmn-player__controls">
           <div class="lmn-player__group">
@@ -420,7 +421,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             >
               <SkipIcon direction="forward" />
             </button>
-            <Volume manager={manager} snap={snap} />
+            <Volume manager={manager} snap={snap} tv={ctx.layout === 'tv'} />
           </div>
           <div class="lmn-player__group">
             {hasNext && (
@@ -484,7 +485,10 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   );
 }
 
-function Volume({ manager, snap }: { manager: PlaybackManager; snap: PlayerSnapshot }) {
+/** The keys a range input handles itself. */
+const SLIDER_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'];
+
+function Volume({ manager, snap, tv }: { manager: PlaybackManager; snap: PlayerSnapshot; tv: boolean }) {
   const level = snap.muted ? 0 : snap.volume;
   return (
     <div class="lmn-player__volume">
@@ -505,6 +509,13 @@ function Volume({ manager, snap }: { manager: PlaybackManager; snap: PlayerSnaps
         value={level}
         aria-label={strings.player.volume}
         style={{ '--lmn-fill': `${level}%` }}
+        onKeyDown={(e) => {
+          // The slider's own keys are the slider's: jellyfin-web's shortcuts would also seek (arrows left and right,
+          // Home, End), skip chapters (Page Up and Down) or change the volume a second time (arrows up and down). In
+          // the TV layout up and down stay jellyfin-web's, which moves focus with them (and keeps them from the slider).
+          if (!SLIDER_KEYS.includes(e.key) || (tv && (e.key === 'ArrowUp' || e.key === 'ArrowDown'))) return;
+          e.stopPropagation();
+        }}
         onInput={(e) => {
           const value = Number(e.currentTarget.value);
           if (snap.muted && value > 0) manager.toggleMute(snap.player);
