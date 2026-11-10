@@ -3,7 +3,7 @@ import { useTrickplay } from './trickplay';
 import { LoadingScreen } from './LoadingScreen';
 import { othersInGroup, useSyncPlayState } from '../syncplay/syncPlayState';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { isBackKey, isRemoteBack } from '../../compat/jellyfin';
+import { HOME_HASH, isBackKey, isRemoteBack } from '../../compat/jellyfin';
 import { getPlaybackManager, type PlaybackManager, type Player } from '../../compat/playbackManager';
 import { Icon } from '../../components/icons';
 import { strings } from '../../strings';
@@ -185,21 +185,26 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   }, [positionShown.current]);
   const castAvailable = useCastAvailable(pm.current, itemId);
 
-  // Back closes an open panel and stays in the player; with none open it leaves the player, on the first press.
-  // jellyfin-web's video OSD (hidden under Lumen's) would otherwise take that first press: while it counts its controls
-  // as shown (3 s after the player opens, and after a D-pad key in the TV layout, each key restarting the 3 s) its
-  // `document` keydown listener hides them on Back and stops the event before jellyfin-web goes back
-  // (controllers/playback/video/index.js, 12.1–12.4). This listener, on <body>, runs before it and after Lumen's own
-  // menus, which stop the Back they use.
+  // Back closes an open panel, then Playback info, and stays in the player; with neither open it leaves the player, on
+  // the first press. jellyfin-web's video OSD (hidden under Lumen's) would otherwise take that first press: while it
+  // counts its controls as shown (3 s after the player opens, and after a D-pad key in the TV layout, each key
+  // restarting the 3 s) its `document` keydown listener hides them on Back and stops the event before jellyfin-web goes
+  // back (controllers/playback/video/index.js, 12.1–12.4). This listener, on <body>, runs before it and after Lumen's
+  // own menus, which stop the Back they use.
   const osdRef = useRef<HTMLDivElement>(null);
-  const panelOpen = useRef(false);
-  panelOpen.current = panel !== null;
+  const open = useRef({ panel: false, info: false });
+  open.current = { panel: panel !== null, info };
   useEffect(() => {
+    const consume = (e: KeyboardEvent): void => {
+      e.preventDefault();
+      e.stopPropagation(); // which also keeps it from the document listener that wakes the controls
+    };
     const onKey = (e: KeyboardEvent): void => {
       if (e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !isBackKey(e)) return;
-      if (panelOpen.current) {
-        e.preventDefault();
-        e.stopPropagation(); // which also keeps it from the document listener that wakes the controls
+      // A held Back repeats: act on the press only, and keep the repeats from jellyfin-web, which would go back again.
+      if (e.repeat) return consume(e);
+      if (open.current.panel) {
+        consume(e);
         // The focused entry is about to unmount: give focus back to the pill that opened the panel, so a remote
         // isn't left on nothing, and keep the controls up for it.
         osdRef.current?.querySelector<HTMLElement>('.lmn-player__pill[aria-expanded="true"]')?.focus();
@@ -207,12 +212,20 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
         wake();
         return;
       }
+      if (open.current.info) {
+        consume(e);
+        settingsPill.current?.focus(); // where Playback info is turned on, as its close button does
+        setInfo(false);
+        wake();
+        return;
+      }
       // Leave only where jellyfin-web would: Escape (and a gamepad's B) go back in the TV layout only.
       if (!isRemoteBack(e) && ctx.layout !== 'tv') return;
       // A jellyfin-web dialog over the player (its OSD ignores Back then too) closes on it instead.
       if (document.querySelector('.dialogContainer .dialog.opened')) return;
-      e.preventDefault();
-      e.stopPropagation();
+      // Nothing to go back to: jellyfin-web's Back exits the app (webOS, Tizen) where it can.
+      if (window.history.length <= 1) return;
+      consume(e);
       window.history.back();
     };
     document.body.addEventListener('keydown', onKey);
@@ -280,7 +293,11 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
           type="button"
           class="lmn-player__icon lmn-player__back"
           aria-label={strings.player.back}
-          onClick={() => window.history.back()}
+          onClick={() => {
+            // Opened with nothing behind it: go home, as a details page's Back does.
+            if (window.history.length > 1) window.history.back();
+            else ctx.navigate(HOME_HASH);
+          }}
         >
           <Icon name="arrowLeft" size={26} />
         </button>

@@ -8,6 +8,15 @@ import { qualityLabel, trackParts } from './PlayerPanels';
 import { formatClock, PlayerView } from './PlayerView';
 import type { PlayerSnapshot } from './playerState';
 import { strings } from '../../strings';
+import { ContextMenuHost } from '../../components/ContextMenu';
+import { NO_SYNCPLAY } from '../syncplay/syncPlayState';
+import { openWatchTogether } from '../syncplay/WatchTogether';
+
+const watchTogether = {
+  ...NO_SYNCPLAY,
+  available: true,
+  group: { GroupId: 'g1', GroupName: "Alex's group", Participants: ['Alex', 'Sam'] },
+};
 
 function fakeManager() {
   const player = { id: 'htmlvideoplayer' };
@@ -325,6 +334,7 @@ describe('PlayerView', () => {
       expect(document.querySelector('.lmn-osd')).not.toHaveClass('is-idle');
 
       // With no panel open, Back leaves the player.
+      vi.spyOn(window.history, 'length', 'get').mockReturnValue(2);
       const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
       pressRemoteBack(tracks, keyCode);
       expect(back).toHaveBeenCalledTimes(1);
@@ -353,6 +363,7 @@ describe('PlayerView', () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(300);
       });
+      vi.spyOn(window.history, 'length', 'get').mockReturnValue(2); // came from a page
       return vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
     };
 
@@ -376,6 +387,81 @@ describe('PlayerView', () => {
       fireEvent.keyDown(document.body, { key: 'Escape', keyCode: 27 });
       expect(back).not.toHaveBeenCalled();
       expect(osdTookBack).toBe(true);
+    });
+
+    it('leaves on Escape in the TV layout', async () => {
+      const back = await open('tv');
+      fireEvent.keyDown(document.body, { key: 'Escape', keyCode: 27 });
+      expect(back).toHaveBeenCalledTimes(1);
+      expect(osdTookBack).toBe(false);
+    });
+
+    it('leaves Back to jellyfin-web when there is nothing to go back to (it exits the app)', async () => {
+      const back = await open();
+      vi.spyOn(window.history, 'length', 'get').mockReturnValue(1);
+      expect(pressRemoteBack(document.body, 461).reachedJellyfin).toBe(false); // the stock OSD's, as before
+      expect(osdTookBack).toBe(true);
+      expect(back).not.toHaveBeenCalled();
+    });
+
+    it('acts on a held Back once, and keeps its repeats from jellyfin-web', async () => {
+      const back = await open();
+      pressRemoteBack(document.body, 461);
+      let reachedJellyfin = false;
+      const stock = (e: KeyboardEvent): void => void (reachedJellyfin = !e.defaultPrevented);
+      window.addEventListener('keydown', stock);
+      fireEvent.keyDown(document.body, { key: 'Unidentified', keyCode: 461, repeat: true });
+      window.removeEventListener('keydown', stock);
+      expect(back).toHaveBeenCalledTimes(1);
+      expect(reachedJellyfin).toBe(false);
+      expect(osdTookBack).toBe(false);
+    });
+
+    it('closes Playback info first, and gives focus to the settings pill', async () => {
+      const back = await open();
+      fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+      fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Playback info' }));
+      expect(screen.getByRole('complementary', { name: 'Playback info' })).toBeInTheDocument();
+
+      pressRemoteBack(document.body, 461);
+
+      expect(screen.queryByRole('complementary', { name: 'Playback info' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Settings' })).toHaveFocus();
+      expect(back).not.toHaveBeenCalled();
+      pressRemoteBack(document.body, 461);
+      expect(back).toHaveBeenCalledTimes(1);
+    });
+
+    it('closes an open Watch together menu and stays in the player', async () => {
+      const back = await open();
+      render(<ContextMenuHost />);
+      const pill = screen.getByRole('button', { name: 'Settings' });
+      await act(() => openWatchTogether(makeContext(createFakeClient()), watchTogether, pill));
+      const leave = screen.getByRole('menuitem', { name: 'Leave group' });
+
+      expect(pressRemoteBack(leave, 461).reachedJellyfin).toBe(false);
+
+      expect(screen.queryByRole('menuitem')).toBeNull();
+      expect(pill).toHaveFocus();
+      expect(back).not.toHaveBeenCalled();
+      expect(osdTookBack).toBe(false);
+    });
+
+    it("goes home from the Back button when there's nothing to go back to", async () => {
+      const pm = fakeManager();
+      vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+      const ctx = makeContext(createFakeClient(), { layout: 'tv' });
+      render(<PlayerView ctx={ctx} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+      vi.spyOn(window.history, 'length', 'get').mockReturnValue(1);
+
+      fireEvent.click(document.querySelector('.lmn-player__back')!);
+
+      expect(back).not.toHaveBeenCalled();
+      expect(ctx.navigate).toHaveBeenCalledWith('#/home');
     });
 
     it('leaves Back to an open jellyfin-web dialog', async () => {
