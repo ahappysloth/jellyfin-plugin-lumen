@@ -382,8 +382,17 @@ const BUFFER_DELAY_MS = 500;
  * Whether the video has started (until then the player shows its loading screen) and whether it's stalled. Events
  * from jellyfin-web's <video> don't bubble, so listen in the capture phase.
  */
+/**
+ * jellyfin-web can start the video before it switches to the player page (a fast server: the first frame lands while
+ * the details page is still up), so the player opens after the 'playing' event. Check the video as it is.
+ */
+function alreadyPlaying(): boolean {
+  const video = document.querySelector<HTMLVideoElement>('video.htmlvideoplayer');
+  return !!video && !video.paused && video.readyState >= 3;
+}
+
 export function usePlaybackProgress(): { started: boolean; buffering: boolean } {
-  const [started, setStarted] = useState(false);
+  const [started, setStarted] = useState(alreadyPlaying);
   const [buffering, setBuffering] = useState(false);
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => {
