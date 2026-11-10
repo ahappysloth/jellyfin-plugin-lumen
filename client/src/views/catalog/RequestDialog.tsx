@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { RequestError } from '../../api/lumenApi';
 import type { CatalogTitle, RequestResult } from '../../api/types';
+import { isBackKey } from '../../compat/jellyfin';
 import { Icon } from '../../components/icons';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
@@ -70,9 +71,11 @@ export function RequestDialog({ title, ctx, onClose, onRequested }: Props) {
   };
 
   const onKeyDown = (e: KeyboardEvent): void => {
-    if (e.key === 'Escape' && phase.kind !== 'sending') {
+    if (isBackKey(e)) {
+      // Even while sending (when it can't close yet), Back must not reach jellyfin-web, which would leave the page.
+      e.preventDefault();
       e.stopPropagation();
-      onClose();
+      if (phase.kind !== 'sending') onClose();
       return;
     }
     if (e.key !== 'Tab' || !panel.current) return;

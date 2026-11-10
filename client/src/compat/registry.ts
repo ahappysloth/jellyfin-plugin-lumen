@@ -141,6 +141,13 @@ export const LIBRARY_TABS = {
   tvshows: { items: 0, suggestions: 1, upcoming: 2, genres: 3, studios: 4, episodes: 5, collections: 6 },
 } as const;
 
+/**
+ * keyCodes jellyfin-web's keyboard navigation (scripts/keyboardNavigation.js `KeyNames`) reads as Back, on top of
+ * Escape (27): webOS's Back (461), Tizen's (10009) and an Xbox gamepad's B (196). Its `window` keydown listener (bubble
+ * phase, skipped when `defaultPrevented`) then goes back a page; in the TV layout Escape does too.
+ */
+export const BACK_KEY_CODES: readonly number[] = [27, 196, 461, 10009];
+
 /** jellyfin-web's list page filtered to one studio (`#/list?studioId=`), like its genre list. */
 export const LIST_PARAMS = { genre: 'genreId', studio: 'studioId', parent: 'parentId' } as const;
 

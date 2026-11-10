@@ -3,6 +3,7 @@ import { useTrickplay } from './trickplay';
 import { LoadingScreen } from './LoadingScreen';
 import { othersInGroup, useSyncPlayState } from '../syncplay/syncPlayState';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { isBackKey } from '../../compat/jellyfin';
 import { getPlaybackManager, type PlaybackManager, type Player } from '../../compat/playbackManager';
 import { Icon } from '../../components/icons';
 import { strings } from '../../strings';
@@ -208,7 +209,9 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
     <div
       class={`lmn-osd${shown ? '' : ' is-idle'}${panel ? ' has-panel' : ''}${progress.started ? '' : ' is-loading'}`}
       onKeyDown={(e) => {
-        if (e.key === 'Escape' && panel) {
+        // Back closes an open panel and stays in the player; with none open, jellyfin-web leaves the player.
+        if (isBackKey(e) && panel) {
+          e.preventDefault();
           e.stopPropagation();
           setPanel(null);
         }

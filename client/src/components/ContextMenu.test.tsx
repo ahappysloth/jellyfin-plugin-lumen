@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/preact';
 import { describe, expect, it, vi } from 'vitest';
+import { pressRemoteBack, REMOTE_BACK_KEY_CODES } from '../../test/remoteBack';
 import { ContextMenuHost, openContextMenu } from './ContextMenu';
 
 describe('ContextMenu', () => {
@@ -30,6 +31,16 @@ describe('ContextMenu', () => {
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('menu')).toBeNull();
   });
+
+  it.each(REMOTE_BACK_KEY_CODES)(
+    "closes on a TV remote's Back (keyCode %i), which jellyfin-web then doesn't also act on",
+    (keyCode) => {
+      const onSelect = open();
+      expect(pressRemoteBack(screen.getByRole('menu'), keyCode).reachedJellyfin).toBe(false);
+      expect(screen.queryByRole('menu')).toBeNull();
+      expect(onSelect).not.toHaveBeenCalled();
+    },
+  );
 
   it('closes on Escape and on an outside press', () => {
     open();

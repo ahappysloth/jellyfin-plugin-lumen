@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/preact';
 import { describe, expect, it, vi } from 'vitest';
+import { pressRemoteBack, REMOTE_BACK_KEY_CODES } from '../../test/remoteBack';
 import { Dropdown } from './Dropdown';
 
 const options = [
@@ -44,6 +45,20 @@ describe('Dropdown', () => {
     expect(screen.queryByRole('listbox')).toBeNull();
     expect(onChange).toHaveBeenCalledTimes(2);
   });
+
+  it.each(REMOTE_BACK_KEY_CODES)(
+    "closes on a TV remote's Back (keyCode %i), which jellyfin-web then doesn't also act on",
+    (keyCode) => {
+      const onChange = vi.fn();
+      render(<Dropdown label="Fruit" value="a" options={options} onChange={onChange} />);
+      fireEvent.click(screen.getByRole('button'));
+
+      expect(pressRemoteBack(screen.getByRole('listbox'), keyCode).reachedJellyfin).toBe(false);
+      expect(screen.queryByRole('listbox')).toBeNull();
+      expect(screen.getByRole('button')).toHaveFocus();
+      expect(onChange).not.toHaveBeenCalled();
+    },
+  );
 
   it('closes on an outside press without changing the value', () => {
     const onChange = vi.fn();

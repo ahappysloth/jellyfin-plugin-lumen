@@ -4,6 +4,7 @@ import { createFakeClient, routes } from '../../../test/fakeClient';
 import { makeContext } from '../../../test/viewContext';
 import type { CatalogTitle } from '../../api/types';
 import type { AjaxRequest } from '../../compat/jellyfin';
+import { pressRemoteBack, REMOTE_BACK_KEY_CODES } from '../../../test/remoteBack';
 import { RequestDialog } from './RequestDialog';
 
 const show: CatalogTitle = {
@@ -121,6 +122,24 @@ describe('RequestDialog', () => {
     fireEvent.keyDown(dialog, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it.each(REMOTE_BACK_KEY_CODES)(
+    "closes on a TV remote's Back (keyCode %i), and never lets jellyfin-web go back a page too",
+    async (keyCode) => {
+      let answer: (v: unknown) => void = () => undefined;
+      const { dialog, onClose } = setup(movie, () => new Promise((r) => (answer = r)));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Request' }));
+
+      // While sending it can't close yet, but Back still mustn't leave the page underneath.
+      expect(pressRemoteBack(dialog, keyCode).reachedJellyfin).toBe(false);
+      expect(onClose).not.toHaveBeenCalled();
+
+      answer({ State: 'Requested', NeedsApproval: false });
+      await within(dialog).findByText(/Requested. It will appear/);
+      expect(pressRemoteBack(dialog, keyCode).reachedJellyfin).toBe(false);
+      expect(onClose).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it('traps Tab inside the dialog and gives focus back to its opener', async () => {
     const { dialog, opener, view } = setup(movie, () => ({}));

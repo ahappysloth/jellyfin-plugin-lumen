@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient } from '../../../test/fakeClient';
+import { pressRemoteBack, REMOTE_BACK_KEY_CODES } from '../../../test/remoteBack';
 import { makeContext } from '../../../test/viewContext';
 import * as compat from '../../compat/playbackManager';
 import { qualityLabel, trackParts } from './PlayerPanels';
@@ -287,6 +288,28 @@ describe('PlayerView', () => {
     );
     video.remove();
   });
+
+  it.each(REMOTE_BACK_KEY_CODES)(
+    "a TV remote's Back (keyCode %i) closes an open panel and stays in the player",
+    async (keyCode) => {
+      const pm = fakeManager();
+      vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+      render(<PlayerView ctx={makeContext(createFakeClient())} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      const tracks = screen.getByRole('button', { name: /Audio & Subtitles/ });
+      fireEvent.click(tracks);
+
+      const option = screen.getByRole('menuitemradio', { name: /Spanish/ });
+      expect(pressRemoteBack(option, keyCode).reachedJellyfin).toBe(false);
+      expect(screen.queryByRole('menuitemradio')).toBeNull();
+      expect(tracks).toHaveAttribute('aria-expanded', 'false');
+
+      // With no panel open, Back is jellyfin-web's: it leaves the player.
+      expect(pressRemoteBack(tracks, keyCode).reachedJellyfin).toBe(true);
+    },
+  );
 
   it('does nothing when the current quality, audio or subtitle track is picked again', async () => {
     const pm = fakeManager();
