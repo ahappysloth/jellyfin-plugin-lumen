@@ -33,7 +33,7 @@
    second --lmn-gutter in :root wouldn't do, as Lightning CSS keeps only the last. */
 @supports not (width: max(1px, 2px)) {
   :root {
-    --lmn-gutter: 6.25vw;
+    --lmn-gutter: 5vw; /* 96px at 1920px, the cap elsewhere */
   }
 }
 

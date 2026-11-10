@@ -57,3 +57,37 @@ describe('fallbacks for Chromium 68', () => {
     },
   );
 });
+
+describe('missingFallbacks', () => {
+  it('wants a plain declaration of the same property before the newer one', () => {
+    expect(missingFallbacks('.a { width: 1px; color: red; width: min(1px, 2px); }')).toEqual([]);
+    expect(missingFallbacks('.a { width: min(1px, 2px); }')).toHaveLength(1);
+    expect(missingFallbacks('.a { height: 1px; width: min(1px, 2px); }')).toHaveLength(1);
+  });
+
+  it('rejects a fallback after the newer value, which would override it everywhere', () => {
+    expect(missingFallbacks('.a { width: min(1px, 2px); width: 1px; }')).toHaveLength(2);
+    expect(missingFallbacks('.a { width: 1px; width: min(1px, 2px); width: 3px; }')).toHaveLength(1);
+  });
+
+  it('skips only @supports blocks that Chromium 68 skips', () => {
+    expect(missingFallbacks('@supports (width: max(1px, 2px)) { .a { width: min(1px, 2px); } }')).toEqual([]);
+    expect(missingFallbacks('@supports (display: grid) { .a { width: min(1px, 2px); } }')).toHaveLength(1);
+    expect(
+      missingFallbacks('@supports not (width: max(1px, 2px)) { .a { width: min(1px, 2px); } }'),
+    ).toHaveLength(1);
+  });
+
+  it('wants a custom property set again for the same selector, only where the functions are missing', () => {
+    const modern = ':root { --g: max(1px, 2px); }';
+    expect(
+      missingFallbacks(`${modern} @supports not (width: max(1px, 2px)) { :root { --g: 1px; } }`),
+    ).toEqual([]);
+    expect(missingFallbacks(modern)).toHaveLength(1);
+    expect(
+      missingFallbacks(`${modern} @supports not (width: max(1px, 2px)) { .b { --g: 1px; } }`),
+    ).toHaveLength(1);
+    expect(missingFallbacks(`${modern} @supports (display: grid) { :root { --g: 1px; } }`)).toHaveLength(1);
+    expect(missingFallbacks(':root { --g: 1px; --g: max(1px, 2px); }')).toHaveLength(1);
+  });
+});

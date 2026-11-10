@@ -3,7 +3,7 @@
   position: relative;
   display: flex;
   align-items: flex-end;
-  min-height: 560px;
+  min-height: 88vh; /* a 16:9 TV, where min(88vh, 62vw) is 88vh */
   min-height: max(560px, min(88vh, 62vw));
   overflow: hidden;
   background: var(--lmn-surface);
@@ -32,7 +32,7 @@
   position: relative;
   z-index: 1;
   width: 100%;
-  width: min(calc(640px + 2 * var(--lmn-gutter)), 100%);
+  max-width: calc(640px + 2 * var(--lmn-gutter));
   /* max(min()), not clamp(): Lightning CSS leaves a value with var() alone, and Safari 13.0 has no clamp(). */
   padding: calc(var(--lmn-nav-h) + 24px) var(--lmn-gutter) 64px;
   padding: calc(var(--lmn-nav-h) + 24px) var(--lmn-gutter) max(48px, min(9vh, 96px));
