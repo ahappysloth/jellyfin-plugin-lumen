@@ -1,4 +1,4 @@
-import { cleanup, render } from '@testing-library/preact';
+import { act, cleanup, render } from '@testing-library/preact';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient } from '../../../test/fakeClient';
 import { loadTrailer } from './lazyTrailer';
@@ -70,6 +70,37 @@ describe('LazyTrailer', () => {
     rerender(<fresh.LazyTrailer {...props} paused muted={false} allowTranscode />);
     expect(preview).toHaveAttribute('data-paused', 'true');
     expect(preview).toHaveAttribute('data-muted', 'false');
+  });
+
+  it('counts the delay from when the preview was asked for, the download included', async () => {
+    // The code takes 1 s to arrive.
+    const actual = await vi.importActual<typeof import('./TrailerPreview')>('./TrailerPreview');
+    vi.doMock('./TrailerPreview', () => new Promise((resolve) => setTimeout(() => resolve(actual), 1000)));
+    const fresh = await freshModule();
+    vi.useFakeTimers();
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined); // jsdom has no media playback
+    try {
+      const start = Date.now();
+      const { container } = render(<fresh.LazyTrailer {...props} delaySeconds={4} />);
+      /** Runs the clock to `ms` after the render, in steps: effects that an act() schedules run as it ends. */
+      const runTo = async (ms: number) => {
+        while (Date.now() - start < ms) {
+          await act(async () => {
+            await vi.advanceTimersByTimeAsync(Math.min(100, ms - (Date.now() - start)));
+          });
+        }
+      };
+
+      await runTo(3900);
+      expect(container.querySelector('video')).toBeNull();
+      await runTo(4100);
+      expect(container.querySelector('video')).not.toBeNull(); // 4 s in, not 5
+    } finally {
+      cleanup(); // while timers are still fake (see TrailerPreview.test)
+      vi.clearAllTimers();
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    }
   });
 
   it('loads the code once, however often it is asked for', async () => {

@@ -29,7 +29,8 @@ if (others.length) {
 
 // Raised from 60 KB in 0.3.1 (episode page, library tabs, Watch together, volume pill), and from 64 KB in 0.3.4
 // (player: Watch together, Cast, Ends at, settings with Repeat and Playback info, loading screen). The player has
-// loaded on its own since 0.3.7. Raised to 72 KB in 0.3.7, after moving the trailer preview into its own chunk.
+// loaded on its own since 0.3.7, and the trailer preview too, which freed about 2.5 KB. Raised to 72 KB in 0.3.7 anyway,
+// at the owner's call: headroom for upcoming features.
 const BUDGET = 72 * 1024;
 const startup = ['lumen.js', 'lumen.css', coreChunk];
 const total = startup.reduce((sum, f) => sum + gz(`dist/${f}`), 0);
