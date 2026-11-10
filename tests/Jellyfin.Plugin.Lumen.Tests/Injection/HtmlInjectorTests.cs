@@ -16,7 +16,7 @@ public class HtmlInjectorTests
         Assert.True(marker > result.IndexOf("main.js", StringComparison.Ordinal));
         Assert.True(marker < result.IndexOf("</head>", StringComparison.Ordinal));
         Assert.Contains("<link rel=\"stylesheet\" href=\"../Lumen/Assets/lumen.css?v=abc123\">", result, StringComparison.Ordinal);
-        Assert.Contains("<script defer src=\"../Lumen/Assets/lumen.js?v=abc123\"></script>", result, StringComparison.Ordinal);
+        Assert.Contains("<script type=\"module\" src=\"../Lumen/Assets/lumen.js?v=abc123\"></script>", result, StringComparison.Ordinal);
     }
 
     [Fact]

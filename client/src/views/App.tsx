@@ -11,8 +11,8 @@ import type { ViewContext } from './context';
 import { TitleView } from './catalog/TitleView';
 import { DetailsView } from './details/DetailsView';
 import { HomeView } from './home/HomeView';
-import { PlayerView } from './player/PlayerView';
-import { LoadingScreen } from './player/PlayerExtras';
+import { LazyPlayer, loadPlayer } from './player/lazyPlayer';
+import { LoadingScreen } from './player/LoadingScreen';
 import { clearStarting, useStarting } from '../playback/starting';
 import { ProfileView } from './profile/ProfileView';
 import { SettingsFrame } from './profile/SettingsFrame';
@@ -59,7 +59,7 @@ function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
     case 'settings':
       return <SettingsFrame page={route.page} />;
     case 'player':
-      return <PlayerView ctx={ctx} />;
+      return <LazyPlayer ctx={ctx} />;
     case 'details':
       return <DetailsView key={route.id} id={route.id} ctx={ctx} />;
     case 'title':
@@ -99,6 +99,10 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
 /** From a Play click until the player opens: the same loading screen the player shows until its first frame. */
 function StartingScreen({ ctx }: { ctx: ViewContext }) {
   const starting = useStarting();
+  // Playback is starting: fetch the player's code while jellyfin-web prepares the stream.
+  useEffect(() => {
+    if (starting) loadPlayer().catch(() => undefined);
+  }, [starting !== null]);
   return starting ? (
     <div class="lmn-starting">
       <LoadingScreen ctx={ctx} snap={null} starting={starting} />

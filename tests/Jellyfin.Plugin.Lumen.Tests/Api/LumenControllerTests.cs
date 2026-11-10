@@ -14,7 +14,12 @@ namespace Jellyfin.Plugin.Lumen.Tests.Api;
 
 public class LumenControllerTests
 {
-    private readonly AssetCatalog _assets = new(new Dictionary<string, byte[]> { ["lumen.js"] = Encoding.UTF8.GetBytes("x") });
+    private readonly AssetCatalog _assets = new(new Dictionary<string, byte[]>
+    {
+        ["lumen.js"] = Encoding.UTF8.GetBytes("x"),
+        ["lumen-chunk-main-AbC123.js"] = Encoding.UTF8.GetBytes("y"),
+    });
+
     private readonly ILumenConfigStore _config = Substitute.For<ILumenConfigStore>();
     private readonly DiagnosticsStore _diagnostics = new();
     private readonly IServerApplicationHost _host = Substitute.For<IServerApplicationHost>();
@@ -54,6 +59,16 @@ public class LumenControllerTests
         controller.GetAsset("lumen.js", "old");
 
         Assert.Equal("no-cache", controller.Response.Headers.CacheControl.ToString());
+    }
+
+    [Fact]
+    public void ContentNamedChunk_IsImmutable_WithoutAVersion()
+    {
+        var controller = Create();
+
+        Assert.IsType<FileContentResult>(controller.GetAsset("lumen-chunk-main-AbC123.js", null));
+
+        Assert.Equal("public, max-age=31536000, immutable", controller.Response.Headers.CacheControl.ToString());
     }
 
     [Fact]
