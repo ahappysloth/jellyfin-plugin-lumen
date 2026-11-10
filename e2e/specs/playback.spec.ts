@@ -89,6 +89,24 @@ test("the volume slider's arrow keys change the volume, not the position", async
   await expect(volume).toBeFocused();
 });
 
+test('Space presses the focused player button instead of playing or pausing', async ({ page }) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
+  const video = page.locator('video.htmlvideoplayer');
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0.3);
+  await page.mouse.click(400, 300); // pauses, and gives jellyfin-web a mouse press elsewhere to remember
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
+
+  await page.getByRole('button', { name: 'Mute' }).focus();
+  await page.keyboard.press('Space');
+
+  await expect(page.getByRole('button', { name: 'Unmute' })).toBeFocused();
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.muted)).toBe(true);
+  expect(await video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
+});
+
 test('the seek bar stays where you click and shows trickplay thumbnails', async ({ page }) => {
   const { items } = loadState();
   await login(page, ADMIN);

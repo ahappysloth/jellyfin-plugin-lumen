@@ -117,20 +117,42 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
     };
   }, [itemId, snap?.playlistIndex]);
 
+  const osdRef = useRef<HTMLDivElement>(null);
+  /**
+   * Whether a control has keyboard focus (not a click's). Outside the TV layout the controls stay up for it: they
+   * aren't hidden from someone using them with the keyboard. In the TV layout focus is always on a control, so they
+   * hide after a pause as jellyfin-web's TV controls do, and come back with the next D-pad press.
+   */
+  const holdsKeyboardFocus = (): boolean => {
+    const focused = document.activeElement;
+    if (ctx.layout === 'tv' || !focused || !osdRef.current?.contains(focused)) return false;
+    try {
+      return focused.matches(':focus-visible');
+    } catch {
+      return false; // a browser without :focus-visible can't tell a click's focus from the keyboard's
+    }
+  };
   // Show on any input; hide after a pause while playing with no menu open.
   const wake = (): void => {
     setVisible(true);
     clearTimeout(idleTimer.current);
-    idleTimer.current = window.setTimeout(() => setVisible(false), IDLE_MS);
+    const idle = (): void => {
+      if (holdsKeyboardFocus()) idleTimer.current = window.setTimeout(idle, IDLE_MS);
+      else setVisible(false);
+    };
+    idleTimer.current = window.setTimeout(idle, IDLE_MS);
   };
   useEffect(() => {
     wake();
-    // Not the wheel: jellyfin-web turns it into volume changes, which get the volume pill instead.
-    const events = ['pointermove', 'pointerdown', 'keydown'] as const;
+    // Not the wheel: jellyfin-web turns it into volume changes, which get the volume pill instead. Keys in the capture
+    // phase, as jellyfin-web's controls count them: the ones a slider keeps to itself are input too.
+    const events = ['pointermove', 'pointerdown'] as const;
     events.forEach((e) => document.addEventListener(e, wake, { passive: true }));
+    document.addEventListener('keydown', wake, { passive: true, capture: true });
     return () => {
       clearTimeout(idleTimer.current);
       events.forEach((e) => document.removeEventListener(e, wake));
+      document.removeEventListener('keydown', wake, { capture: true });
     };
   }, []);
 
@@ -191,13 +213,12 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   // restarting the 3 s) its `document` keydown listener hides them on Back and stops the event before jellyfin-web goes
   // back (controllers/playback/video/index.js, 12.1–12.4). This listener, on <body>, runs before it and after Lumen's
   // own menus, which stop the Back they use.
-  const osdRef = useRef<HTMLDivElement>(null);
   const open = useRef({ panel: false, info: false });
   open.current = { panel: panel !== null, info };
   useEffect(() => {
     const consume = (e: KeyboardEvent): void => {
       e.preventDefault();
-      e.stopPropagation(); // which also keeps it from the document listener that wakes the controls
+      e.stopPropagation();
     };
     const onKey = (e: KeyboardEvent): void => {
       if (e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !isBackKey(e)) return;
@@ -217,6 +238,15 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
         settingsPill.current?.focus(); // where Playback info is turned on, as its close button does
         setInfo(false);
         wake();
+        return;
+      }
+      // Escape on a control (outside the TV layout) puts the controls away, as it does jellyfin-web's: they stay up
+      // while they have keyboard focus.
+      if (e.key === 'Escape' && holdsKeyboardFocus()) {
+        consume(e);
+        (document.activeElement as HTMLElement).blur();
+        clearTimeout(idleTimer.current);
+        setVisible(false);
         return;
       }
       // Leave only where jellyfin-web would: Escape (and a gamepad's B) go back in the TV layout only.
@@ -256,6 +286,14 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   return (
     <div
       ref={osdRef}
+      onKeyDown={(e) => {
+        // Space presses the focused button, as anywhere else: jellyfin-web's shortcut (keyCode 32) would play or pause
+        // instead, and keep the press from the button. It still gets the key, as one it ignores: it remembers which
+        // element the keyboard is on, and in Firefox drops a click on any other (controllers/playback/video/index.js,
+        // onClickCapture).
+        if (e.key === ' ' && (e.target as Element).closest('button'))
+          Object.defineProperty(e, 'keyCode', { value: 0 });
+      }}
       class={`lmn-osd${shown ? '' : ' is-idle'}${panel ? ' has-panel' : ''}${progress.started ? '' : ' is-loading'}`}
     >
       {!progress.started && <LoadingScreen ctx={ctx} snap={snap} starting={starting} />}
