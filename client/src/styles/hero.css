@@ -76,6 +76,10 @@
   object-position: left bottom;
   filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.45));
 }
+/* A title logo is the page's (or slide's) heading: the heading itself adds no space. */
+.lmn-logo-heading {
+  margin: 0;
+}
 .lmn-hero__title,
 .lmn-details__title {
   margin: 0 0 16px;

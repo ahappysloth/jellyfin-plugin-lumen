@@ -121,7 +121,9 @@ export function DetailsHeader(props: Props) {
       <div class="lmn-details__info">
         {props.eyebrow && <p class="lmn-details__eyebrow">{props.eyebrow}</p>}
         {logo ? (
-          <img class="lmn-details__logo" src={imageUrl(client, logo, TITLE_LOGO)} alt={item.Name} />
+          <h1 class="lmn-logo-heading">
+            <img class="lmn-details__logo" src={imageUrl(client, logo, TITLE_LOGO)} alt={item.Name} />
+          </h1>
         ) : (
           <h1 class="lmn-details__title">{item.Name}</h1>
         )}

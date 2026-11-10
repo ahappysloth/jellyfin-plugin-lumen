@@ -58,6 +58,15 @@ describe('Hero', () => {
     expect(onInfo).toHaveBeenCalledWith(items[0]!.Item);
   });
 
+  it("names the slide's heading after its title when the title is a logo", () => {
+    render(
+      <Hero items={items} client={createFakeClient()} config={config} onPlay={vi.fn()} onInfo={vi.fn()} />,
+    );
+
+    const heading = screen.getByRole('heading', { level: 2, name: 'Alpha' });
+    expect(heading).toContainElement(screen.getByRole('img', { name: 'Alpha' }));
+  });
+
   const renderHero = () =>
     render(
       <Hero items={items} client={createFakeClient()} config={config} onPlay={vi.fn()} onInfo={vi.fn()} />,
