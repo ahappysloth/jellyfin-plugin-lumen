@@ -58,12 +58,13 @@ export default tseslint.config(
           message: `Not in Chromium 68 / Safari 13: ${HINT}`,
         })),
       ],
-      // Calls only (`at` is also a field name), as `.at(…)` or `['at'](…)`.
+      // Calls only (`at` is also a field name), as `.at(…)`, `['at'](…)` or `[`at`](…)`.
       'no-restricted-syntax': [
         'error',
         ...[
           `[computed=false][property.name=/^(${NEWER_METHODS.join('|')})$/]`,
           `[computed=true][property.value=/^(${NEWER_METHODS.join('|')})$/]`,
+          `[computed=true][property.type='TemplateLiteral'][property.expressions.length=0][property.quasis.0.value.cooked=/^(${NEWER_METHODS.join('|')})$/]`,
         ].map((property) => ({
           selector: `CallExpression > MemberExpression.callee${property}`,
           message: `Not in Chromium 68 / Safari 13: ${HINT}`,

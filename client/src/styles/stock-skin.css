@@ -308,7 +308,7 @@ html.lmn-skin-settings .lmn-settings-frame {
   top: calc(var(--lmn-nav-h) + 20px);
   left: 50%;
   width: calc(100% - 2 * var(--lmn-gutter));
-  width: min(880px, calc(100% - 2 * var(--lmn-gutter)));
+  max-width: 880px;
   transform: translateX(-50%);
 }
 .lmn-settings-frame__back {
@@ -402,7 +402,7 @@ html.lmn-signin .page.standalonePage {
 }
 html.lmn-signin .page.standalonePage > div {
   width: 100%;
-  width: min(420px, 100%);
+  max-width: 420px;
   margin: 0 auto !important;
   padding: 36px 32px 28px !important;
   border: 1px solid var(--lmn-line);
