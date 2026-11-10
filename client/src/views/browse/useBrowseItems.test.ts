@@ -123,6 +123,17 @@ describe('useBrowseItems', () => {
     expect(result.current.hasMore).toBe(false);
   });
 
+  it("keeps the first page's count: later pages aren't counted (their TotalRecordCount is just the page)", async () => {
+    const { calls, fetch } = deferredFetch();
+    const { result } = renderHook(() => useBrowseItems('k', fetch));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    await settle(() => calls[0]!.resolve(page('p', PAGE_SIZE, PAGE_SIZE * 3)));
+    act(() => result.current.loadMore());
+    await settle(() => calls[1]!.resolve(page('q', PAGE_SIZE, PAGE_SIZE)));
+    expect(result.current.total).toBe(PAGE_SIZE * 3);
+    expect(result.current.hasMore).toBe(true);
+  });
+
   it('retries from the start when the first page failed', async () => {
     const { calls, fetch } = deferredFetch();
     const { result } = renderHook(() => useBrowseItems('k', fetch));

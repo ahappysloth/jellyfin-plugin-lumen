@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { BaseItem } from '../api/types';
 import type { JellyfinApiClient } from '../compat/jellyfin';
 import { imageUrl, resolveImage } from '../components/images';
@@ -59,4 +59,31 @@ export function startingFor(client: Pick<JellyfinApiClient, 'getUrl'>, item: Bas
     title: (item.Type === 'Episode' ? item.SeriesName : item.Name) ?? null,
     backdrop: ref ? imageUrl(client, ref, { width: 1280 }, 1) : null,
   };
+}
+
+/**
+ * A Play button's "Starting…" for one click: `run(key, start)` marks `key` as starting until `start` settles, or for
+ * at most as long as the loading screen stays up, so a play request Jellyfin never answers can't leave it stuck.
+ */
+export function useStartingButton<K>(): [K | null, (key: K, start: () => Promise<unknown>) => void] {
+  const [key, setKey] = useState<K | null>(null);
+  const click = useRef(0);
+  const mounted = useRef(true);
+  useEffect(
+    () => () => {
+      mounted.current = false;
+    },
+    [],
+  );
+  const run = (next: K, start: () => Promise<unknown>): void => {
+    const id = ++click.current;
+    setKey(next);
+    const done = (): void => {
+      clearTimeout(timer);
+      if (mounted.current && click.current === id) setKey(null);
+    };
+    const timer = setTimeout(done, MAX_MS);
+    start().then(done, done);
+  };
+  return [key, run];
 }

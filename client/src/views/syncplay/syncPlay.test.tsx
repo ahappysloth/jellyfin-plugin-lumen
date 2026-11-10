@@ -1,10 +1,17 @@
-import { fireEvent, render, screen } from '@testing-library/preact';
+import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/preact';
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { makeContext } from '../../../test/viewContext';
 import type { SyncPlayManager } from '../../compat/syncPlay';
 import { ContextMenuHost } from '../../components/ContextMenu';
-import { NO_SYNCPLAY, othersInGroup, readState, type SyncPlayState } from './syncPlayState';
+import {
+  clearSyncPlayAccess,
+  NO_SYNCPLAY,
+  othersInGroup,
+  readState,
+  useSyncPlayState,
+  type SyncPlayState,
+} from './syncPlayState';
 import { openWatchTogether } from './WatchTogether';
 
 const fakeManager = (over: Partial<Record<keyof SyncPlayManager, unknown>> = {}): SyncPlayManager =>
@@ -20,6 +27,18 @@ const fakeManager = (over: Partial<Record<keyof SyncPlayManager, unknown>> = {})
 const group = { GroupId: 'g1', GroupName: "Alex's group", Participants: ['Alex', 'Sam'] };
 
 describe('SyncPlay state', () => {
+  it("never looks for SyncPlay for a user who isn't allowed it", async () => {
+    clearSyncPlayAccess();
+    const client = createFakeClient(
+      routes({ 'Users/user1': { Id: 'user1', Policy: { SyncPlayAccess: 'None' } } }),
+    );
+    const find = vi.fn(() => fakeManager());
+    renderHook(() => useSyncPlayState(makeContext(client), find));
+    await waitFor(() => expect(client.requests.length).toBeGreaterThan(0));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(find).not.toHaveBeenCalled();
+  });
+
   it('is unavailable without the manager or without access', () => {
     expect(readState(null, { Id: 'u', Name: 'Alex' })).toEqual(NO_SYNCPLAY);
     expect(readState(fakeManager(), { Id: 'u', Name: 'Alex', Policy: { SyncPlayAccess: 'None' } })).toEqual(

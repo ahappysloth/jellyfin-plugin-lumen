@@ -67,8 +67,10 @@ export function useBrowseItems(key: string, fetchPage: Fetch): BrowseState {
         const next = [...base, ...page.Items.filter((i) => !seen.has(i.Id))];
         offset.current = startIndex + page.Items.length;
         setItems(next);
-        // The end: a short page, or the server's offset reaching its count (shown as "N titles").
-        const count = page.Items.length < PAGE_SIZE ? next.length : (page.TotalRecordCount ?? next.length);
+        // The end: a short page, or the server's offset reaching its count (shown as "N titles"). Only the first page
+        // is counted (getBrowseItems' count): later pages keep its total.
+        const counted = reset ? page.TotalRecordCount : (state.current.total ?? undefined);
+        const count = page.Items.length < PAGE_SIZE ? next.length : (counted ?? next.length);
         setDone(page.Items.length < PAGE_SIZE || offset.current >= count);
         setTotal(count);
         setLoading(false);

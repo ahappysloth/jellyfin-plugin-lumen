@@ -54,6 +54,11 @@ const VEIL_FALLBACK_MS = 4000;
  * page just before Lumen's arrives. Covers the client config (VIEW_TIMEOUT_MS) plus the compatibility retry.
  */
 const LUMEN_SAFETY_MS = 15_000;
+/**
+ * After Lumen's settings fail to load, navigations within this long stay stock without asking again, so a server
+ * that's down doesn't hold every page behind the veil for the whole request timeout.
+ */
+const CONFIG_RETRY_MS = 5000;
 /** Just after sign-in jellyfin-web can navigate to home before it sets the user; wait this long for it. */
 const SIGN_IN_WAIT_MS = 3000;
 
@@ -74,6 +79,8 @@ interface Session {
   client: JellyfinApiClient;
   /** null = Lumen is disabled or unavailable for this user; the stock UI is used everywhere. */
   takeover: Takeover | null;
+  /** Lumen's settings couldn't be loaded: try again on a navigation from this time on (Date.now()). */
+  retryAt?: number;
 }
 
 interface PendingSession {
@@ -107,7 +114,7 @@ export function startLumen(options: BootstrapOptions): () => void {
     try {
       config = await withTimeout(api.getClientConfig(), VIEW_TIMEOUT_MS);
     } catch {
-      return { userId, client, takeover: null };
+      return { userId, client, takeover: null, retryAt: Date.now() + CONFIG_RETRY_MS };
     }
     if (!config.Enabled) return { userId, client, takeover: null };
     setFavicon(MARK_SVG, doc);
@@ -170,6 +177,8 @@ export function startLumen(options: BootstrapOptions): () => void {
 
   const sync = async (): Promise<void> => {
     skinStockPages();
+    // A blip when the page loaded shouldn't leave Lumen off until a reload: ask again on a later navigation.
+    if (session?.retryAt !== undefined && Date.now() >= session.retryAt) session = null;
     // Loops because the user or client can change while a session is being created.
     for (;;) {
       if (stopped) return;

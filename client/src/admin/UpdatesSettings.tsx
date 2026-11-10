@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { Icon } from '../components/icons';
 import type { AdminApi, UpdateStatus } from './adminApi';
 import { Card } from './controls';
+import { withTimeout } from '../util/withTimeout';
 
 type Step =
   | { kind: 'idle' }
@@ -21,19 +22,28 @@ export const RESTART_TIMEOUT_MS = 180_000;
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
+/** A status check that hasn't answered after this long counts as Jellyfin being down. */
+const STATE_TIMEOUT_MS = 10_000;
+
 /**
  * Resolves true once Jellyfin is back from a restart: it stopped answering and answers again, or it answers and no
- * longer has a restart pending (a restart quicker than one poll). False after `timeoutMs`.
+ * longer has a restart pending (a restart quicker than one poll). False after `timeoutMs`, measured on the clock so a
+ * status check that hangs mid-restart can't stretch it.
  */
 export async function waitForRestart(
   api: AdminApi,
   pollMs = RESTART_POLL_MS,
   timeoutMs = RESTART_TIMEOUT_MS,
 ): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
   let wentDown = false;
-  for (let waited = 0; waited < timeoutMs; waited += pollMs) {
+  while (Date.now() < deadline) {
     await sleep(pollMs);
-    const state = await api.serverState();
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    const state = await withTimeout(api.serverState(), Math.min(STATE_TIMEOUT_MS, remaining)).catch(
+      () => ({ up: false }) as const,
+    );
     if (!state.up) wentDown = true;
     else if (wentDown || !state.restartPending) return true;
   }

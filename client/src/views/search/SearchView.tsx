@@ -66,6 +66,7 @@ export async function runSearch(ctx: ViewContext, query: string): Promise<Search
           sortOrder: 'Ascending',
           startIndex: 0,
           limit: PER_KIND,
+          count: false,
         })
         .catch(none),
     ),
@@ -134,6 +135,7 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
         sortOrder: 'Ascending',
         startIndex: 0,
         limit: PER_KIND,
+        count: false,
       })
       .then((r) => setExplore(r.Items))
       .catch(() => setExplore([]));

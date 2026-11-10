@@ -9,6 +9,7 @@ import { cardMenuHandler, infoHash } from '../cardMenu';
 import type { ViewContext } from '../context';
 import { captionFor, Row } from '../home/Row';
 import { PageHeader } from './Toolbar';
+import { registerSessionCache } from '../../util/sessionCaches';
 
 type Collection = 'movies' | 'tvshows';
 
@@ -18,6 +19,10 @@ const row = (id: string, title: string, items: BaseItem[]): HomeRow => ({
   Title: title,
   Items: items,
 });
+
+/** Each library's suggestions as last loaded this session: coming back shows them at once while they refresh. */
+const shown = new Map<string, HomeRow[]>();
+registerSessionCache(() => shown.clear());
 
 /** The library's suggestion rows, from Jellyfin's own lists; a failed or empty list is left out. */
 export async function loadSuggestions(
@@ -74,7 +79,8 @@ export function SuggestionsTab({
   tabs: ComponentChildren;
   ctx: ViewContext;
 }) {
-  const [rows, setRows] = useState<HomeRow[] | null>(null);
+  const cacheKey = `${ctx.userId}:${id}`;
+  const [rows, setRows] = useState<HomeRow[] | null>(() => shown.get(cacheKey) ?? null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -83,9 +89,15 @@ export function SuggestionsTab({
   useEffect(() => {
     let cancelled = false;
     setFailed(false);
+    const cached = shown.get(cacheKey);
+    if (cached) setRows(cached);
     loadSuggestions(ctx, id, collection)
-      .then((r) => !cancelled && setRows(r))
-      .catch(() => !cancelled && setFailed(true));
+      .then((r) => {
+        shown.set(cacheKey, r);
+        if (!cancelled) setRows(r);
+      })
+      // A refresh that fails behind cached rows keeps them.
+      .catch(() => !cancelled && !cached && setFailed(true));
     return () => {
       cancelled = true;
     };

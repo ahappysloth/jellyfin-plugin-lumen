@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { registerSessionCache } from '../util/sessionCaches';
 import type { BaseItem } from '../api/types';
 import {
   FAVORITES_HASH,
@@ -26,17 +27,22 @@ export type NavActive = string;
 interface NavData {
   serverName: string | null;
   libraries: BaseItem[];
+  /** When it was loaded (Date.now()). */
+  loadedAt: number;
 }
 
 /** Per-user cache, so navigating home again doesn't refetch or flash an empty nav. */
 const cache = new Map<string, NavData>();
+/** Libraries rarely change: a nav loaded this recently isn't fetched again when another page shows it. */
+const NAV_FRESH_MS = 5 * 60_000;
+registerSessionCache(() => cache.clear());
 
 async function loadNavData(ctx: ViewContext): Promise<NavData> {
   const [serverName, views] = await Promise.all([
     getServerName(ctx.client),
     ctx.api.getUserViews().catch(() => ({ Items: [] as BaseItem[] })),
   ]);
-  return { serverName, libraries: views.Items.slice(0, MAX_LIBRARIES) };
+  return { serverName, libraries: views.Items.slice(0, MAX_LIBRARIES), loadedAt: Date.now() };
 }
 
 /**
@@ -54,6 +60,11 @@ export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavAc
   }, []);
 
   useEffect(() => {
+    const cached = cache.get(ctx.userId);
+    if (cached && Date.now() - cached.loadedAt < NAV_FRESH_MS) {
+      setData(cached);
+      return;
+    }
     let cancelled = false;
     loadNavData(ctx)
       .then((fresh) => {

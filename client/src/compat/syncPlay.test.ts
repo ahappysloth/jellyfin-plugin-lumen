@@ -49,6 +49,16 @@ describe('findSyncPlay', () => {
     expect(required).toEqual([]);
   });
 
+  it("reads the modules' code again only once more modules have loaded", () => {
+    let reads = 0;
+    const source = { toString: () => (reads++, 'nothing to see') } as unknown as string;
+    const modules: Record<string, { source: string; exports: unknown }> = { '1': { source, exports: {} } };
+    const { win } = fakeWebpack(modules);
+    expect(findSyncPlay(win)).toBeNull();
+    expect(findSyncPlay(win)).toBeNull();
+    expect(reads).toBe(1);
+  });
+
   it('returns null without webpack', () => {
     expect(findSyncPlay({} as Window)).toBeNull();
   });

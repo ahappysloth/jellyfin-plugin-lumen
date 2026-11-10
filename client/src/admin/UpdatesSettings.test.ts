@@ -61,6 +61,14 @@ describe('waiting for a restart', () => {
     expect(await run(waitForRestart(api([{ up: true, restartPending: false }]), 10, 1000))).toBe(true);
   });
 
+  it('gives up on time when a status check never answers', async () => {
+    const a = { serverState: vi.fn(() => new Promise(() => undefined)) } as unknown as AdminApi;
+    let result: boolean | undefined;
+    void waitForRestart(a, 10, 1000).then((r) => (result = r));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(result).toBe(false);
+  });
+
   it('gives up if Jellyfin never restarts', async () => {
     expect(await run(waitForRestart(api([{ up: true, restartPending: true }]), 10, 100))).toBe(false);
   });

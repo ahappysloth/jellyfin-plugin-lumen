@@ -5,6 +5,7 @@ import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { showToast } from '../../components/Toast';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { startPlayback } from '../../playback/startPlayback';
+import { useStartingButton } from '../../playback/starting';
 import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
@@ -68,21 +69,14 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
 
   const open = (item: BaseItem): void => ctx.navigate(detailsHash(item.Id, item.ServerId));
   // The hero's Play shows "Starting…" while jellyfin-web opens the player (Lumen hides jellyfin-web's spinner).
-  const [startingId, setStartingId] = useState<string | null>(null);
-  const mounted = useRef(true);
-  useEffect(
-    () => () => {
-      mounted.current = false;
-    },
-    [],
-  );
+  const [startingId, runStarting] = useStartingButton<string>();
   const play = (item: BaseItem): void => {
     if (startingId) return;
-    setStartingId(item.Id);
-    startPlayback(ctx, item)
-      .then((played) => played || open(item))
-      .catch(() => showToast(strings.playbackFailed))
-      .finally(() => mounted.current && setStartingId(null));
+    runStarting(item.Id, () =>
+      startPlayback(ctx, item)
+        .then((played) => played || open(item))
+        .catch(() => showToast(strings.playbackFailed)),
+    );
   };
   const onMenu = cardMenuHandler(ctx);
   const select = (item: BaseItem, row: HomeRow): void => {

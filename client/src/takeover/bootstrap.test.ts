@@ -122,6 +122,23 @@ describe('startLumen', () => {
     expect(mount).not.toHaveBeenCalled();
   });
 
+  it('asks for the client config again on a later navigation after it failed', async () => {
+    const now = vi.spyOn(Date, 'now');
+    client.respond = () => Promise.reject(new Error('down'));
+    const { mount } = start();
+    await vi.waitFor(() =>
+      expect(client.requests.some((r) => r.url.endsWith('Lumen/ClientConfig'))).toBe(true),
+    );
+    await new Promise((r) => setTimeout(r, 30));
+    expect(mount).not.toHaveBeenCalled();
+
+    client.respond = routes({ 'Lumen/ClientConfig': clientConfig, 'Lumen/Diagnostics': {} });
+    now.mockReturnValue(Date.now() + 60_000);
+    history.pushState(null, '', '#/home?tab=0');
+
+    await vi.waitFor(() => expect(mount).toHaveBeenCalledTimes(1));
+  });
+
   it('does nothing when Lumen is disabled', async () => {
     client.respond = routes({ 'Lumen/ClientConfig': { ...clientConfig, Enabled: false } });
     const { mount } = start();
