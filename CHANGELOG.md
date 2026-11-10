@@ -2,6 +2,19 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.3.3] - 2026-11-10
+
+### Added
+- Check for updates: on Lumen's settings page, and as "Check for Lumen updates" on Jellyfin's Plugins page. It reads
+  Lumen's releases on GitHub straight away, shows the new version's notes, installs it through Jellyfin's own
+  installer and offers to restart Jellyfin.
+
+### Changed
+- Admin pages: room under the top bar for page titles; the Dashboard's Activity and Paths widgets and the Tasks list
+  as cards; neutral disk-usage bars; rounded user cards; quieter field hints.
+- Dependency updates (Vite, Vitest, Playwright, GitHub Actions, test packages). Preact stays on 11.1: 11.2 breaks
+  rendering under jellyfin-web.
+
 ## [0.3.2] - 2026-11-09
 
 ### Added
