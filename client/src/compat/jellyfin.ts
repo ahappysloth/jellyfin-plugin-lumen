@@ -5,6 +5,7 @@
  */
 import {
   API_CLIENT_METHODS,
+  BACK_KEY_CODES,
   LAYOUT_CLASSES,
   LAYOUT_SETTING_KEY,
   LEGACY_LAYOUT_MODES,
@@ -82,6 +83,17 @@ export function isModernLayout(doc: Document = document, win: Window = window): 
     // storage blocked: jellyfin-web couldn't have saved a layout either
   }
   return !(saved && LEGACY_LAYOUT_MODES.includes(saved));
+}
+
+/**
+ * Escape, or a TV remote's or gamepad's Back (registry.ts BACK_KEY_CODES). An overlay that closes on it must also
+ * preventDefault and stopPropagation: jellyfin-web's own handler, on `window` in the bubble phase, would otherwise go
+ * back a page as well. A handler on Lumen's element runs before it; jellyfin-web's capture-phase keydown listeners (the
+ * screensaver's, the video OSD's idle timer) don't act on Back.
+ */
+export function isBackKey(e: KeyboardEvent): boolean {
+  // keyCode is deprecated, but it is all webOS and Tizen remotes report (their `key` is often "Unidentified").
+  return e.key === 'Escape' || BACK_KEY_CODES.includes(e.keyCode);
 }
 
 /** Height of the visible fixed app bar (Modern) or header (Legacy), in CSS pixels. */

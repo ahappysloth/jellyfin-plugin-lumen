@@ -1,4 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { isBackKey } from '../compat/jellyfin';
 import { Icon } from './icons';
 
 /** Space kept between an open list and the edge of the screen. */
@@ -22,7 +23,7 @@ interface Props<T extends string> {
 
 /**
  * A select replacement styled for Lumen: a pill button that opens a floating listbox. Keyboard: Up/Down/Home/End move,
- * Enter/Space pick, Escape/Tab close, and typing jumps to the first option starting with those letters.
+ * Enter/Space pick, Escape (or a TV remote's Back)/Tab close, and typing jumps to the first option starting with those letters.
  */
 export function Dropdown<T extends string>({
   label,
@@ -96,6 +97,12 @@ export function Dropdown<T extends string>({
 
   const onListKey = (e: KeyboardEvent): void => {
     const last = options.length - 1;
+    if (isBackKey(e)) {
+      close(true);
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     switch (e.key) {
       case 'ArrowDown':
         setActive((i) => Math.min(last, i + 1));
@@ -112,9 +119,6 @@ export function Dropdown<T extends string>({
       case 'Enter':
       case ' ':
         pick(active);
-        break;
-      case 'Escape':
-        close(true);
         break;
       case 'Tab':
         close(false);

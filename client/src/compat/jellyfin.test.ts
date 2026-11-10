@@ -5,6 +5,7 @@ import {
   genreHash,
   getAppBarHeight,
   getLayout,
+  isBackKey,
   isModernLayout,
   libraryHash,
   selfTest,
@@ -56,6 +57,14 @@ describe('compat', () => {
     expect(getLayout()).toBe('tv');
     document.documentElement.className = 'layout-mobile';
     expect(getLayout()).toBe('mobile');
+  });
+
+  it("reads Escape and TV remotes' and gamepads' Back as Back, like jellyfin-web", () => {
+    const back = (init: KeyboardEventInit) => isBackKey(new KeyboardEvent('keydown', init));
+    expect(back({ key: 'Escape' })).toBe(true);
+    for (const keyCode of [27, 196, 461, 10009]) expect(back({ key: 'Unidentified', keyCode })).toBe(true);
+    expect(back({ key: 'Backspace', keyCode: 8 })).toBe(false);
+    expect(back({ key: 'Enter', keyCode: 13 })).toBe(false);
   });
 
   it('measures the first visible app bar', () => {

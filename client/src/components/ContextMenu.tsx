@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { isBackKey } from '../compat/jellyfin';
 import { Icon, type IconName } from './icons';
 
 export interface MenuEntry {
@@ -36,7 +37,7 @@ export function closeContextMenu(): void {
 
 const MARGIN = 8;
 
-/** Renders the open context menu. Closes on Escape, an outside press, scroll, resize, or blur. */
+/** Renders the open context menu. Closes on Escape or Back, an outside press, scroll, resize, or blur. */
 export function ContextMenuHost() {
   const [menu, setMenu] = useState<OpenMenu | null>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
@@ -116,10 +117,9 @@ export function ContextMenuHost() {
           End: () => setActive(last),
           Enter: () => choose(menu.entries[active]!),
           ' ': () => choose(menu.entries[active]!),
-          Escape: () => close(true),
           Tab: () => close(true),
         };
-        const action = keys[e.key];
+        const action = isBackKey(e) ? () => close(true) : keys[e.key];
         if (!action) return;
         e.preventDefault();
         e.stopPropagation();
