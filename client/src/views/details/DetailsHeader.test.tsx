@@ -56,4 +56,31 @@ describe('DetailsHeader', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Play trailer' }));
     expect(screen.getByTestId('trailer')).toHaveAttribute('data-paused', 'false');
   });
+
+  it('names Favorite and Watched as they read, pressed or not (WCAG 2.5.3)', () => {
+    const { rerender } = renderHeader();
+    expect(screen.getByRole('button', { name: 'Favorite', pressed: false })).toHaveTextContent('Favorite');
+    expect(screen.getByRole('button', { name: 'Mark watched', pressed: false })).toHaveTextContent(
+      'Mark watched',
+    );
+
+    rerender(
+      <DetailsHeader
+        item={movie}
+        client={createFakeClient()}
+        config={testConfig}
+        primary={null}
+        trailerId={null}
+        onBack={vi.fn()}
+        badges={[]}
+        played
+        favorite
+        error={null}
+        toggleWatched={vi.fn()}
+        toggleFavorite={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Favorited', pressed: true })).toHaveTextContent('Favorited');
+    expect(screen.getByRole('button', { name: 'Watched', pressed: true })).toHaveTextContent('Watched');
+  });
 });

@@ -55,7 +55,7 @@ describe('GenreView', () => {
     // Shows sort "recently added" by their newest episode.
     expect(params(itemRequests().at(-1)!).get('sortBy')).toBe('DateLastContentAdded,SortName');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sort by: Recently added' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by Recently added' }));
     fireEvent.click(screen.getByRole('option', { name: 'Rating' }));
     await waitFor(() =>
       expect(params(itemRequests().at(-1)!).get('sortBy')).toBe('CommunityRating,SortName'),
@@ -64,7 +64,7 @@ describe('GenreView', () => {
     view.unmount();
     setup();
     expect(await screen.findByRole('button', { name: 'Shows' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Sort by: Rating' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sort by Rating' })).toBeInTheDocument();
   });
 
   it('opens a title, and Back lands on the same grid without refetching it', async () => {
