@@ -6,16 +6,14 @@ export function playedPercent(item: BaseItem): number {
   return item.RunTimeTicks ? (position / item.RunTimeTicks) * 100 : 0;
 }
 
+/**
+ * How far into an item the user is. Decoration only: inside a button or link a progressbar's value is read into its
+ * name ("Resume 25"), so whatever it sits in says it in words instead (a card's description: "25% watched").
+ */
 export function ProgressBar({ percent }: { percent: number }) {
   const value = Math.max(0, Math.min(100, percent));
   return (
-    <span
-      class="lmn-progress"
-      role="progressbar"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(value)}
-    >
+    <span class="lmn-progress" aria-hidden="true">
       <span class="lmn-progress__fill" style={{ width: `${value}%` }} />
     </span>
   );

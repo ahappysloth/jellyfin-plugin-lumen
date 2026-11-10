@@ -84,10 +84,11 @@ describe('DetailsView', () => {
     expect(await screen.findByRole('heading', { name: 'Lumen Alpha' })).toBeInTheDocument();
     expect(screen.getByText('A test movie.')).toBeInTheDocument();
     expect(screen.getByText('HD')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Resume/ })).toBeInTheDocument();
+    // The progress bar is decoration: it isn't read into the button's name ("Resume 25").
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'Trailer' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Jane Doe/ })).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: 'Lumen Beta' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Lumen Beta' })).toBeInTheDocument();
   });
 
   it('shows Starting… on the Resume button until the player has started', async () => {
