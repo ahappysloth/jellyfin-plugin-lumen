@@ -166,7 +166,7 @@ public sealed class IndexHtmlMiddleware
         var appIdentity = config is { Enabled: true };
         var html = Encoding.UTF8.GetString(original);
         var notFound = new List<string>();
-        var injected = HtmlInjector.Inject(html, assets.BuildHash, guard, skin, appIdentity, notFound, config?.AccentColor);
+        var injected = HtmlInjector.Inject(html, assets.BuildHash, guard, skin, appIdentity, notFound, config?.AccentColor, assets.CoreChunk);
         if (ReferenceEquals(injected, html) && !html.Contains(HtmlInjector.Marker, StringComparison.Ordinal)
             && Interlocked.Exchange(ref _warnedNoHead, 1) == 0)
         {
