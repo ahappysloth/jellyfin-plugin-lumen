@@ -220,8 +220,11 @@ describe('PlayerView', () => {
     });
     expect(pm.playPause).toHaveBeenCalled();
     const before = screen.getByText(/^Ends at /).textContent;
+    // Twenty minutes on the clock, then one poll: running every timer through 20 minutes is slow enough under load
+    // to time the test out.
+    vi.setSystemTime(Date.now() + 20 * 60_000);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(20 * 60_000);
+      await vi.advanceTimersByTimeAsync(300);
     });
     expect(screen.getByText(/^Ends at /).textContent).not.toBe(before);
   });
