@@ -1,6 +1,7 @@
 /* ---- Hero ---------------------------------------------------------------------------------------------------- */
 .lmn-hero {
   position: relative;
+  height: 88vh;
   height: min(88vh, 62vw);
   min-height: 520px;
   overflow: hidden;
@@ -57,14 +58,17 @@
 }
 .lmn-hero__content {
   position: absolute;
+  bottom: 120px;
   bottom: clamp(96px, 17%, 180px);
   left: var(--lmn-gutter);
+  width: 544px;
   width: min(544px, calc(100% - 2 * var(--lmn-gutter)));
   animation: lmn-rise 0.7s var(--lmn-ease);
 }
 .lmn-hero__logo,
 .lmn-details__logo {
   display: block;
+  max-width: 100%;
   max-width: min(420px, 100%);
   max-height: 140px;
   margin-bottom: 18px;
@@ -76,6 +80,7 @@
 .lmn-details__title {
   margin: 0 0 16px;
   color: #fff;
+  font-size: 56px;
   font-size: clamp(36px, 4.2vw, 56px);
   font-weight: 700;
   letter-spacing: -0.035em;
@@ -118,6 +123,7 @@
 .lmn-hero__controls {
   position: absolute;
   right: var(--lmn-gutter);
+  bottom: 120px;
   bottom: clamp(96px, 17%, 180px);
   display: flex;
   align-items: center;

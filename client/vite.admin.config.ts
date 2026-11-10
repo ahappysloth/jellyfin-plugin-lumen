@@ -1,6 +1,6 @@
 import preact from '@preact/preset-vite';
 import { defineConfig } from 'vite';
-import { target } from './vite.target';
+import { target } from './vite.target.ts';
 
 export default defineConfig({
   plugins: [preact()],

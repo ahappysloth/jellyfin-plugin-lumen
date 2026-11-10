@@ -39,6 +39,8 @@ Lumen changes Jellyfin's *web* interface, so it appears wherever that interface 
 | Samsung Tizen app | ❌ (it ships its own copy of the web interface) |
 | Android TV / Google TV, Apple TV (Swiftfin), Roku, Infuse, Streamyfin | ❌ (native apps) |
 
+The oldest browsers Lumen is built for are Chromium 68 (LG webOS 5) and Safari 13. On webOS 6 (Chromium 79) and webOS 5 it should load, untested. webOS 4 (Chromium 53) and older can't run it: their browser predates the JavaScript Lumen is written in, so its scripts never start and Jellyfin's own interface shows instead.
+
 ## Running alongside other plugins
 
 Lumen injects its own script, lists itself as a jellyfin-web plugin in `/web/config.json` (this is how it gets Jellyfin's player), and hides only the stock pages it replaces (home, details, the Movies, Shows and Collections libraries, genre lists, Favorites, search and the settings menu) while it shows its own. It can run next to plugins that use the File Transformation plugin, but plugins that also redesign the home screen will be hidden while Lumen's home is showing. If you use one of those, turn off "Replace the home screen" in Lumen's settings.

@@ -307,6 +307,7 @@ html.lmn-skin-settings .lmn-settings-frame {
   position: absolute;
   top: calc(var(--lmn-nav-h) + 20px);
   left: 50%;
+  width: calc(100% - 2 * var(--lmn-gutter));
   width: min(880px, calc(100% - 2 * var(--lmn-gutter)));
   transform: translateX(-50%);
 }
@@ -331,6 +332,7 @@ html.lmn-skin-settings .lmn-settings-frame {
 .lmn-settings-frame__title {
   margin: 0;
   color: #fff;
+  font-size: 38px;
   font-size: clamp(28px, 3vw, 38px);
   font-weight: 700;
   letter-spacing: -0.03em;
@@ -399,6 +401,7 @@ html.lmn-signin .page.standalonePage {
   padding: 24px 16px !important;
 }
 html.lmn-signin .page.standalonePage > div {
+  width: 100%;
   width: min(420px, 100%);
   margin: 0 auto !important;
   padding: 36px 32px 28px !important;
@@ -564,6 +567,7 @@ html.lmn-skin-settings .MuiSelect-icon {
 
 /* jellyfin-web's toasts (SyncPlay notices and others) on Lumen's pages and player: Lumen's toast look. */
 :is(html.lmn-active, html.lmn-skin-player, html.lmn-skin-settings) .toastContainer {
+  top: 16px;
   top: calc(16px + env(safe-area-inset-top));
   right: 0;
   bottom: auto;
@@ -574,6 +578,7 @@ html.lmn-skin-settings .MuiSelect-icon {
 /* A glass pill that drops from the top centre, like the player's volume pill. */
 :is(html.lmn-active, html.lmn-skin-player, html.lmn-skin-settings) .toastContainer .toast {
   min-width: 0;
+  max-width: calc(100vw - 32px);
   max-width: min(480px, calc(100vw - 32px));
   margin: 0 auto 8px;
   padding: 10px 18px;

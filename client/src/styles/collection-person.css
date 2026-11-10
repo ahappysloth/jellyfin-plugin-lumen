@@ -45,6 +45,7 @@
 .lmn-person-page__header {
   position: relative;
   overflow: hidden;
+  padding: 88px var(--lmn-gutter) 40px;
   padding: calc(env(safe-area-inset-top) + 88px) var(--lmn-gutter) 40px;
   background: radial-gradient(
     1100px 460px at 12% -80px,
@@ -56,6 +57,7 @@
 .lmn-person-page__ambient {
   position: absolute;
   inset: -80px -10% auto auto;
+  width: 70vw;
   width: min(70vw, 900px);
   height: calc(100% + 160px);
   object-fit: cover;
@@ -66,6 +68,7 @@
 }
 .lmn-person-page__topbar {
   position: absolute;
+  top: 24px;
   top: calc(env(safe-area-inset-top) + 24px);
   left: var(--lmn-gutter);
   z-index: 2;
@@ -75,10 +78,17 @@
   z-index: 1;
   display: flex;
   align-items: flex-end;
-  gap: clamp(20px, 3.5vw, 48px);
+}
+/* Flex gap needs Chromium 84 / Safari 14.1, which have clamp(); older browsers get neither, and Lightning CSS drops
+   a plain gap before this one anyway. */
+@supports (width: clamp(1px, 2px, 3px)) {
+  .lmn-person-page__intro {
+    gap: clamp(20px, 3.5vw, 48px);
+  }
 }
 .lmn-person-page__photo {
   flex: none;
+  width: 220px;
   width: clamp(140px, 17vw, 220px);
   aspect-ratio: 2 / 3;
   height: auto;
@@ -103,6 +113,7 @@
 }
 .lmn-person-page__name {
   margin: 0;
+  font-size: 56px;
   font-size: clamp(32px, 4.6vw, 56px);
   font-weight: 800;
   letter-spacing: -0.03em;
@@ -127,6 +138,7 @@
 
 @media (max-width: 640px) {
   .lmn-person-page__header {
+    padding-top: 76px;
     padding-top: calc(env(safe-area-inset-top) + 76px);
   }
   .lmn-person-page__intro {

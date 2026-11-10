@@ -2,6 +2,7 @@
 .lmn-toast-host {
   position: fixed;
   z-index: 110; /* over the context menu, under dialogs */
+  bottom: 96px;
   bottom: calc(96px + env(safe-area-inset-bottom)); /* clears the now-playing bar and the phone tab bar */
   left: 50%;
   width: max-content;

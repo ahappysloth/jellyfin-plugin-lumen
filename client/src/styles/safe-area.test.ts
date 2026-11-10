@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import baseCss from './base.css?raw';
 import navCss from './nav.css?raw';
 import playerCss from './player.css?raw';
+import { missingFallbacks } from '../../scripts/css-fallbacks.mjs';
 
 /**
  * jellyfin-web sets viewport-fit=cover, so on a phone in landscape the page runs under the notch: an iPhone's side
@@ -43,4 +44,16 @@ describe('safe-area insets', () => {
     expect(tabbar).toMatch(LEFT);
     expect(tabbar).toMatch(RIGHT);
   });
+});
+
+describe('fallbacks for Chromium 68', () => {
+  // It drops min(), max(), clamp() and env(); see scripts/css-fallbacks.mjs.
+  const sheets = import.meta.glob<string>('./*.css', { query: '?raw', import: 'default', eager: true });
+
+  it.each(Object.entries(sheets))(
+    '%s gives every min(), max(), clamp() and env() a fallback',
+    (_file, css) => {
+      expect(missingFallbacks(css)).toEqual([]);
+    },
+  );
 });
