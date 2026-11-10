@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { findPlaybackManager, getPlaybackManager, resetPlaybackManagerCache } from './playbackManager';
 import { PLAYBACK_MANAGER_METHODS } from './registry';
+import { defineWebPlugin, WEB_PLUGIN_NAME, webPluginSlot, type WebPluginDeps } from './webPlugin';
 
 const fullManager = (): Record<string, unknown> =>
   Object.fromEntries(PLAYBACK_MANAGER_METHODS.required.map((m) => [m, () => undefined]));
@@ -127,5 +128,83 @@ describe('findPlaybackManager', () => {
     modules['2'] = { source: PM_SOURCE, exports: { f: manager } };
     m['2'] = PM_SOURCE;
     expect(getPlaybackManager(win)).toBe(manager);
+  });
+});
+
+describe('findPlaybackManager with the jellyfin-web plugin', () => {
+  afterEach(resetPlaybackManagerCache);
+
+  /** A page whose inline guard defined Lumen's plugin and that jellyfin-web loaded with `deps`. */
+  function withPlugin(win: Window, deps?: WebPluginDeps): Window {
+    defineWebPlugin(win);
+    if (deps) {
+      const definition = (win as unknown as Record<string, () => new (d: WebPluginDeps) => unknown>)[
+        WEB_PLUGIN_NAME
+      ]!;
+      new (definition())(deps);
+    }
+    return win;
+  }
+
+  it('takes the manager jellyfin-web hands its plugins, without reading the bundle', () => {
+    const manager = fullManager();
+    const { win, push, required } = fakeWebpack({
+      '2': { source: PM_SOURCE, exports: { f: fullManager() } },
+    });
+    withPlugin(win, { playbackManager: manager });
+
+    expect(findPlaybackManager(win)).toEqual({ manager, failed: [] });
+    expect(push).not.toHaveBeenCalled();
+    expect(required).toEqual([]);
+    expect(webPluginSlot(win)?.via).toBe('plugin');
+  });
+
+  it("searches the bundle until jellyfin-web has loaded the plugin, or when the guard didn't run", () => {
+    const manager = fullManager();
+    const notYet = fakeWebpack({ '2': { source: PM_SOURCE, exports: { f: manager } } });
+    withPlugin(notYet.win);
+    expect(findPlaybackManager(notYet.win).manager).toBe(manager);
+    expect(webPluginSlot(notYet.win)?.via).toBe('webpack');
+
+    resetPlaybackManagerCache();
+    const noGuard = fakeWebpack({ '2': { source: PM_SOURCE, exports: { f: manager } } });
+    expect(findPlaybackManager(noGuard.win).manager).toBe(manager);
+  });
+
+  it('prefers the plugin once jellyfin-web loads it, even after finding the manager in the bundle', () => {
+    const fromBundle = fullManager();
+    const fromPlugin = fullManager();
+    const { win } = fakeWebpack({ '2': { source: PM_SOURCE, exports: { f: fromBundle } } });
+    withPlugin(win);
+    expect(findPlaybackManager(win).manager).toBe(fromBundle);
+
+    // jellyfin-web loads its plugins.
+    const definition = (win as unknown as Record<string, () => new (d: WebPluginDeps) => unknown>)[
+      WEB_PLUGIN_NAME
+    ]!;
+    new (definition())({ playbackManager: fromPlugin });
+    expect(findPlaybackManager(win).manager).toBe(fromPlugin);
+    expect(webPluginSlot(win)?.via).toBe('plugin');
+  });
+
+  it("searches the bundle when jellyfin-web's manager lacks a method, and names it if the bundle has none either", () => {
+    const partial = fullManager();
+    delete partial.seek;
+    const manager = fullManager();
+    const { win } = fakeWebpack({ '2': { source: PM_SOURCE, exports: { f: manager } } });
+    withPlugin(win, { playbackManager: partial });
+    expect(findPlaybackManager(win).manager).toBe(manager);
+
+    resetPlaybackManagerCache();
+    const empty = withPlugin(fakeWebpack({ '1': { source: 'nothing', exports: {} } }).win, {
+      playbackManager: partial,
+    });
+    expect(findPlaybackManager(empty)).toEqual({ manager: null, failed: ['playbackManager.seek'] });
+
+    resetPlaybackManagerCache();
+    const unrelated = withPlugin(fakeWebpack({ '1': { source: 'nothing', exports: {} } }).win, {
+      playbackManager: 42,
+    });
+    expect(findPlaybackManager(unrelated)).toEqual({ manager: null, failed: ['playbackManager:module'] });
   });
 });

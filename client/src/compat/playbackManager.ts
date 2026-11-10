@@ -1,12 +1,17 @@
 /**
- * jellyfin-web's playback manager, found inside its webpack bundle. It isn't exported on `window`, so Lumen asks the
- * bundle's module registry for the module whose code defines `getCurrentPlayer` and mentions `setMaxStreamingBitrate`,
- * and picks the export that has every method in PLAYBACK_MANAGER_METHODS.required (compat/registry.ts). No module ids
- * or minified names are assumed, so a jellyfin-web update either still matches or returns null, and Lumen keeps the
- * stock player (fail open) and reports what it couldn't find.
+ * jellyfin-web's playback manager. It isn't exported on `window`; Lumen gets it two ways:
+ * 1. From jellyfin-web itself: it hands its plugins the manager, and Lumen registers one (compat/webPlugin.ts). This
+ *    is jellyfin-web's supported interface, so it survives changes to how jellyfin-web is bundled.
+ * 2. Failing that (the plugin wasn't loaded: the inline guard was blocked, or jellyfin-web hasn't loaded its plugins
+ *    yet), from its webpack bundle: Lumen asks the bundle's module registry for the module whose code defines
+ *    `getCurrentPlayer` and mentions `setMaxStreamingBitrate`.
+ * Either way the manager must have every method in PLAYBACK_MANAGER_METHODS.required (compat/registry.ts). No module
+ * ids or minified names are assumed, so a jellyfin-web update either still matches or returns null, and Lumen keeps
+ * the stock player (fail open) and reports what it couldn't find.
  * Verified against jellyfin-web 12.1–12.4 (see docs/reference).
  */
 import { PLAYBACK_MANAGER_METHODS, STOCK_ROUTES, WEBPACK_CHUNK_GLOBAL } from './registry';
+import { webPluginSlot } from './webPlugin';
 
 /** The subset of jellyfin-web's PlaybackManager Lumen's player uses. Times: ms for currentTime, ticks elsewhere. */
 export interface PlaybackManager {
@@ -192,8 +197,39 @@ export function webpackRequire(win: Window): WebpackRequire | null {
 }
 
 /**
- * Finds jellyfin-web's playback manager and checks it has every method Lumen's player calls. A miss isn't cached,
- * so a later call (the next time the player opens) looks again.
+ * Finds jellyfin-web's playback manager and checks it has every method Lumen's player calls: the one jellyfin-web gave
+ * Lumen's plugin first, else the one in its webpack bundle. A miss isn't cached, so a later call (the next time the
+ * player opens) looks again. The slot's `via` records which way it was found.
+ *
+ * The plugin is asked first even when the bundle's manager is cached: a page opened straight onto the player can
+ * look before jellyfin-web has loaded its plugins, and the plugin's answer should win from then on.
+ */
+export function findPlaybackManager(win: Window = window): PlaybackManagerLookup {
+  const slot = webPluginSlot(win);
+  let pluginFailed: string[] | null = null;
+  const fromPlugin = slot?.deps?.playbackManager;
+  if (fromPlugin !== undefined) {
+    const missing = missingMethods(fromPlugin);
+    if (missing.length === 0) {
+      slot!.via = 'plugin';
+      return { manager: (cached = fromPlugin as PlaybackManager), failed: [] };
+    }
+    if (missing.length < PLAYBACK_MANAGER_METHODS.required.length)
+      pluginFailed = missing.map((m) => `playbackManager.${m}`);
+  }
+  if (cached) return { manager: cached, failed: [] };
+  const found = findInWebpack(win);
+  if (found.manager) {
+    if (slot) slot.via = 'webpack';
+    cached = found.manager;
+    return found;
+  }
+  // jellyfin-web's own manager with some methods renamed says more than the bundle search does.
+  return pluginFailed ? { manager: null, failed: pluginFailed } : found;
+}
+
+/**
+ * The playback manager in jellyfin-web's webpack bundle.
  *
  * Only modules that have already run are read, so Lumen never runs jellyfin-web code out of order:
  * - When the build exposes webpack's module cache (`require.c`), only cached modules' exports are looked at.
@@ -202,8 +238,7 @@ export function webpackRequire(win: Window): WebpackRequire | null {
  *   time a video plays it has run and `require` returns its cached exports. If more than one module matches, none is
  *   required.
  */
-export function findPlaybackManager(win: Window = window): PlaybackManagerLookup {
-  if (cached) return { manager: cached, failed: [] };
+function findInWebpack(win: Window): PlaybackManagerLookup {
   try {
     const require = webpackRequire(win);
     if (!require?.m) return { manager: null, failed: ['playbackManager:webpack'] };
@@ -228,7 +263,7 @@ export function findPlaybackManager(win: Window = window): PlaybackManagerLookup
     for (const moduleExports of exports) {
       for (const value of Object.values((moduleExports ?? {}) as Record<string, unknown>)) {
         const missing = missingMethods(value);
-        if (missing.length === 0) return { manager: (cached = value as PlaybackManager), failed: [] };
+        if (missing.length === 0) return { manager: value as PlaybackManager, failed: [] };
         // An export that has some of the methods is the manager with something renamed: report what's missing.
         if (
           missing.length < PLAYBACK_MANAGER_METHODS.required.length &&

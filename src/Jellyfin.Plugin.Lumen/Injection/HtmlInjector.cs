@@ -18,7 +18,8 @@ public static partial class HtmlInjector
     /// <param name="buildHash">Cache-busting hash for the asset URLs.</param>
     /// <param name="guardScript">
     /// The guard's JavaScript, inlined so it runs synchronously before jellyfin-web paints: on routes Lumen may take
-    /// over it hides the stock chrome and shows the loading veil until lumen.js (deferred) takes over. Null skips it.
+    /// over it hides the stock chrome and shows the loading veil until lumen.js (deferred) takes over. It also defines
+    /// Lumen's jellyfin-web plugin (<see cref="WebConfigInjector"/>). Null skips it.
     /// </param>
     /// <param name="styleStockPages">
     /// Marks the page (<c>data-lmn-skin</c> on &lt;html&gt;) so Lumen restyles the sign-in page, which loads before

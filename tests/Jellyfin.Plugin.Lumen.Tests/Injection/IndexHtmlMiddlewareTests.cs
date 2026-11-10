@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json.Nodes;
 using Jellyfin.Plugin.Lumen.Assets;
 using Jellyfin.Plugin.Lumen.Configuration;
 using Jellyfin.Plugin.Lumen.Injection;
@@ -20,12 +21,22 @@ namespace Jellyfin.Plugin.Lumen.Tests.Injection;
 public sealed class IndexHtmlMiddlewareTests : IDisposable
 {
     private const string IndexHtml = "<!DOCTYPE html><html><head><title>Jellyfin</title></head><body><div id=\"reactRoot\"></div></body></html>";
+    private const string ConfigJson = "{\"multiserver\":false,\"menuLinks\":[],\"plugins\":[\"htmlVideoPlayer/plugin\",\"syncPlay/plugin\"]}";
+
+    /// <summary>A build whose inline guard defines Lumen's jellyfin-web plugin, as client/src/veil/guard.ts does.</summary>
+    private static readonly Dictionary<string, byte[]> GuardedBuild = new()
+    {
+        ["lumen.js"] = "x"u8.ToArray(),
+        [HtmlInjector.GuardAsset] = Encoding.UTF8.GetBytes("window[\"" + WebConfigInjector.PluginName + "\"]=()=>class{}"),
+    };
+
     private readonly string _webRoot = Directory.CreateTempSubdirectory("lumen-web").FullName;
 
     public IndexHtmlMiddlewareTests()
     {
         File.WriteAllText(Path.Combine(_webRoot, "index.html"), IndexHtml);
         File.WriteAllText(Path.Combine(_webRoot, "main.js"), "console.log('stock')");
+        File.WriteAllText(Path.Combine(_webRoot, "config.json"), ConfigJson);
     }
 
     public void Dispose() => Directory.Delete(_webRoot, recursive: true);
@@ -193,14 +204,140 @@ public sealed class IndexHtmlMiddlewareTests : IDisposable
         }
     }
 
-    private async Task<IHost> StartAsync(Action<IApplicationBuilder>? outer = null, Action<IApplicationBuilder>? inner = null, Action<IServiceCollection>? services = null)
+    [Theory]
+    [InlineData("")]
+    [InlineData("/jellyfin")]
+    public async Task ListsTheWebPlugin_InConfigJson_OnceThePageDefinesIt(string baseUrl)
+    {
+        var current = new PluginConfiguration { ConfigVersion = 3 };
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => current)), build: GuardedBuild);
+        var client = host.GetTestClient();
+
+        var page = await client.GetStringAsync(baseUrl + "/web/");
+        var response = await client.GetAsync(baseUrl + "/web/config.json");
+        var json = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains(WebConfigInjector.PluginName, page, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(["htmlVideoPlayer/plugin", "syncPlay/plugin", WebConfigInjector.PluginName], Plugins(json));
+        Assert.False(JsonNode.Parse(json)!["multiserver"]!.GetValue<bool>());
+        Assert.Equal(Encoding.UTF8.GetByteCount(json), response.Content.Headers.ContentLength);
+        Assert.StartsWith("\"lmn-", response.Headers.ETag?.Tag, StringComparison.Ordinal);
+        Assert.Null(response.Content.Headers.LastModified);
+
+        // Served again from the cache, with the same ETag; a revalidation with it is a 304.
+        var again = new HttpRequestMessage(HttpMethod.Get, baseUrl + "/web/config.json");
+        again.Headers.TryAddWithoutValidation("If-None-Match", response.Headers.ETag!.Tag);
+        Assert.Equal(HttpStatusCode.NotModified, (await client.SendAsync(again)).StatusCode);
+        Assert.Equal(json, await client.GetStringAsync(baseUrl + "/web/config.json"));
+    }
+
+    [Fact]
+    public async Task ListsTheWebPlugin_OnlyOnce_WhenConfigJsonAlreadyHasIt()
+    {
+        var listed = ConfigJson.Replace("\"syncPlay/plugin\"", "\"syncPlay/plugin\",\"" + WebConfigInjector.PluginName + "\"", StringComparison.Ordinal);
+        File.WriteAllText(Path.Combine(_webRoot, "config.json"), listed);
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())), build: GuardedBuild);
+        var client = host.GetTestClient();
+
+        await client.GetStringAsync("/web/");
+
+        Assert.Equal(listed, await client.GetStringAsync("/web/config.json"));
+    }
+
+    [Fact]
+    public async Task LeavesConfigJsonAlone_WhenLumenIsOff()
+    {
+        var current = new PluginConfiguration { ConfigVersion = 1 };
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => current)), build: GuardedBuild);
+        var client = host.GetTestClient();
+        await client.GetStringAsync("/web/");
+        Assert.Contains(WebConfigInjector.PluginName, await client.GetStringAsync("/web/config.json"), StringComparison.Ordinal);
+
+        // Switched off: the page drops the guard, and config.json stops listing the plugin, whichever is fetched first.
+        current = new PluginConfiguration { ConfigVersion = 2, Enabled = false };
+        var stale = await client.GetAsync("/web/config.json");
+        var page = await client.GetStringAsync("/web/");
+        var fresh = await client.GetStringAsync("/web/config.json");
+
+        Assert.Equal(ConfigJson, await stale.Content.ReadAsStringAsync());
+        Assert.DoesNotContain("lmn-", stale.Headers.ETag?.Tag ?? string.Empty, StringComparison.Ordinal);
+        Assert.DoesNotContain(WebConfigInjector.PluginName, page, StringComparison.Ordinal);
+        Assert.Equal(ConfigJson, fresh);
+    }
+
+    [Fact]
+    public async Task LeavesConfigJsonAlone_UntilAPageWithTheGuardIsServed()
+    {
+        using var noPage = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())), build: GuardedBuild);
+        using var noGuard = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())));
+
+        // Nothing served yet (a fresh start), and a build without the guard.
+        Assert.Equal(ConfigJson, await noPage.GetTestClient().GetStringAsync("/web/config.json"));
+        await noGuard.GetTestClient().GetStringAsync("/web/");
+        Assert.Equal(ConfigJson, await noGuard.GetTestClient().GetStringAsync("/web/config.json"));
+    }
+
+    [Fact]
+    public async Task LeavesConfigJsonAlone_WhenThePageCouldNotTakeTheGuard()
+    {
+        File.WriteAllText(Path.Combine(_webRoot, "index.html"), "<html><body>no head</body></html>");
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())), build: GuardedBuild);
+        var client = host.GetTestClient();
+
+        Assert.DoesNotContain(WebConfigInjector.PluginName, await client.GetStringAsync("/web/"), StringComparison.Ordinal);
+        Assert.Equal(ConfigJson, await client.GetStringAsync("/web/config.json"));
+    }
+
+    [Fact]
+    public async Task LeavesConfigJsonAlone_AfterTheRewriteOfThePageFails()
+    {
+        var fail = false;
+        using var host = await StartAsync(
+            services: s => s.AddSingleton(Config(() => fail ? throw new InvalidOperationException("store") : new PluginConfiguration())),
+            build: GuardedBuild);
+        var client = host.GetTestClient();
+        await client.GetStringAsync("/web/");
+
+        // The page went out unchanged, so it doesn't define the plugin; config.json mustn't list it, even once the
+        // store recovers, until a page with the guard is served again.
+        fail = true;
+        Assert.Equal(IndexHtml, await client.GetStringAsync("/web/"));
+        fail = false;
+        Assert.Equal(ConfigJson, await client.GetStringAsync("/web/config.json"));
+    }
+
+    [Fact]
+    public async Task LeavesAnUnusableConfigJsonAlone()
+    {
+        File.WriteAllText(Path.Combine(_webRoot, "config.json"), "{\"themes\":[]}");
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => new PluginConfiguration())), build: GuardedBuild);
+        var client = host.GetTestClient();
+        await client.GetStringAsync("/web/");
+
+        Assert.Equal("{\"themes\":[]}", await client.GetStringAsync("/web/config.json"));
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/web/other/missing.json")).StatusCode);
+    }
+
+    private static ILumenConfigReader Config(Func<PluginConfiguration> current)
+    {
+        var config = Substitute.For<ILumenConfigReader>();
+        config.Current.Returns(_ => current());
+        return config;
+    }
+
+    private static string[] Plugins(string json) =>
+        JsonNode.Parse(json)!["plugins"]!.AsArray().Select(p => p!.GetValue<string>()).ToArray();
+
+    private async Task<IHost> StartAsync(Action<IApplicationBuilder>? outer = null, Action<IApplicationBuilder>? inner = null, Action<IServiceCollection>? services = null, Dictionary<string, byte[]>? build = null)
     {
         var host = new HostBuilder()
             .ConfigureWebHost(web => web
                 .UseTestServer()
                 .ConfigureServices(collection =>
                 {
-                    collection.AddSingleton(new AssetCatalog(new Dictionary<string, byte[]> { ["lumen.js"] = "x"u8.ToArray() }));
+                    collection.AddSingleton(new AssetCatalog(build ?? new Dictionary<string, byte[]> { ["lumen.js"] = "x"u8.ToArray() }));
                     collection.AddResponseCompression();
                     services?.Invoke(collection);
                 })
