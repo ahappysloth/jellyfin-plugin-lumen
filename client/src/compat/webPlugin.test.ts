@@ -1,6 +1,6 @@
 import { Linter } from 'eslint';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEFINER_SOURCE, runDefiner } from '../../test/webPluginDefiner';
+import { createEvents, createPluginManager, DEFINER_SOURCE, runDefiner } from '../../test/webPluginDefiner';
 import {
   WEB_PLUGIN_KEY,
   WEB_PLUGIN_NAME,
@@ -55,6 +55,50 @@ describe("Lumen's jellyfin-web plugin", () => {
     expect(plugin.id).toBe(WEB_PLUGIN_NAME);
     expect(plugin.name).toBe('Lumen');
     expect(['mediaplayer', 'preplayintercept', 'screensaver', 'syncplay', 'skin']).not.toContain(plugin.type);
+  });
+
+  it('keeps the pluginManager that registers it, and puts events.trigger back after that one call', async () => {
+    const win = {} as Window;
+    runDefiner(win);
+    const events = createEvents();
+    const trigger = events.trigger;
+    const pluginManager = createPluginManager(events);
+    const heard = vi.fn();
+    events.on(pluginManager, 'registered', heard);
+
+    // Another plugin registering first changes nothing.
+    await pluginManager.loadPlugin(win, { id: 'syncplay', type: 'syncplay' });
+    expect(events.trigger).toBe(trigger);
+    const lumen = await pluginManager.loadPlugin(win, WEB_PLUGIN_NAME);
+
+    expect(webPluginSlot(win)?.pluginManager).toBe(pluginManager);
+    expect(events.trigger).toBe(trigger);
+    // jellyfin-web's own listeners still hear Lumen's registration, with pluginManager as `this`.
+    expect(heard).toHaveBeenCalledTimes(2);
+    expect(heard).toHaveBeenLastCalledWith({ type: 'registered' }, lumen);
+    expect(heard.mock.contexts[1]).toBe(pluginManager);
+  });
+
+  it("watches only trigger's next call: keeps no pluginManager when that isn't its registration", () => {
+    const win = {} as Window;
+    runDefiner(win);
+    const events = createEvents();
+    const trigger = events.trigger;
+    const definition = (win as unknown as Record<string, () => new (d: WebPluginDeps) => unknown>)[
+      WEB_PLUGIN_NAME
+    ]!;
+    new (definition())({ events });
+    // Watching for its registration…
+    expect(events.trigger).not.toBe(trigger);
+    // …but the first call is something else.
+    const other = {};
+    events.trigger(other, 'registered', [{}]);
+    expect(events.trigger).toBe(trigger);
+    expect(webPluginSlot(win)?.pluginManager).toBeUndefined();
+
+    // No events, or events without trigger (a jellyfin-web that changed): nothing to catch, nothing thrown.
+    expect(() => new (definition())({})).not.toThrow();
+    expect(() => new (definition())({ events: Object.freeze({ trigger }) })).not.toThrow();
   });
 
   it('hands back the class synchronously: jellyfin-web awaits every plugin before it renders', () => {

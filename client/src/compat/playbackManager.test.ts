@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { findPlaybackManager, getPlaybackManager, resetPlaybackManagerCache } from './playbackManager';
+import {
+  findPlaybackManager,
+  getPlaybackManager,
+  resetPlaybackManagerCache,
+  webpackRequire,
+} from './playbackManager';
 import { PLAYBACK_MANAGER_METHODS } from './registry';
 import { runDefiner } from '../../test/webPluginDefiner';
 import { WEB_PLUGIN_NAME, webPluginSlot, type WebPluginDeps } from './webPlugin';
@@ -129,6 +134,45 @@ describe('findPlaybackManager', () => {
     modules['2'] = { source: PM_SOURCE, exports: { f: manager } };
     m['2'] = PM_SOURCE;
     expect(getPlaybackManager(win)).toBe(manager);
+  });
+});
+
+describe('webpackRequire', () => {
+  /** `win` with its chunk array moved to `key`, as a build with an `output.uniqueName` would name it. */
+  const renamed = (win: Window, key: string) =>
+    ({ [key]: (win as unknown as Record<string, unknown>).webpackChunk }) as unknown as Window;
+
+  it('finds the loader if jellyfin-web ever names its build (webpackChunk<uniqueName>)', () => {
+    const manager = fullManager();
+    const win = renamed(
+      fakeWebpack({ '2': { source: PM_SOURCE, exports: { f: manager } } }).win,
+      'webpackChunkjellyfin_web',
+    );
+    expect(getPlaybackManager(win)).toBe(manager);
+    resetPlaybackManagerCache();
+
+    // Only arrays count, and only under webpackChunk*.
+    expect(webpackRequire({ webpackChunkx: 'nope', webpack: [] } as unknown as Window)).toBeNull();
+  });
+
+  it("prefers webpackChunk itself, and otherwise the named bundle with the most modules, not another script's", () => {
+    const jellyfin = fakeWebpack({ '1': { source: 'a', exports: {} }, '2': { source: 'b', exports: {} } });
+    const other = fakeWebpack({ '9': { source: 'c', exports: {} } });
+    const otherChunks = (other.win as unknown as Record<string, unknown>).webpackChunk;
+
+    const both = {
+      ...renamed(other.win, 'webpackChunkaPlugin'),
+      webpackChunk: (jellyfin.win as unknown as Record<string, unknown>).webpackChunk,
+    } as unknown as Window;
+    expect(Object.keys(webpackRequire(both)!.m!)).toEqual(['1', '2']);
+    expect(other.push).not.toHaveBeenCalled();
+
+    const named = {
+      webpackChunkaPlugin: otherChunks,
+      webpackChunkjellyfin: (jellyfin.win as unknown as Record<string, unknown>).webpackChunk,
+      webpackChunkNotAnArray: { push: () => 0 },
+    } as unknown as Window;
+    expect(Object.keys(webpackRequire(named)!.m!)).toEqual(['1', '2']);
   });
 });
 
