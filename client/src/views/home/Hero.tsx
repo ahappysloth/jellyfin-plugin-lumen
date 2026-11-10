@@ -11,7 +11,7 @@ import { TrailerPreview } from './TrailerPreview';
 
 interface Props {
   items: HeroItem[];
-  client: Pick<JellyfinApiClient, 'getUrl' | 'accessToken'>;
+  client: JellyfinApiClient;
   config: ClientConfig;
   badges?: Record<string, BadgeKey>;
   onPlay: (item: BaseItem) => void;

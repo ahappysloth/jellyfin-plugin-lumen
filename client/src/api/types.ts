@@ -18,6 +18,22 @@ export interface MediaStream {
   Channels?: number;
   Title?: string;
   DisplayTitle?: string;
+  Index?: number;
+  /** The codec's fourcc in its container (`hvc1`, `hev1`, `avc1`); absent for Matroska. */
+  CodecTag?: string;
+  /** ffprobe's level: 41 for H.264 4.1, 150 for HEVC 5.0 (level × 30), the seq_level_idx for AV1. */
+  Level?: number;
+  BitDepth?: number;
+  BitRate?: number;
+}
+
+/** One version of a video item (Jellyfin's MediaSourceInfo). */
+export interface MediaSourceInfo {
+  Id?: string;
+  /** ffprobe's format, normalized and comma-separated: `mov,mp4,m4a,3gp,3g2,mj2`, `mkv`, `mkv,webm`, `ts`. */
+  Container?: string;
+  DefaultAudioStreamIndex?: number;
+  MediaStreams?: MediaStream[];
 }
 
 export interface Person {
@@ -63,7 +79,7 @@ export interface BaseItem {
    * item to jellyfin-web's player (playback/play.ts canPlayAsIs).
    */
   Chapters?: unknown[];
-  MediaSources?: unknown[];
+  MediaSources?: MediaSourceInfo[];
   Trickplay?: Record<string, unknown>;
   People?: Person[];
   Genres?: string[];

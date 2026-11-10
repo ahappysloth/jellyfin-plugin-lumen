@@ -26,7 +26,7 @@ export interface PrimaryAction {
 
 interface Props {
   item: BaseItem;
-  client: Pick<JellyfinApiClient, 'getUrl' | 'accessToken'>;
+  client: JellyfinApiClient;
   config: ClientConfig;
   primary: PrimaryAction | null;
   /** Local trailer: plays muted behind the header and backs the Trailer button. */
