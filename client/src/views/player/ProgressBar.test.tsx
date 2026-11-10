@@ -78,6 +78,23 @@ describe('ProgressBar', () => {
     expect(onSeek).toHaveBeenLastCalledWith(30_000);
   });
 
+  it('steps from the live position once a step is old, even if no new position cleared it', () => {
+    vi.useFakeTimers();
+    try {
+      let live = 10_000;
+      // positionMs never changes: the player hides its controls and doesn't redraw it (PlayerView).
+      const { slider, onSeek } = bar({ livePositionMs: () => live });
+      fireEvent.keyDown(slider, { key: 'ArrowRight' });
+      expect(onSeek).toHaveBeenLastCalledWith(20_000);
+      vi.advanceTimersByTime(16_000); // the seek took its time, then landed and played on
+      live = 50_000;
+      fireEvent.keyDown(slider, { key: 'ArrowRight' });
+      expect(onSeek).toHaveBeenLastCalledWith(60_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('shows the trickplay frame for the time under the pointer', () => {
     const { slider, container } = bar({
       preview: (ms: number) => ({

@@ -48,6 +48,13 @@ export function ProgressBar({
     )
       setPending(null);
   }, [positionMs, pending]);
+  // The target also gives way on its own after PENDING_MAX_MS, when no new position arrives to clear it (paused, or a
+  // seek that never lands).
+  useEffect(() => {
+    if (!pending) return;
+    const timer = setTimeout(() => setPending((p) => (p === pending ? null : p)), PENDING_MAX_MS);
+    return () => clearTimeout(timer);
+  }, [pending]);
   const seek = (ms: number): void => {
     setPending({ ms, at: Date.now() });
     onSeek(ms);
@@ -100,8 +107,10 @@ export function ProgressBar({
         e.preventDefault();
         e.stopPropagation(); // jellyfin-web also seeks on arrows; don't do it twice
         // From where the video is now: positionMs isn't redrawn while the controls are hidden (PlayerView), and the
-        // seek bar keeps focus then. A step still on its way counts (rapid presses add up).
-        const from = pending?.ms ?? livePositionMs?.() ?? positionMs;
+        // seek bar keeps focus then. A recent step still on its way counts (rapid presses add up); an old one doesn't,
+        // whether or not a redraw has cleared it.
+        const recent = pending && Date.now() - pending.at <= PENDING_MAX_MS ? pending : null;
+        const from = recent?.ms ?? livePositionMs?.() ?? positionMs;
         seek(Math.min(durationMs, Math.max(0, from + step)));
       }}
     >
