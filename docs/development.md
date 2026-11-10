@@ -27,7 +27,7 @@ Prerequisites: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - Run `up` again after changing code: it rebuilds and restarts the container with the new plugin.
 - The first `up` generates fixture media into `artifacts/docker/media`, mounted at `/media` in the container. If you skip `e2e`, Jellyfin opens on its setup wizard; when it asks for libraries, add `/media/movies` (Movies) and `/media/tv` (Shows).
 - After `e2e`, sign in as `admin` / `lumen-admin` or as the restricted user `kid` / `kid-pass`. E2E hides the admin from the login screen, so type the name in by hand.
-- `JELLYFIN_IMAGE=jellyfin/jellyfin:unstable ./scripts/docker-dev.sh` tests against another server version (the nightly CI job runs `latest` and `unstable`).
+- `JELLYFIN_IMAGE=jellyfin/jellyfin:unstable ./scripts/docker-dev.sh` tests against another server version (the nightly CI job runs `12.1`, `latest` and `unstable`).
 - The Jellyfin container can reach services on your machine at `host.docker.internal`, e.g. a local Seerr at `http://host.docker.internal:5055`.
 - To start fresh, run `./scripts/docker-dev.sh down && rm -rf artifacts/docker`.
 - `e2e` runs against this same server and **resets Lumen's settings** (sections, hero, Seerr connection) as it goes. Re-enter anything you set by hand afterwards.
@@ -110,7 +110,7 @@ Both loops listen on all network interfaces. Other devices on the same network c
 ## CI and releases
 
 - `ci.yml` runs on every PR and on pushes to `main`. It does client lint, typecheck, tests, build and size check, then `dotnet test` and publish, then E2E against `jellyfin/jellyfin:12.4` (`e2e.yml`). E2E runs as one job per browser, in parallel: every spec on Chromium, and the specs tagged `@smoke` on Firefox and on WebKit as an iPhone (`webkit-iphone`).
-- `nightly.yml` runs every spec on all three browsers against `jellyfin/jellyfin:12.4`, `:latest` and `:unstable`.
+- `nightly.yml` runs every spec on all three browsers against `jellyfin/jellyfin:12.1` (the oldest release Lumen supports), `:12.4`, `:latest` and `:unstable`.
 - Run one browser locally with `npx playwright test --project=firefox` (or `webkit-iphone`) in `e2e/`, after `npx playwright install firefox` (or `webkit`). Tag a spec `@smoke` (`test('…', { tag: '@smoke' }, …)`) when it's a cheap check of a whole page or flow that a browser engine could break. Tests with "TV layout" in their title run on Chromium only, and playback tests skip on `webkit-iphone`: jellyfin-web asks an iPhone for HLS, which Playwright's WebKit can't play (`e2e/support/browsers.ts`).
 - `release.yml` runs on `v*` tags.
   - It requires a successful `ci.yml` run (including E2E) on the tagged commit, and waits for one that's still running.

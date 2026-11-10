@@ -25,13 +25,24 @@ jobs:
           path: artifacts/plugin/Jellyfin.Plugin.Lumen.dll
 
   e2e:
+    name: e2e (${{ matrix.name }})
     needs: build
     strategy:
       fail-fast: false
       matrix:
-        image: ['jellyfin/jellyfin:12.4', 'jellyfin/jellyfin:latest', 'jellyfin/jellyfin:unstable']
+        # `name` labels the reports (artifact names can't contain ':' or '/').
+        include:
+          # The oldest release Lumen supports: its targetAbi is 12.1, and jellyfin-web 12.1 differs from 12.4.
+          - image: jellyfin/jellyfin:12.1
+            name: '12.1'
+          - image: jellyfin/jellyfin:12.4
+            name: '12.4'
+          - image: jellyfin/jellyfin:latest
+            name: latest
+          - image: jellyfin/jellyfin:unstable
+            name: unstable
     uses: ./.github/workflows/e2e.yml
     with:
       jellyfin-image: ${{ matrix.image }}
-      report-name: e2e-report-${{ strategy.job-index }}
+      report-name: e2e-report-jellyfin-${{ matrix.name }}
       all-browsers: true
