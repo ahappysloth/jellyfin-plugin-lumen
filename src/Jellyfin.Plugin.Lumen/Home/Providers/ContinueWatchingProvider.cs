@@ -31,6 +31,10 @@ public sealed class ContinueWatchingProvider : IHomeSectionProvider
         var items = _libraryManager.GetItemList(new InternalItemsQuery(context.User)
         {
             IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Episode],
+
+            // Movies and episodes are always Video, so this changes no result. It lets the server's resumable
+            // filter skip non-video rows early: ~16x faster per jellyfin#18369, and jellyfin-web sends it too.
+            MediaTypes = [MediaType.Video],
             IsResumable = true,
             Recursive = true,
             IsVirtualItem = false,
