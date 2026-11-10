@@ -3,8 +3,8 @@
  * Matroska and only some browsers decode HEVC or AV1, so each trailer's container and codecs are checked first.
  *
  * What the browser can't play goes through the server: remuxed when only the container or audio is the problem
- * (H.264 the browser plays is copied as it is, which costs next to nothing), else transcoded to H.264/AAC capped for a
- * preview, which only the details page asks for. It comes as HLS on Apple WebKit (Safari, and every iOS browser),
+ * (H.264 the browser plays is copied as it is), else transcoded to H.264/AAC capped for a preview. Only the details
+ * page asks the server for either; the hero plays files the browser can play as they are, and nothing else. It comes as HLS on Apple WebKit (Safari, and every iOS browser),
  * which plays HLS itself and can't play Jellyfin's progressive stream (served without byte ranges), and as a
  * progressive MP4 everywhere else (Chrome, Edge, Firefox, TVs). Neither needs hls.js.
  */
@@ -206,24 +206,28 @@ function serverDelivery(browser: Browser): 'hls' | 'mp4' | null {
 
 /**
  * The ways to play a trailer, in the order to try them; the preview moves to the next when one fails. A file the
- * browser can play goes first, then (unless the user saves data) the server's copy of it: a remux when the video is
- * H.264 this browser plays, else a full transcode, only when `transcode` allows it (the details page; a hero slide
- * shows a preview for a few seconds, not worth an encode) and the user may transcode (the server reports
- * SupportsTranscoding false otherwise, and would copy the video anyway). With no stream details (the fetch failed),
- * the file is tried as it is, as before. An empty list means no preview.
+ * browser can play goes first. Only where `viaServer` allows it (the details page) and the user doesn't save data, the
+ * server's copy follows: a remux when the video is H.264 this browser plays, else a full transcode, if the user may
+ * transcode (the server reports SupportsTranscoding false otherwise, and would copy the video anyway).
+ *
+ * A hero slide gets the file or nothing. Its preview shows for a few seconds per slide, and even a remux has the
+ * server copy the whole trailer through its transcode folder each time (at well over 100x, leaving an ffmpeg log, and
+ * the file itself until the daily cleanup should the stop request be lost).
+ *
+ * With no stream details (the fetch failed), the file is tried as it is, as before. An empty list means no preview.
  */
 export function trailerOptions(
   source: MediaSourceInfo | null,
   browser: Browser,
-  transcode: boolean,
+  viaServer: boolean,
 ): TrailerOption[] {
   const options: TrailerOption[] = [];
   if (!source?.MediaStreams?.length || canDirectPlay(source, browser)) options.push({ kind: 'direct' });
-  if (browser.saveData) return options;
+  if (!viaServer || browser.saveData) return options;
   const video = source ? pickStreams(source).video : undefined;
   const avc = video && video.Codec?.toLowerCase() === 'h264' ? videoCodecFor(video, browser) : null;
   const copyVideo = !!avc && browser.canPlay(`video/mp4; codecs="${avc}"`);
-  if (!copyVideo && (!transcode || source?.SupportsTranscoding === false)) return options;
+  if (!copyVideo && source?.SupportsTranscoding === false) return options;
   const kind = serverDelivery(browser);
   if (kind) options.push({ kind, copyVideo });
   return options;
