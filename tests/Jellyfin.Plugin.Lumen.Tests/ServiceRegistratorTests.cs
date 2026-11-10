@@ -8,6 +8,7 @@ using MediaBrowser.Controller;
 using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.TV;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
@@ -18,7 +19,7 @@ namespace Jellyfin.Plugin.Lumen.Tests;
 public class ServiceRegistratorTests
 {
     [Fact]
-    public void RegistersACompleteValidGraph()
+    public async Task RegistersACompleteValidGraph()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -50,6 +51,15 @@ public class ServiceRegistratorTests
                 SectionTypes.MyRequests, SectionTypes.NewForYou, SectionTypes.NextUp, SectionTypes.RecentlyAdded,
             ],
             provider.GetServices<IHomeSectionProvider>().Select(p => p.Type).Order(StringComparer.Ordinal));
+
+        // Building Jellyfin's pipeline starts compressing the client files in the background.
+        var catalog = provider.GetRequiredService<AssetCatalog>();
+        Assert.Null(catalog.Precompression);
+        var filter = Assert.Single(provider.GetServices<IStartupFilter>().OfType<LumenStartupFilter>());
+        filter.Configure(_ => { })(new ApplicationBuilder(provider));
+        await catalog.Precompression!;
+        Assert.True(catalog.TryGet("lumen.css", out var css));
+        Assert.True(css.IsPrecompressed);
 
         // The admin page shows each section's one-sentence description.
         Assert.All(provider.GetServices<IHomeSectionProvider>(), p => Assert.EndsWith(".", p.Description, StringComparison.Ordinal));

@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
 
@@ -8,7 +9,7 @@ namespace Jellyfin.Plugin.Lumen.Assets;
 /// <summary>
 /// An embedded client file. <see cref="Content"/> is always the raw bytes (the guard is inlined into index.html from
 /// them). Scripts and stylesheets can also be served compressed: Brotli at its best quality and gzip at its smallest,
-/// each made once (<see cref="AssetCatalog.PrecompressAsync"/>, or the first time a client asks). Jellyfin's own
+/// each made once (<see cref="AssetCatalog.StartPrecompression"/>, or the first time a client asks). Jellyfin's own
 /// response compression compresses them per response at its fastest level, and not at all over HTTPS.
 /// </summary>
 public sealed class LumenAsset
@@ -19,10 +20,19 @@ public sealed class LumenAsset
     private const int BrotliQuality = 11;
     private const int BrotliWindow = 24;
 
-    private readonly Lazy<AssetRepresentation> _brotli;
-    private readonly Lazy<AssetRepresentation> _gzip;
+    private readonly Encoded _brotli;
+    private readonly Encoded _gzip;
 
     public LumenAsset(string name, byte[] content, string contentType)
+        : this(name, content, contentType, Compress)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="LumenAsset"/> class. For tests: <paramref name="compress"/> encodes
+    /// the content in the coding it's given.
+    /// </summary>
+    internal LumenAsset(string name, byte[] content, string contentType, Func<byte[], string, byte[]> compress)
     {
         Name = name;
         Content = content;
@@ -30,8 +40,8 @@ public sealed class LumenAsset
         Compressible = contentType.StartsWith("text/", StringComparison.Ordinal);
         var hash = Convert.ToHexStringLower(SHA256.HashData(content))[..16];
         Identity = new AssetRepresentation(content, null, new EntityTagHeaderValue($"\"{hash}\""));
-        _brotli = new Lazy<AssetRepresentation>(() => new AssetRepresentation(CompressBrotli(content), Brotli, new EntityTagHeaderValue($"\"{hash}-br\"")));
-        _gzip = new Lazy<AssetRepresentation>(() => new AssetRepresentation(CompressGzip(content), Gzip, new EntityTagHeaderValue($"\"{hash}-gz\"")));
+        _brotli = new Encoded(() => new AssetRepresentation(compress(content, Brotli), Brotli, new EntityTagHeaderValue($"\"{hash}-br\"")));
+        _gzip = new Encoded(() => new AssetRepresentation(compress(content, Gzip), Gzip, new EntityTagHeaderValue($"\"{hash}-gz\"")));
     }
 
     public string Name { get; }
@@ -46,32 +56,62 @@ public sealed class LumenAsset
 
     public AssetRepresentation Identity { get; }
 
+    /// <summary>Whether both compressed copies have been made (by <see cref="Precompress"/> or by requests).</summary>
+    internal bool IsPrecompressed => _brotli.IsCreated && _gzip.IsCreated;
+
     /// <summary>
-    /// The representation to send for a request's Accept-Encoding: Brotli if the client takes it, else gzip, else the
-    /// raw file. A coding is taken when it, or <c>*</c>, is listed without <c>q=0</c>. When the client takes one, the
-    /// encoded file is sent even where it's bigger (a tiny file), so Jellyfin's compression never re-encodes a response.
+    /// The representation to send for a request's Accept-Encoding: of Brotli and gzip, the one with the higher q-value
+    /// (Brotli on a tie), unless both are refused (q=0, or not listed and no <c>*</c>) or the client ranks
+    /// <c>identity</c> above them. When the client takes a coding, the encoded file is sent even where it's bigger (a
+    /// tiny file), so Jellyfin's compression never re-encodes a response. If compressing fails, the raw file is sent
+    /// and the failure logged; the next request tries again.
     /// </summary>
-    public AssetRepresentation Select(StringValues acceptEncoding)
+    public AssetRepresentation Select(StringValues acceptEncoding, ILogger? logger = null)
     {
         if (!Compressible || !StringWithQualityHeaderValue.TryParseList(acceptEncoding, out var codings))
         {
             return Identity;
         }
 
-        if (Accepts(codings, Brotli))
+        var brotli = Quality(codings, Brotli);
+        var gzip = Quality(codings, Gzip);
+        var best = Math.Max(brotli, gzip);
+        if (best <= 0 || ExplicitQuality(codings, "identity") > best)
         {
-            return _brotli.Value;
+            return Identity;
         }
 
-        return Accepts(codings, Gzip) ? _gzip.Value : Identity;
+        var encoded = brotli >= gzip ? _brotli : _gzip;
+        try
+        {
+            return encoded.Value;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Lumen could not compress {Asset}; sending it uncompressed", Name);
+            return Identity;
+        }
     }
 
-    private static bool Accepts(IList<StringWithQualityHeaderValue> codings, string coding)
+    /// <summary>Makes both compressed copies of a text file now. Throws if compressing fails (it's retried later).</summary>
+    internal void Precompress()
     {
-        var match = codings.FirstOrDefault(c => StringSegment.Equals(c.Value, coding, StringComparison.OrdinalIgnoreCase))
-            ?? codings.FirstOrDefault(c => StringSegment.Equals(c.Value, "*", StringComparison.Ordinal));
-        return match is not null && (match.Quality ?? 1) > 0;
+        if (Compressible)
+        {
+            _ = _brotli.Value;
+            _ = _gzip.Value;
+        }
     }
+
+    /// <summary>The coding's q-value: its own entry, else <c>*</c>'s, else 0 (not acceptable).</summary>
+    private static double Quality(IList<StringWithQualityHeaderValue> codings, string coding) =>
+        ExplicitQuality(codings, coding)
+        ?? codings.Where(c => StringSegment.Equals(c.Value, "*", StringComparison.Ordinal)).Select(c => c.Quality ?? 1).FirstOrDefault();
+
+    private static double? ExplicitQuality(IList<StringWithQualityHeaderValue> codings, string coding) =>
+        codings.Where(c => StringSegment.Equals(c.Value, coding, StringComparison.OrdinalIgnoreCase)).Select(c => (double?)(c.Quality ?? 1)).FirstOrDefault();
+
+    private static byte[] Compress(byte[] content, string coding) => coding == Brotli ? CompressBrotli(content) : CompressGzip(content);
 
     private static byte[] CompressBrotli(byte[] content)
     {
@@ -114,4 +154,36 @@ public sealed class AssetRepresentation
     public string? ContentEncoding { get; }
 
     public EntityTagHeaderValue ETag { get; }
+}
+
+/// <summary>
+/// A compressed copy made once, on first use. Unlike <see cref="Lazy{T}"/> it doesn't keep an exception: a failed
+/// attempt leaves nothing behind, and the next one tries again.
+/// </summary>
+internal sealed class Encoded
+{
+    private readonly Func<AssetRepresentation> _make;
+    private readonly Lock _gate = new();
+    private AssetRepresentation? _value;
+
+    public Encoded(Func<AssetRepresentation> make) => _make = make;
+
+    public bool IsCreated => Volatile.Read(ref _value) is not null;
+
+    public AssetRepresentation Value
+    {
+        get
+        {
+            if (Volatile.Read(ref _value) is { } value)
+            {
+                return value;
+            }
+
+            lock (_gate)
+            {
+                _value ??= _make();
+                return _value;
+            }
+        }
+    }
 }

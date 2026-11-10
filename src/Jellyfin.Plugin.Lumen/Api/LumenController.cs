@@ -6,6 +6,7 @@ using MediaBrowser.Controller;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
 
 namespace Jellyfin.Plugin.Lumen.Api;
@@ -23,14 +24,16 @@ public sealed class LumenController : ControllerBase
     private readonly DiagnosticsStore _diagnostics;
     private readonly TimeProvider _time;
     private readonly IServerApplicationHost _host;
+    private readonly ILogger<LumenController> _logger;
 
-    public LumenController(AssetCatalog assets, ILumenConfigReader config, DiagnosticsStore diagnostics, TimeProvider time, IServerApplicationHost host)
+    public LumenController(AssetCatalog assets, ILumenConfigReader config, DiagnosticsStore diagnostics, TimeProvider time, IServerApplicationHost host, ILogger<LumenController> logger)
     {
         _assets = assets;
         _config = config;
         _diagnostics = diagnostics;
         _time = time;
         _host = host;
+        _logger = logger;
     }
 
     [HttpGet("Assets/{name}")]
@@ -48,7 +51,7 @@ public sealed class LumenController : ControllerBase
             : "no-cache";
 
         // Lumen's own files are static and hold no secret, so they're served precompressed over HTTPS too.
-        var representation = asset.Select(Request.Headers.AcceptEncoding);
+        var representation = asset.Select(Request.Headers.AcceptEncoding, _logger);
         if (asset.Compressible)
         {
             Response.Headers.Append(HeaderNames.Vary, HeaderNames.AcceptEncoding);

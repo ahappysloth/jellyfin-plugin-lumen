@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.Lumen.Assets;
 
@@ -14,12 +15,22 @@ public sealed partial class AssetCatalog
     public const string ChunkPrefix = "lumen-chunk-";
 
     private readonly Dictionary<string, LumenAsset> _assets;
+    private readonly Lock _precompressionGate = new();
 
     public AssetCatalog(IReadOnlyDictionary<string, byte[]> files)
+        : this(files, null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AssetCatalog"/> class. For tests: <paramref name="compress"/>
+    /// replaces the real compression (see <see cref="LumenAsset"/>).
+    /// </summary>
+    internal AssetCatalog(IReadOnlyDictionary<string, byte[]> files, Func<byte[], string, byte[]>? compress)
     {
         _assets = files.ToDictionary(
             f => f.Key,
-            f => new LumenAsset(f.Key, f.Value, ContentTypeFor(f.Key)),
+            f => compress is null ? new LumenAsset(f.Key, f.Value, ContentTypeFor(f.Key)) : new LumenAsset(f.Key, f.Value, ContentTypeFor(f.Key), compress),
             StringComparer.Ordinal);
         BuildHash = ComputeHash(files);
         CoreChunk = FindCoreChunk(files);
@@ -34,6 +45,9 @@ public sealed partial class AssetCatalog
     public string? CoreChunk { get; }
 
     public IReadOnlyCollection<string> Names => _assets.Keys;
+
+    /// <summary>The background compression, once <see cref="StartPrecompression"/> has started it.</summary>
+    internal Task? Precompression { get; private set; }
 
     public static AssetCatalog FromEmbeddedResources(Assembly assembly)
     {
@@ -52,17 +66,31 @@ public sealed partial class AssetCatalog
     public bool TryGet(string name, out LumenAsset asset) => _assets.TryGetValue(name, out asset!);
 
     /// <summary>
-    /// Makes every compressed file on a background thread, so the first client after a restart doesn't wait for
-    /// Brotli's best quality (about 0.25 s for the core chunk). A request that comes first waits for the same work.
+    /// Starts making every compressed file on a background thread (once; later calls return the same task), so the
+    /// first client after a restart doesn't wait for Brotli's best quality (about 0.25 s for the core chunk). A request
+    /// that comes first waits for the same work. A file that fails is logged and left for requests to retry; the task
+    /// itself never faults.
     /// </summary>
-    public Task PrecompressAsync() => Task.Run(() =>
+    public Task StartPrecompression(ILogger logger)
     {
-        foreach (var asset in _assets.Values.Where(a => a.Compressible))
+        lock (_precompressionGate)
         {
-            asset.Select(LumenAsset.Brotli);
-            asset.Select(LumenAsset.Gzip);
+            return Precompression ??= Task.Run(() =>
+            {
+                foreach (var asset in _assets.Values)
+                {
+                    try
+                    {
+                        asset.Precompress();
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "Lumen could not compress {Asset}; it will be compressed when first requested", asset.Name);
+                    }
+                }
+            });
         }
-    });
+    }
 
     private static string ContentTypeFor(string name) => Path.GetExtension(name) switch
     {

@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using Jellyfin.Plugin.Lumen.Assets;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Jellyfin.Plugin.Lumen.Tests.Assets;
@@ -23,7 +24,15 @@ public class LumenAssetTests
     [InlineData("deflate", null)]
     [InlineData("", null)]
     [InlineData(null, null)]
-    public void Select_PrefersBrotli_ThenGzip_AndHonoursQZero(string? acceptEncoding, string? expected)
+    [InlineData("gzip;q=0.5, br;q=0.1", "gzip")]
+    [InlineData("br;q=0.5, gzip;q=0.5", "br")]
+    [InlineData("gzip, br;q=0.9", "gzip")]
+    [InlineData("*;q=0.3, gzip;q=0.5", "gzip")]
+    [InlineData("*;q=0.6, gzip;q=0.5", "br")]
+    [InlineData("identity, gzip;q=0.5", null)]
+    [InlineData("identity;q=0.5, gzip", "gzip")]
+    [InlineData("gzip, identity", "gzip")]
+    public void Select_TakesTheHigherQ_BrotliOnATie_AndHonoursQZero(string? acceptEncoding, string? expected)
     {
         var asset = new LumenAsset("lumen.js", Script, "text/javascript; charset=utf-8");
 
@@ -79,6 +88,24 @@ public class LumenAssetTests
         Assert.EndsWith("-gz\"", gzip.ETag.Tag.Value, StringComparison.Ordinal);
         Assert.Equal(asset.Identity.ETag, new LumenAsset("lumen.js", Script, "text/javascript").Identity.ETag);
         Assert.Same(br, asset.Select("br, gzip"));
+    }
+
+    [Fact]
+    public void AFailedCompression_SendsTheRawFile_LogsIt_AndIsRetried()
+    {
+        var failures = 1;
+        var logger = new ListLogger<LumenAssetTests>();
+        var asset = new LumenAsset("lumen.js", Script, "text/javascript; charset=utf-8", (content, coding) =>
+            coding == LumenAsset.Brotli && failures-- > 0 ? throw new InvalidOperationException("boom") : content.Reverse().ToArray());
+
+        Assert.Same(asset.Identity, asset.Select("br", logger));
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Error, entry.Level);
+        Assert.Contains("lumen.js", entry.Message, StringComparison.Ordinal);
+        Assert.Equal("boom", entry.Exception?.Message);
+
+        Assert.Equal("br", asset.Select("br", logger).ContentEncoding);
+        Assert.Single(logger.Entries);
     }
 
     [Fact]

@@ -6,6 +6,7 @@ using Jellyfin.Plugin.Lumen.Diagnostics;
 using MediaBrowser.Controller;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Xunit;
@@ -146,7 +147,7 @@ public class LumenControllerTests
         Assert.Equal(TestData.Now, Assert.Single(_diagnostics.GetAll()).LastSeen);
     }
 
-    private LumenController Create() => new(_assets, _config, _diagnostics, new FakeTimeProvider(TestData.Now), _host)
+    private LumenController Create() => new(_assets, _config, _diagnostics, new FakeTimeProvider(TestData.Now), _host, NullLogger<LumenController>.Instance)
     {
         ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
     };
