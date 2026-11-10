@@ -11,17 +11,40 @@ test('the Movies page lists the library as a poster grid with filters and sort',
   await expect(page.getByRole('heading', { name: 'Movies', level: 1 })).toBeVisible();
   await expectPresentButHidden(page.locator('#reactRoot .skinBody'));
   const grid = page.getByRole('list', { name: 'Movies' });
-  await expect(grid.getByRole('button', { name: 'Lumen Alpha' })).toBeVisible();
+  await expect(grid.getByRole('link', { name: 'Lumen Alpha' })).toBeVisible();
   await expect(page.getByText(/\d+ titles/)).toBeVisible();
 
   await page.getByRole('button', { name: /^Sort by / }).click();
   await page.getByRole('option', { name: 'Title' }).click();
-  await expect(grid.getByRole('button').first()).toHaveAccessibleName('Lumen Alpha');
+  await expect(grid.getByRole('link').first()).toHaveAccessibleName('Lumen Alpha');
 
-  await grid.getByRole('button', { name: 'Lumen Alpha' }).click();
+  await grid.getByRole('link', { name: 'Lumen Alpha' }).click();
   await expect(page).toHaveURL(/#\/details\?id=/);
   await page.goBack();
   await expect(page.getByRole('button', { name: 'Sort by Title' })).toBeVisible();
+});
+
+test("a card's More button opens its menu from the keyboard", async ({ page, isMobile }) => {
+  test.skip(isMobile, 'touch screens open the menu with a long-press; the button is for pointers and keyboards');
+  await login(page, ADMIN);
+  await navLink(page, 'Movies').click();
+
+  const grid = page.getByRole('list', { name: 'Movies' });
+  const card = grid.getByRole('link', { name: 'Lumen Gamma', exact: true });
+  const more = grid.getByRole('button', { name: 'More options for Lumen Gamma' });
+  await card.focus();
+  await page.keyboard.press('Tab');
+  await expect(more).toBeFocused();
+  await expect(more).toHaveCSS('opacity', '1');
+  await expect(more).toHaveAttribute('aria-haspopup', 'menu');
+
+  await page.keyboard.press('Enter');
+  const menu = page.getByRole('menu', { name: 'Actions for Lumen Gamma' });
+  await expect(menu.getByRole('menuitem').first()).toBeFocused();
+  await expect(menu.getByRole('menuitem', { name: 'More info' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(more).toBeFocused();
 });
 
 test.describe('favorites', () => {
@@ -45,7 +68,7 @@ test.describe('favorites', () => {
     await navLink(page, 'Favorites').click();
 
     await expect(page.getByRole('heading', { name: 'Favorites', level: 1 })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Lumen Beta' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Lumen Beta' })).toBeVisible();
   });
 });
 
@@ -76,7 +99,7 @@ test('right-clicking a card offers its actions, and favoriting from the menu sho
   await login(page, ADMIN);
   await navLink(page, 'Movies').click();
 
-  await page.getByRole('list', { name: 'Movies' }).getByRole('button', { name: 'Lumen Gamma' }).click({ button: 'right' });
+  await page.getByRole('list', { name: 'Movies' }).getByRole('link', { name: 'Lumen Gamma' }).click({ button: 'right' });
   const menu = page.getByRole('menu', { name: 'Actions for Lumen Gamma' });
   await expect(menu.getByRole('menuitem')).toHaveText(['Play', 'More info', 'Open in new tab', 'Add to favorites', 'Mark as watched']);
   await menu.getByRole('menuitem', { name: 'Add to favorites' }).click();
@@ -84,7 +107,7 @@ test('right-clicking a card offers its actions, and favoriting from the menu sho
 
   try {
     await navLink(page, 'Favorites').click();
-    await expect(page.getByRole('button', { name: 'Lumen Gamma' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Lumen Gamma' })).toBeVisible();
   } finally {
     await api(`/UserFavoriteItems/${items['Lumen Gamma']}`, {
       method: 'DELETE',

@@ -1,5 +1,5 @@
 import type { BaseItem } from '../api/types';
-import { detailsHash, genreHash } from '../compat/jellyfin';
+import { infoHash } from '../compat/jellyfin';
 import { type MenuEntry, openContextMenu } from '../components/ContextMenu';
 import { showToast } from '../components/Toast';
 import { strings } from '../strings';
@@ -7,11 +7,7 @@ import { startPlayback } from '../playback/startPlayback';
 import type { ViewContext } from './context';
 import { toggleUserData, userDataValue } from './userDataStore';
 
-/** Where a card's "More info" goes. */
-export function infoHash(item: BaseItem): string {
-  if (item.Type === 'Genre') return genreHash(item.Id, item.ServerId);
-  return detailsHash(item.Id, item.ServerId);
-}
+export { infoHash };
 
 /** An absolute URL for a jellyfin-web hash, for "Open in new tab". */
 export function hashUrl(hash: string, loc: Location = window.location): string {

@@ -44,7 +44,7 @@ test('episode details are rendered by Lumen, with previous/next across seasons',
   await expect(details.getByText('S1:E3', { exact: true })).toBeVisible();
   await expect(details.getByRole('link', { name: 'Lumen Show', exact: true })).toBeVisible();
   await expect(details.getByRole('button', { name: 'Play' })).toBeVisible();
-  await expect(details.getByRole('region', { name: 'More from Season 1' }).getByRole('button')).toHaveCount(3);
+  await expect(details.getByRole('region', { name: 'More from Season 1' }).getByRole('link')).toHaveCount(3);
 
   await details.getByRole('link', { name: /^Next episode: S2:E1/ }).click();
   await expect(page.locator('#lmn-root .lmn-details--episode').getByText('S2:E1', { exact: true })).toBeVisible();

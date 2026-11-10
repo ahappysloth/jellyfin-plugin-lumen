@@ -37,11 +37,11 @@ describe('FavoritesView', () => {
     const tabs = screen.getByRole('group', { name: 'Favorites' });
     expect(within(tabs).queryByRole('button', { name: /Movies/ })).toBeNull();
     expect(within(tabs).getByRole('button', { name: /Shows/ })).toHaveAttribute('aria-pressed', 'true');
-    expect(await screen.findByRole('button', { name: 'Show One' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Show One' })).toBeInTheDocument();
 
     fireEvent.click(within(tabs).getByRole('button', { name: /Episodes/ }));
     await waitFor(() => expect(screen.getByRole('list', { name: 'Episodes' })).toBeInTheDocument());
-    expect(await screen.findByRole('button', { name: /^Pilot,/ })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /^Pilot ?S0:E0 · Pilot$/ })).toBeInTheDocument();
   });
 
   it('explains how to add favorites when there are none', async () => {
@@ -69,7 +69,7 @@ describe('FavoritesView', () => {
     try {
       const ctx = makeContext(createFakeClient(routes({ Items: itemsRoute })));
       const view = render(<FavoritesView ctx={ctx} />);
-      fireEvent.click(await screen.findByRole('button', { name: 'Show Two' }));
+      fireEvent.click(await screen.findByRole('link', { name: 'Show Two' }));
       view.unmount();
 
       // On the details page, the user unfavorites it; Back to Favorites.
@@ -77,8 +77,8 @@ describe('FavoritesView', () => {
       BY_TYPE.Series = original;
       render(<FavoritesView ctx={ctx} />);
       expect(await screen.findByText('3 titles')).toBeInTheDocument();
-      expect(await screen.findByRole('button', { name: 'Show One' })).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Show Two' })).toBeNull();
+      expect(await screen.findByRole('link', { name: 'Show One' })).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Show Two' })).toBeNull();
     } finally {
       BY_TYPE.Series = original;
     }

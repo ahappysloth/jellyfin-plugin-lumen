@@ -77,7 +77,7 @@ describe('LibraryView', () => {
     await screen.findByText(`${PAGE_SIZE + 5} titles`);
     expect(params(itemRequests()[0]!).get('limit')).toBe(String(PAGE_SIZE));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Movie 1' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Movie 1' }));
     expect(ctx.navigate).toHaveBeenCalledWith('#/details?id=m1&serverId=s');
   });
 
@@ -99,14 +99,14 @@ describe('LibraryView snapshots', () => {
   it('keeps the saved grid through a favorite change, with the new value, but not through a watched change when filtered', async () => {
     const { ctx, itemRequests } = setup(3);
     await screen.findByText('3 titles');
-    fireEvent.click(screen.getByRole('button', { name: 'Movie 1' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Movie 1' }));
     cleanup();
 
     // On the details page: favorite it. Back to the library: the same grid, no refetch.
     await setUserData(ctx, movie(1), 'IsFavorite', true);
     const before = itemRequests().length;
     render(<LibraryView id={LIB} collection="movies" ctx={ctx} />);
-    expect(screen.getByRole('button', { name: 'Movie 1' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Movie 1' })).toBeInTheDocument();
     expect(itemRequests()).toHaveLength(before);
     cleanup();
 
@@ -114,8 +114,8 @@ describe('LibraryView snapshots', () => {
     render(<LibraryView id={LIB} collection="movies" ctx={ctx} />);
     fireEvent.click(screen.getByRole('button', { name: 'Unwatched' }));
     await waitFor(() => expect(params(itemRequests().at(-1)!).get('filters')).toBe('IsUnplayed'));
-    await screen.findByRole('button', { name: 'Movie 2' });
-    fireEvent.click(screen.getByRole('button', { name: 'Movie 2' }));
+    await screen.findByRole('link', { name: 'Movie 2' });
+    fireEvent.click(screen.getByRole('link', { name: 'Movie 2' }));
     cleanup();
     await setUserData(ctx, movie(2), 'Played', true);
     const count = itemRequests().length;

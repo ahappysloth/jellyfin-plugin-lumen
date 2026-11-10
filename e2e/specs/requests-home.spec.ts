@@ -53,7 +53,7 @@ test('catalog rows mix library cards with request cards', async ({ page }) => {
   const popular = page.getByRole('region', { name: 'Popular Movies' });
   await expect(popular.getByRole('button', { name: 'The Matrix, Request' })).toBeVisible();
   // 604 is on the server, so it's an ordinary Lumen card that opens the library details page.
-  await expect(popular.getByRole('button', { name: /^Lumen Alpha/ })).toBeVisible();
+  await expect(popular.getByRole('link', { name: /^Lumen Alpha/ })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Coming Soon' }).getByRole('button', { name: /Lumen Future/ })).toBeVisible();
 
   await popular.getByRole('button', { name: 'The Matrix, Request' }).click();
