@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: plugin
           path: plugin
@@ -37,7 +37,7 @@ jobs:
             -e LUMEN_TMDB_IMAGE_BASE=http://host.docker.internal:5055/t/p \
             -v "$PWD/config:/config" -v "$PWD/cache:/cache" -v "$PWD/media:/media:ro" \
             "${{ inputs.jellyfin-image }}"
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -62,14 +62,14 @@ jobs:
           if ! jq -e --arg r "$RELEASE" '.versions | index($r)' client/src/compat/tested-jellyfin.json >/dev/null; then
             echo "::warning title=Untested Jellyfin release passed::E2E passed on Jellyfin $VERSION. Add \"$RELEASE\" to client/src/compat/tested-jellyfin.json."
           fi
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.report-name }}-jellyfin-version-${{ github.run_attempt }}
           path: tested-jellyfin.txt
       - if: failure()
         run: docker logs jellyfin > jellyfin.log 2>&1 || true
       - if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.report-name }}-${{ github.run_attempt }}
           path: |
