@@ -6,6 +6,7 @@ import type { CardVariant } from '../../components/images';
 import { imageUrl, resolveImage } from '../../components/images';
 import { LoadError } from '../../components/LoadError';
 import { useAutoFocus } from '../../components/useAutoFocus';
+import { boxAt, useImageWidth } from '../../components/useImageWidth';
 import { useVisible } from '../../components/useVisible';
 import { LIBRARY_TABS } from '../../compat/registry';
 import { strings } from '../../strings';
@@ -299,6 +300,8 @@ function FacetTile({
   }, [visible]);
 
   const art = sample?.art ? resolveImage(sample.art, ['Backdrop', 'Thumb', 'Primary']) : null;
+  // The grid stretches tiles to fill its columns (minmax(240px, 1fr)): ask for the width they render at.
+  const width = useImageWidth(ref, TILE.width);
   return (
     <a
       ref={ref}
@@ -306,7 +309,9 @@ function FacetTile({
       href={facetHash(facet, item.Id, libraryId)}
       data-item-id={item.Id}
     >
-      {art && <img src={imageUrl(ctx.client, art, TILE)} alt="" loading="lazy" decoding="async" />}
+      {art && width > 0 && (
+        <img src={imageUrl(ctx.client, art, boxAt(TILE, width))} alt="" loading="lazy" decoding="async" />
+      )}
       <span class="lmn-genre__label">
         {item.Name}
         {sample && sample.count >= 0 && (

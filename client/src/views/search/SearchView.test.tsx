@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
+import { FakeResizeObserver, resize } from '../../../test/resizeObserver';
 import { makeContext } from '../../../test/viewContext';
 import type { AjaxRequest } from '../../compat/jellyfin';
 import { clearRequestStatus } from '../catalog/catalog';
@@ -55,6 +56,32 @@ describe('SearchView', () => {
       (r) => new URL(r.url).pathname === '/Items' && params(r).get('searchTerm') === 'alp',
     )!;
     expect(params(search).get('recursive')).toBe('true');
+  });
+
+  it("asks for a person's photo at the width of its column in the people grid", async () => {
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    vi.stubGlobal('devicePixelRatio', 1);
+    try {
+      const client = createFakeClient(
+        routes({
+          Items: items,
+          Persons: { Items: [{ Id: 'p1', Name: 'Ada Actor', Type: 'Person', ImageTags: { Primary: 'pt' } }] },
+        }),
+      );
+      render(<SearchView initialQuery="alp" ctx={makeContext(client)} />);
+      await flush();
+      const photo = screen.getByRole('button', { name: 'Ada Actor' }).querySelector('img')!;
+      expect(photo).not.toHaveAttribute('src');
+
+      // minmax(116px, 1fr): a column can be nearly twice the 116 px a photo is in a cast row.
+      resize(200, [photo]);
+      const src = new URL(photo.getAttribute('src')!);
+      expect(src.pathname).toBe('/Items/p1/Images/Primary');
+      expect(src.searchParams.get('fillWidth')).toBe('240');
+      expect(src.searchParams.get('fillHeight')).toBe('319');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('says so when nothing matches', async () => {

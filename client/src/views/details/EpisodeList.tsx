@@ -1,13 +1,18 @@
+import { useRef } from 'preact/hooks';
 import type { BaseItem } from '../../api/types';
 import type { JellyfinApiClient } from '../../compat/jellyfin';
 import { Icon } from '../../components/icons';
-import { imageUrl, resolveImage } from '../../components/images';
+import { type ImageRef, imageUrl, resolveImage } from '../../components/images';
 import { strings } from '../../strings';
 import { ProgressBar, playedPercent } from '../../components/ProgressBar';
+import { boxAt, useImageWidth } from '../../components/useImageWidth';
 import { formatRuntime } from './badges';
 
-/** The still's box (.lmn-episode's first column, 16:9). */
-const STILL = { width: 260, height: 146 };
+/**
+ * The still's box: .lmn-episode's first column, 260 px (full width on a phone: it is measured), exactly 16:9 like a
+ * landscape card, so the same still at the same step is one URL at any width.
+ */
+const STILL = { width: 260, height: 146.25 };
 
 interface Props {
   episodes: BaseItem[];
@@ -40,13 +45,7 @@ export function EpisodeList({ episodes, client, onPlay, detailsHref }: Props) {
             >
               <span class="lmn-episode__thumb">
                 {image ? (
-                  <img
-                    src={imageUrl(client, image, STILL)}
-                    alt=""
-                    loading="lazy"
-                    width={STILL.width}
-                    height={STILL.height}
-                  />
+                  <Still client={client} image={image} />
                 ) : (
                   <span class="lmn-card__placeholder">{episode.Name}</span>
                 )}
@@ -73,5 +72,21 @@ export function EpisodeList({ episodes, client, onPlay, detailsHref }: Props) {
         );
       })}
     </ol>
+  );
+}
+
+/** An episode's still, at the width its thumbnail box renders (260 px beside the text; full width on a phone). */
+function Still({ client, image }: { client: Pick<JellyfinApiClient, 'getUrl'>; image: ImageRef }) {
+  const ref = useRef<HTMLImageElement>(null);
+  const width = useImageWidth(ref, STILL.width);
+  return (
+    <img
+      ref={ref}
+      src={width ? imageUrl(client, image, boxAt(STILL, width)) : undefined}
+      alt=""
+      loading="lazy"
+      width={260}
+      height={146}
+    />
   );
 }
