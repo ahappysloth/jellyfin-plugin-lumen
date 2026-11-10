@@ -11,7 +11,7 @@ test('the Lumen dashboard page loads its settings', async ({ page }) => {
   await expect(page.getByRole('button', { name: /Move Continue Watching down/ })).toBeVisible();
 });
 
-test('the Dashboard wears Lumen’s look, and only on admin pages', async ({ page }) => {
+test('the Dashboard wears Lumen’s look, and only on admin pages', async ({ page, isMobile }) => {
   await login(page, ADMIN);
   const html = page.locator('html');
   await expect(page.locator('link[href*="lumen-dashboard.css"]')).toHaveCount(1);
@@ -30,6 +30,8 @@ test('the Dashboard wears Lumen’s look, and only on admin pages', async ({ pag
   await expect(page.locator('.MuiButton-containedPrimary').first()).toHaveCSS('background-color', 'rgb(227, 11, 23)');
 
   // jellyfin-web navigates with pushState; the look comes off on Lumen's own pages.
+  // On phones the drawer is closed until its menu button opens it.
+  if (isMobile) await page.getByRole('button', { name: 'Open Menu' }).click();
   await page.locator('.MuiDrawer-paper a[href="#/"]').first().click();
   await expect(html).not.toHaveClass(/lmn-skin-dashboard/);
 

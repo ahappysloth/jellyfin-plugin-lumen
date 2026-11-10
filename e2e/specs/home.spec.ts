@@ -3,7 +3,7 @@ import { ADMIN, api, loadState } from '../support/api';
 import { login } from '../support/login';
 import { expectPresentButHidden } from '../support/stock';
 
-test('Lumen replaces the home screen with a hero and rows', async ({ page }) => {
+test('Lumen replaces the home screen with a hero and rows', { tag: '@smoke' }, async ({ page }) => {
   await login(page, ADMIN);
 
   await expect(page.locator('#lmn-root .lmn-home')).toBeVisible();
@@ -15,7 +15,7 @@ test('Lumen replaces the home screen with a hero and rows', async ({ page }) => 
   await expectPresentButHidden(page.locator('#reactRoot .skinBody'));
 });
 
-test('a cold load with a remembered sign-in still shows the Lumen home', async ({ page }) => {
+test('a cold load with a remembered sign-in still shows the Lumen home', { tag: '@smoke' }, async ({ page }) => {
   await login(page, ADMIN);
   await expect(page.locator('#lmn-root .lmn-home')).toBeVisible();
 

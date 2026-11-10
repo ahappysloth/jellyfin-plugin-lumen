@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { ADMIN, KID, SEERR_URL, STUB_SEERR, api, loadState, resetLumen } from '../support/api';
 import { login } from '../support/login';
+import { navLink } from '../support/nav';
 
 // Seerr permission bits (server/lib/permissions.ts): REQUEST = 32. Without ADMIN/AUTO_APPROVE the stub answers
 // "pending approval", like real Seerr.
@@ -37,7 +38,7 @@ const requests = async (): Promise<Recorded[]> => (await fetch(`${STUB_SEERR}/__
 
 test('search offers catalog titles; a movie is requested as the signed-in Seerr user', async ({ page }) => {
   await login(page, ADMIN);
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Search' }).click();
+  await navLink(page, 'Search').click();
   await page.getByRole('searchbox', { name: 'Search' }).fill('matrix');
 
   const more = page.getByRole('list', { name: 'More to request' });
@@ -86,7 +87,7 @@ test('a partly available show requests only the chosen missing seasons', async (
 
 test('a user without a Seerr account gets library-only search and no title pages', async ({ page }) => {
   await login(page, KID);
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Search' }).click();
+  await navLink(page, 'Search').click();
   await page.getByRole('searchbox', { name: 'Search' }).fill('matrix');
 
   await expect(page.getByText('No results for “matrix”')).toBeVisible();

@@ -1,11 +1,12 @@
 import { expect, test } from '@playwright/test';
 import { ADMIN, KID } from '../support/api';
 import { login } from '../support/login';
+import { navLink } from '../support/nav';
 import { expectPresentButHidden } from '../support/stock';
 
-test('search finds library titles as you type and keeps the query for Back', async ({ page }) => {
+test('search finds library titles as you type and keeps the query for Back', { tag: '@smoke' }, async ({ page }) => {
   await login(page, ADMIN);
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Search' }).click();
+  await navLink(page, 'Search').click();
 
   const box = page.getByRole('searchbox', { name: 'Search' });
   await expect(box).toBeFocused();
@@ -24,7 +25,7 @@ test('search finds library titles as you type and keeps the query for Back', asy
 
 test('the settings menu links to the stock settings pages; admin links only for admins', async ({ page }) => {
   await login(page, KID);
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings and profile' }).click();
+  await navLink(page, 'Settings and profile').click();
 
   await expect(page.getByRole('heading', { name: 'kid', level: 1 })).toBeVisible();
   await expect(page.getByRole('link', { name: /Dashboard/ })).toHaveCount(0);
@@ -35,7 +36,7 @@ test('the settings menu links to the stock settings pages; admin links only for 
   await expect(page.locator('#lmn-root .lmn-profile')).toBeHidden();
 });
 
-test('the sign-in page wears Lumen’s look', async ({ page }) => {
+test('the sign-in page wears Lumen’s look', { tag: '@smoke' }, async ({ page }) => {
   await page.goto('/web/#/login');
 
   await expect(page.locator('#txtManualName')).toBeVisible();
@@ -50,7 +51,7 @@ test('the sign-in page wears Lumen’s look', async ({ page }) => {
 
 test('settings pages keep working inside Lumen’s frame', async ({ page }) => {
   await login(page, ADMIN);
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings and profile' }).click();
+  await navLink(page, 'Settings and profile').click();
   await page.getByRole('link', { name: /Playback/ }).click();
 
   await expect(page.getByRole('heading', { name: 'Playback', level: 1 })).toBeVisible();
@@ -66,7 +67,7 @@ test('settings pages keep working inside Lumen’s frame', async ({ page }) => {
 
 test('settings pages match the settings menu’s width, and an open menu doesn’t take the scrollbar away', async ({ page }) => {
   await login(page, ADMIN);
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings and profile' }).click();
+  await navLink(page, 'Settings and profile').click();
   const menuLeft = (await page.locator('.lmn-profile__list').first().boundingBox())!.x;
   await page.getByRole('link', { name: /Display/ }).click();
 

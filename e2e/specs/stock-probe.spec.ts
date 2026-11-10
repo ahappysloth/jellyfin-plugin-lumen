@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { DASHBOARD_THEME_VARIABLE, STOCK_SELECTORS, type ProbePage } from '../../client/src/compat/registry';
 import { WEB_PLUGIN_KEY, WEB_PLUGIN_NAME, type WebPluginSlot } from '../../client/src/compat/webPlugin';
 import { ADMIN, loadState } from '../support/api';
+import { CANNOT_PLAY, cannotPlay } from '../support/browsers';
 import { login } from '../support/login';
 import { openFresh } from '../support/stock-pages';
 
@@ -25,7 +26,7 @@ test('stock selectors on the sign-in page', async ({ page }) => {
   await expectSelectorsOn(page, 'login');
 });
 
-test('stock selectors on home and the settings pages', async ({ page }) => {
+test('stock selectors on home and the settings pages', { tag: '@smoke' }, async ({ page }) => {
   const { admin } = loadState();
   await login(page, ADMIN);
 
@@ -40,7 +41,8 @@ test('stock selectors on home and the settings pages', async ({ page }) => {
   await expectSelectorsOn(page, 'display');
 });
 
-test('stock selectors in the video player', async ({ page }) => {
+test('stock selectors in the video player', async ({ page, browserName, isMobile }) => {
+  test.skip(cannotPlay({ browserName, isMobile }), CANNOT_PLAY);
   const { items } = loadState();
   await login(page, ADMIN);
   await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
@@ -51,9 +53,12 @@ test('stock selectors in the video player', async ({ page }) => {
   await expectSelectorsOn(page, 'player');
 });
 
-test("jellyfin-web loads Lumen's web plugin, and Lumen's player takes jellyfin-web's playback manager from it", async ({
+test("jellyfin-web loads Lumen's web plugin, and Lumen's player takes jellyfin-web's playback manager from it", { tag: '@smoke' }, async ({
   page,
+  browserName,
+  isMobile,
 }) => {
+  test.skip(cannotPlay({ browserName, isMobile }), CANNOT_PLAY);
   // jellyfin-web's plugin hook (compat/webPlugin.ts): config.json lists the plugin, an inline script defines it, and
   // jellyfin-web hands it its playback manager. A miss means Lumen is back to finding the manager in the bundle.
   const warnings: string[] = [];
