@@ -2,6 +2,26 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.3.2] - 2026-11-09
+
+### Added
+- Dashboard look: the admin Dashboard, the metadata manager and plugin settings pages take Lumen's colours, accent,
+  type and shapes (drawer, cards, buttons, tables, dialogs, inputs), with Lumen's mark in the drawer. Restart,
+  Shutdown, Delete and Uninstall are outlined in red so they never look like the accent. CSS only, behind the
+  (renamed) "Restyle Jellyfin's sign-in, settings and Dashboard pages" switch.
+
+### Changed
+- Settings pages use the settings menu's width, so titles, fields and the menu line up.
+- Checkboxes on settings and admin pages: a smaller rounded box centred on its label, the accent with a white tick.
+- Save and other primary buttons darken on hover.
+- The "Switching to …" note stays up while a restarted stream is still loading (slow server transcodes took over
+  20 s and left a frozen picture that looked paused).
+
+### Fixed
+- The Watch together button in the nav looks like the other nav items.
+- Opening a dropdown on a long settings page no longer removes the scrollbar and shifts the page sideways.
+- No blue hover glow or blue focus border on checkboxes.
+
 ## [0.3.1] - 2026-11-09
 
 ### Added
