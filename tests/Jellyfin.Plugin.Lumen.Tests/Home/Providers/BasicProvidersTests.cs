@@ -40,6 +40,7 @@ public class BasicProvidersTests
         Assert.Same(_user, q.User);
         Assert.True(q.IsResumable);
         Assert.Equal([BaseItemKind.Movie, BaseItemKind.Episode], q.IncludeItemTypes);
+        Assert.Equal([MediaType.Video], q.MediaTypes);
         Assert.Equal((ItemSortBy.DatePlayed, SortOrder.Descending), Assert.Single(q.OrderBy));
         Assert.Equal(20, q.Limit);
         Assert.False(q.IsVirtualItem);
