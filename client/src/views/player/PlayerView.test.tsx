@@ -195,7 +195,8 @@ describe('PlayerView', () => {
   it('seeks with the arrow keys from where the video is, after the controls hid', async () => {
     const pm = fakeManager();
     vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
-    const { container } = render(<PlayerView ctx={makeContext(createFakeClient())} />);
+    // The TV layout: there the controls hide with focus on them (elsewhere they stay up for keyboard focus).
+    const { container } = render(<PlayerView ctx={makeContext(createFakeClient(), { layout: 'tv' })} />);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(300);
     });
@@ -262,6 +263,111 @@ describe('PlayerView', () => {
       const slider = await open('tv');
       for (const key of keys) fireEvent.keyDown(slider, { key });
       expect(reachedJellyfin).toEqual(['ArrowUp', 'ArrowDown']);
+    });
+  });
+
+  describe('keyboard', () => {
+    let reachedJellyfin: string[] = [];
+    const stock = (e: KeyboardEvent): void => void reachedJellyfin.push(e.key);
+    beforeEach(() => {
+      reachedJellyfin = [];
+      document.addEventListener('keydown', stock);
+    });
+    afterEach(() => document.removeEventListener('keydown', stock));
+
+    const open = async (layout: 'tv' | 'desktop' = 'desktop') => {
+      const pm = fakeManager();
+      vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+      const { container } = render(<PlayerView ctx={makeContext(createFakeClient(), { layout })} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      return { pm, osd: container.querySelector('.lmn-osd')! };
+    };
+    const idle = () =>
+      act(async () => {
+        await vi.advanceTimersByTimeAsync(7000); // past the controls' idle timeout, twice
+      });
+
+    it("Space presses the focused button instead of jellyfin-web's play/pause shortcut", async () => {
+      await open();
+      // jellyfin-web plays or pauses on keyCode 32, and keeps the press from the button.
+      const playPause: Element[] = [];
+      const stockSpace = (e: KeyboardEvent): void =>
+        void (e.keyCode === 32 && playPause.push(e.target as Element));
+      document.addEventListener('keydown', stockSpace);
+      try {
+        const mute = screen.getByRole('button', { name: 'Mute' });
+        mute.focus();
+        expect(fireEvent.keyDown(mute, { key: ' ', code: 'Space', keyCode: 32 })).toBe(true); // not prevented
+        expect(playPause).toEqual([]);
+        expect(reachedJellyfin).toEqual([' ']); // as a key it ignores: it still learns where the keyboard is
+        // Elsewhere it is still jellyfin-web's.
+        const seek = screen.getByRole('slider', { name: strings.player.seek });
+        fireEvent.keyDown(seek, { key: ' ', code: 'Space', keyCode: 32 });
+        expect(playPause).toEqual([seek]);
+      } finally {
+        document.removeEventListener('keydown', stockSpace);
+      }
+    });
+
+    // jsdom guesses at :focus-visible from the events it has seen: say what a browser would.
+    const focusVisible = (visible: boolean) => {
+      const matches = Element.prototype.matches;
+      vi.spyOn(Element.prototype, 'matches').mockImplementation(function (this: Element, selector: string) {
+        return selector === ':focus-visible'
+          ? visible && this === document.activeElement
+          : matches.call(this, selector);
+      });
+    };
+
+    it('keeps the controls up while a control has keyboard focus', async () => {
+      const { osd } = await open();
+      focusVisible(true);
+      screen.getByRole('button', { name: 'Back 10 seconds' }).focus();
+      await idle();
+      expect(osd).not.toHaveClass('is-idle');
+    });
+
+    it("doesn't keep them up for focus from a click", async () => {
+      const { osd } = await open();
+      focusVisible(false);
+      screen.getByRole('button', { name: 'Back 10 seconds' }).focus();
+      await idle();
+      expect(osd).toHaveClass('is-idle');
+    });
+
+    it('puts the controls away on Escape from a control, and stays in the player', async () => {
+      const { osd } = await open();
+      focusVisible(true);
+      vi.spyOn(window.history, 'length', 'get').mockReturnValue(2);
+      const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+      const rewind = screen.getByRole('button', { name: 'Back 10 seconds' });
+      rewind.focus();
+      fireEvent.keyDown(rewind, { key: 'Escape', keyCode: 27 });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(osd).toHaveClass('is-idle');
+      expect(rewind).not.toHaveFocus();
+      expect(back).not.toHaveBeenCalled();
+      expect(reachedJellyfin).toEqual([]);
+    });
+
+    it('hides the controls after a pause in the TV layout, focus or not, and brings them back on a key', async () => {
+      const { osd } = await open('tv');
+      focusVisible(true);
+      const volume = screen.getByRole('slider', { name: strings.player.volume });
+      volume.focus();
+      await idle();
+      expect(osd).toHaveClass('is-idle');
+      // Even a key the slider keeps to itself.
+      fireEvent.keyDown(volume, { key: 'ArrowLeft' });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(osd).not.toHaveClass('is-idle');
+      expect(reachedJellyfin).toEqual([]);
     });
   });
 
