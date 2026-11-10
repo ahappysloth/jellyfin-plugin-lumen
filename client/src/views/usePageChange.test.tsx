@@ -26,7 +26,7 @@ function Page({
   return (
     <>
       <a href="#/home">Home</a>
-      <main ref={main} tabIndex={-1}>
+      <main ref={main}>
         {heading !== undefined && <h1>{heading}</h1>}
         {/* Like the search page, which focuses its field. */}
         {field && <input aria-label="Search" ref={(el) => el?.focus()} />}

@@ -98,7 +98,7 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
       {framed ? (
         <Page route={route} ctx={ctx} />
       ) : (
-        <main ref={main} class="lmn-main" tabIndex={-1}>
+        <main ref={main} class="lmn-main">
           <Page route={route} ctx={ctx} />
         </main>
       )}

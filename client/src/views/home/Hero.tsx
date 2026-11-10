@@ -224,43 +224,54 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
           );
         })}
       </div>
-      {count > 1 && (
+      {/* Pause stops the slideshow and the trailer; one title alone still gets it while a trailer can play. */}
+      {(count > 1 || trailerId) && (
         <div class="lmn-hero__controls">
           {/* Tabs with roving focus: Tab reaches the current one, arrows pick another (and pause rotation). */}
-          <div
-            class="lmn-hero__pager"
-            role="tablist"
-            aria-label={strings.featuredTitles}
-            onKeyDown={(e) => {
-              const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-              if (!step || sliding !== 0) return;
-              e.preventDefault();
-              const next = mod(index + step, count);
-              setIndex(next);
-              const tabs = e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]');
-              requestAnimationFrame(() => tabs[next]?.focus());
-            }}
-          >
-            {items.map((h, i) => {
-              const active = i === mod(index + sliding, count);
-              return (
-                <button
-                  key={h.Item.Id}
-                  type="button"
-                  role="tab"
-                  tabIndex={active ? 0 : -1}
-                  aria-selected={active}
-                  aria-label={strings.showFeatured(h.Item.Name)}
-                  class={`lmn-hero__dash${active ? ' is-active' : ''}`}
-                  onClick={() => sliding === 0 && setIndex(i)}
-                />
-              );
-            })}
-          </div>
+          {count > 1 && (
+            <div
+              class="lmn-hero__pager"
+              role="tablist"
+              aria-label={strings.featuredTitles}
+              onKeyDown={(e) => {
+                const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+                if (!step || sliding !== 0) return;
+                e.preventDefault();
+                const next = mod(index + step, count);
+                setIndex(next);
+                const tabs = e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]');
+                requestAnimationFrame(() => tabs[next]?.focus());
+              }}
+            >
+              {items.map((h, i) => {
+                const active = i === mod(index + sliding, count);
+                return (
+                  <button
+                    key={h.Item.Id}
+                    type="button"
+                    role="tab"
+                    tabIndex={active ? 0 : -1}
+                    aria-selected={active}
+                    aria-label={strings.showFeatured(h.Item.Name)}
+                    class={`lmn-hero__dash${active ? ' is-active' : ''}`}
+                    onClick={() => sliding === 0 && setIndex(i)}
+                  />
+                );
+              })}
+            </div>
+          )}
           <button
             type="button"
             class="lmn-icon-button"
-            aria-label={stopped ? strings.resumeRotation : strings.pauseRotation}
+            aria-label={
+              count > 1
+                ? stopped
+                  ? strings.resumeRotation
+                  : strings.pauseRotation
+                : stopped
+                  ? strings.playTrailer
+                  : strings.pauseTrailer
+            }
             onClick={() => setStopped((s) => !s)}
           >
             <Icon name={stopped ? 'play' : 'pause'} size={14} />

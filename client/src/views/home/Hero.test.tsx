@@ -67,6 +67,36 @@ describe('Hero', () => {
     expect(heading).toContainElement(screen.getByRole('img', { name: 'Alpha' }));
   });
 
+  it('offers Pause for the trailer when there is a single title (no slideshow to pause)', () => {
+    const { container, rerender } = render(
+      <Hero
+        items={[items[0]!]}
+        client={createFakeClient()}
+        config={config}
+        onPlay={vi.fn()}
+        onInfo={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole('tablist')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pause trailer' }));
+    expect(container.querySelector('.lmn-hero__trailer')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Play trailer' }));
+    expect(container.querySelector('.lmn-hero__trailer')).not.toBeNull();
+
+    // Nothing moves without a trailer: no control.
+    rerender(
+      <Hero
+        items={[items[1]!]}
+        client={createFakeClient()}
+        config={config}
+        onPlay={vi.fn()}
+        onInfo={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /^(Pause|Play) / })).toBeNull();
+  });
+
   it('names its toggle after the slideshow either way', () => {
     render(
       <Hero items={items} client={createFakeClient()} config={config} onPlay={vi.fn()} onInfo={vi.fn()} />,

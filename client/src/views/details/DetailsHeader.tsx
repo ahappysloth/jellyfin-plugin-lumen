@@ -82,7 +82,8 @@ export function DetailsHeader(props: Props) {
       : undefined,
   ].filter((part): part is string => !!part);
   const boxes = [item.OfficialRating, ...props.badges].filter((b): b is string => !!b);
-  // Named as they read (WCAG 2.5.3): the label is their name, also once a phone's layout hides it (buttons.css).
+  // Named as they read (WCAG 2.5.3), also once a phone's layout hides the label (buttons.css). The label says the
+  // state, so there's no aria-pressed: a toggle button's name must not change with it.
   const favorite = props.favorite ? strings.favorited : strings.favorite;
   const watched = props.played ? strings.watched : strings.markWatchedShort;
 
@@ -203,7 +204,6 @@ export function DetailsHeader(props: Props) {
           <button
             type="button"
             class="lmn-button lmn-button--secondary"
-            aria-pressed={props.favorite}
             aria-label={favorite}
             onClick={props.toggleFavorite}
           >
@@ -216,7 +216,6 @@ export function DetailsHeader(props: Props) {
           <button
             type="button"
             class="lmn-button lmn-button--secondary"
-            aria-pressed={props.played}
             aria-label={watched}
             onClick={props.toggleWatched}
           >
