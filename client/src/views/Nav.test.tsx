@@ -1,5 +1,5 @@
 import { render, screen, waitFor, within } from '@testing-library/preact';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../test/fakeClient';
 import { makeContext } from '../../test/viewContext';
 import { Nav } from './Nav';
@@ -23,6 +23,30 @@ describe('Nav', () => {
     render(<Nav ctx={makeContext(client)} />);
     const main = screen.getByRole('navigation', { name: 'Main' });
     expect(await within(main).findByRole('link', { name: 'Movies' })).toBeInTheDocument();
+  });
+
+  it('keeps the libraries it had when a later refresh fails', async () => {
+    const now = vi.spyOn(Date, 'now');
+    const client = createFakeClient(
+      routes({
+        UserViews: {
+          Items: [{ Id: 'lm', Name: 'Movies', Type: 'CollectionFolder', CollectionType: 'movies' }],
+        },
+      }),
+    );
+    client.getPublicSystemInfo = async () => ({ ServerName: 'Den' });
+    const first = render(<Nav ctx={makeContext(client)} />);
+    await within(screen.getByRole('navigation', { name: 'Main' })).findByRole('link', { name: 'Movies' });
+    first.unmount();
+
+    now.mockReturnValue(Date.now() + 10 * 60_000); // stale: it refreshes, and that fails
+    client.respond = routes({});
+    render(<Nav ctx={makeContext(client)} />);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(
+      within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', { name: 'Movies' }),
+    ).toBeInTheDocument();
+    now.mockRestore();
   });
 
   it("doesn't fetch the libraries again when the next page shows the nav", async () => {

@@ -8,7 +8,7 @@ import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { formatRuntime } from '../details/badges';
 import { AudioSubtitlesPanel, QualityPanel, qualityLabel } from './PlayerPanels';
-import { ProgressBar } from './ProgressBar';
+import { PENDING_MAX_MS, ProgressBar } from './ProgressBar';
 import { SkipIcon } from './SkipIcon';
 import { setUserData, useUserData } from '../userDataStore';
 import { clearStarting, useStarting } from '../../playback/starting';
@@ -51,6 +51,8 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   const missing = useRef(0);
   /** Whether the position is on screen (controls, a panel or Playback info up), read by the poll below. */
   const positionShown = useRef(true);
+  /** Until when a seek may still be on its way: the seek bar needs the position to see it arrive, even when hidden. */
+  const seekingUntil = useRef(0);
   const readNow = useRef<() => void>(() => undefined);
 
   // Poll the player. Give it a moment to appear; if it never does, fall back to the stock controls. Without a playback
@@ -72,8 +74,9 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
       }
       missing.current = 0;
       const next = readPlayerState(manager, player);
-      // The minute too: "Ends at" moves on while paused.
-      const key = `${snapshotKey(next, positionShown.current || next.paused)}|${Math.floor(Date.now() / 60_000)}`;
+      // And "Ends at", which moves on with the clock while paused.
+      const withPosition = positionShown.current || next.paused || Date.now() < seekingUntil.current;
+      const key = `${snapshotKey(next, withPosition)}|${endsAt(next)}`;
       if (last?.player === player && last.key === key) return;
       last = { player, key };
       setSnap(next);
@@ -324,7 +327,10 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
           durationMs={snap.durationMs}
           bufferedMs={snap.bufferedMs}
           disabled={!snap.canSeek}
-          onSeek={(ms) => act(() => manager.seek(Math.round(ms * 10_000), player))()}
+          onSeek={(ms) => {
+            seekingUntil.current = Date.now() + PENDING_MAX_MS;
+            act(() => manager.seek(Math.round(ms * 10_000), player))();
+          }}
           preview={preview}
           livePositionMs={() => readPlayerState(manager, player).positionMs}
         />
