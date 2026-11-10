@@ -280,6 +280,11 @@ export class LumenApi {
     return this.get(`Items/${id}/LocalTrailers`, () => ({ userId: this.userId() }));
   }
 
+  /** Stops the server's transcode for one play session (it would otherwise run on until its ping timeout). */
+  stopTranscoding(deviceId: string, playSessionId: string): Promise<void> {
+    return this.send('DELETE', 'Videos/ActiveEncodings', () => ({ deviceId, playSessionId }));
+  }
+
   getSessions(deviceId: string): Promise<SessionInfo[]> {
     return this.get('Sessions', () => ({ deviceId }));
   }

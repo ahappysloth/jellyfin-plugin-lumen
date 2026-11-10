@@ -15,6 +15,11 @@ Run against the release build on the latest stable Jellyfin.
 - [ ] Back from details returns to home at the same scroll position.
 - [ ] Unticking "Replace the home screen" in the dashboard restores the stock home after a reload.
 
+## Safari (macOS or iOS)
+
+- [ ] With a local trailer Safari can't open as it is (MKV, or AV1): the preview still plays on home and on details,
+      transcoded to HLS. The Dashboard shows the transcode, and it ends within seconds of the preview stopping.
+
 ## Official iOS app
 
 - [ ] Home and details render; buttons are easy to tap; layout stacks on narrow screens.
