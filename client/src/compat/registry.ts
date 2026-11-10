@@ -106,15 +106,31 @@ export const STOCK_ROUTES = {
   metadata: '/metadata',
 } as const;
 
-/** Library pages by CollectionType (mirrors appRouter.getRouteUrl in 12.x). Others open `#/list?parentId=`. */
+/**
+ * Library pages by CollectionType, mirroring appRouter.getRouteUrl in 12.x. LIBRARY_ROUTES exist in every layout;
+ * MODERN_LIBRARY_ROUTES only in the Modern one (apps/modern/routes/asyncRoutes/user.ts; getRouteUrl checks
+ * `layoutManager.modern` for them), so the Legacy and TV layouts open those libraries as `#/list?parentId=` like any
+ * other. Live TV opens LIVE_TV_ROUTE in every layout.
+ */
 export const LIBRARY_ROUTES: Record<string, string> = {
   movies: '/movies',
   tvshows: '/tv',
   music: '/music',
+};
+export const MODERN_LIBRARY_ROUTES: Record<string, string> = {
   musicvideos: '/musicvideos',
   books: '/books',
   playlists: '/playlists',
 };
+export const LIVE_TV_ROUTE = '/livetv';
+
+/**
+ * jellyfin-web's saved layout (`localStorage['layout']`, scripts/settings/appSettings.js) and the values that run the
+ * Legacy app (constants/layoutMode.ts LegacyLayoutModes). `tv` also sets LAYOUT_CLASSES.tv; the other two don't show
+ * in any class (`desktop-legacy` is `layout-desktop`, like the Modern desktop).
+ */
+export const LAYOUT_SETTING_KEY = 'layout';
+export const LEGACY_LAYOUT_MODES: readonly string[] = ['desktop-legacy', 'mobile-legacy', 'tv'];
 
 /**
  * The library pages' tabs Lumen draws, by jellyfin-web's `?tab=` index (apps/modern/features/libraries/constants/views
