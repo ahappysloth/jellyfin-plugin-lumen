@@ -16,9 +16,6 @@ public sealed class LumenController : ControllerBase
     /// <summary>The installed app's background and status-bar colour (Lumen's page background).</summary>
     public const string PwaColor = "#0f0f0f";
 
-    /// <summary>lumen.js imports the rest of the client from files with this prefix, named by their content (client/vite.config.ts).</summary>
-    private const string ChunkPrefix = "lumen-chunk-";
-
     private readonly AssetCatalog _assets;
     private readonly ILumenConfigReader _config;
     private readonly DiagnosticsStore _diagnostics;
@@ -44,7 +41,7 @@ public sealed class LumenController : ControllerBase
         }
 
         // A content-named chunk can't change under its name, so it's cached for good without a version.
-        Response.Headers.CacheControl = string.Equals(v, _assets.BuildHash, StringComparison.Ordinal) || name.StartsWith(ChunkPrefix, StringComparison.Ordinal)
+        Response.Headers.CacheControl = string.Equals(v, _assets.BuildHash, StringComparison.Ordinal) || name.StartsWith(AssetCatalog.ChunkPrefix, StringComparison.Ordinal)
             ? "public, max-age=31536000, immutable"
             : "no-cache";
         return File(asset.Content, asset.ContentType);

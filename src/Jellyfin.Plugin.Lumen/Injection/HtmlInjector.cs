@@ -36,6 +36,10 @@ public static partial class HtmlInjector
     /// The server's accent (<c>#rrggbb</c>; anything else is ignored), for the admin pages' stylesheet: those pages are
     /// outside Lumen's own root, where lumen.js sets the accent, so it comes with the page to be there at first paint.
     /// </param>
+    /// <param name="coreChunk">
+    /// The client's core file (<see cref="Assets.AssetCatalog.CoreChunk"/>), which lumen.js imports: preloaded alongside it, so
+    /// the browser needn't run lumen.js before it starts downloading the code. Null skips it.
+    /// </param>
     public static string Inject(
         string html,
         string buildHash,
@@ -43,7 +47,8 @@ public static partial class HtmlInjector
         bool styleStockPages = false,
         bool installAsLumen = false,
         ICollection<string>? notFound = null,
-        string? accentColor = null)
+        string? accentColor = null,
+        string? coreChunk = null)
     {
         if (html.Contains(Marker, StringComparison.Ordinal))
         {
@@ -69,6 +74,7 @@ public static partial class HtmlInjector
                     : string.Empty)
             : string.Empty;
         var tags = $"{Marker}{guard}<link rel=\"stylesheet\" href=\"{AssetBase}lumen.css?v={version}\">{dashboard}"
+            + (coreChunk is null ? string.Empty : $"<link rel=\"modulepreload\" href=\"{AssetBase}{Uri.EscapeDataString(coreChunk)}\">")
             + $"<script type=\"module\" src=\"{AssetBase}lumen.js?v={version}\"></script>";
 
         var page = string.Concat(html.AsSpan(0, headClose), tags, html.AsSpan(headClose));

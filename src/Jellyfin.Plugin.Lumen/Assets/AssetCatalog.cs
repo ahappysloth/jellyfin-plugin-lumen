@@ -12,6 +12,11 @@ public sealed class AssetCatalog
 {
     public const string ResourcePrefix = "Lumen.Assets.";
 
+    /// <summary>The client's content-named files (client/vite.config.ts): their names change with their content.</summary>
+    public const string ChunkPrefix = "lumen-chunk-";
+
+    private const string CoreChunkPrefix = ChunkPrefix + "main-";
+
     private readonly Dictionary<string, LumenAsset> _assets;
 
     public AssetCatalog(IReadOnlyDictionary<string, byte[]> files)
@@ -21,9 +26,16 @@ public sealed class AssetCatalog
             f => new LumenAsset(f.Key, f.Value, ContentTypeFor(f.Key)),
             StringComparer.Ordinal);
         BuildHash = ComputeHash(files);
+        CoreChunk = files.Keys.Where(n => n.StartsWith(CoreChunkPrefix, StringComparison.Ordinal)).Order(StringComparer.Ordinal).FirstOrDefault();
     }
 
     public string BuildHash { get; }
+
+    /// <summary>
+    /// The content-named file with the client's code that lumen.js imports (client/src/entry.ts), or null if there isn't
+    /// one. Content-named files start with <see cref="ChunkPrefix"/> and are cached for good.
+    /// </summary>
+    public string? CoreChunk { get; }
 
     public IReadOnlyCollection<string> Names => _assets.Keys;
 

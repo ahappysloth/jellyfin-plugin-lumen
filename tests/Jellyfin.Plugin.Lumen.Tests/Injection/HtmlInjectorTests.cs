@@ -20,6 +20,17 @@ public class HtmlInjectorTests
     }
 
     [Fact]
+    public void PreloadsTheCoreChunk_BeforeLumenJs()
+    {
+        var result = HtmlInjector.Inject(Page, "abc123", coreChunk: "lumen-chunk-main-AbC.js");
+
+        var preload = result.IndexOf("<link rel=\"modulepreload\" href=\"../Lumen/Assets/lumen-chunk-main-AbC.js\">", StringComparison.Ordinal);
+        Assert.True(preload > 0);
+        Assert.True(preload < result.IndexOf("lumen.js?v=abc123", StringComparison.Ordinal));
+        Assert.DoesNotContain("modulepreload", HtmlInjector.Inject(Page, "abc123"), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InlinesTheGuard_BeforeStylesheet_EscapingClosingTags()
     {
         var result = HtmlInjector.Inject(Page, "h", "var s='</script>';guard()");
