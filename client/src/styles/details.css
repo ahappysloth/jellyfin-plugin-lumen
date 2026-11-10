@@ -98,23 +98,29 @@
   padding: 0;
   list-style: none;
 }
+/* The details link sits beside the row's button, not over it: jellyfin-web's D-pad navigation (focusManager.nav)
+   only moves right to an element whose right edge is past the focused one's. The row highlights as one. */
 .lmn-episodes__item {
   position: relative;
+  display: flex;
+  align-items: flex-start;
+  border-radius: 12px;
+  transition: background-color 0.2s;
+}
+.lmn-episodes__item:hover {
+  background: var(--lmn-surface);
 }
 .lmn-episodes__details {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-}
-.lmn-episodes__item:has(.lmn-episodes__details) .lmn-episode__body {
-  padding-right: 44px;
+  flex: none;
+  margin: 14px 14px 0 0;
 }
 .lmn-episode {
   display: grid;
+  flex: 1;
   grid-template-columns: 260px 1fr;
   align-items: start;
   gap: 18px;
-  width: 100%;
+  min-width: 0;
   padding: 14px;
   border: 0;
   border-radius: 12px;
@@ -123,10 +129,6 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color 0.2s;
-}
-.lmn-episode:hover {
-  background: var(--lmn-surface);
 }
 .lmn-episode__thumb {
   position: relative;
@@ -241,6 +243,13 @@
   .lmn-episode {
     grid-template-columns: 1fr;
     padding: 10px 0;
+  }
+  /* Phones: over the thumbnail's corner, so the thumbnail keeps the full width. */
+  html:not(.layout-tv) .lmn-episodes__details {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    margin: 0;
   }
 }
 
