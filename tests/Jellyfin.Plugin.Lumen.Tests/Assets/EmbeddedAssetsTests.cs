@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text;
 using Jellyfin.Plugin.Lumen.Assets;
 using Jellyfin.Plugin.Lumen.Injection;
@@ -20,6 +21,24 @@ public class EmbeddedAssetsTests
         Assert.True(catalog.TryGet("lumen.js", out var entry));
         Assert.Contains(catalog.CoreChunk!, Encoding.UTF8.GetString(entry.Content), StringComparison.Ordinal);
         Assert.Contains(catalog.Names, n => n.StartsWith("lumen-chunk-PlayerView-", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void EveryScriptAndStylesheet_IsOfferedCompressed_AndDecodesToTheFile()
+    {
+        var catalog = AssetCatalog.FromEmbeddedResources(typeof(LumenPlugin).Assembly);
+        Assert.Contains(HtmlInjector.WebPluginAsset, catalog.Names);
+        Assert.Contains(HtmlInjector.GuardAsset, catalog.Names);
+
+        foreach (var name in catalog.Names.Where(n => n.EndsWith(".js", StringComparison.Ordinal) || n.EndsWith(".css", StringComparison.Ordinal)))
+        {
+            Assert.True(catalog.TryGet(name, out var asset));
+            Assert.True(asset.Compressible, name);
+            using var decoder = new BrotliStream(new MemoryStream(asset.Select("br").Content), CompressionMode.Decompress);
+            using var decoded = new MemoryStream();
+            decoder.CopyTo(decoded);
+            Assert.Equal(asset.Content, decoded.ToArray());
+        }
     }
 
     [Fact]

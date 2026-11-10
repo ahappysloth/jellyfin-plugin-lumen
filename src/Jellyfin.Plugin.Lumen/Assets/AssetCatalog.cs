@@ -5,9 +5,6 @@ using System.Text.RegularExpressions;
 
 namespace Jellyfin.Plugin.Lumen.Assets;
 
-/// <summary>An embedded client file.</summary>
-public sealed record LumenAsset(string Name, byte[] Content, string ContentType);
-
 /// <summary>The client files embedded in the plugin DLL, plus a content hash for cache busting.</summary>
 public sealed partial class AssetCatalog
 {
@@ -53,6 +50,19 @@ public sealed partial class AssetCatalog
     }
 
     public bool TryGet(string name, out LumenAsset asset) => _assets.TryGetValue(name, out asset!);
+
+    /// <summary>
+    /// Makes every compressed file on a background thread, so the first client after a restart doesn't wait for
+    /// Brotli's best quality (about 0.25 s for the core chunk). A request that comes first waits for the same work.
+    /// </summary>
+    public Task PrecompressAsync() => Task.Run(() =>
+    {
+        foreach (var asset in _assets.Values.Where(a => a.Compressible))
+        {
+            asset.Select(LumenAsset.Brotli);
+            asset.Select(LumenAsset.Gzip);
+        }
+    });
 
     private static string ContentTypeFor(string name) => Path.GetExtension(name) switch
     {

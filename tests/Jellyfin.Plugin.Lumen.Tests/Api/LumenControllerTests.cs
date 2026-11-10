@@ -18,6 +18,7 @@ public class LumenControllerTests
     {
         ["lumen.js"] = Encoding.UTF8.GetBytes("x"),
         ["lumen-chunk-main-AbC123.js"] = Encoding.UTF8.GetBytes("y"),
+        ["lumen-icon-192.png"] = [0x89, 0x50, 0x4e, 0x47],
     });
 
     private readonly ILumenConfigStore _config = Substitute.For<ILumenConfigStore>();
@@ -69,6 +70,51 @@ public class LumenControllerTests
         Assert.IsType<FileContentResult>(controller.GetAsset("lumen-chunk-main-AbC123.js", null));
 
         Assert.Equal("public, max-age=31536000, immutable", controller.Response.Headers.CacheControl.ToString());
+    }
+
+    [Fact]
+    public void Asset_IsSentInTheEncodingTheClientTakes_WithItsOwnETag_AndCachingUnchanged()
+    {
+        var controller = Create();
+        controller.Request.Headers.AcceptEncoding = "gzip, br";
+
+        var result = Assert.IsType<FileContentResult>(controller.GetAsset("lumen.js", _assets.BuildHash));
+
+        Assert.True(_assets.TryGet("lumen.js", out var asset));
+        Assert.Equal(asset.Select("br").Content, result.FileContents);
+        Assert.Equal("text/javascript; charset=utf-8", result.ContentType);
+        Assert.Equal("br", controller.Response.Headers.ContentEncoding.ToString());
+        Assert.Equal("Accept-Encoding", controller.Response.Headers.Vary.ToString());
+        Assert.Equal(asset.Select("br").ETag, result.EntityTag);
+        Assert.False(result.EnableRangeProcessing);
+        Assert.Equal("public, max-age=31536000, immutable", controller.Response.Headers.CacheControl.ToString());
+    }
+
+    [Fact]
+    public void Asset_IsSentRaw_WhenTheClientTakesNoEncoding()
+    {
+        var controller = Create();
+
+        var result = Assert.IsType<FileContentResult>(controller.GetAsset("lumen.js", "old"));
+
+        Assert.Equal("x"u8.ToArray(), result.FileContents);
+        Assert.Equal(0, controller.Response.Headers.ContentEncoding.Count);
+        Assert.Equal("Accept-Encoding", controller.Response.Headers.Vary.ToString());
+        Assert.NotNull(result.EntityTag);
+        Assert.Equal("no-cache", controller.Response.Headers.CacheControl.ToString());
+    }
+
+    [Fact]
+    public void Image_IsSentAsItIs_WithoutVary()
+    {
+        var controller = Create();
+        controller.Request.Headers.AcceptEncoding = "br";
+
+        var result = Assert.IsType<FileContentResult>(controller.GetAsset("lumen-icon-192.png", null));
+
+        Assert.Equal("image/png", result.ContentType);
+        Assert.Equal(0, controller.Response.Headers.ContentEncoding.Count);
+        Assert.Equal(0, controller.Response.Headers.Vary.Count);
     }
 
     [Fact]

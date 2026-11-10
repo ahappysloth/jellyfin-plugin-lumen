@@ -4,7 +4,9 @@ using Jellyfin.Plugin.Lumen.Configuration;
 using Jellyfin.Plugin.Lumen.Diagnostics;
 using MediaBrowser.Controller;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
 
 namespace Jellyfin.Plugin.Lumen.Api;
 
@@ -44,7 +46,20 @@ public sealed class LumenController : ControllerBase
         Response.Headers.CacheControl = string.Equals(v, _assets.BuildHash, StringComparison.Ordinal) || name.StartsWith(AssetCatalog.ChunkPrefix, StringComparison.Ordinal)
             ? "public, max-age=31536000, immutable"
             : "no-cache";
-        return File(asset.Content, asset.ContentType);
+
+        // Lumen's own files are static and hold no secret, so they're served precompressed over HTTPS too.
+        var representation = asset.Select(Request.Headers.AcceptEncoding);
+        if (asset.Compressible)
+        {
+            Response.Headers.Append(HeaderNames.Vary, HeaderNames.AcceptEncoding);
+        }
+
+        if (representation.ContentEncoding is { } encoding)
+        {
+            Response.Headers.ContentEncoding = encoding;
+        }
+
+        return File(representation.Content, asset.ContentType, lastModified: null, entityTag: representation.ETag);
     }
 
     /// <summary>
