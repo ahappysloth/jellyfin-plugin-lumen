@@ -50,7 +50,7 @@ public sealed class HomeService : IHomeService
     private readonly HomeCache _cache;
     private readonly TimeProvider _time;
     private readonly ILogger<HomeService> _logger;
-    private readonly ConcurrentDictionary<(Guid UserId, int ConfigVersion), Lazy<Task<HomeResponseDto>>> _building = new();
+    private readonly ConcurrentDictionary<(Guid UserId, int ConfigVersion, HomeCache.CacheStamp Stamp), Lazy<Task<HomeResponseDto>>> _building = new();
 
     public HomeService(
         IEnumerable<IHomeSectionProvider> providers,
@@ -88,22 +88,23 @@ public sealed class HomeService : IHomeService
             return cached;
         }
 
-        // One build per user at a time: a second request (another tab, a reload) waits for the first one's result. The
-        // build runs on its own, bounded by the provider timeouts, so a caller that gives up doesn't fail the others.
+        // One build per user at a time: a second request (another tab, a reload) waits for the first one's result. Only
+        // a build that started after the user's last change (watched, played) or library change is joined: the stamp is
+        // part of the key. The build runs on its own, bounded by the provider timeouts, so a caller that gives up doesn't
+        // fail the others.
         var build = _building.GetOrAdd(
-            (user.Id, config.ConfigVersion),
+            (user.Id, config.ConfigVersion, _cache.Stamp(user.Id)),
             key => new Lazy<Task<HomeResponseDto>>(() => BuildAndCacheAsync(user, config, key)));
         return await build.Value.WaitAsync(cancellationToken);
     }
 
-    private async Task<HomeResponseDto> BuildAndCacheAsync(User user, PluginConfiguration config, (Guid UserId, int ConfigVersion) key)
+    private async Task<HomeResponseDto> BuildAndCacheAsync(User user, PluginConfiguration config, (Guid UserId, int ConfigVersion, HomeCache.CacheStamp Stamp) key)
     {
         try
         {
-            var stamp = _cache.Stamp(user.Id);
             var build = new BuildState();
             var response = await BuildAsync(user, config, build, CancellationToken.None);
-            _cache.Set(user.Id, config.ConfigVersion, stamp, response, build.Degraded);
+            _cache.Set(user.Id, config.ConfigVersion, key.Stamp, response, build.Degraded);
             return response;
         }
         finally

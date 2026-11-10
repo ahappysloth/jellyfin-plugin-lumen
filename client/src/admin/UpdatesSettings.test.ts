@@ -61,6 +61,26 @@ describe('waiting for a restart', () => {
     expect(await run(waitForRestart(api([{ up: true, restartPending: false }]), 10, 1000))).toBe(true);
   });
 
+  it("doesn't take a slow check for Jellyfin going down", async () => {
+    let i = 0;
+    const answers = [
+      () => new Promise(() => undefined), // busy before the restart: times out
+      async () => ({ up: true, restartPending: true }), // still not restarted
+      async () => ({ up: false }),
+      async () => ({ up: true, restartPending: false }),
+    ];
+    const a = {
+      serverState: vi.fn(() => answers[Math.min(i++, answers.length - 1)]!()),
+    } as unknown as AdminApi;
+    let result: boolean | undefined;
+    void waitForRestart(a, 10, 60_000).then((r) => (result = r));
+    await vi.advanceTimersByTimeAsync(10_000 + 15);
+    expect(result).toBeUndefined(); // the pending restart after the slow check isn't "back"
+    await vi.advanceTimersByTimeAsync(100);
+    expect(result).toBe(true);
+    expect(a.serverState).toHaveBeenCalledTimes(4);
+  });
+
   it('gives up on time when a status check never answers', async () => {
     const a = { serverState: vi.fn(() => new Promise(() => undefined)) } as unknown as AdminApi;
     let result: boolean | undefined;

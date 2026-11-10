@@ -22,7 +22,7 @@ export const RESTART_TIMEOUT_MS = 180_000;
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-/** A status check that hasn't answered after this long counts as Jellyfin being down. */
+/** A status check that hasn't answered after this long is given up on; it says nothing either way. */
 const STATE_TIMEOUT_MS = 10_000;
 
 /**
@@ -41,9 +41,11 @@ export async function waitForRestart(
     await sleep(pollMs);
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
+    // A busy Jellyfin can be slow just before it restarts, so a check that times out doesn't count as it going down.
     const state = await withTimeout(api.serverState(), Math.min(STATE_TIMEOUT_MS, remaining)).catch(
-      () => ({ up: false }) as const,
+      () => null,
     );
+    if (!state) continue;
     if (!state.up) wentDown = true;
     else if (wentDown || !state.restartPending) return true;
   }

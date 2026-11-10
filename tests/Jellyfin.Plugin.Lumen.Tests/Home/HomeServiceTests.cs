@@ -356,6 +356,33 @@ public sealed class HomeServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ARequestAfterTheUsersChange_DoesntJoinABuildFromBeforeIt()
+    {
+        Add("Slow");
+        var release = new TaskCompletionSource();
+        var builds = 0;
+        var provider = new FakeSectionProvider("Slow")
+        {
+            TimeoutOverride = TimeSpan.FromSeconds(30),
+            Rows = async (_, d, _) =>
+            {
+                var build = Interlocked.Increment(ref builds);
+                await release.Task;
+                return HomeRow.Single(d, "Slow", [TestData.Movie("build " + build)]);
+            },
+        };
+        var service = new HomeService([provider], _store, _hero, _history, new FakeMapper(), _badges, _cache, TimeProvider.System, NullLogger<HomeService>.Instance);
+
+        var before = service.GetHomeAsync(_user, CancellationToken.None);
+        _cache.InvalidateUser(_user.Id); // e.g. marked watched while the first build runs
+        var after = service.GetHomeAsync(_user, CancellationToken.None);
+        release.SetResult();
+        await Task.WhenAll(before, after);
+
+        Assert.Equal(2, builds);
+    }
+
+    [Fact]
     public async Task ProviderTimeoutOverride_IsUsed()
     {
         Add("Patient");

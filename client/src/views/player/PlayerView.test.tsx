@@ -6,6 +6,7 @@ import * as compat from '../../compat/playbackManager';
 import { qualityLabel, trackParts } from './PlayerPanels';
 import { formatClock, PlayerView } from './PlayerView';
 import type { PlayerSnapshot } from './playerState';
+import { strings } from '../../strings';
 
 function fakeManager() {
   const player = { id: 'htmlvideoplayer' };
@@ -26,7 +27,7 @@ function fakeManager() {
       },
       MediaSource: { MediaStreams: [{ Type: 'Video', Height: 1080 }] },
     }),
-    currentTime: () => 3_000,
+    currentTime: vi.fn(() => 3_000),
     duration: () => 99_340_000_000, // 2:45:34 in ticks
     paused: () => paused,
     playPause: vi.fn(() => (paused = !paused)),
@@ -167,6 +168,50 @@ describe('PlayerView', () => {
     fireEvent.click(screen.getByRole('button', { name: /Audio & Subtitles/ }));
     fireEvent.click(screen.getByRole('menuitemradio', { name: /Spanish/ }));
     expect(pm.setSubtitleStreamIndex).toHaveBeenCalledWith(3, pm.player);
+  });
+
+  it('seeks with the arrow keys from where the video is, after the controls hid', async () => {
+    const pm = fakeManager();
+    vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+    const { container } = render(<PlayerView ctx={makeContext(createFakeClient())} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    const slider = screen.getByRole('slider', { name: strings.player.seek });
+    slider.focus();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000); // controls hide; the seek bar keeps focus
+    });
+    expect(container.querySelector('.lmn-osd')).toHaveClass('is-idle');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000); // hidden polls: the position is no longer redrawn
+    });
+    pm.currentTime.mockReturnValue(600_000); // ten minutes on
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    expect(pm.seek).toHaveBeenCalledWith(610_000 * 10_000, pm.player);
+  });
+
+  it('keeps "Ends at" moving while paused', async () => {
+    vi.setSystemTime(new Date(2026, 10, 10, 21, 0, 0));
+    const pm = fakeManager();
+    vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+    render(<PlayerView ctx={makeContext(createFakeClient())} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000); // and past the controls' idle timer
+    });
+    expect(pm.playPause).toHaveBeenCalled();
+    const before = screen.getByText(/^Ends at /).textContent;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20 * 60_000);
+    });
+    expect(screen.getByText(/^Ends at /).textContent).not.toBe(before);
   });
 
   it('shows a volume pill on a volume change without bringing back the controls', async () => {

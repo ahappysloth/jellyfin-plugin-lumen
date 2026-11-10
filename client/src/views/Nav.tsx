@@ -40,9 +40,14 @@ registerSessionCache(() => cache.clear());
 async function loadNavData(ctx: ViewContext): Promise<NavData> {
   const [serverName, views] = await Promise.all([
     getServerName(ctx.client),
-    ctx.api.getUserViews().catch(() => ({ Items: [] as BaseItem[] })),
+    ctx.api.getUserViews().catch(() => null),
   ]);
-  return { serverName, libraries: views.Items.slice(0, MAX_LIBRARIES), loadedAt: Date.now() };
+  return {
+    serverName,
+    libraries: (views?.Items ?? []).slice(0, MAX_LIBRARIES),
+    // Something missing (a failed request): not fresh, so the next page asks again.
+    loadedAt: views && serverName ? Date.now() : 0,
+  };
 }
 
 /**
