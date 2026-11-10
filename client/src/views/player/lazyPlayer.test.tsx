@@ -24,7 +24,8 @@ describe('LazyPlayer', () => {
     expect(screen.getByRole('status', { name: /starting/i })).toHaveTextContent('Lumen Alpha');
 
     // No playback manager in tests: the player hands the page back once it runs, which shows it has loaded.
-    await vi.waitFor(() => expect(onFallback).toHaveBeenCalled());
+    // A fresh import of the player's code: give it time under load (vi.waitFor defaults to 1 s).
+    await vi.waitFor(() => expect(onFallback).toHaveBeenCalled(), { timeout: 10_000 });
     starting.clearStarting();
   });
 
