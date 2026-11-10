@@ -133,6 +133,18 @@ describe('PlayerView extras', () => {
     expect(screen.queryByRole('complementary', { name: 'Playback info' })).toBeNull();
   });
 
+  it("gives focus to the settings pill as Playback info's own close button goes", async () => {
+    await start();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Playback info' }));
+    const close = screen.getByRole('button', { name: 'Hide playback info' });
+    close.focus();
+
+    fireEvent.click(close);
+
+    expect(screen.getByRole('button', { name: 'Settings' })).toHaveFocus();
+  });
+
   it('says when the episode ends', async () => {
     await start();
     expect(screen.getByText(/^Ends at /)).toBeInTheDocument();

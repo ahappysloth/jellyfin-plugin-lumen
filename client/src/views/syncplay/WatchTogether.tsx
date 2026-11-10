@@ -8,14 +8,18 @@ import type { SyncPlayState } from './syncPlayState';
 
 const failed = (): void => showToast(strings.syncPlayFailed);
 
-/** Opens the Watch together menu under `from`: the user's group and its actions, or the groups to join. */
+/**
+ * Opens the Watch together menu under `from`: the user's group and its actions, or the groups to join. Closing it
+ * focuses `returnFocus` (by default `from`).
+ */
 export async function openWatchTogether(
   ctx: ViewContext,
   state: SyncPlayState,
   from: HTMLElement,
+  returnFocus: HTMLElement | null = from,
 ): Promise<void> {
   const rect = from.getBoundingClientRect();
-  const at = { x: rect.left, y: rect.bottom + 8, returnFocus: from, label: strings.watchTogether };
+  const at = { x: rect.left, y: rect.bottom + 8, returnFocus, label: strings.watchTogether };
   const manager = findSyncPlay();
 
   if (state.group) {

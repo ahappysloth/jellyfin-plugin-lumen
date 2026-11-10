@@ -1,3 +1,4 @@
+import type { RefObject } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { TranscodingInfo } from '../../api/types';
 import type { MediaStreamInfo, PlaybackManager, RepeatMode } from '../../compat/playbackManager';
@@ -49,6 +50,7 @@ export function SettingsPanel({
   isEpisode,
   info,
   onInfo,
+  pill,
   onClose,
 }: {
   ctx: ViewContext;
@@ -58,9 +60,17 @@ export function SettingsPanel({
   isEpisode: boolean;
   info: boolean;
   onInfo: (on: boolean) => void;
+  /** The settings pill that opened the panel. */
+  pill: RefObject<HTMLElement | null>;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  // An entry that closes the panel unmounts with focus on it: give focus back to the pill first, so a remote isn't
+  // left on nothing.
+  const closeToPill = (): void => {
+    pill.current?.focus();
+    onClose();
+  };
   useEffect(() => {
     const onDown = (e: PointerEvent): void => {
       const pills = ref.current?.parentElement;
@@ -104,8 +114,9 @@ export function SettingsPanel({
             class={`lmn-panel__option lmn-panel__toggle${syncPlay.group ? ' is-selected' : ''}`}
             onClick={(e) => {
               const from = e.currentTarget.closest('.lmn-player__pills') as HTMLElement | null;
-              void openWatchTogether(ctx, syncPlay, from ?? e.currentTarget);
-              onClose();
+              // Opens under the pills; its menu takes focus once it's up and hands it back to the settings pill.
+              void openWatchTogether(ctx, syncPlay, from ?? e.currentTarget, pill.current);
+              closeToPill();
             }}
           >
             <Icon name="group" size={18} />
@@ -126,7 +137,7 @@ export function SettingsPanel({
           class={`lmn-panel__option lmn-panel__toggle${info ? ' is-selected' : ''}`}
           onClick={() => {
             onInfo(!info);
-            onClose();
+            closeToPill();
           }}
         >
           <Icon name="info" size={18} />
