@@ -2,6 +2,13 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.3.6] - 2026-11-10
+
+### Fixed
+- Lumen's settings page no longer sometimes stays on "Loading Lumen settings…".
+- After installing an update, Restart now waits for Jellyfin to come back and reloads the page.
+- Starting playback no longer flashes the loading screen a second time.
+
 ## [0.3.5] - 2026-11-10
 
 ### Added
