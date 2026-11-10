@@ -7,6 +7,7 @@ import { backdropUrl, type ImageRef, imageUrl, resolveImage, TITLE_LOGO } from '
 import { ProgressBar } from '../../components/ProgressBar';
 import { usePrefersReducedMotion } from '../../components/usePrefersReducedMotion';
 import { strings } from '../../strings';
+import { formatDate } from '../../util/locale';
 import { TrailerPreview } from '../home/TrailerPreview';
 import { formatRuntime } from './badges';
 
@@ -52,7 +53,7 @@ export function airDate(iso: string | undefined): string | undefined {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? undefined
-    : date.toLocaleDateString(undefined, {
+    : formatDate(date, {
         year: 'numeric',
         month: 'short',
         day: 'numeric',

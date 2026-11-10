@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact';
+import { formatNumber } from '../../util/locale';
 
 export interface Option<T extends string> {
   value: T;
@@ -28,7 +29,7 @@ export function Segmented<T extends string>({
           onClick={() => onChange(o.value)}
         >
           {o.label}
-          {o.count !== undefined && <span class="lmn-chip__count">{o.count.toLocaleString()}</span>}
+          {o.count !== undefined && <span class="lmn-chip__count">{formatNumber(o.count)}</span>}
         </button>
       ))}
     </div>

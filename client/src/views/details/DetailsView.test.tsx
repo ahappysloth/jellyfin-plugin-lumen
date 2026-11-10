@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
+import { setJellyfinLocale } from '../../../test/locale';
 import { makeContext } from '../../../test/viewContext';
 import type { BaseItem } from '../../api/types';
 import * as compat from '../../compat/playbackManager';
+import { PAGE_SIZE } from '../browse/useBrowseItems';
 import { DetailsView } from './DetailsView';
 
 const movie: BaseItem = {
@@ -244,6 +246,39 @@ describe('DetailsView', () => {
     expect((await screen.findAllByText('Lumen Alpha')).length).toBeGreaterThan(0);
     expect(query!.get('personIds')).toBe('p1');
     expect(ctx.onFallback).not.toHaveBeenCalled();
+  });
+
+  it("shows a person's dates and title count in the user's Jellyfin locale", async () => {
+    const restore = setJellyfinLocale('de-de');
+    try {
+      const ctx = makeContext(
+        createFakeClient(
+          routes({
+            'Items/p1': {
+              Id: 'p1',
+              Name: 'Jane Doe',
+              Type: 'Person',
+              PremiereDate: '1970-03-04T00:00:00.0000000Z',
+            },
+            // A full first page, so the grid shows the server's count rather than the items it has.
+            Items: {
+              Items: Array.from({ length: PAGE_SIZE }, (_, i) => ({
+                Id: `m${i}`,
+                Name: `Title ${i}`,
+                Type: 'Movie',
+              })),
+              TotalRecordCount: 1234,
+            },
+          }),
+        ),
+      );
+      render(<DetailsView id="p1" ctx={ctx} />);
+
+      expect(await screen.findByText(/Born 4\. März 1970/)).toBeInTheDocument();
+      expect(await screen.findByText('1.234')).toBeInTheDocument();
+    } finally {
+      restore();
+    }
   });
 
   it('shows a collection with its titles, oldest first', async () => {

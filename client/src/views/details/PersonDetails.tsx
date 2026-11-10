@@ -4,6 +4,7 @@ import { Icon } from '../../components/icons';
 import { imageUrl, resolveImage } from '../../components/images';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { strings } from '../../strings';
+import { formatDate, formatNumber } from '../../util/locale';
 import { BrowseGrid } from '../browse/BrowseGrid';
 import { useGridPage } from '../browse/useGridPage';
 import type { ViewContext } from '../context';
@@ -17,7 +18,7 @@ export function formatPersonDate(iso: string | undefined): string | null {
   if (!iso) return null;
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString(undefined, {
+  return formatDate(date, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -112,7 +113,7 @@ export function PersonDetails({ item, ctx }: { item: BaseItem; ctx: ViewContext 
       <section class="lmn-details__section" aria-label={strings.knownFor}>
         <h2 class="lmn-row__title">
           {strings.knownFor}
-          {state.total ? <span class="lmn-row__count">{state.total.toLocaleString()}</span> : null}
+          {state.total ? <span class="lmn-row__count">{formatNumber(state.total)}</span> : null}
         </h2>
         <BrowseGrid
           state={state}

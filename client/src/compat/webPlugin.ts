@@ -24,6 +24,8 @@ export const WEB_PLUGIN_KEY = '__lmnWebPlugin';
 /** What jellyfin-web passes the plugin's constructor (the parts Lumen may use; all unchecked). */
 export interface WebPluginDeps {
   playbackManager?: unknown;
+  /** lib/globalize: util/locale.ts asks it for the user's language and date/time locale. */
+  globalize?: unknown;
   ServerConnections?: unknown;
   events?: unknown;
 }
