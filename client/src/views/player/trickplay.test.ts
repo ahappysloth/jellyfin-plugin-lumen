@@ -19,6 +19,28 @@ const client = { getUrl: (path: string) => `/${path}`, accessToken: () => 't' };
 describe('useTrickplay', () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it("doesn't keep a tile that lands after the player closed", async () => {
+    let finish: () => void = () => undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise((resolve) => (finish = () => resolve({ ok: true, blob: async () => new Blob(['x']) }))),
+      ),
+    );
+    const createObjectURL = vi.fn(() => 'blob:1');
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }));
+    const { result, unmount } = renderHook(() => useTrickplay(api, client, 'a', 'a-src'));
+    await waitFor(() => expect(result.current).not.toBeNull());
+    result.current!(0);
+    await act(async () => unmount());
+    await act(async () => {
+      finish();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(createObjectURL).not.toHaveBeenCalled();
+  });
+
   it("never shows the previous item's tiles after the item changes", async () => {
     const downloads: { url: string; finish: () => void }[] = [];
     vi.stubGlobal(

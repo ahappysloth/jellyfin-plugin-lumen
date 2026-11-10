@@ -8,6 +8,23 @@ import { resetSessionCaches } from '../util/sessionCaches';
 describe('Nav', () => {
   afterEach(resetSessionCaches);
 
+  it('asks for the libraries again on the next page after they failed to load', async () => {
+    const client = createFakeClient(routes({}));
+    client.getPublicSystemInfo = async () => ({ ServerName: 'Den' });
+    const first = render(<Nav ctx={makeContext(client)} />);
+    await screen.findByText('Den');
+    await new Promise((r) => setTimeout(r, 20));
+    first.unmount();
+    client.respond = routes({
+      UserViews: {
+        Items: [{ Id: 'lm', Name: 'Movies', Type: 'CollectionFolder', CollectionType: 'movies' }],
+      },
+    });
+    render(<Nav ctx={makeContext(client)} />);
+    const main = screen.getByRole('navigation', { name: 'Main' });
+    expect(await within(main).findByRole('link', { name: 'Movies' })).toBeInTheDocument();
+  });
+
   it("doesn't fetch the libraries again when the next page shows the nav", async () => {
     const client = createFakeClient(
       routes({
@@ -16,6 +33,7 @@ describe('Nav', () => {
         },
       }),
     );
+    client.getPublicSystemInfo = async () => ({ ServerName: 'Den' });
     const first = render(<Nav ctx={makeContext(client)} />);
     await within(screen.getByRole('navigation', { name: 'Main' })).findByRole('link', { name: 'Movies' });
     first.unmount();

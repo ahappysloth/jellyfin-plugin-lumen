@@ -33,8 +33,8 @@ public sealed class BadgeService : IBadgeService
     public static readonly TimeSpan Window = TimeSpan.FromDays(7);
 
     /// <summary>
-    /// How many of the window's newest episodes one query reads for all the series at once. A series whose newest
-    /// episode falls outside them (a bulk import) is looked up on its own.
+    /// How many of the window's newest episodes one query reads for all the series at once. When it's full, a series it
+    /// found no episode for (one past a bulk import) is looked up on its own.
     /// </summary>
     internal const int EpisodeScanLimit = 500;
 
@@ -97,6 +97,9 @@ public sealed class BadgeService : IBadgeService
             newest.TryAdd(episode.SeriesId, episode);
         }
 
+        // A full scan may have left out some series' newest episodes; any other series missing has none in the window.
+        // (An episode whose SeriesId names a different series than the one it's filed under is missed: the per-series
+        // lookups that would catch it cost a query per updated series again.)
         if (episodes.Count >= EpisodeScanLimit)
         {
             foreach (var missing in series.Where(s => !newest.ContainsKey(s.Id)))

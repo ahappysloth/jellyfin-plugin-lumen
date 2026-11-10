@@ -61,13 +61,15 @@ export function useTrickplay(
   const key = `${itemId ?? ''}|${mediaSourceId ?? ''}`;
   const [loaded, setLoaded] = useState<{ key: string; info: TrickplayInfo | null }>({ key: '', info: null });
   const [, setTiles] = useState(0);
-  const tiles = useRef<{ key: string; urls: Map<number, string | 'loading' | 'failed'> }>({
-    key,
-    urls: new Map(),
-  });
+  const tiles = useRef<{ key: string; urls: Map<number, string | 'loading' | 'failed'>; disposed?: boolean }>(
+    {
+      key,
+      urls: new Map(),
+    },
+  );
 
   useEffect(() => {
-    const cache = { key, urls: new Map<number, string | 'loading' | 'failed'>() };
+    const cache = { key, urls: new Map<number, string | 'loading' | 'failed'>(), disposed: false };
     tiles.current = cache;
     if (!itemId) return;
     let cancelled = false;
@@ -82,6 +84,7 @@ export function useTrickplay(
       .catch(() => undefined);
     return () => {
       cancelled = true;
+      cache.disposed = true;
       cache.urls.forEach((url) => url !== 'loading' && url !== 'failed' && URL.revokeObjectURL(url));
       cache.urls.clear();
     };
@@ -101,12 +104,12 @@ export function useTrickplay(
       fetch(url, { headers: { Authorization: `MediaBrowser Token="${client.accessToken() ?? ''}"` } })
         .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
         .then((blob) => {
-          // The item changed while this downloaded: its tiles are gone, so don't keep this one.
-          if (tiles.current !== cache) return;
+          // The item changed (or the player closed) while this downloaded: its tiles are gone, so don't keep this one.
+          if (tiles.current !== cache || cache.disposed) return;
           cache.urls.set(frame.tile, URL.createObjectURL(blob));
           setTiles((n) => n + 1);
         })
-        .catch(() => tiles.current === cache && cache.urls.set(frame.tile, 'failed'));
+        .catch(() => !cache.disposed && cache.urls.set(frame.tile, 'failed'));
       return null;
     }
     return cached === 'loading' || cached === 'failed' ? null : { ...frame, url: cached };

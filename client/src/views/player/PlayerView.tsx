@@ -72,7 +72,8 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
       }
       missing.current = 0;
       const next = readPlayerState(manager, player);
-      const key = snapshotKey(next, positionShown.current || next.paused);
+      // The minute too: "Ends at" moves on while paused.
+      const key = `${snapshotKey(next, positionShown.current || next.paused)}|${Math.floor(Date.now() / 60_000)}`;
       if (last?.player === player && last.key === key) return;
       last = { player, key };
       setSnap(next);
@@ -325,6 +326,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
           disabled={!snap.canSeek}
           onSeek={(ms) => act(() => manager.seek(Math.round(ms * 10_000), player))()}
           preview={preview}
+          livePositionMs={() => readPlayerState(manager, player).positionMs}
         />
         <div class="lmn-player__controls">
           <div class="lmn-player__group">

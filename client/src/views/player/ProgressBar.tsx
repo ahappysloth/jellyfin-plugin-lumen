@@ -18,13 +18,23 @@ interface Props {
   onSeek: (ms: number) => void;
   /** Trickplay thumbnails, when the server has them. */
   preview?: TrickplayPreview | null;
+  /** The video's current position, read when the arrow keys seek. */
+  livePositionMs?: () => number;
 }
 
 /**
  * A slim scrubber: played (white), buffered (grey) and a thumb that grows on hover. Dragging previews the time and
  * seeks on release; arrow keys step 10 s (it is a slider for assistive tech).
  */
-export function ProgressBar({ positionMs, durationMs, bufferedMs, disabled, onSeek, preview }: Props) {
+export function ProgressBar({
+  positionMs,
+  durationMs,
+  bufferedMs,
+  disabled,
+  onSeek,
+  preview,
+  livePositionMs,
+}: Props) {
   const track = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<number | null>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -89,7 +99,10 @@ export function ProgressBar({ positionMs, durationMs, bufferedMs, disabled, onSe
         if (!step) return;
         e.preventDefault();
         e.stopPropagation(); // jellyfin-web also seeks on arrows; don't do it twice
-        seek(Math.min(durationMs, Math.max(0, (pending?.ms ?? positionMs) + step)));
+        // From where the video is now: positionMs isn't redrawn while the controls are hidden (PlayerView), and the
+        // seek bar keeps focus then.
+        const from = pending?.ms ?? livePositionMs?.() ?? positionMs;
+        seek(Math.min(durationMs, Math.max(0, from + step)));
       }}
     >
       <div class="lmn-seek__rail">
