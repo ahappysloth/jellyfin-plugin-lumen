@@ -45,6 +45,13 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets a value indicating whether Lumen replaces jellyfin-web's video player controls.</summary>
     public bool StyleVideoPlayer { get; set; } = true;
 
+    /// <summary>
+    /// Gets or sets a value indicating whether jellyfin-web's content-hashed files are served precompressed and cached for
+    /// good (see Injection/WebStaticMiddleware). Independent of <see cref="Enabled"/>: it changes no page, only how fast
+    /// Jellyfin's web client loads, for every app that loads it.
+    /// </summary>
+    public bool OptimizeWebClientFiles { get; set; } = true;
+
     public string AccentColor { get; set; } = DefaultAccent;
 
     public HeroSource HeroSource { get; set; } = HeroSource.RecentlyAdded;
