@@ -84,6 +84,17 @@ export interface DiagnosticEntry {
   LastSeen: string;
 }
 
+/** Lumen against its latest release (UpdateStatusDto). */
+export interface UpdateStatus {
+  Installed: string;
+  Latest: string | null;
+  Changelog: string | null;
+  UpdateAvailable: boolean;
+  ManifestReachable: boolean;
+  ListedByJellyfin: boolean;
+  RestartPending: boolean;
+}
+
 export type SaveResult = { ok: true } | { ok: false; errors: string[] };
 
 export interface AdminApi {
@@ -97,6 +108,9 @@ export interface AdminApi {
   getPlaylists(): Promise<Option[]>;
   testSeerr(url: string, apiKey: string): Promise<SeerrTestResult>;
   getSeerrUsers(): Promise<SeerrUsers>;
+  checkForUpdates(): Promise<UpdateStatus>;
+  installUpdate(version: string): Promise<UpdateStatus>;
+  restartServer(): Promise<void>;
 }
 
 const isResponse = (value: unknown): value is Response =>
@@ -157,5 +171,17 @@ export function createAdminApi(client: JellyfinApiClient): AdminApi {
         dataType: 'json',
       })) as SeerrTestResult,
     getSeerrUsers: () => getJson('Lumen/Admin/Seerr/Users'),
+    checkForUpdates: () => getJson('Lumen/Admin/Updates'),
+    installUpdate: async (version) =>
+      (await client.ajax({
+        type: 'POST',
+        url: client.getUrl('Lumen/Admin/Updates/Install'),
+        data: JSON.stringify({ Version: version }),
+        contentType: 'application/json',
+        dataType: 'json',
+      })) as UpdateStatus,
+    async restartServer() {
+      await client.ajax({ type: 'POST', url: client.getUrl('System/Restart') });
+    },
   };
 }

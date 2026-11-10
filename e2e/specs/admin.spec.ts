@@ -36,3 +36,22 @@ test('the Dashboard wears Lumen’s look, and only on admin pages', async ({ pag
   await expect(html).toHaveClass(/\blmn-skin-dashboard\b/);
   await expect(page.locator('.editPageSidebar')).toHaveCSS('background-color', 'rgb(15, 15, 15)');
 });
+
+test('Check for Lumen updates on the Plugins page opens Lumen’s settings and checks', async ({ page }) => {
+  await login(page, ADMIN);
+  await page.goto('/web/#/dashboard/plugins');
+
+  const check = page.getByRole('link', { name: 'Check for Lumen updates' });
+  await expect(check).toBeVisible();
+  // It sits in front of Manage Repositories and looks like it.
+  const repositories = page.getByRole('link', { name: 'Manage Repositories' });
+  expect(await check.getAttribute('class')).toBe(await repositories.getAttribute('class'));
+  await check.click();
+
+  await expect(page).toHaveURL(/configurationpage\?name=Lumen&check=updates/);
+  const updates = page.getByRole('group', { name: 'Updates' });
+  // The server checks GitHub and Jellyfin's repositories; whichever way it comes out, it's an answer, not an error.
+  await expect(updates.getByText(/is the latest version|is available|No Lumen release was found/)).toBeVisible({ timeout: 30_000 });
+  await expect(updates.getByRole('alert')).toHaveCount(0);
+  await expect(updates.getByRole('button', { name: 'Check for updates' })).toBeEnabled();
+});

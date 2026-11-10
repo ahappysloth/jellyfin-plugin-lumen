@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import { describe, expect, it, vi } from 'vitest';
-import type { AdminApi, LumenConfig, SectionTypeDef } from './adminApi';
+import type { AdminApi, LumenConfig, SectionTypeDef, UpdateStatus } from './adminApi';
 import { AdminApp } from './AdminApp';
 
 const types: SectionTypeDef[] = [
@@ -47,6 +47,19 @@ function config(): LumenConfig {
   };
 }
 
+function update(overrides: Partial<UpdateStatus> = {}): UpdateStatus {
+  return {
+    Installed: '0.3.2',
+    Latest: '0.3.3',
+    Changelog: '\n### Added\n- Faster home page.\n\n### Fixed\n- The scrollbar stays\n  when a menu opens.',
+    UpdateAvailable: true,
+    ManifestReachable: true,
+    ListedByJellyfin: true,
+    RestartPending: false,
+    ...overrides,
+  };
+}
+
 function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
   return {
     getConfig: vi.fn(async () => config()),
@@ -59,9 +72,59 @@ function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     getPlaylists: vi.fn(async () => []),
     testSeerr: vi.fn(async () => ({ Ok: true, Version: '3.5.1', Error: null })),
     getSeerrUsers: vi.fn(async () => ({ JellyfinServerName: null, SameJellyfinServer: null, Unmapped: [] })),
+    checkForUpdates: vi.fn(async () => update()),
+    installUpdate: vi.fn(async () => update({ UpdateAvailable: false, RestartPending: true })),
+    restartServer: vi.fn(async () => undefined),
     ...overrides,
   };
 }
+
+describe('AdminApp updates', () => {
+  it("checks on open from Jellyfin's Plugins page, installs the update and restarts Jellyfin", async () => {
+    const api = fakeApi();
+    const confirm = vi.fn(() => true);
+    render(<AdminApp api={api} confirm={confirm} hash="#/configurationpage?name=Lumen&check=updates" />);
+
+    expect(await screen.findByText('Lumen 0.3.3 is available.')).toBeInTheDocument();
+    // The release's CHANGELOG entry, as headings and items.
+    expect(screen.getByRole('heading', { name: 'Added' })).toBeInTheDocument();
+    expect(screen.getByText('The scrollbar stays when a menu opens.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Install update' }));
+
+    await waitFor(() => expect(api.installUpdate).toHaveBeenCalledWith('0.3.3'));
+    expect(
+      await screen.findByText(/Lumen 0.3.3 is installed. Restart Jellyfin to finish./),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Restart now' }));
+
+    expect(confirm).toHaveBeenCalled();
+    await waitFor(() => expect(api.restartServer).toHaveBeenCalled());
+    expect(await screen.findByText(/Restarting Jellyfin/)).toBeInTheDocument();
+  });
+
+  it('checks only when asked, and says when Lumen is up to date', async () => {
+    const api = fakeApi({
+      checkForUpdates: vi.fn(async () =>
+        update({ Latest: '0.3.2', UpdateAvailable: false, ListedByJellyfin: false }),
+      ),
+    });
+    render(<AdminApp api={api} hash="#/configurationpage?name=Lumen" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Check for updates' }));
+    expect(api.checkForUpdates).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText(/Lumen 0.3.2 is the latest version./)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Install update' })).toBeNull();
+    // Jellyfin can't auto-update Lumen without its repository.
+    expect(screen.getByText(/Manage Repositories/)).toBeInTheDocument();
+  });
+
+  it('says so when the check fails', async () => {
+    const api = fakeApi({ checkForUpdates: vi.fn(async () => Promise.reject(new Error('offline'))) });
+    render(<AdminApp api={api} hash="#/configurationpage?name=Lumen&check=updates" />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't check for updates");
+  });
+});
 
 describe('AdminApp', () => {
   it('never shows the Seerr key, keeps it on save, and sends a newly typed one', async () => {

@@ -534,3 +534,54 @@
     padding-left: 14px;
   }
 }
+
+/* ---- Updates (UpdatesSettings.tsx) --------------------------------------------------------------------------- */
+.lmn-admin .lmn-admin__updates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+.lmn-admin .lmn-admin__updates-text {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.lmn-admin .lmn-admin__updates-text p {
+  margin: 0 0 8px;
+}
+.lmn-admin .lmn-admin__updates-ok {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lmn-admin .lmn-admin__updates-error {
+  color: #f57a7f;
+}
+.lmn-admin .lmn-admin__updates-notes {
+  margin-top: 4px;
+  color: var(--a-dim);
+}
+.lmn-admin .lmn-admin__updates-notes h4 {
+  margin: 12px 0 4px;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.lmn-admin .lmn-admin__updates-notes ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.lmn-admin .lmn-admin__updates-notes li {
+  margin: 2px 0;
+}
+.lmn-admin .lmn-admin__updates-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lmn-admin .lmn-admin__updates-notes + .lmna-card__intro {
+  margin-top: 12px;
+}
