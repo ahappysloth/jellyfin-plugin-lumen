@@ -145,19 +145,72 @@ public sealed class WebStaticServingTests : IDisposable
     }
 
     [Fact]
-    public async Task WithFileTransformationLoaded_NothingGetsALifetime()
+    public async Task WithFileTransformationLoaded_EverythingIsLeftToJellyfin()
     {
         _fileTransformationLoaded = true;
         using var host = await StartReadyAsync(Chunk);
         (await Get(host, Bundle, "br")).Dispose();
         await host.Services.GetRequiredService<WebStaticFiles>().WhenIdleAsync();
 
-        using var chunk = await Get(host, Chunk, "br");
-        using var bundle = await Get(host, Bundle, "br");
+        using var chunk = await Get(host, Chunk, "br", "http://localhost");
+        using var bundle = await Get(host, Bundle, "br", "http://localhost");
 
         Assert.Null(chunk.Headers.CacheControl);
-        Assert.EndsWith("-br\"", chunk.Headers.ETag!.Tag, StringComparison.Ordinal);
-        Assert.Equal(WebStaticFiles.NoCacheControl, bundle.Headers.CacheControl!.ToString());
+        Assert.Null(bundle.Headers.CacheControl);
+        Assert.DoesNotContain("-br\"", chunk.Headers.ETag!.Tag, StringComparison.Ordinal);
+        Assert.DoesNotContain("-br\"", bundle.Headers.ETag!.Tag, StringComparison.Ordinal);
+        Assert.Equal(ChunkJs, await Body(chunk));
+    }
+
+    [Fact]
+    public async Task WithFileTransformationAroundLumens_ARevalidationGetsThePatchedFile()
+    {
+        // File Transformation's middleware: Accept-Encoding off, the file patched, and whatever else passed on as it came.
+        var patch = "\n/* patched */"u8.ToArray();
+        _fileTransformationLoaded = true;
+        using var host = await StartAsync(outer: app => app.Use(async (context, next) =>
+        {
+            context.Request.Headers.Remove("Accept-Encoding");
+            var original = context.Response.Body;
+            using var buffer = new MemoryStream();
+            context.Response.Body = buffer;
+            await next(context);
+            context.Response.Body = original;
+            if (context.Response.StatusCode != StatusCodes.Status200OK)
+            {
+                await original.WriteAsync(buffer.ToArray());
+                return;
+            }
+
+            byte[] patched = [.. buffer.ToArray(), .. patch];
+            context.Response.Headers.ETag = "\"patched\"";
+            context.Response.ContentLength = patched.Length;
+            await original.WriteAsync(patched);
+        }));
+        (await Get(host, Chunk, "br")).Dispose();
+        await host.Services.GetRequiredService<WebStaticFiles>().WhenIdleAsync();
+
+        // A client that kept the file as Lumen sent it before File Transformation was installed.
+        var lumensETag = new LumenAsset("x", ChunkJs, "text/javascript").Identity.ETag.ToString();
+        using var response = await Get(host, Chunk, "br", ifNoneMatch: lumensETag);
+
+        var body = await response.Content.ReadAsByteArrayAsync();
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal([.. ChunkJs, .. patch], body);
+    }
+
+    [Fact]
+    public async Task AStylesheetIndexHtmlLoadsByTheBuildHash_GetsTheWeek_WhenItsNameHashChecksOut()
+    {
+        var css = Named("main.jellyfin", ChunkJs, ".css");
+        File.WriteAllBytes(Path.Combine(_webRoot, css), ChunkJs);
+        File.WriteAllText(Path.Combine(_webRoot, "index.html"), $"<head><link href=\"{css}?{Hash}\" rel=\"stylesheet\"></head>");
+        using var host = await StartReadyAsync($"/web/{css}?{Hash}");
+
+        using var response = await Get(host, $"/web/{css}?{Hash}", "br");
+
+        Assert.Equal(WebStaticFiles.WeekCacheControl, response.Headers.CacheControl!.ToString());
+        Assert.Equal("text/css", response.Content.Headers.ContentType!.MediaType);
     }
 
     [Theory]
@@ -492,7 +545,7 @@ public sealed class WebStaticServingTests : IDisposable
         return host;
     }
 
-    private async Task<IHost> StartAsync(string? baseUrl = null, Action<IApplicationBuilder>? inner = null)
+    private async Task<IHost> StartAsync(string? baseUrl = null, Action<IApplicationBuilder>? inner = null, Action<IApplicationBuilder>? outer = null)
     {
         var config = Substitute.For<ILumenConfigReader>();
         config.Current.Returns(_ => _config);
@@ -520,6 +573,7 @@ public sealed class WebStaticServingTests : IDisposable
                         var headers = context.Request.Headers;
                         _requestHeadersAfter.Add((headers.AcceptEncoding, headers.IfNoneMatch, headers.IfModifiedSince));
                     });
+                    outer?.Invoke(app);
                     app.UseMiddleware<IndexHtmlMiddleware>();
                     app.UseMiddleware<WebStaticMiddleware>();
                     app.Map(baseUrl ?? string.Empty, main =>

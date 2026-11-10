@@ -46,13 +46,13 @@ public class LumenAssetTests
     [InlineData("image/svg+xml", true)]
     [InlineData("application/json", true)]
     [InlineData("application/x-font-ttf", true)]
-    [InlineData("application/vnd.ms-fontobject", true)]
     [InlineData("image/x-icon", true)]
     [InlineData("image/png", false)]
     [InlineData("image/gif", false)]
     [InlineData("font/woff2", false)]
     [InlineData("application/font-woff", false)]
     [InlineData("audio/mpeg", false)]
+    [InlineData("application/vnd.ms-fontobject", false)]
     public void UncompressedTypes_AreCompressible(string contentType, bool compressible) =>
         Assert.Equal(compressible, LumenAsset.IsCompressible(contentType));
 

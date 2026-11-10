@@ -33,7 +33,6 @@ public sealed class LumenAsset
         "font/ttf",
         "font/otf",
         "application/x-font-ttf",
-        "application/vnd.ms-fontobject",
     };
 
     private readonly Encoded _brotli;
@@ -77,8 +76,8 @@ public sealed class LumenAsset
 
     /// <summary>
     /// Whether a content type compresses: text, and the uncompressed binary and markup types jellyfin-web ships
-    /// (WebAssembly, SVG, JSON, TrueType and Embedded OpenType fonts, icons). Already-compressed types (PNG, JPEG, GIF,
-    /// WOFF and WOFF2, audio) aren't.
+    /// (WebAssembly, SVG, JSON, TrueType fonts, icons). Already-compressed types (PNG, JPEG, GIF, WOFF and WOFF2,
+    /// Embedded OpenType fonts, audio) aren't.
     /// </summary>
     public static bool IsCompressible(string contentType)
     {
