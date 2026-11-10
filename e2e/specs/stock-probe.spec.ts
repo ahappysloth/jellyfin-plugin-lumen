@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { DASHBOARD_THEME_VARIABLE, STOCK_SELECTORS, type ProbePage } from '../../client/src/compat/registry';
+import { WEB_PLUGIN_KEY, WEB_PLUGIN_NAME, type WebPluginSlot } from '../../client/src/compat/webPlugin';
 import { ADMIN, loadState } from '../support/api';
 import { login } from '../support/login';
 import { openFresh } from '../support/stock-pages';
@@ -48,6 +49,37 @@ test('stock selectors in the video player', async ({ page }) => {
   // Lumen found jellyfin-web's PlaybackManager (its controls replace the stock ones).
   await expect(page.locator('#lmn-root .lmn-osd')).toBeVisible();
   await expectSelectorsOn(page, 'player');
+});
+
+test("jellyfin-web loads Lumen's web plugin, and Lumen's player takes jellyfin-web's playback manager from it", async ({
+  page,
+}) => {
+  // jellyfin-web's plugin hook (compat/webPlugin.ts): config.json lists the plugin, the inline guard defines it, and
+  // jellyfin-web hands it its playback manager. A miss means Lumen is back to finding the manager in the bundle.
+  const warnings: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'warning' || message.type() === 'error') warnings.push(message.text());
+  });
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await expect(page.locator('#lmn-root .lmn-home')).toBeVisible();
+
+  const config = (await (await page.request.get('/web/config.json')).json()) as { plugins: string[] };
+  expect(config.plugins).toContain(WEB_PLUGIN_NAME);
+  // What jellyfin-web handed the plugin, and how Lumen found the playback manager (set once the player looks).
+  const plugin = () =>
+    page.evaluate((key) => {
+      const slot = (window as unknown as Record<string, WebPluginSlot | undefined>)[key];
+      const manager = slot?.deps?.playbackManager as { getCurrentPlayer?: unknown } | undefined;
+      return { manager: typeof manager?.getCurrentPlayer === 'function', via: slot?.via };
+    }, WEB_PLUGIN_KEY);
+  expect((await plugin()).manager).toBe(true);
+
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
+  await expect(page.locator('#lmn-root .lmn-osd')).toBeVisible();
+  expect((await plugin()).via).toBe('plugin');
+  expect(warnings.filter((w) => w.includes('failed loading plugins'))).toEqual([]);
 });
 
 test('stock selectors on the Dashboard and the metadata manager', async ({ page }) => {
