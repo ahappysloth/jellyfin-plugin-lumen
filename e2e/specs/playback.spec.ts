@@ -89,7 +89,7 @@ test("the volume slider's arrow keys change the volume, not the position", async
   await expect(volume).toBeFocused();
 });
 
-test('Space presses the focused player button instead of playing or pausing', async ({ page }) => {
+test('Space presses the player button the keyboard is on instead of playing or pausing', { tag: '@smoke' }, async ({ page }) => {
   const { items } = loadState();
   await login(page, ADMIN);
   await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
@@ -99,7 +99,10 @@ test('Space presses the focused player button instead of playing or pausing', as
   await page.mouse.click(400, 300); // pauses, and gives jellyfin-web a mouse press elsewhere to remember
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
 
-  await page.getByRole('button', { name: 'Mute' }).focus();
+  // By keyboard: after a click, Space stays play/pause.
+  await page.getByRole('button', { name: 'Forward 10 seconds' }).focus();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Mute' })).toBeFocused();
   await page.keyboard.press('Space');
 
   await expect(page.getByRole('button', { name: 'Unmute' })).toBeFocused();

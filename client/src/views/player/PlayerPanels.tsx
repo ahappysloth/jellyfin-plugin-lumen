@@ -1,4 +1,11 @@
-import { type ComponentChildren, toChildArray } from 'preact';
+import {
+  cloneElement,
+  type ComponentChild,
+  type ComponentChildren,
+  isValidElement,
+  toChildArray,
+  type VNode,
+} from 'preact';
 import { useEffect, useId, useRef } from 'preact/hooks';
 import type { PlaybackManager, Stream } from '../../compat/playbackManager';
 import { strings } from '../../strings';
@@ -41,12 +48,18 @@ export function qualityLabel(snap: PlayerSnapshot): string {
     : presetFor(snap.maxBitrate).label;
 }
 
+/** Keys jellyfin-web's player shortcuts seek or skip chapters with. */
+const SEEK_KEYS = ['Home', 'End', 'PageUp', 'PageDown'];
+const ARROW_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+
 /**
  * A panel's behaviour as a non-modal dialog under its pill: it closes on a click outside the panel and its pill (the
  * pills row contains both), and takes focus as it opens, to the current choice (else its first control). Escape and a
- * remote's Back close it and give focus back to the pill (PlayerView).
+ * remote's Back close it and give focus back to the pill (PlayerView). Keys in it stay from jellyfin-web's shortcuts,
+ * which would seek or change the volume: Home, End, Page Up and Down, and the arrows outside the TV layout (where
+ * they are jellyfin-web's D-pad navigation).
  */
-export function usePanel(ref: { current: HTMLElement | null }, onClose: () => void): void {
+export function usePanel(ref: { current: HTMLElement | null }, onClose: () => void, tv?: boolean): void {
   useEffect(() => {
     const panel = ref.current;
     (
@@ -57,8 +70,15 @@ export function usePanel(ref: { current: HTMLElement | null }, onClose: () => vo
       const pills = ref.current?.parentElement;
       if (pills && !pills.contains(e.target as Node)) onClose();
     };
+    const onKey = (e: KeyboardEvent): void => {
+      if (SEEK_KEYS.includes(e.key) || (!tv && ARROW_KEYS.includes(e.key))) e.stopPropagation();
+    };
     document.addEventListener('pointerdown', onDown, true);
-    return () => document.removeEventListener('pointerdown', onDown, true);
+    panel?.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true);
+      panel?.removeEventListener('keydown', onKey);
+    };
   }, []);
 }
 
@@ -80,7 +100,13 @@ function Choices({
   children: ComponentChildren;
 }) {
   const id = useId();
+  // Tab stops at a group's checked choice (else its first) outside the TV layout, where the arrow keys move between
+  // them. In the TV layout every choice stays focusable: jellyfin-web's D-pad navigation skips tabindex="-1".
   const options = toChildArray(children);
+  const checked = options.findIndex((o) => isOption(o) && o.props.selected);
+  const roving = tv
+    ? options
+    : options.map((o, i) => (isOption(o) ? cloneElement(o, { tabbable: i === Math.max(checked, 0) }) : o));
   return (
     <section class="lmn-panel__column">
       <h2 class="lmn-panel__heading" id={id}>
@@ -106,7 +132,7 @@ function Choices({
             radios[(at + step + radios.length) % radios.length]!.focus();
           }}
         >
-          {options}
+          {roving}
         </div>
       )}
       {empty && <p class="lmn-panel__empty">{empty}</p>}
@@ -114,22 +140,24 @@ function Choices({
   );
 }
 
-function Option({
-  selected,
-  label,
-  detail,
-  onSelect,
-}: {
+interface OptionProps {
   selected: boolean;
   label: string;
   detail?: string;
   onSelect: () => void;
-}) {
+  /** False: out of the Tab order (its group's roving tabindex). */
+  tabbable?: boolean;
+}
+
+const isOption = (child: ComponentChild): child is VNode<OptionProps> => isValidElement(child);
+
+function Option({ selected, label, detail, onSelect, tabbable }: OptionProps) {
   return (
     <button
       type="button"
       role="radio"
       aria-checked={selected}
+      tabIndex={tabbable === false ? -1 : undefined}
       class={`lmn-panel__option${selected ? ' is-selected' : ''}`}
       onClick={onSelect}
     >
@@ -154,7 +182,7 @@ export function QualityPanel({
   onSwitch?: (label: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  usePanel(ref, onClose);
+  usePanel(ref, onClose, tv);
   const sourceHeight = snap.videoHeight ?? 0;
   const presets = QUALITY_PRESETS.filter((p) => sourceHeight === 0 || p.minHeight <= sourceHeight);
   const current = snap.autoQuality ? null : presetFor(snap.maxBitrate).bitrate;
@@ -267,7 +295,7 @@ export function AudioSubtitlesPanel({
     manager.setSubtitleStreamIndex(index, snap.player);
   };
   const ref = useRef<HTMLDivElement>(null);
-  usePanel(ref, onClose);
+  usePanel(ref, onClose, tv);
   const offset = snap.subtitleOffset;
   const nudge = (delta: number): void =>
     manager.setSubtitleOffset?.(Math.round(((offset ?? 0) + delta) * 10) / 10, snap.player);

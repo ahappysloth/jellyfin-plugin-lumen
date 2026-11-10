@@ -52,6 +52,7 @@ export function SettingsPanel({
   info,
   onInfo,
   pill,
+  tv,
   onClose,
 }: {
   ctx: ViewContext;
@@ -63,6 +64,7 @@ export function SettingsPanel({
   onInfo: (on: boolean) => void;
   /** The settings pill that opened the panel. */
   pill: RefObject<HTMLElement | null>;
+  tv?: boolean;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -72,7 +74,7 @@ export function SettingsPanel({
     pill.current?.focus();
     onClose();
   };
-  usePanel(ref, onClose);
+  usePanel(ref, onClose, tv);
   return (
     <div ref={ref} class="lmn-panel lmn-panel--settings" role="dialog" aria-label={strings.player.settings}>
       {snap.repeatMode !== null && manager.setRepeatMode && (
