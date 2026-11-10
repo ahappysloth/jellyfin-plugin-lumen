@@ -16,15 +16,22 @@ using Microsoft.Net.Http.Headers;
 namespace Jellyfin.Plugin.Lumen.Injection;
 
 /// <summary>
-/// jellyfin-web's content-addressed files, as <see cref="WebStaticMiddleware"/> serves them: which requests may be cached for
-/// good, and their Brotli and gzip copies (made by <see cref="LumenAsset"/>, as for Lumen's own files).
+/// jellyfin-web's built files, as <see cref="WebStaticMiddleware"/> serves them: which requests it takes, how long they may
+/// be cached, and their Brotli and gzip copies (made by <see cref="LumenAsset"/>, as for Lumen's own files).
 /// <para>
 /// A request qualifies when it's a GET for <c>{BaseUrl}/web/&lt;file&gt;</c> (Jellyfin's web root, read the way its static
-/// file middleware reads it), the file exists, and its URL changes whenever its content does: webpack's content hash is in
-/// the name (<c>12345.0123456789abcdef0123.chunk.js</c>, fonts, CSS), or it's one of the bundles jellyfin-web's
-/// index.html loads with the build's hash in the query (<c>main.jellyfin.bundle.js?&lt;hash&gt;</c>) and the query is the
-/// one the index.html on disk has now. serviceworker.js, index.html, config.json, themes and assets are never content
-/// named, so they're never cached for good.
+/// file middleware reads it), the file exists, and it's one of these.
+/// <list type="bullet">
+/// <item>One of the files jellyfin-web's index.html loads with a hash in the query (<c>main.jellyfin.bundle.js?&lt;hash&gt;</c>
+/// and its stylesheets). That hash is HtmlWebpackPlugin's build hash, the same for every file, so it doesn't vouch for any
+/// file's bytes: these are sent <see cref="NoCacheControl"/>, revalidated by ETag on every load.</item>
+/// <item>A file named with webpack's content hash (<c>12345.0123456789abcdef0123.chunk.js</c>, fonts, CSS). When the hash checks
+/// out against the bytes (<see cref="HashMatchesContent"/>) they may be kept for <see cref="WeekCacheControl"/>, not for
+/// good: a plugin that patches jellyfin-web in Jellyfin's pipeline (File Transformation and the plugins built on it) can be
+/// installed or start patching later, and must reach browsers within a week. While File Transformation is loaded, nothing
+/// gets a lifetime. A file whose hash doesn't check out (patched on disk) keeps Jellyfin's caching.</item>
+/// </list>
+/// serviceworker.js, index.html, config.json, themes, assets and *.LICENSE.txt are left to Jellyfin.
 /// </para>
 /// <para>
 /// The copies are made in the background, one file at a time, the first time a file is asked for (and, from
@@ -35,8 +42,14 @@ namespace Jellyfin.Plugin.Lumen.Injection;
 /// </summary>
 public sealed partial class WebStaticFiles : IDisposable
 {
-    /// <summary>For a URL whose content can never change.</summary>
-    public const string ImmutableCacheControl = "public, max-age=31536000, immutable";
+    /// <summary>For a file whose name's content hash matches its bytes: a week, so a later patch still gets through.</summary>
+    public const string WeekCacheControl = "public, max-age=604800";
+
+    /// <summary>For the files index.html loads by a build-wide hash: revalidated every time (a 304 when unchanged).</summary>
+    public const string NoCacheControl = "no-cache";
+
+    /// <summary>The plugin other plugins patch jellyfin-web's files through, in memory, in Jellyfin's pipeline.</summary>
+    internal const string FileTransformationAssembly = "Jellyfin.Plugin.FileTransformation";
 
     /// <summary>The memory kept for files and their copies (jellyfin-web's startup bundles and copies take ~5 MB).</summary>
     internal const long DefaultCapacityBytes = 32L * 1024 * 1024;
@@ -44,13 +57,18 @@ public sealed partial class WebStaticFiles : IDisposable
     /// <summary>Bigger files go to Jellyfin as before (jellyfin-web 12.4's biggest is 1 MB).</summary>
     internal const long MaxFileBytes = 8L * 1024 * 1024;
 
+    /// <summary>How often to look again for <see cref="FileTransformationAssembly"/> until it's found.</summary>
+    internal static readonly TimeSpan AssemblyRecheckInterval = TimeSpan.FromSeconds(30);
+
     private const string ServiceWorker = "serviceworker.js";
+    private const string LicenseSuffix = ".LICENSE.txt";
 
     private readonly PhysicalFileProvider? _files;
     private readonly FileExtensionContentTypeProvider _types = JellyfinContentTypes();
     private readonly long _capacity;
     private readonly Func<byte[], string, byte[]>? _compress;
     private readonly ILogger _logger;
+    private readonly AssemblyWatch _fileTransformation;
     private readonly Lock _gate = new();
     private readonly Dictionary<string, LinkedListNode<Entry>> _entries = new(StringComparer.Ordinal);
     private readonly LinkedList<Entry> _recency = new();
@@ -63,19 +81,27 @@ public sealed partial class WebStaticFiles : IDisposable
     private int _warnedFailure;
     private int _warnedTransformed;
 
-    public WebStaticFiles(IServerConfigurationManager configuration, IConfiguration appConfiguration, ILogger<WebStaticFiles> logger)
-        : this(HostedWebRoot(configuration, appConfiguration, logger), BaseUrl(configuration), logger)
+    public WebStaticFiles(IServerConfigurationManager configuration, IConfiguration appConfiguration, TimeProvider time, ILogger<WebStaticFiles> logger)
+        : this(HostedWebRoot(configuration, appConfiguration, logger), BaseUrl(configuration), logger, new AssemblyWatch(FileTransformationAssembly, time))
     {
     }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WebStaticFiles"/> class. <paramref name="webRoot"/>: jellyfin-web's
-    /// directory, or null when Jellyfin doesn't host it. For tests: <paramref name="compress"/> replaces the real
-    /// compression (see <see cref="LumenAsset"/>).
+    /// directory, or null when Jellyfin doesn't host it. <paramref name="fileTransformation"/>: whether File Transformation is
+    /// loaded (by default: never). For tests: <paramref name="compress"/> replaces the real compression (see
+    /// <see cref="LumenAsset"/>).
     /// </summary>
-    internal WebStaticFiles(string? webRoot, string? baseUrl, ILogger logger, long capacityBytes = DefaultCapacityBytes, Func<byte[], string, byte[]>? compress = null)
+    internal WebStaticFiles(
+        string? webRoot,
+        string? baseUrl,
+        ILogger logger,
+        AssemblyWatch? fileTransformation = null,
+        long capacityBytes = DefaultCapacityBytes,
+        Func<byte[], string, byte[]>? compress = null)
     {
         _logger = logger;
+        _fileTransformation = fileTransformation ?? new AssemblyWatch(FileTransformationAssembly, TimeProvider.System, () => []);
         _capacity = capacityBytes;
         _compress = compress;
         _worker = new Lazy<Task>(() => Task.Run(DrainAsync));
@@ -92,6 +118,9 @@ public sealed partial class WebStaticFiles : IDisposable
 
     /// <summary>Gets a value indicating whether Jellyfin hosts jellyfin-web, from a directory that exists.</summary>
     public bool Hosted => _files is not null;
+
+    /// <summary>Runs after a queued file is read and before it's checked for changes, for tests.</summary>
+    internal Action<WebFile>? AfterRead { get; set; }
 
     /// <summary>The last <see cref="StartWarmup"/>, for tests.</summary>
     internal Task? Warmup { get; private set; }
@@ -126,7 +155,7 @@ public sealed partial class WebStaticFiles : IDisposable
 
             foreach (var path in IndexReferences().Keys)
             {
-                if (Stat(path) is { } file)
+                if (Stat(path, WebFileKind.IndexBundle) is { } file)
                 {
                     _ = TryGetReady(file);
                 }
@@ -140,9 +169,48 @@ public sealed partial class WebStaticFiles : IDisposable
 
     /// <summary>
     /// True for a file name with webpack's content hash in it (<c>[name].[contenthash].chunk.js</c>,
-    /// <c>[name].[contenthash].css</c>, <c>[name].[hash][ext]</c>): 16 to 64 lowercase hex digits between dots, after the name.
+    /// <c>[name].[contenthash].css</c>, <c>[name].[hash][ext]</c>): 16 to 32 lowercase hex digits between dots, after the
+    /// name. Not a <c>*.LICENSE.txt</c>, which carries its chunk's hash, not its own.
     /// </summary>
-    internal static bool IsContentHashedName(string fileName) => ContentHashedName().IsMatch(fileName);
+    internal static bool IsContentHashedName(string fileName) =>
+        ContentHashedName().IsMatch(fileName) && !fileName.EndsWith(LicenseSuffix, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Whether the content hash in <paramref name="fileName"/> is webpack's for <paramref name="content"/>: the MD4 of the
+    /// bytes with every copy of the hash itself taken out (RealContentHashPlugin hashes a file without its own hash), in hex,
+    /// cut to the hash's length. All 2,207 such files of jellyfin-web 12.4 (*.LICENSE.txt aside) match.
+    /// </summary>
+    internal static bool HashMatchesContent(string fileName, ReadOnlySpan<byte> content)
+    {
+        var match = ContentHashedName().Match(fileName);
+        if (!match.Success || fileName.EndsWith(LicenseSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var hash = match.Groups[1].Value;
+        var hashBytes = Encoding.ASCII.GetBytes(hash);
+        byte[] digest;
+        if (content.IndexOf(hashBytes) < 0)
+        {
+            digest = Md4.Hash(content);
+        }
+        else
+        {
+            using var stripped = new MemoryStream(content.Length);
+            var rest = content;
+            for (var at = rest.IndexOf(hashBytes); at >= 0; at = rest.IndexOf(hashBytes))
+            {
+                stripped.Write(rest[..at]);
+                rest = rest[(at + hashBytes.Length)..];
+            }
+
+            stripped.Write(rest);
+            digest = Md4.Hash(stripped.GetBuffer().AsSpan(0, (int)stripped.Length));
+        }
+
+        return Convert.ToHexStringLower(digest).StartsWith(hash, StringComparison.Ordinal);
+    }
 
     /// <summary>A path of plain segments: no empty, "." or ".." segment, and no backslash, so it can't leave the web root.</summary>
     internal static bool IsPlainPath(string path) =>
@@ -188,8 +256,9 @@ public sealed partial class WebStaticFiles : IDisposable
     }
 
     /// <summary>
-    /// The file a request is for, when it may be cached for good (see the class remarks), else null. Requests with Range or
-    /// a precondition other than If-None-Match / If-Modified-Since are left to Jellyfin.
+    /// The file a request is for, when Lumen serves it (see the class remarks), else null. Requests with Range or a
+    /// precondition other than If-None-Match / If-Modified-Since are left to Jellyfin. The query doesn't matter: a file
+    /// index.html loads by a build hash is always revalidated, and a content-hashed name can't change its bytes.
     /// </summary>
     internal WebFile? Find(HttpRequest request)
     {
@@ -209,20 +278,30 @@ public sealed partial class WebStaticFiles : IDisposable
             return null;
         }
 
-        var name = subPath[(subPath.LastIndexOf('/') + 1)..];
-        if (!IsContentHashedName(name) && !MatchesIndexQuery(subPath, request.QueryString))
+        if (IndexReferences().ContainsKey(subPath))
         {
-            return null;
+            return Stat(subPath, WebFileKind.IndexBundle);
         }
 
-        return Stat(subPath);
+        return IsContentHashedName(subPath[(subPath.LastIndexOf('/') + 1)..]) ? Stat(subPath, WebFileKind.ContentHashed) : null;
     }
+
+    /// <summary>
+    /// The Cache-Control to send with <paramref name="file"/>, or null to keep Jellyfin's (none): see the class remarks.
+    /// <paramref name="hashMatches"/>: the file's name hash checked out against its bytes.
+    /// </summary>
+    internal string? CacheControlFor(WebFile file, bool hashMatches) => file.Kind switch
+    {
+        WebFileKind.IndexBundle => NoCacheControl,
+        WebFileKind.ContentHashed when hashMatches && !_fileTransformation.IsLoaded => WeekCacheControl,
+        _ => null,
+    };
 
     /// <summary>
     /// The file's content and copies when they're ready and the file hasn't changed since, else null (and they're queued to
     /// be made).
     /// </summary>
-    internal LumenAsset? TryGetReady(WebFile file)
+    internal ReadyFile? TryGetReady(WebFile file)
     {
         lock (_gate)
         {
@@ -232,7 +311,7 @@ public sealed partial class WebStaticFiles : IDisposable
                 {
                     _recency.Remove(node);
                     _recency.AddFirst(node);
-                    return node.Value.Asset;
+                    return node.Value.Ready;
                 }
 
                 Remove(node);
@@ -245,7 +324,7 @@ public sealed partial class WebStaticFiles : IDisposable
 
     /// <summary>
     /// Whether Jellyfin's pipeline was seen serving something other than the file on disk for this version of it: another
-    /// plugin rewrites it, so it's left alone (not cached for good, not compressed by Lumen).
+    /// plugin rewrites it, so it's left alone (no lifetime added, not compressed by Lumen).
     /// </summary>
     internal bool IsTransformed(WebFile file)
     {
@@ -318,16 +397,11 @@ public sealed partial class WebStaticFiles : IDisposable
         return types;
     }
 
-    [GeneratedRegex(@"^[^/]+\.[0-9a-f]{16,64}\.[^/]+$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^[^/]+\.([0-9a-f]{16,32})\.[^/]+$", RegexOptions.CultureInvariant)]
     private static partial Regex ContentHashedName();
 
     [GeneratedRegex(@"\b(?:src|href)\s*=\s*""([^""?#]+)\?([0-9a-f]{16,64})""", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex QueryHashedReference();
-
-    private bool MatchesIndexQuery(string subPath, QueryString query) =>
-        query.Value is { Length: > 1 } value
-        && IndexReferences().TryGetValue(subPath, out var hash)
-        && string.Equals(value[1..], hash, StringComparison.Ordinal);
 
     /// <summary>index.html's query-hashed references, parsed again whenever the file on disk changes (an upgrade).</summary>
     private Dictionary<string, string> IndexReferences()
@@ -351,7 +425,7 @@ public sealed partial class WebStaticFiles : IDisposable
         return parsed.References;
     }
 
-    private WebFile? Stat(string subPath)
+    private WebFile? Stat(string subPath, WebFileKind kind)
     {
         var info = _files!.GetFileInfo(subPath);
         if (!info.Exists || info.IsDirectory || info.PhysicalPath is null || info.Length > MaxFileBytes
@@ -360,7 +434,7 @@ public sealed partial class WebStaticFiles : IDisposable
             return null;
         }
 
-        return new WebFile(subPath, info.PhysicalPath, contentType, new Stamp(info.Length, info.LastModified));
+        return new WebFile(subPath, info.PhysicalPath, contentType, new Stamp(info.Length, info.LastModified), kind);
     }
 
     private void Enqueue(WebFile file)
@@ -403,12 +477,15 @@ public sealed partial class WebStaticFiles : IDisposable
     private void Load(WebFile file)
     {
         var content = File.ReadAllBytes(file.PhysicalPath);
+        AfterRead?.Invoke(file);
 
         // Changed while it was read (an upgrade): the next request queues the new file.
-        if (content.Length != file.Stamp.Length || Stat(file.SubPath) is not { } now || now.Stamp != file.Stamp)
+        if (content.Length != file.Stamp.Length || Stat(file.SubPath, file.Kind) is not { } now || now.Stamp != file.Stamp)
         {
             return;
         }
+
+        var hashMatches = file.Kind == WebFileKind.ContentHashed && HashMatchesContent(Path.GetFileName(file.PhysicalPath), content);
 
         var asset = _compress is null
             ? new LumenAsset(file.SubPath, content, file.ContentType)
@@ -432,7 +509,7 @@ public sealed partial class WebStaticFiles : IDisposable
                 Remove(old);
             }
 
-            _entries[file.PhysicalPath] = _recency.AddFirst(new Entry(file.PhysicalPath, file.Stamp, asset, size));
+            _entries[file.PhysicalPath] = _recency.AddFirst(new Entry(file.PhysicalPath, file.Stamp, new ReadyFile(asset, hashMatches), size));
             _size += size;
             while (_size > _capacity && _recency.Last is { } last)
             {
@@ -449,7 +526,7 @@ public sealed partial class WebStaticFiles : IDisposable
         _size -= node.Value.Size;
     }
 
-    private sealed record Entry(string Key, Stamp Stamp, LumenAsset Asset, long Size);
+    private sealed record Entry(string Key, Stamp Stamp, ReadyFile Ready, long Size);
 
     private sealed record ParsedIndex(Stamp Stamp, Dictionary<string, string> References);
 }

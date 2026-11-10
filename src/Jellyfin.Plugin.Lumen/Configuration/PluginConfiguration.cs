@@ -46,9 +46,9 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool StyleVideoPlayer { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets a value indicating whether jellyfin-web's content-hashed files are served precompressed and cached for
-    /// good (see Injection/WebStaticMiddleware). Independent of <see cref="Enabled"/>: it changes no page, only how fast
-    /// Jellyfin's web client loads, for every app that loads it.
+    /// Gets or sets a value indicating whether jellyfin-web's built files are served precompressed, those whose content hash
+    /// checks out cached for a week (see Injection/WebStaticFiles). Independent of <see cref="Enabled"/>: it changes no page,
+    /// only how fast Jellyfin's web client loads, for every app that loads it.
     /// </summary>
     public bool OptimizeWebClientFiles { get; set; } = true;
 

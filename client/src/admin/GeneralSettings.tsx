@@ -45,7 +45,7 @@ export function GeneralSettings({
       />
       <Switch
         label="Load Jellyfin's web app faster"
-        hint="Sends its versioned files at the best compression, and lets browsers and the Jellyfin apps keep them until Jellyfin updates. Applies even with Lumen off."
+        hint="Sends its files at the best compression, and lets browsers and the Jellyfin apps keep the versioned ones for up to a week. Applies even with Lumen off. Turning it off doesn't clear what they've already kept: that expires within a week."
         checked={config.OptimizeWebClientFiles ?? true}
         onChange={(v) => update({ OptimizeWebClientFiles: v })}
       />
