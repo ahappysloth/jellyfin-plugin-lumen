@@ -711,6 +711,28 @@ describe('PlayerView', () => {
       expect(reachedJellyfin).toEqual([]);
     });
 
+    it('name the subtitle timing steps after what they show', async () => {
+      const setSubtitleOffset = vi.fn();
+      const pm = Object.assign(await open(), {
+        supportSubtitleOffset: () => true,
+        getPlayerSubtitleOffset: () => 0,
+        setSubtitleOffset,
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Audio & Subtitles/ }));
+      fireEvent.click(screen.getByRole('radio', { name: /^Spanish/ }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      const timing = screen.getByRole('group', { name: 'Subtitle timing' });
+      const earlier = within(timing).getByRole('button', { name: '−0.1s, earlier' });
+      const later = within(timing).getByRole('button', { name: '+0.1s, later' });
+      // The accessible name contains the visible text (WCAG 2.5.3, Label in Name).
+      expect(earlier.getAttribute('aria-label')).toContain(earlier.textContent!.trim());
+      expect(later.getAttribute('aria-label')).toContain(later.textContent!.trim());
+      fireEvent.click(later);
+      expect(setSubtitleOffset).toHaveBeenCalledWith(0.1, pm.player);
+    });
+
     it("leave the arrow keys to jellyfin-web's D-pad navigation in the TV layout", async () => {
       await open('tv');
       fireEvent.click(screen.getByRole('button', { name: /Audio & Subtitles/ }));

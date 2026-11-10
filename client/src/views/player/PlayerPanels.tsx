@@ -317,7 +317,7 @@ export function AudioSubtitlesPanel({
       {offset !== null && snap.subtitleIndex !== -1 && (
         <div class="lmn-panel__footer">
           <span class="lmn-panel__heading">{strings.player.subtitleTiming}</span>
-          <div class="lmn-panel__stepper">
+          <div class="lmn-panel__stepper" role="group" aria-label={strings.player.subtitleTiming}>
             <button
               type="button"
               class="lmn-panel__speed"
@@ -326,7 +326,10 @@ export function AudioSubtitlesPanel({
             >
               −0.1s
             </button>
-            <span class="lmn-panel__offset">{`${offset > 0 ? '+' : ''}${offset.toFixed(1)}s`}</span>
+            <span
+              class="lmn-panel__offset"
+              aria-live="polite"
+            >{`${offset > 0 ? '+' : ''}${offset.toFixed(1)}s`}</span>
             <button
               type="button"
               class="lmn-panel__speed"
