@@ -14,7 +14,7 @@ describe('Dropdown', () => {
     const onChange = vi.fn();
     render(<Dropdown label="Fruit" value="a" options={options} onChange={onChange} />);
 
-    const button = screen.getByRole('button', { name: 'Fruit: Apple' });
+    const button = screen.getByRole('button', { name: 'Fruit Apple' });
     expect(button).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(button);
     expect(button).toHaveAttribute('aria-expanded', 'true');
@@ -23,6 +23,16 @@ describe('Dropdown', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Cherry' }));
     expect(onChange).toHaveBeenCalledWith('c');
     expect(screen.queryByRole('listbox')).toBeNull();
+  });
+
+  it('is named as it reads: label and value, or the value after its label when only that shows (WCAG 2.5.3)', () => {
+    const { rerender } = render(<Dropdown label="Fruit" value="a" options={options} onChange={vi.fn()} />);
+    expect(screen.getByRole('button')).toHaveAccessibleName('Fruit Apple');
+    expect(screen.getByRole('button').textContent).toBe('Fruit Apple'); // as axe reads it
+
+    rerender(<Dropdown label="Fruit" value="a" options={options} onChange={vi.fn()} hideLabel />);
+    expect(screen.getByRole('button')).toHaveAccessibleName('Fruit: Apple');
+    expect(screen.getByRole('button')).toHaveTextContent(/^Apple$/);
   });
 
   it('supports arrows, type-ahead, Enter and Escape', () => {

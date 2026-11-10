@@ -14,14 +14,14 @@ test('the Movies page lists the library as a poster grid with filters and sort',
   await expect(grid.getByRole('button', { name: 'Lumen Alpha' })).toBeVisible();
   await expect(page.getByText(/\d+ titles/)).toBeVisible();
 
-  await page.getByRole('button', { name: /^Sort by:/ }).click();
+  await page.getByRole('button', { name: /^Sort by / }).click();
   await page.getByRole('option', { name: 'Title' }).click();
   await expect(grid.getByRole('button').first()).toHaveAccessibleName('Lumen Alpha');
 
   await grid.getByRole('button', { name: 'Lumen Alpha' }).click();
   await expect(page).toHaveURL(/#\/details\?id=/);
   await page.goBack();
-  await expect(page.getByRole('button', { name: 'Sort by: Title' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sort by Title' })).toBeVisible();
 });
 
 test.describe('favorites', () => {

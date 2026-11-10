@@ -145,7 +145,8 @@ export function Dropdown<T extends string>({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? `${id}-list` : undefined}
-        aria-label={`${label}: ${selected?.label ?? ''}`}
+        // Its name reads as it shows (WCAG 2.5.3): "Genre All genres", or "Season: Season 1" when only the value shows.
+        aria-label={`${label}${hideLabel ? ':' : ''} ${selected?.label ?? ''}`}
         disabled={disabled}
         onClick={() => (open ? close(false) : openList())}
         onKeyDown={(e) => {
@@ -156,6 +157,7 @@ export function Dropdown<T extends string>({
         }}
       >
         {!hideLabel && <span class="lmn-dropdown__label">{label}</span>}
+        {/* Reads "Genre All genres", not "GenreAll genres" (the flex layout ignores the space). */}{' '}
         <span class="lmn-dropdown__value">{selected?.label}</span>
         <Icon name="chevronDown" size={14} class="lmn-dropdown__chevron" />
       </button>

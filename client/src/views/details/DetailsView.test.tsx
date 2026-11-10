@@ -127,7 +127,7 @@ describe('DetailsView', () => {
     const c = client();
     render(<DetailsView id="m1" ctx={makeContext(c)} />);
 
-    const watched = await screen.findByRole('button', { name: 'Watched' });
+    const watched = await screen.findByRole('button', { name: 'Mark watched' });
     fireEvent.click(watched);
 
     expect(watched).toHaveAttribute('aria-pressed', 'true');

@@ -82,6 +82,9 @@ export function DetailsHeader(props: Props) {
       : undefined,
   ].filter((part): part is string => !!part);
   const boxes = [item.OfficialRating, ...props.badges].filter((b): b is string => !!b);
+  // Named as they read (WCAG 2.5.3): the label is their name, also once a phone's layout hides it (buttons.css).
+  const favorite = props.favorite ? strings.favorited : strings.favorite;
+  const watched = props.played ? strings.watched : strings.markWatchedShort;
 
   return (
     <header class={`lmn-details__header${trailerPlaying ? ' is-playing' : ''}`}>
@@ -201,24 +204,24 @@ export function DetailsHeader(props: Props) {
             type="button"
             class="lmn-button lmn-button--secondary"
             aria-pressed={props.favorite}
-            aria-label={strings.favorite}
+            aria-label={favorite}
             onClick={props.toggleFavorite}
           >
             <Icon
               name={props.favorite ? 'heart' : 'heartOutline'}
               class={props.favorite ? 'lmn-heart' : undefined}
             />
-            <span class="lmn-button__label">{props.favorite ? strings.favorited : strings.favorite}</span>
+            <span class="lmn-button__label">{favorite}</span>
           </button>
           <button
             type="button"
             class="lmn-button lmn-button--secondary"
             aria-pressed={props.played}
-            aria-label={strings.watched}
+            aria-label={watched}
             onClick={props.toggleWatched}
           >
             <Icon name={props.played ? 'check' : 'eye'} />
-            <span class="lmn-button__label">{props.played ? strings.watched : strings.markWatchedShort}</span>
+            <span class="lmn-button__label">{watched}</span>
           </button>
         </div>
         {props.error && (
