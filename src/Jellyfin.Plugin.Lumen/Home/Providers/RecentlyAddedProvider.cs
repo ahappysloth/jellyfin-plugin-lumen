@@ -1,4 +1,5 @@
 using Jellyfin.Data.Enums;
+using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.Lumen.Configuration;
 using MediaBrowser.Controller.Entities;
@@ -31,6 +32,8 @@ public sealed class RecentlyAddedProvider : IHomeSectionProvider
 
     public Task<IReadOnlyList<HomeRow>> GetRowsAsync(HomeContext context, SectionDefinition definition, CancellationToken cancellationToken)
     {
+        // The newest items are only read for their ids and series ids, so this scan skips images, user data and
+        // provider ids. Only the cards that are shown are loaded in full, below.
         var query = new InternalItemsQuery(context.User)
         {
             IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Episode],
@@ -38,7 +41,7 @@ public sealed class RecentlyAddedProvider : IHomeSectionProvider
             IsVirtualItem = false,
             OrderBy = [(ItemSortBy.DateCreated, SortOrder.Descending)],
             Limit = context.ItemLimit * OverFetchFactor,
-            DtoOptions = QueryOptions.Full(),
+            DtoOptions = QueryOptions.IdsOnly(),
         };
 
         if (definition.GetGuidParam("libraryId") is { } libraryId)
@@ -52,35 +55,43 @@ public sealed class RecentlyAddedProvider : IHomeSectionProvider
             query.ParentId = libraryId;
         }
 
-        var items = _libraryManager.GetItemList(query);
-        var seriesIds = items.OfType<Episode>().Select(e => e.SeriesId).Where(id => id != Guid.Empty).Distinct().ToArray();
-        var seriesById = seriesIds.Length == 0
-            ? new Dictionary<Guid, BaseItem>()
-            : _libraryManager.GetItemList(new InternalItemsQuery(context.User) { ItemIds = seriesIds, DtoOptions = QueryOptions.Full() })
-                .ToDictionary(s => s.Id);
-
-        return Task.FromResult(HomeRow.Single(definition, DisplayName, Group(items, seriesById, context.ItemLimit)));
+        var cardIds = CardIds(_libraryManager.GetItemList(query));
+        return Task.FromResult(HomeRow.Single(definition, DisplayName, LoadCards(context, cardIds)));
     }
 
-    internal static IReadOnlyList<BaseItem> Group(IReadOnlyList<BaseItem> items, IReadOnlyDictionary<Guid, BaseItem> seriesById, int limit)
-    {
-        var seen = new HashSet<Guid>();
-        var result = new List<BaseItem>();
-        foreach (var item in items)
-        {
-            var card = item is Episode episode ? seriesById.GetValueOrDefault(episode.SeriesId) : item;
-            if (card is null || !seen.Add(card.Id))
-            {
-                continue;
-            }
+    /// <summary>The card for each item, newest first: a movie is its own card, an episode is its series.</summary>
+    internal static IReadOnlyList<Guid> CardIds(IReadOnlyList<BaseItem> items) =>
+        items.Select(item => item is Episode episode ? episode.SeriesId : item.Id)
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
 
-            result.Add(card);
-            if (result.Count == limit)
-            {
-                break;
-            }
+    /// <summary>
+    /// Loads the first <see cref="HomeContext.ItemLimit"/> cards the user can see, in <paramref name="cardIds"/> order.
+    /// A card the user cannot see (a series hidden by parental controls, say) is skipped and the next one fills in:
+    /// usually the first query is enough; if not, the remaining candidates are loaded in one more.
+    /// </summary>
+    private List<BaseItem> LoadCards(HomeContext context, IReadOnlyList<Guid> cardIds)
+    {
+        var limit = context.ItemLimit;
+        var cards = Load(context.User, cardIds.Take(limit).ToArray());
+        if (cards.Count < limit && cardIds.Count > limit)
+        {
+            cards.AddRange(Load(context.User, cardIds.Skip(limit).ToArray()).Take(limit - cards.Count));
         }
 
-        return result;
+        return cards;
+    }
+
+    private List<BaseItem> Load(User user, Guid[] ids)
+    {
+        if (ids.Length == 0)
+        {
+            return [];
+        }
+
+        var byId = _libraryManager.GetItemList(new InternalItemsQuery(user) { ItemIds = ids, DtoOptions = QueryOptions.Full() })
+            .ToDictionary(i => i.Id);
+        return ids.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
     }
 }

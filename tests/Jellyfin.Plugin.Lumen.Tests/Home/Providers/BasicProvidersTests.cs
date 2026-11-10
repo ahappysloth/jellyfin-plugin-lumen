@@ -2,6 +2,7 @@ using Jellyfin.Data.Enums;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.Lumen.Configuration;
+using Jellyfin.Plugin.Lumen.Home;
 using Jellyfin.Plugin.Lumen.Home.Providers;
 using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
@@ -72,15 +73,70 @@ public class BasicProvidersTests
     }
 
     [Fact]
-    public void Group_CollapsesEpisodesToSeries_InFirstSeenOrder()
+    public void CardIds_CollapsesEpisodesToSeries_InFirstSeenOrder()
     {
         var show = TestData.Series("Show");
         var movie = TestData.Movie("Movie");
-        BaseItem[] items = [TestData.Episode(show, 1, 3), movie, TestData.Episode(show, 1, 2), TestData.Episode(TestData.Series("Orphan"), 1, 1)];
+        var orphan = TestData.Episode(show, 1, 1);
+        orphan.SeriesId = Guid.Empty;
+        BaseItem[] items = [TestData.Episode(show, 1, 3), movie, TestData.Episode(show, 1, 2), orphan];
 
-        var grouped = RecentlyAddedProvider.Group(items, new Dictionary<Guid, BaseItem> { [show.Id] = show }, 10);
+        Assert.Equal([show.Id, movie.Id], RecentlyAddedProvider.CardIds(items));
+    }
 
-        Assert.Equal([show, movie], grouped);
+    [Fact]
+    public async Task RecentlyAdded_ScansLight_ThenLoadsOnlyTheShownCardsInFull_InNewestFirstOrder()
+    {
+        var show = TestData.Series("Show");
+        var movie = TestData.Movie("Movie");
+        _library.GetItemList(Arg.Any<InternalItemsQuery>()).Returns(ci => ci.Arg<InternalItemsQuery>() switch
+        {
+            { ItemIds.Length: > 0 } => new BaseItem[] { movie, show }, // the database's order, not the row's
+            _ => new BaseItem[] { TestData.Episode(show, 1, 3), movie, TestData.Episode(show, 1, 2) },
+        });
+
+        var rows = await new RecentlyAddedProvider(_library).GetRowsAsync(TestData.Context(_user), TestData.Section(SectionTypes.RecentlyAdded), CancellationToken.None);
+
+        Assert.Equal([show, movie], Assert.Single(rows).Items);
+        Assert.Equal(2, _queries.Count);
+        var scan = _queries[0];
+        Assert.Same(_user, scan.User);
+        Assert.Equal([BaseItemKind.Movie, BaseItemKind.Episode], scan.IncludeItemTypes);
+        Assert.Equal(100, scan.Limit);
+        Assert.False(scan.DtoOptions.EnableImages);
+        Assert.False(scan.DtoOptions.EnableUserData);
+        Assert.Empty(scan.DtoOptions.Fields);
+        var load = _queries[1];
+        Assert.Same(_user, load.User);
+        Assert.Equal([show.Id, movie.Id], load.ItemIds);
+        Assert.True(load.DtoOptions.EnableImages);
+        Assert.True(load.DtoOptions.EnableUserData);
+        Assert.Contains(ItemFields.Genres, load.DtoOptions.Fields);
+    }
+
+    [Fact]
+    public async Task RecentlyAdded_SkipsCardsTheUserCannotSee_AndFillsFromTheNextNewest()
+    {
+        var hidden = TestData.Series("Hidden");
+        var a = TestData.Movie("A");
+        var b = TestData.Movie("B");
+        var c = TestData.Movie("C");
+        var d = TestData.Movie("D");
+        BaseItem[] visible = [a, b, c, d];
+        _library.GetItemList(Arg.Any<InternalItemsQuery>()).Returns(ci => ci.Arg<InternalItemsQuery>() switch
+        {
+            { ItemIds.Length: > 0 } q => visible.Where(v => q.ItemIds.Contains(v.Id)).ToArray(),
+            _ => new BaseItem[] { a, TestData.Episode(hidden, 1, 1), b, c, d },
+        });
+        var context = new HomeContext(_user, TestData.Now, () => Task.FromResult(WatchHistory.Empty)) { ItemLimit = 2 };
+
+        var rows = await new RecentlyAddedProvider(_library).GetRowsAsync(context, TestData.Section(SectionTypes.RecentlyAdded), CancellationToken.None);
+
+        Assert.Equal([a, b], Assert.Single(rows).Items);
+        Assert.Equal(10, _queries[0].Limit);
+        Assert.Equal([a.Id, hidden.Id], _queries[1].ItemIds);
+        Assert.Equal([b.Id, c.Id, d.Id], _queries[2].ItemIds); // one more query for the rest, not one per gap
+        Assert.Equal(3, _queries.Count);
     }
 
     [Fact]
