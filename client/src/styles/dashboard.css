@@ -182,6 +182,12 @@ html.lmn-skin-dashboard .MuiDrawer-paper .MuiListItemButton-root.Mui-selected {
   background: var(--lmn-fill-3) !important;
   color: #fff;
 }
+/* The server card at the top of the drawer: a compact hover box with room around it. */
+html.lmn-skin-dashboard .MuiDrawer-paper .MuiListItemButton-root[href='#/'] {
+  margin: 10px 8px 6px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
 html.lmn-skin-dashboard .MuiDrawer-paper .MuiListItemButton-root.Mui-selected .MuiListItemText-primary {
   font-weight: 600;
 }
@@ -582,4 +588,162 @@ html.lmn-skin-dashboard .MuiFormHelperText-root {
   margin-left: 14px;
   font-size: 13px;
   line-height: 1.45;
+}
+
+/* ---- A plugin's page (#addPluginPage) ------------------------------------------------------------------------ */
+/* Revision history: separate cards with room between them; MUI's own divider line between accordions goes. */
+html.lmn-skin-dashboard .MuiAccordion-root {
+  margin: 0 0 8px !important;
+}
+html.lmn-skin-dashboard .MuiAccordion-root::before {
+  display: none;
+}
+html.lmn-skin-dashboard .MuiAccordionSummary-root {
+  min-height: 52px;
+  border-radius: 14px;
+}
+html.lmn-skin-dashboard .MuiAccordionDetails-root {
+  border-top: 1px solid var(--lmn-line);
+}
+
+/*
+ * The Enable switch as a status chip: "Enabled" (or "Disabled"), clicked to toggle. The <label> still toggles the
+ * switch's input (hidden but there, with its accessible name); only the look changes. Hovering says what a click does.
+ */
+html.lmn-skin-dashboard #addPluginPage .MuiFormControlLabel-root {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin: 0;
+  padding: 6px 14px 6px 12px;
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 999px;
+  background: var(--lmn-fill-2);
+  font-size: 0;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+html.lmn-skin-dashboard #addPluginPage .MuiFormControlLabel-root .MuiFormControlLabel-label,
+html.lmn-skin-dashboard #addPluginPage .MuiFormControlLabel-root .MuiSwitch-root {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  clip-path: inset(50%);
+}
+html.lmn-skin-dashboard #addPluginPage .MuiFormControlLabel-root::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--lmn-text-3);
+}
+html.lmn-skin-dashboard #addPluginPage .MuiFormControlLabel-root::after {
+  content: 'Disabled';
+  color: var(--lmn-text-2);
+  font: 600 13px var(--lmn-font);
+}
+html.lmn-skin-dashboard #addPluginPage .MuiFormControlLabel-root:has(.Mui-checked)::before {
+  background: #46c37b;
+  box-shadow: 0 0 0 3px rgba(70, 195, 123, 0.2);
+}
+html.lmn-skin-dashboard #addPluginPage .MuiFormControlLabel-root:has(.Mui-checked)::after {
+  content: 'Enabled';
+  color: #fff;
+}
+html.lmn-skin-dashboard #addPluginPage .MuiFormControlLabel-root:hover {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: var(--lmn-fill-3);
+}
+html.lmn-skin-dashboard #addPluginPage .MuiFormControlLabel-root:hover::after {
+  content: 'Enable';
+}
+html.lmn-skin-dashboard #addPluginPage .MuiFormControlLabel-root:has(.Mui-checked):hover::after {
+  content: 'Disable';
+}
+html.lmn-skin-dashboard #addPluginPage .MuiFormControlLabel-root:has(.Mui-focusVisible) {
+  outline: 2px solid var(--lmn-focus);
+  outline-offset: 2px;
+}
+/* Waiting for a restart: Jellyfin disables the switch. */
+html.lmn-skin-dashboard #addPluginPage .MuiFormControlLabel-root:has(.Mui-disabled) {
+  cursor: default;
+  opacity: 0.7;
+}
+html.lmn-skin-dashboard #addPluginPage .MuiFormControlLabel-root:has(.Mui-disabled)::after,
+html.lmn-skin-dashboard #addPluginPage .MuiFormControlLabel-root:has(.Mui-disabled):hover::after {
+  content: 'Restart Jellyfin to apply';
+}
+
+/*
+ * Wide screens: status, name, description, then Settings and Uninstall side by side, with the revision history below
+ * and the image and details on the right. jellyfin-web's wrappers are flattened (display: contents) so CSS grid can
+ * place the parts; the DOM and its behaviour stay React's. Narrow screens keep jellyfin-web's stacked layout.
+ */
+@media (min-width: 1200px) {
+  html.lmn-skin-dashboard #addPluginPage .content-primary > .MuiGrid-container {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) minmax(300px, 380px);
+    align-items: start;
+    gap: 14px 12px;
+    width: 100%;
+    margin: 0;
+  }
+  html.lmn-skin-dashboard #addPluginPage .content-primary > .MuiGrid-container > .MuiGrid-item {
+    max-width: none;
+    padding: 0;
+  }
+  html.lmn-skin-dashboard #addPluginPage .content-primary > .MuiGrid-container > .MuiGrid-item:nth-child(1),
+  html.lmn-skin-dashboard
+    #addPluginPage
+    .content-primary
+    > .MuiGrid-container
+    > .MuiGrid-item:nth-child(1)
+    > .MuiStack-root,
+  html.lmn-skin-dashboard #addPluginPage .content-primary > .MuiGrid-container > .MuiGrid-item:nth-child(4),
+  html.lmn-skin-dashboard
+    #addPluginPage
+    .content-primary
+    > .MuiGrid-container
+    > .MuiGrid-item:nth-child(4)
+    .MuiStack-root {
+    display: contents;
+  }
+  html.lmn-skin-dashboard #addPluginPage .MuiGrid-container .MuiFormGroup-root {
+    grid-area: 1 / 1 / 2 / 4;
+    margin: 0;
+  }
+  html.lmn-skin-dashboard #addPluginPage .MuiGrid-container .MuiTypography-h1 {
+    grid-area: 2 / 1 / 3 / 4;
+    margin: 0;
+  }
+  html.lmn-skin-dashboard #addPluginPage .MuiGrid-container .MuiTypography-body1 {
+    grid-area: 3 / 1 / 4 / 4;
+    margin: 0;
+    color: var(--lmn-text-2);
+  }
+  html.lmn-skin-dashboard #addPluginPage .MuiGrid-container .MuiGrid-item:nth-child(4) .MuiButton-root {
+    grid-row: 4;
+    width: auto;
+    margin: 4px 0 0;
+  }
+  html.lmn-skin-dashboard #addPluginPage .MuiGrid-container .MuiGrid-item:nth-child(4) .MuiAlert-root {
+    grid-column: 1 / 4;
+  }
+  html.lmn-skin-dashboard #addPluginPage .content-primary > .MuiGrid-container > .MuiGrid-item:nth-child(2) {
+    grid-area: 1 / 4 / 5 / 5;
+  }
+  html.lmn-skin-dashboard #addPluginPage .content-primary > .MuiGrid-container > .MuiGrid-item:nth-child(3) {
+    grid-area: 5 / 1 / 6 / 4;
+    margin-top: 18px;
+  }
+  html.lmn-skin-dashboard #addPluginPage .MuiGrid-item:nth-child(4) .MuiPaper-root:has(.MuiTable-root) {
+    grid-area: 5 / 4 / 6 / 5;
+    margin: 18px 0 0 !important;
+  }
 }

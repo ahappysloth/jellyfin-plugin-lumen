@@ -12,6 +12,8 @@ import { TitleView } from './catalog/TitleView';
 import { DetailsView } from './details/DetailsView';
 import { HomeView } from './home/HomeView';
 import { PlayerView } from './player/PlayerView';
+import { LoadingScreen } from './player/PlayerExtras';
+import { clearStarting, useStarting } from '../playback/starting';
 import { ProfileView } from './profile/ProfileView';
 import { SettingsFrame } from './profile/SettingsFrame';
 import { SearchView } from './search/SearchView';
@@ -73,6 +75,8 @@ function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
 }
 
 export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
+  // Lumen giving the page back (e.g. its player controls are off) ends a loading screen still up from a Play click.
+  useEffect(() => clearStarting, []);
   // Home and details lift the veil when their data lands; the library pages draw their header at once.
   useEffect(() => {
     if (route.kind === 'library' || route.kind === 'favorites' || route.kind === 'genre') liftVeil();
@@ -85,8 +89,19 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
         </ErrorBoundary>
       )}
       <Page route={route} ctx={ctx} />
+      {route.kind !== 'player' && <StartingScreen ctx={ctx} />}
       <ContextMenuHost />
       <ToastHost />
     </ErrorBoundary>
   );
+}
+
+/** From a Play click until the player opens: the same loading screen the player shows until its first frame. */
+function StartingScreen({ ctx }: { ctx: ViewContext }) {
+  const starting = useStarting();
+  return starting ? (
+    <div class="lmn-starting">
+      <LoadingScreen ctx={ctx} snap={null} starting={starting} />
+    </div>
+  ) : null;
 }

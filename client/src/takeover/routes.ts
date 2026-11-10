@@ -63,7 +63,9 @@ export function parseRoute(hash: string): Route {
   const query = new URLSearchParams(queryStart < 0 ? '' : value.slice(queryStart + 1));
   const tab = query.get('tab');
 
-  if (path === STOCK_ROUTES.home) {
+  // `#/` is jellyfin-web's root, which it redirects to home (the Dashboard's drawer header links there). Treating it as
+  // home keeps Lumen's page up through the redirect instead of handing the stock page a frame.
+  if (path === STOCK_ROUTES.home || path === '/') {
     // A catalog title the server may not have (requests spec §2.2): jellyfin-web renders home and ignores the
     // parameter, so Lumen can own the route; a new path would hit jellyfin-web's 404 page. Without Lumen (switched
     // off, DetailsTakeover off, or a failed compatibility check) the link shows stock home: see PIGGY_BACKED_PARAMS.

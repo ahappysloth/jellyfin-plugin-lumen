@@ -11,7 +11,7 @@ import { AudioSubtitlesPanel, QualityPanel, qualityLabel } from './PlayerPanels'
 import { ProgressBar } from './ProgressBar';
 import { SkipIcon } from './SkipIcon';
 import { setUserData, useUserData } from '../userDataStore';
-import { WatchTogetherButton } from '../syncplay/WatchTogether';
+import { clearStarting, useStarting } from '../../playback/starting';
 import {
   endsAt,
   LoadingScreen,
@@ -148,11 +148,18 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   const preview = useTrickplay(ctx.api, ctx.client, snap?.item?.Id, snap?.mediaSourceId);
   const switching = useStreamSwitch();
   const progress = usePlaybackProgress();
+  const starting = useStarting();
+  // The loading screen that began at the Play click ends with the first frame (or when the player closes).
+  useEffect(() => {
+    if (progress.started) clearStarting();
+  }, [progress.started]);
+  useEffect(() => clearStarting, []);
   const [info, setInfo] = useState(false);
   const castAvailable = useCastAvailable(pm.current, itemId);
 
   // Until the first frame: the title's backdrop and a spinner, not a black screen.
-  if (!snap || !pm.current) return pm.current ? <LoadingScreen ctx={ctx} snap={null} /> : null;
+  if (!snap || !pm.current)
+    return pm.current ? <LoadingScreen ctx={ctx} snap={null} starting={starting} /> : null;
   const manager = pm.current;
   const player: Player = snap.player;
   const shown = visible || snap.paused || panel !== null;
@@ -181,7 +188,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
         }
       }}
     >
-      {!progress.started && <LoadingScreen ctx={ctx} snap={snap} />}
+      {!progress.started && <LoadingScreen ctx={ctx} snap={snap} starting={starting} />}
       {progress.started && progress.buffering && !switching.state?.shown && (
         <div class="lmn-player-buffering" role="status" aria-label={strings.player.buffering}>
           <span class="lmn-spinner" aria-hidden="true" />
@@ -223,12 +230,6 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
           )}
         </div>
         <div class="lmn-player__pills">
-          <WatchTogetherButton
-            ctx={ctx}
-            state={syncPlay}
-            class="lmn-player__pill lmn-player__pill--icon"
-            size={20}
-          />
           <button
             type="button"
             class={`lmn-player__pill${panel === 'quality' ? ' is-open' : ''}`}
@@ -267,6 +268,8 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
           )}
           {panel === 'settings' && (
             <SettingsPanel
+              ctx={ctx}
+              syncPlay={syncPlay}
               manager={manager}
               snap={snap}
               isEpisode={isEpisode}

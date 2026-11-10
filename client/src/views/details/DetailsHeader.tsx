@@ -19,6 +19,8 @@ export interface PrimaryAction {
   onClick: () => void;
   /** Playback is starting: the button shows a spinner and "Starting…" and ignores clicks. */
   busy?: boolean;
+  /** With progress to resume: play from the beginning instead (a "Start over" button beside Resume). */
+  restart?: () => void;
 }
 
 interface Props {
@@ -158,6 +160,18 @@ export function DetailsHeader(props: Props) {
               {primary.progress && !primary.busy ? <ProgressBar percent={primary.progress} /> : null}
             </button>
           )}
+          {primary?.restart && (
+            <button
+              type="button"
+              class="lmn-button lmn-button--secondary"
+              aria-label={strings.startOver}
+              disabled={primary.busy}
+              onClick={primary.restart}
+            >
+              <Icon name="replay" />
+              <span class="lmn-button__label">{strings.startOver}</span>
+            </button>
+          )}
           {props.onTrailer && (
             <button
               type="button"
@@ -186,11 +200,11 @@ export function DetailsHeader(props: Props) {
             type="button"
             class="lmn-button lmn-button--secondary"
             aria-pressed={props.played}
-            aria-label={strings.markWatched}
+            aria-label={strings.watched}
             onClick={props.toggleWatched}
           >
             <Icon name={props.played ? 'check' : 'eye'} />
-            <span class="lmn-button__label">{strings.watched}</span>
+            <span class="lmn-button__label">{props.played ? strings.watched : strings.markWatchedShort}</span>
           </button>
         </div>
         {props.error && (
