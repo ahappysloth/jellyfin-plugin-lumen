@@ -1,4 +1,6 @@
 version: 2
+# One grouped PR per ecosystem and week (minor and patch updates together); major versions still get their own PR,
+# since they're the ones that need a look.
 updates:
   - package-ecosystem: nuget
     directory: /
@@ -6,12 +8,29 @@ updates:
     ignore:
       # Jellyfin packages are bumped deliberately together with targetAbi.
       - dependency-name: 'Jellyfin.*'
+    groups:
+      nuget:
+        update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /client
     schedule: { interval: weekly }
+    ignore:
+      # Preact 11.2 passes an options object to document.createElementNS for every element; jellyfin-web's custom
+      # elements polyfill calls toLowerCase() on it and Lumen fails to render anything. Stay on 11.1 until that changes.
+      - dependency-name: 'preact'
+        versions: ['>=11.2.0']
+    groups:
+      client:
+        update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /e2e
     schedule: { interval: weekly }
+    groups:
+      e2e:
+        update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
+    groups:
+      actions:
+        patterns: ['*']
