@@ -39,6 +39,10 @@ jobs:
           for attempt in $(seq 1 60); do
             runs="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$SHA" --event push --json status,conclusion)"
             if jq -e 'any(.[]; .conclusion == "success")' <<<"$runs" >/dev/null; then echo "CI passed on $SHA"; exit 0; fi
+            # A tag pushed right after the merge can beat CI's run onto the commit: give it a few minutes to appear.
+            if [ "$attempt" -le 10 ] && jq -e 'length == 0' <<<"$runs" >/dev/null; then
+              echo "No CI run on $SHA yet; waiting ($attempt/10)"; sleep 30; continue
+            fi
             if ! jq -e 'any(.[]; .status != "completed")' <<<"$runs" >/dev/null; then
               echo "No successful CI run on $SHA (runs: $runs). Push the commit to main and let CI pass, then re-run this job."
               exit 1
