@@ -119,6 +119,17 @@ export function isBackKey(e: KeyboardEvent, userAgent: string = navigator.userAg
   return e.key === 'Backspace' && isHisenseVidaaTv(userAgent) && !isTextField(e.target);
 }
 
+/**
+ * A Back that jellyfin-web goes back on in every layout: a TV remote's Back (webOS 461, Tizen 10009, Hisense VIDAA's
+ * Backspace). Escape and a gamepad's B (keyCodes 27 and 196, both "Escape" to jellyfin-web) go back only in the TV
+ * layout (scripts/keyboardNavigation.js).
+ */
+export function isRemoteBack(e: KeyboardEvent, userAgent: string = navigator.userAgent): boolean {
+  // jellyfin-web reads the keyCode first.
+  if (e.keyCode === 461 || e.keyCode === 10009) return true;
+  return e.key === 'Backspace' && isBackKey(e, userAgent);
+}
+
 /** Height of the visible fixed app bar (Modern) or header (Legacy), in CSS pixels. */
 export function getAppBarHeight(doc: Document = document): number {
   for (const selector of [SELECTORS.modernAppBar, SELECTORS.legacyHeader]) {
