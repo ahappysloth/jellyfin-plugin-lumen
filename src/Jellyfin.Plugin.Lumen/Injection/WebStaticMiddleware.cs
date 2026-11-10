@@ -85,7 +85,7 @@ public sealed class WebStaticMiddleware
         var representation = asset.Select(acceptEncoding, _logger);
         var headers = response.Headers;
         headers.Remove(HeaderNames.AcceptRanges);
-        if (_files.CacheControlFor(file, ready.HashMatches) is { } cacheControl)
+        if (WebStaticFiles.CacheControlFor(file, ready.HashMatches) is { } cacheControl)
         {
             headers.CacheControl = cacheControl;
         }

@@ -114,13 +114,18 @@ public sealed class WebStaticFilesTests : IDisposable
     }
 
     [Fact]
-    public void AContentHashedFileIndexHtmlLoadsByTheBuildHash_IsABundle()
+    public void AContentHashedFileIndexHtmlLoadsByTheBuildHash_GetsTheWeek_WhenItsHashChecksOut()
     {
         const string Css = "main.jellyfin.d0fe7ebed50c35511f89.css";
         Write(Css, "body{}");
         Write("index.html", $"<link href=\"{Css}?{Hash}\" rel=\"stylesheet\">");
 
-        Assert.Equal(WebFileKind.IndexBundle, Files().Find(Request("/web/" + Css, "?" + Hash))!.Kind);
+        var found = Files().Find(Request("/web/" + Css, "?" + Hash))!;
+
+        Assert.Equal(WebFileKind.ContentHashed, found.Kind);
+        Assert.True(found.LoadedByIndex);
+        Assert.Equal(WebStaticFiles.WeekCacheControl, WebStaticFiles.CacheControlFor(found, hashMatches: true));
+        Assert.Equal(WebStaticFiles.NoCacheControl, WebStaticFiles.CacheControlFor(found, hashMatches: false));
     }
 
     [Theory]
@@ -428,21 +433,22 @@ public sealed class WebStaticFilesTests : IDisposable
         var chunk = files.Find(Request("/web" + Chunk, null))!;
         var bundle = files.Find(Request("/web/main.jellyfin.bundle.js", "?" + Hash))!;
 
-        Assert.Equal(WebStaticFiles.WeekCacheControl, files.CacheControlFor(chunk, hashMatches: true));
-        Assert.Null(files.CacheControlFor(chunk, hashMatches: false));
-        Assert.Equal(WebStaticFiles.NoCacheControl, files.CacheControlFor(bundle, hashMatches: true));
-        Assert.Equal(WebStaticFiles.NoCacheControl, files.CacheControlFor(bundle, hashMatches: false));
+        Assert.Equal(WebStaticFiles.WeekCacheControl, WebStaticFiles.CacheControlFor(chunk, hashMatches: true));
+        Assert.Null(WebStaticFiles.CacheControlFor(chunk, hashMatches: false));
+        Assert.Equal(WebStaticFiles.NoCacheControl, WebStaticFiles.CacheControlFor(bundle, hashMatches: true));
+        Assert.Equal(WebStaticFiles.NoCacheControl, WebStaticFiles.CacheControlFor(bundle, hashMatches: false));
     }
 
     [Fact]
-    public void WithFileTransformationLoaded_NothingGetsALifetime()
+    public async Task WithFileTransformationLoaded_NothingIsFound_OrPrepared()
     {
         var files = Files(fileTransformation: Watch(loaded: true));
-        var chunk = files.Find(Request("/web" + Chunk, null))!;
-        var bundle = files.Find(Request("/web/main.jellyfin.bundle.js", "?" + Hash))!;
 
-        Assert.Null(files.CacheControlFor(chunk, hashMatches: true));
-        Assert.Equal(WebStaticFiles.NoCacheControl, files.CacheControlFor(bundle, hashMatches: true));
+        Assert.Null(files.Find(Request("/web" + Chunk, null)));
+        Assert.Null(files.Find(Request("/web/main.jellyfin.bundle.js", "?" + Hash)));
+        await files.StartWarmup(() => true);
+        await files.WhenIdleAsync();
+        Assert.Equal(0, files.SizeBytes);
     }
 
     [Fact]
@@ -457,7 +463,7 @@ public sealed class WebStaticFilesTests : IDisposable
         using var files = new WebStaticFiles(configuration, appConfiguration, TimeProvider.System, NullLogger<WebStaticFiles>.Instance);
 
         // No File Transformation in the test run: the real lookup finds none.
-        Assert.Equal(WebStaticFiles.WeekCacheControl, files.CacheControlFor(files.Find(Request("/web" + Chunk, null))!, hashMatches: true));
+        Assert.NotNull(files.Find(Request("/web" + Chunk, null)));
     }
 
     private static async Task Ready(WebStaticFiles files, WebFile file, bool expectReady = true)

@@ -28,10 +28,12 @@ namespace Jellyfin.Plugin.Lumen.Injection;
 /// <item>A file named with webpack's content hash (<c>12345.0123456789abcdef0123.chunk.js</c>, fonts, CSS). When the hash checks
 /// out against the bytes (<see cref="HashMatchesContent"/>) they may be kept for <see cref="WeekCacheControl"/>, not for
 /// good: a plugin that patches jellyfin-web in Jellyfin's pipeline (File Transformation and the plugins built on it) can be
-/// installed or start patching later, and must reach browsers within a week. While File Transformation is loaded, nothing
-/// gets a lifetime. A file whose hash doesn't check out (patched on disk) keeps Jellyfin's caching.</item>
+/// installed or start patching later, and must reach browsers within a week. A file whose hash doesn't check out (patched
+/// on disk) keeps Jellyfin's caching, or gets no-cache if index.html loads it. A file whose hash does check out gets the
+/// week even if index.html loads it by the build hash too.</item>
 /// </list>
-/// serviceworker.js, index.html, config.json, themes, assets and *.LICENSE.txt are left to Jellyfin.
+/// serviceworker.js, index.html, config.json, themes, assets and *.LICENSE.txt are left to Jellyfin, and so is every
+/// request while File Transformation is loaded.
 /// </para>
 /// <para>
 /// The copies are made in the background, one file at a time, the first time a file is asked for (and, from
@@ -148,14 +150,14 @@ public sealed partial class WebStaticFiles : IDisposable
     {
         try
         {
-            if (_files is null || !enabled())
+            if (_files is null || _fileTransformation.IsLoaded || !enabled())
             {
                 return;
             }
 
             foreach (var path in IndexReferences().Keys)
             {
-                if (Stat(path, WebFileKind.IndexBundle) is { } file)
+                if (Classify(path, loadedByIndex: true) is { } file)
                 {
                     _ = TryGetReady(file);
                 }
@@ -256,6 +258,16 @@ public sealed partial class WebStaticFiles : IDisposable
     }
 
     /// <summary>
+    /// The Cache-Control to send with <paramref name="file"/>, or null to keep Jellyfin's (none): a week when its name hash
+    /// checked out against its bytes (<paramref name="hashMatches"/>), even if index.html loads it by the build hash too
+    /// (<c>main.jellyfin.&lt;hash&gt;.css?&lt;hash&gt;</c>); else no-cache when index.html loads it.
+    /// </summary>
+    internal static string? CacheControlFor(WebFile file, bool hashMatches) =>
+        file.Kind == WebFileKind.ContentHashed && hashMatches ? WeekCacheControl
+        : file.LoadedByIndex ? NoCacheControl
+        : null;
+
+    /// <summary>
     /// The file a request is for, when Lumen serves it (see the class remarks), else null. Requests with Range or a
     /// precondition other than If-None-Match / If-Modified-Since are left to Jellyfin. The query doesn't matter: a file
     /// index.html loads by a build hash is always revalidated, and a content-hashed name can't change its bytes.
@@ -278,24 +290,15 @@ public sealed partial class WebStaticFiles : IDisposable
             return null;
         }
 
-        if (IndexReferences().ContainsKey(subPath))
+        // File Transformation patches files in Jellyfin's pipeline, and around Lumen's it strips Accept-Encoding and passes a
+        // 304 on: a 304 from Lumen would leave the client with the file unpatched. So Lumen stays out of the way entirely.
+        if (_fileTransformation.IsLoaded)
         {
-            return Stat(subPath, WebFileKind.IndexBundle);
+            return null;
         }
 
-        return IsContentHashedName(subPath[(subPath.LastIndexOf('/') + 1)..]) ? Stat(subPath, WebFileKind.ContentHashed) : null;
+        return Classify(subPath, IndexReferences().ContainsKey(subPath));
     }
-
-    /// <summary>
-    /// The Cache-Control to send with <paramref name="file"/>, or null to keep Jellyfin's (none): see the class remarks.
-    /// <paramref name="hashMatches"/>: the file's name hash checked out against its bytes.
-    /// </summary>
-    internal string? CacheControlFor(WebFile file, bool hashMatches) => file.Kind switch
-    {
-        WebFileKind.IndexBundle => NoCacheControl,
-        WebFileKind.ContentHashed when hashMatches && !_fileTransformation.IsLoaded => WeekCacheControl,
-        _ => null,
-    };
 
     /// <summary>
     /// The file's content and copies when they're ready and the file hasn't changed since, else null (and they're queued to
@@ -425,7 +428,14 @@ public sealed partial class WebStaticFiles : IDisposable
         return parsed.References;
     }
 
-    private WebFile? Stat(string subPath, WebFileKind kind)
+    /// <summary>The file at <paramref name="subPath"/>, if Lumen serves it: content-hashed by name, or loaded by index.html.</summary>
+    private WebFile? Classify(string subPath, bool loadedByIndex)
+    {
+        var hashed = IsContentHashedName(subPath[(subPath.LastIndexOf('/') + 1)..]);
+        return hashed || loadedByIndex ? Stat(subPath, hashed ? WebFileKind.ContentHashed : WebFileKind.IndexBundle, loadedByIndex) : null;
+    }
+
+    private WebFile? Stat(string subPath, WebFileKind kind, bool loadedByIndex)
     {
         var info = _files!.GetFileInfo(subPath);
         if (!info.Exists || info.IsDirectory || info.PhysicalPath is null || info.Length > MaxFileBytes
@@ -434,7 +444,7 @@ public sealed partial class WebStaticFiles : IDisposable
             return null;
         }
 
-        return new WebFile(subPath, info.PhysicalPath, contentType, new Stamp(info.Length, info.LastModified), kind);
+        return new WebFile(subPath, info.PhysicalPath, contentType, new Stamp(info.Length, info.LastModified), kind, loadedByIndex);
     }
 
     private void Enqueue(WebFile file)
@@ -480,7 +490,7 @@ public sealed partial class WebStaticFiles : IDisposable
         AfterRead?.Invoke(file);
 
         // Changed while it was read (an upgrade): the next request queues the new file.
-        if (content.Length != file.Stamp.Length || Stat(file.SubPath, file.Kind) is not { } now || now.Stamp != file.Stamp)
+        if (content.Length != file.Stamp.Length || Stat(file.SubPath, file.Kind, file.LoadedByIndex) is not { } now || now.Stamp != file.Stamp)
         {
             return;
         }
