@@ -70,9 +70,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           git checkout "$GITHUB_REF_NAME"
-          built="$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props)"
+          # Version, AssemblyVersion and FileVersion must all be the tag's (the old build forced all three).
+          built="$(grep -oP '(?<=<(Version|AssemblyVersion|FileVersion)>)[^<]+' Directory.Build.props | sort -u | paste -sd ' ')"
           if [ "$built" != "${{ steps.v.outputs.jellyfin }}" ]; then
-            echo "Directory.Build.props is at $built, the tag at ${{ steps.v.outputs.jellyfin }}: building instead"
+            echo "Directory.Build.props has $built, the tag ${{ steps.v.outputs.jellyfin }}: building instead"
           elif gh run download "${{ steps.ci.outputs.run }}" --repo "$GITHUB_REPOSITORY" --name plugin --dir artifacts/plugin; then
             echo "Using the plugin from CI run ${{ steps.ci.outputs.run }}"
             echo "reused=true" >> "$GITHUB_OUTPUT"

@@ -79,7 +79,6 @@ jobs:
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
-          restore-keys: nuget-${{ runner.os }}-
       - uses: actions/download-artifact@v8
         with:
           name: client-dist

@@ -26,11 +26,14 @@ jobs:
           name: plugin
           path: plugin
       # The fixtures only change with the script that makes them: a hit skips installing ffmpeg and encoding (~30 s).
+      # The runner image too: it brings ffmpeg and the fonts the artwork is drawn with.
+      - id: image
+        run: echo "version=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
       - id: media
         uses: actions/cache@v6
         with:
           path: media
-          key: e2e-media-${{ runner.os }}-${{ hashFiles('scripts/gen-test-media.sh', 'scripts/env.sh') }}
+          key: e2e-media-${{ steps.image.outputs.version }}-${{ hashFiles('scripts/gen-test-media.sh', 'scripts/env.sh') }}
       - name: Generate fixture media
         if: steps.media.outputs.cache-hit != 'true'
         run: |
