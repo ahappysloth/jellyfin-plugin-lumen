@@ -39,8 +39,11 @@ const REQUIRED = ['lumen.js', GUARD, 'lumen-admin.js', 'lumen.css', 'lumen-dashb
 for (const file of REQUIRED) {
   if (!existsSync(`dist/${file}`)) failures.push(`dist/${file} is missing: run \`npm run build\` first`);
 }
-if (!readdirSync('dist').some((f) => f.startsWith('lumen-chunk-') && f.endsWith('.js'))) {
-  failures.push('no lumen-chunk-*.js in dist: run `npm run build` first');
+// The content-named chunks: the core, the player and the trailer preview (vite.config.ts).
+for (const chunk of ['main', 'PlayerView', 'TrailerPreview']) {
+  if (!readdirSync('dist').some((f) => f.startsWith(`lumen-chunk-${chunk}-`) && f.endsWith('.js'))) {
+    failures.push(`no lumen-chunk-${chunk}-*.js in dist: run \`npm run build\` first`);
+  }
 }
 const files = readdirSync('dist').filter((f) => f.endsWith('.js'));
 for (const file of files) {

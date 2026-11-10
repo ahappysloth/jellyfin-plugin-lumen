@@ -1,8 +1,9 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/preact';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient } from '../../../test/fakeClient';
 import type { ClientConfig, HeroItem } from '../../api/types';
 import { Hero } from './Hero';
+import { loadTrailer } from './lazyTrailer';
 
 const config: ClientConfig = {
   Enabled: true,
@@ -34,6 +35,9 @@ const items: HeroItem[] = [
 ];
 
 describe('Hero', () => {
+  // The trailer preview's code is in from the start here: these tests are about when the hero shows one
+  // (lazyTrailer.test is about the wait for the code).
+  beforeAll(() => loadTrailer());
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => {
     // Unmount under fake timers so no Preact effect flush lands after jsdom is torn down (see TrailerPreview.test).

@@ -7,7 +7,7 @@ import { Icon } from '../../components/icons';
 import { backdropUrl, imageUrl, resolveImage, TITLE_LOGO } from '../../components/images';
 import { usePrefersReducedMotion } from '../../components/usePrefersReducedMotion';
 import { strings } from '../../strings';
-import { TrailerPreview } from './TrailerPreview';
+import { LazyTrailer } from './lazyTrailer';
 
 interface Props {
   items: HeroItem[];
@@ -213,7 +213,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
             >
               {/* Pause stops the trailer too: no moving picture the user can't stop (WCAG 2.2.2). */}
               {rel === 0 && trailerId && sliding === 0 && !dragging && !stopped && (
-                <TrailerPreview
+                <LazyTrailer
                   key={trailerId}
                   trailerId={trailerId}
                   delaySeconds={config.TrailerDelaySeconds}
