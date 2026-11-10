@@ -136,26 +136,41 @@
 .lmn-hero__pager {
   display: flex;
   align-items: center;
-  gap: 6px;
+}
+/* Each dash is a 24px-high button, 10px wider than the bar it draws (::before): a target big enough to hit
+   (WCAG 2.5.8), with the bars 10px apart. */
+.lmn-hero__dash {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transition: width 0.35s var(--lmn-ease);
+}
+.lmn-hero__dash::before {
+  content: '';
+  position: absolute;
+  top: 11px;
+  right: 5px;
+  left: 5px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--lmn-text-faint);
+  transition: background-color 0.35s;
 }
 .lmn-hero__dash:focus-visible {
+  outline: none;
+}
+.lmn-hero__dash:focus-visible::before {
   outline: 2px solid var(--lmn-focus);
   outline-offset: 3px;
 }
-.lmn-hero__dash {
-  width: 14px;
-  height: 3px;
-  padding: 0;
-  border: 0;
-  border-radius: 2px;
-  background: var(--lmn-text-faint);
-  cursor: pointer;
-  transition:
-    width 0.35s var(--lmn-ease),
-    background-color 0.35s;
-}
 .lmn-hero__dash.is-active {
-  width: 28px;
+  width: 38px;
+}
+.lmn-hero__dash.is-active::before {
   background: #fff;
 }
 
@@ -183,7 +198,8 @@
   .lmn-hero__backdrop,
   .lmn-hero__video,
   .lmn-hero__content,
-  .lmn-hero__dash {
+  .lmn-hero__dash,
+  .lmn-hero__dash::before {
     transition: none;
     animation: none;
   }

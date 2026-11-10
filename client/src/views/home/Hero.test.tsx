@@ -67,13 +67,23 @@ describe('Hero', () => {
     expect(heading).toContainElement(screen.getByRole('img', { name: 'Alpha' }));
   });
 
+  it('names its toggle after the slideshow either way', () => {
+    render(
+      <Hero items={items} client={createFakeClient()} config={config} onPlay={vi.fn()} onInfo={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pause slideshow' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Play slideshow' }));
+    expect(screen.getByRole('button', { name: 'Pause slideshow' })).toBeInTheDocument();
+  });
+
   it('stops the trailer while the slideshow is paused (WCAG 2.2.2)', () => {
     const { container } = render(
       <Hero items={items} client={createFakeClient()} config={config} onPlay={vi.fn()} onInfo={vi.fn()} />,
     );
     expect(container.querySelector('.lmn-hero__trailer')).not.toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: /^Pause/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pause slideshow' }));
     expect(container.querySelector('.lmn-hero__trailer')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Play slideshow' }));
