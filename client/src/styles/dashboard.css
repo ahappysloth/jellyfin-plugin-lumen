@@ -249,17 +249,21 @@ html.lmn-skin-dashboard .MuiButton-outlined:not(.MuiButton-colorError, .Mui-disa
 html.lmn-skin-dashboard .MuiButton-textPrimary:not(.Mui-disabled) {
   color: var(--lmn-text);
 }
-/* Destructive actions (Restart, Shutdown, Delete, Uninstall) are outlined, so they never look like the accent. */
+/*
+ * Destructive actions (Restart, Shutdown, Delete, Uninstall): Lumen's red, outlined, so they read as the same family as
+ * the filled primary buttons without looking like one. Hover fills them.
+ */
 html.lmn-skin-dashboard
   .MuiButton-colorError:is(.MuiButton-contained, .MuiButton-outlined):not(.Mui-disabled) {
-  border: 1px solid color-mix(in srgb, var(--jf-palette-error-main) 55%, transparent);
+  border: 1px solid var(--lmn-accent);
   background-color: transparent;
-  color: var(--jf-palette-error-light);
+  color: var(--lmn-accent);
 }
 html.lmn-skin-dashboard
   .MuiButton-colorError:is(.MuiButton-contained, .MuiButton-outlined):not(.Mui-disabled):hover {
-  border-color: var(--jf-palette-error-main);
-  background-color: color-mix(in srgb, var(--jf-palette-error-main) 14%, transparent);
+  border-color: var(--lmn-accent);
+  background-color: var(--lmn-accent);
+  color: #fff;
 }
 html.lmn-skin-dashboard .MuiIconButton-root:hover {
   background-color: var(--lmn-fill-2);
@@ -516,9 +520,13 @@ html.lmn-skin-dashboard .listItem-border {
   border-color: var(--lmn-line) !important;
 }
 html.lmn-skin-dashboard .emby-button.raised.button-delete {
-  border: 1px solid color-mix(in srgb, var(--jf-palette-error-main) 55%, transparent);
+  border: 1px solid var(--lmn-accent);
   background: transparent !important;
-  color: var(--jf-palette-error-light) !important;
+  color: var(--lmn-accent) !important;
+}
+html.lmn-skin-dashboard .emby-button.raised.button-delete:hover {
+  background: var(--lmn-accent) !important;
+  color: #fff !important;
 }
 html.lmn-skin-dashboard .emby-tab-button-active {
   color: #fff;

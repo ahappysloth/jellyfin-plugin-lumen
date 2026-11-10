@@ -22,9 +22,10 @@ test('the Dashboard wears Lumen’s look, and only on admin pages', async ({ pag
   await expect(html).toHaveClass(/\blmn-skin-dashboard\b/);
   const restart = page.locator('.MuiButton-containedError').first();
   await expect(restart).toBeVisible();
-  // Lumen's background on the drawer; destructive buttons outlined rather than filled.
+  // Lumen's background on the drawer; destructive buttons outlined in Lumen's red rather than filled.
   await expect(page.locator('.MuiDrawer-paper').first()).toHaveCSS('background-color', 'rgb(15, 15, 15)');
   await expect(restart).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(restart).toHaveCSS('border-top-color', 'rgb(227, 11, 23)'); // Lumen's red, like the primary buttons
   // The Scan button carries the accent.
   await expect(page.locator('.MuiButton-containedPrimary').first()).toHaveCSS('background-color', 'rgb(227, 11, 23)');
 
