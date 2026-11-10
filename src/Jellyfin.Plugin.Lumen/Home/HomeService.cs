@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.Lumen.Api;
 using Jellyfin.Plugin.Lumen.Configuration;
@@ -25,7 +26,7 @@ public sealed record HeroItem(BaseItem Item, Guid? TrailerItemId);
 /// <summary>
 /// Runs the enabled section providers in parallel, each with its own timeout and exception boundary, and assembles the
 /// response in configured order, then adds card badges (also guarded; a failure leaves them empty). Results are cached
-/// per user in <see cref="HomeCache"/>.
+/// per user in <see cref="HomeCache"/>, and requests for a user's home that arrive while it is being built share that build.
 /// <para>
 /// Providers make synchronous library queries that can't be interrupted, so a provider that times out is cancelled (it
 /// checks its token between queries) but may run on for a while. At most <see cref="MaxConcurrentWork"/> pieces of
@@ -49,6 +50,7 @@ public sealed class HomeService : IHomeService
     private readonly HomeCache _cache;
     private readonly TimeProvider _time;
     private readonly ILogger<HomeService> _logger;
+    private readonly ConcurrentDictionary<(Guid UserId, int ConfigVersion), Lazy<Task<HomeResponseDto>>> _building = new();
 
     public HomeService(
         IEnumerable<IHomeSectionProvider> providers,
@@ -86,11 +88,29 @@ public sealed class HomeService : IHomeService
             return cached;
         }
 
-        var stamp = _cache.Stamp(user.Id);
-        var build = new BuildState();
-        var response = await BuildAsync(user, config, build, cancellationToken);
-        _cache.Set(user.Id, config.ConfigVersion, stamp, response, build.Degraded);
-        return response;
+        // One build per user at a time: a second request (another tab, a reload) waits for the first one's result. The
+        // build runs on its own, bounded by the provider timeouts, so a caller that gives up doesn't fail the others.
+        var build = _building.GetOrAdd(
+            (user.Id, config.ConfigVersion),
+            key => new Lazy<Task<HomeResponseDto>>(() => BuildAndCacheAsync(user, config, key)));
+        return await build.Value.WaitAsync(cancellationToken);
+    }
+
+    private async Task<HomeResponseDto> BuildAndCacheAsync(User user, PluginConfiguration config, (Guid UserId, int ConfigVersion) key)
+    {
+        try
+        {
+            var stamp = _cache.Stamp(user.Id);
+            var build = new BuildState();
+            var response = await BuildAsync(user, config, build, CancellationToken.None);
+            _cache.Set(user.Id, config.ConfigVersion, stamp, response, build.Degraded);
+            return response;
+        }
+        finally
+        {
+            // The key holds this build until now, so this removes this build and never a later one.
+            _building.TryRemove(key, out _);
+        }
     }
 
     private async Task<HomeResponseDto> BuildAsync(User user, PluginConfiguration config, BuildState build, CancellationToken cancellationToken)

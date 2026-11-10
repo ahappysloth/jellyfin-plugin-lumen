@@ -32,6 +32,12 @@ public sealed class BadgeService : IBadgeService
 {
     public static readonly TimeSpan Window = TimeSpan.FromDays(7);
 
+    /// <summary>
+    /// How many of the window's newest episodes one query reads for all the series at once. A series whose newest
+    /// episode falls outside them (a bulk import) is looked up on its own.
+    /// </summary>
+    internal const int EpisodeScanLimit = 500;
+
     private readonly ILibraryManager _libraryManager;
 
     public BadgeService(ILibraryManager libraryManager)
@@ -43,45 +49,78 @@ public sealed class BadgeService : IBadgeService
     {
         var cutoff = context.Now.UtcDateTime - Window;
         var badges = new Dictionary<string, string>(StringComparer.Ordinal);
+        var updatedSeries = new List<Series>();
         foreach (var item in items.DistinctBy(i => i.Id))
         {
-            if (Badge(context, item, cutoff) is { } badge)
+            if (item is Series { DateLastMediaAdded: { } added } series && series.DateCreated < cutoff && added >= cutoff)
             {
-                badges[item.Id.ToString("N", CultureInfo.InvariantCulture)] = badge;
+                updatedSeries.Add(series);
+            }
+            else if (Badge(item, cutoff) is { } badge)
+            {
+                badges[Key(item)] = badge;
+            }
+        }
+
+        if (updatedSeries.Count > 0)
+        {
+            var newest = NewestEpisodes(context, updatedSeries, cutoff);
+            foreach (var series in updatedSeries)
+            {
+                // No episode the user can see in the window: the new media is not theirs to be told about.
+                if (newest.TryGetValue(series.Id, out var episode))
+                {
+                    badges[Key(series)] = episode.IndexNumber == 1 && episode.ParentIndexNumber > 1 ? CardBadges.NewSeason : CardBadges.NewEpisode;
+                }
             }
         }
 
         return badges;
     }
 
-    private string? Badge(HomeContext context, BaseItem item, DateTime cutoff) => item switch
+    private static string Key(BaseItem item) => item.Id.ToString("N", CultureInfo.InvariantCulture);
+
+    private static string? Badge(BaseItem item, DateTime cutoff) => item switch
     {
-        Movie or Episode => item.DateCreated >= cutoff ? CardBadges.RecentlyAdded : null,
-        Series series when series.DateCreated >= cutoff => CardBadges.RecentlyAdded,
-        Series series when series.DateLastMediaAdded >= cutoff => SeriesBadge(context, series),
+        Movie or Episode or Series => item.DateCreated >= cutoff ? CardBadges.RecentlyAdded : null,
         _ => null,
     };
 
-    private string? SeriesBadge(HomeContext context, Series series)
+    /// <summary>Each series' newest episode added within the window that the user can see, in one query where it can.</summary>
+    private Dictionary<Guid, Episode> NewestEpisodes(HomeContext context, IReadOnlyList<Series> series, DateTime cutoff)
     {
-        var episodes = _libraryManager.GetItemList(new InternalItemsQuery(context.User)
+        var episodes = Episodes(context, series.Select(s => s.Id).ToArray(), cutoff, EpisodeScanLimit);
+        var newest = new Dictionary<Guid, Episode>();
+        foreach (var episode in episodes.OfType<Episode>())
         {
-            IncludeItemTypes = [BaseItemKind.Episode],
-            AncestorIds = [series.Id],
-            Recursive = true,
-            IsVirtualItem = false,
-            OrderBy = [(ItemSortBy.DateCreated, SortOrder.Descending)],
-            Limit = 1,
-            DtoOptions = QueryOptions.Full(),
-        });
-
-        // No episode the user can see: the new media is not theirs to be told about.
-        if (episodes.Count == 0)
-        {
-            return null;
+            // Newest first, so the first one seen for a series is its newest.
+            newest.TryAdd(episode.SeriesId, episode);
         }
 
-        var newest = episodes[0];
-        return newest.IndexNumber == 1 && newest.ParentIndexNumber > 1 ? CardBadges.NewSeason : CardBadges.NewEpisode;
+        if (episodes.Count >= EpisodeScanLimit)
+        {
+            foreach (var missing in series.Where(s => !newest.ContainsKey(s.Id)))
+            {
+                if (Episodes(context, [missing.Id], cutoff, 1).OfType<Episode>().FirstOrDefault() is { } episode)
+                {
+                    newest[missing.Id] = episode;
+                }
+            }
+        }
+
+        return newest;
     }
+
+    private IReadOnlyList<BaseItem> Episodes(HomeContext context, Guid[] seriesIds, DateTime cutoff, int limit) =>
+        _libraryManager.GetItemList(new InternalItemsQuery(context.User)
+        {
+            IncludeItemTypes = [BaseItemKind.Episode],
+            AncestorIds = seriesIds,
+            Recursive = true,
+            IsVirtualItem = false,
+            MinDateCreated = cutoff,
+            OrderBy = [(ItemSortBy.DateCreated, SortOrder.Descending)],
+            Limit = limit,
+            DtoOptions = QueryOptions.Full(),
+        });
 }

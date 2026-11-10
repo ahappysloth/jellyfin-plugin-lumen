@@ -19,6 +19,22 @@ describe('LumenApi', () => {
     expect(client.requests[0]?.url).toBe('http://jf/Items/abc?userId=user1');
   });
 
+  it('has Jellyfin count a browse query only for its first page', async () => {
+    const client = createFakeClient(() => ({ Items: [] }));
+    const api = new LumenApi(client);
+    const query = {
+      includeItemTypes: 'Movie',
+      sortBy: 'SortName',
+      sortOrder: 'Ascending' as const,
+      limit: 60,
+    };
+    await api.getBrowseItems({ ...query, startIndex: 0 });
+    await api.getBrowseItems({ ...query, startIndex: 60 });
+    await api.getBrowseItems({ ...query, startIndex: 0, count: false });
+    const counted = client.requests.map((r) => new URL(r.url).searchParams.get('enableTotalRecordCount'));
+    expect(counted).toEqual(['true', 'false', 'false']);
+  });
+
   it('starts playback through the own session', async () => {
     const client = createFakeClient();
 

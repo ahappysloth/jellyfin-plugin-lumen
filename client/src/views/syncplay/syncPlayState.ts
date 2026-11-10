@@ -80,17 +80,18 @@ export function useSyncPlayState(
   const [state, setState] = useState<SyncPlayState>(NO_SYNCPLAY);
   useEffect(() => {
     let cancelled = false;
-    let user: UserInfo | undefined | null = null;
-    const tick = (): void => {
-      if (cancelled || user === null) return;
-      const next = readState(find(), user);
-      setState((prev) => (same(prev, next) ? prev : next));
-    };
-    void userOf(ctx).then((u) => {
-      user = u;
+    let timer: number | undefined;
+    void userOf(ctx).then((user) => {
+      if (cancelled) return;
+      // No SyncPlay for this user: nothing to look for or watch.
+      if (user?.Policy?.SyncPlayAccess === 'None') return;
+      const tick = (): void => {
+        const next = readState(find(), user);
+        setState((prev) => (same(prev, next) ? prev : next));
+      };
       tick();
+      timer = window.setInterval(tick, POLL_MS);
     });
-    const timer = window.setInterval(tick, POLL_MS);
     return () => {
       cancelled = true;
       window.clearInterval(timer);

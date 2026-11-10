@@ -1,11 +1,12 @@
 import { render, screen, within } from '@testing-library/preact';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { makeContext } from '../../../test/viewContext';
 import type { AjaxRequest } from '../../compat/jellyfin';
 import type { BaseItem } from '../../api/types';
 import { LibraryView } from './LibraryView';
 import { groupByAirDay } from './SuggestionsTabs';
+import { resetSessionCaches } from '../../util/sessionCaches';
 
 const LIB = '0123456789abcdef0123456789abcdef';
 const item = (Id: string, Type = 'Movie', extra: Partial<BaseItem> = {}): BaseItem => ({
@@ -18,6 +19,36 @@ const item = (Id: string, Type = 'Movie', extra: Partial<BaseItem> = {}): BaseIt
 const type = (r: AjaxRequest) => new URL(r.url).searchParams.get('includeItemTypes');
 
 describe('Suggestions tab', () => {
+  afterEach(resetSessionCaches);
+
+  it('shows the rows from the last visit at once while they refresh', async () => {
+    let answer: (rows: BaseItem[]) => void = () => undefined;
+    const client = createFakeClient(
+      routes({
+        [`Items/${LIB}`]: { Id: LIB, Name: 'Films', Type: 'CollectionFolder' },
+        'UserItems/Resume': { Items: [] },
+        'Items/Latest': [item('new1')],
+        'Movies/Recommendations': [],
+      }),
+    );
+    const first = render(
+      <LibraryView id={LIB} collection="movies" tab="suggestions" ctx={makeContext(client)} />,
+    );
+    expect(await screen.findByText('Latest movies')).toBeInTheDocument();
+    first.unmount();
+
+    client.respond = routes({
+      [`Items/${LIB}`]: { Id: LIB, Name: 'Films', Type: 'CollectionFolder' },
+      'UserItems/Resume': { Items: [] },
+      'Items/Latest': () => new Promise<BaseItem[]>((r) => (answer = r)),
+      'Movies/Recommendations': [],
+    });
+    render(<LibraryView id={LIB} collection="movies" tab="suggestions" ctx={makeContext(client)} />);
+    expect(await screen.findByText('Latest movies')).toBeInTheDocument();
+    answer([]);
+    expect(await screen.findByText(/No suggestions yet/)).toBeInTheDocument();
+  });
+
   it("shows Jellyfin's movie rows, recommendations titled by their reason, and hides empty rows", async () => {
     const client = createFakeClient(
       routes({

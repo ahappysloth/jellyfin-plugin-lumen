@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { HOME_HASH } from '../../compat/jellyfin';
 import type { BaseItem } from '../../api/types';
 import { playItem } from '../../playback/play';
-import { clearStarting, showStarting, startingFor } from '../../playback/starting';
+import { clearStarting, showStarting, startingFor, useStartingButton } from '../../playback/starting';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { showToast } from '../../components/Toast';
@@ -20,7 +20,8 @@ export function useItemActions(item: BaseItem, ctx: ViewContext) {
   const [error, setError] = useState<string | null>(null);
   // jellyfin-web can take seconds to open the player (its bitrate test runs on the first play of a page load) and
   // Lumen hides its spinner, so the page shows its own "Starting…" until the player is up or playback fails.
-  const [starting, setStarting] = useState(false);
+  const [busy, runStarting] = useStartingButton<true>();
+  const starting = busy !== null;
   const mounted = useRef(true);
   useEffect(
     () => () => {
@@ -34,14 +35,13 @@ export function useItemActions(item: BaseItem, ctx: ViewContext) {
   const play = (itemId: string, startTicks?: number): void => {
     if (starting) return;
     setError(null);
-    setStarting(true);
     showStarting(startingFor(ctx.client, item));
-    playItem(ctx.api, ctx.client, itemId, startTicks)
-      .catch(() => {
+    runStarting(true, () =>
+      playItem(ctx.api, ctx.client, itemId, startTicks).catch(() => {
         clearStarting();
         if (mounted.current) setError(strings.playbackFailed);
-      })
-      .finally(() => mounted.current && setStarting(false));
+      }),
+    );
   };
 
   return { played, favorite, error, starting, toggleWatched, toggleFavorite, play };

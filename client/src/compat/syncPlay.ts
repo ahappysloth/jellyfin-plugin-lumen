@@ -24,6 +24,11 @@ export interface SyncPlayManager {
 }
 
 let cached: SyncPlayManager | null = null;
+/**
+ * The modules whose code looks like SyncPlay's core, and how many modules there were when they were looked for.
+ * Reading every module's code is the expensive part, so it's only done again once more modules have loaded.
+ */
+let scanned: { count: number; ids: string[] } | null = null;
 
 const isManager = (value: unknown): value is SyncPlayManager =>
   !!value &&
@@ -47,10 +52,17 @@ export function findSyncPlay(win: Window = window): SyncPlayManager | null {
   try {
     const require = webpackRequire(win);
     if (!require?.m) return null;
-    const candidates = Object.keys(require.m).filter((id) => {
-      const source = String(require.m![id]);
-      return SYNCPLAY_CORE_KEYS.every((key) => source.includes(key)) && source.includes('GenericPlayer');
-    });
+    const ids = Object.keys(require.m);
+    if (scanned?.count !== ids.length) {
+      scanned = {
+        count: ids.length,
+        ids: ids.filter((id) => {
+          const source = String(require.m![id]);
+          return SYNCPLAY_CORE_KEYS.every((key) => source.includes(key)) && source.includes('GenericPlayer');
+        }),
+      };
+    }
+    const candidates = scanned.ids;
     if (require.c) {
       for (const id of candidates) {
         const found = managerIn(require.c[id]?.exports);
@@ -67,4 +79,5 @@ export function findSyncPlay(win: Window = window): SyncPlayManager | null {
 
 export function resetSyncPlayCache(): void {
   cached = null;
+  scanned = null;
 }

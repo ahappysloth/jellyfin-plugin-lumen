@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient } from '../../test/fakeClient';
 import type { BaseItem } from '../api/types';
-import { cardArt, imageUrl, resolveImage } from './images';
+import { backdropUrl, cardArt, imageUrl, resolveImage } from './images';
 
 const episode: BaseItem = {
   Id: 'ep',
@@ -57,5 +57,23 @@ describe('images', () => {
       cardArt({ Id: 'p', Name: 'p', Type: 'Movie', ImageTags: { Primary: 'p' } }, 'landscape').image?.type,
     ).toBe('Primary');
     expect(cardArt(movie, 'poster').image).toBeNull();
+  });
+});
+
+describe('backdropUrl', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const ref = { itemId: 'i', type: 'Backdrop' as const, tag: 't' };
+  const width = (url: string): number => Number(new URL(url, 'http://x').searchParams.get('fillWidth'));
+
+  it("doesn't ask a 3× phone for a desktop-sized image", () => {
+    vi.stubGlobal('innerWidth', 390);
+    vi.stubGlobal('devicePixelRatio', 3);
+    expect(width(backdropUrl(createFakeClient(), ref))).toBe(1280);
+  });
+
+  it('caps a wide sharp screen at 1920 CSS px, 2×', () => {
+    vi.stubGlobal('innerWidth', 2560);
+    vi.stubGlobal('devicePixelRatio', 2);
+    expect(width(backdropUrl(createFakeClient(), ref))).toBe(3840);
   });
 });

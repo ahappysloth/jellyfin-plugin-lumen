@@ -327,6 +327,35 @@ public sealed class HomeServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RequestsDuringABuild_ShareIt_AndACallerGivingUpDoesntCancelIt()
+    {
+        Add("Slow");
+        var release = new TaskCompletionSource();
+        var builds = 0;
+        var provider = new FakeSectionProvider("Slow")
+        {
+            TimeoutOverride = TimeSpan.FromSeconds(30),
+            Rows = async (_, d, _) =>
+            {
+                Interlocked.Increment(ref builds);
+                await release.Task;
+                return HomeRow.Single(d, "Slow", [TestData.Movie("s")]);
+            },
+        };
+        var service = new HomeService([provider], _store, _hero, _history, new FakeMapper(), _badges, _cache, TimeProvider.System, NullLogger<HomeService>.Instance);
+
+        using var leaving = new CancellationTokenSource();
+        var first = service.GetHomeAsync(_user, leaving.Token);
+        var second = service.GetHomeAsync(_user, CancellationToken.None);
+        await leaving.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+        release.SetResult();
+
+        Assert.Equal(["Slow"], (await second).Rows.Select(r => r.Type));
+        Assert.Equal(1, builds);
+    }
+
+    [Fact]
     public async Task ProviderTimeoutOverride_IsUsed()
     {
         Add("Patient");

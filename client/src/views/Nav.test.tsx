@@ -1,10 +1,31 @@
 import { render, screen, waitFor, within } from '@testing-library/preact';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { createFakeClient, routes } from '../../test/fakeClient';
 import { makeContext } from '../../test/viewContext';
 import { Nav } from './Nav';
+import { resetSessionCaches } from '../util/sessionCaches';
 
 describe('Nav', () => {
+  afterEach(resetSessionCaches);
+
+  it("doesn't fetch the libraries again when the next page shows the nav", async () => {
+    const client = createFakeClient(
+      routes({
+        UserViews: {
+          Items: [{ Id: 'lm', Name: 'Movies', Type: 'CollectionFolder', CollectionType: 'movies' }],
+        },
+      }),
+    );
+    const first = render(<Nav ctx={makeContext(client)} />);
+    await within(screen.getByRole('navigation', { name: 'Main' })).findByRole('link', { name: 'Movies' });
+    first.unmount();
+    render(<Nav ctx={makeContext(client)} />);
+    const main = screen.getByRole('navigation', { name: 'Main' });
+    expect(within(main).getByRole('link', { name: 'Movies' })).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(client.requests.filter((r) => r.url.includes('UserViews'))).toHaveLength(1);
+  });
+
   it('shows the server name and links to home, each library, search and settings', async () => {
     const client = createFakeClient(
       routes({

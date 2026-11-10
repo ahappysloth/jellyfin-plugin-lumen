@@ -50,6 +50,15 @@ describe('SeriesDetails', () => {
     expect(screen.getByText('1. Episode 1')).toBeInTheDocument();
   });
 
+  it('loads the first season once, for both Smart Play and the episode list', async () => {
+    const c = client();
+    render(<DetailsView id="sr" ctx={makeContext(c)} />);
+
+    await screen.findByText('1. Episode 1');
+    const seasonLoads = c.requests.filter((r) => r.url.includes('Shows/sr/Episodes'));
+    expect(seasonLoads).toHaveLength(1);
+  });
+
   it('resumes the in-progress episode and selects its season', async () => {
     const resume = [
       {

@@ -3,7 +3,7 @@ import { useState } from 'preact/hooks';
 import type { BaseItem, ClientConfig } from '../../api/types';
 import type { JellyfinApiClient } from '../../compat/jellyfin';
 import { Icon } from '../../components/icons';
-import { type ImageRef, imageUrl, resolveImage } from '../../components/images';
+import { backdropUrl, type ImageRef, imageUrl, resolveImage } from '../../components/images';
 import { ProgressBar } from '../../components/ProgressBar';
 import { usePrefersReducedMotion } from '../../components/usePrefersReducedMotion';
 import { strings } from '../../strings';
@@ -83,9 +83,7 @@ export function DetailsHeader(props: Props) {
 
   return (
     <header class={`lmn-details__header${trailerPlaying ? ' is-playing' : ''}`}>
-      {backdrop && (
-        <img class="lmn-details__backdrop" src={imageUrl(client, backdrop, { width: 1920 })} alt="" />
-      )}
+      {backdrop && <img class="lmn-details__backdrop" src={backdropUrl(client, backdrop)} alt="" />}
       {preview && (
         <TrailerPreview
           key={preview}

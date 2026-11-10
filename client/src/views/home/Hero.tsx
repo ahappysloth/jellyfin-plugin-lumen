@@ -4,7 +4,7 @@ import type { BadgeKey, BaseItem, ClientConfig, HeroItem } from '../../api/types
 import type { JellyfinApiClient } from '../../compat/jellyfin';
 import { cardMeta } from '../../components/Card';
 import { Icon } from '../../components/icons';
-import { imageUrl, resolveImage } from '../../components/images';
+import { backdropUrl, imageUrl, resolveImage } from '../../components/images';
 import { usePrefersReducedMotion } from '../../components/usePrefersReducedMotion';
 import { strings } from '../../strings';
 import { TrailerPreview } from './TrailerPreview';
@@ -39,9 +39,6 @@ interface DragState {
 }
 
 const mod = (n: number, m: number): number => ((n % m) + m) % m;
-
-/** Backdrop width for this screen (CSS px; imageUrl applies the pixel density, capped at 2×). */
-const heroWidth = (): number => Math.min(1920, Math.max(640, Math.ceil(window.innerWidth / 160) * 160));
 
 /**
  * The home carousel. Slides sit side by side on a track: the previous, current and next. Dragging moves the track
@@ -287,17 +284,7 @@ function Slide({
       inert={!current}
     >
       {backdrop && (
-        <img
-          class="lmn-hero__backdrop"
-          src={imageUrl(
-            client,
-            backdrop,
-            { width: heroWidth() },
-            Math.min(2, globalThis.devicePixelRatio || 1),
-          )}
-          alt=""
-          draggable={false}
-        />
+        <img class="lmn-hero__backdrop" src={backdropUrl(client, backdrop)} alt="" draggable={false} />
       )}
       {children}
       <div class="lmn-hero__scrim" />

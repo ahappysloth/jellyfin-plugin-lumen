@@ -31,8 +31,18 @@ export function SeriesDetails({ series, initialSeasonId, ctx }: Props) {
   const rootRef = useRef<HTMLElement>(null);
   useAutoFocus(rootRef, true, ctx.layout);
 
-  const storeEpisodes = (id: string, items: BaseItem[]): void =>
-    setEpisodesBySeason((current) => ({ ...current, [id]: items }));
+  // One request per season: the first season loads for Smart Play while it may also be the season shown.
+  const episodeRequests = useRef(new Map<string, Promise<BaseItem[]>>());
+  const loadEpisodes = (id: string): Promise<BaseItem[]> => {
+    let request = episodeRequests.current.get(id);
+    if (!request) {
+      request = ctx.api.getEpisodes(series.Id, id).then((result) => result.Items);
+      episodeRequests.current.set(id, request);
+      // A failed season can be tried again by picking it again.
+      request.catch(() => episodeRequests.current.delete(id));
+    }
+    return request;
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -52,9 +62,8 @@ export function SeriesDetails({ series, initialSeasonId, ctx }: Props) {
 
       let first: BaseItem | undefined;
       if (defaultSeason) {
-        const firstSeason = (await ctx.api.getEpisodes(series.Id, defaultSeason.Id)).Items;
+        const firstSeason = await loadEpisodes(defaultSeason.Id);
         if (cancelled) return;
-        storeEpisodes(defaultSeason.Id, firstSeason);
         first = firstSeason[0];
       }
       setSmartPlay(computeSmartPlay(resume.Items[0], nextUp.Items[0], first));
@@ -68,9 +77,8 @@ export function SeriesDetails({ series, initialSeasonId, ctx }: Props) {
 
   useEffect(() => {
     if (!seasonId || episodesBySeason[seasonId]) return;
-    ctx.api
-      .getEpisodes(series.Id, seasonId)
-      .then((result) => storeEpisodes(seasonId, result.Items))
+    loadEpisodes(seasonId)
+      .then((items) => setEpisodesBySeason((current) => ({ ...current, [seasonId]: items })))
       .catch(() => undefined);
   }, [seasonId]);
 

@@ -1,7 +1,7 @@
 import { SwitchOverlay, useStreamSwitch } from './streamSwitch';
 import { useTrickplay } from './trickplay';
 import { othersInGroup, useSyncPlayState } from '../syncplay/syncPlayState';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { getPlaybackManager, type PlaybackManager, type Player } from '../../compat/playbackManager';
 import { Icon } from '../../components/icons';
 import { strings } from '../../strings';
@@ -21,9 +21,12 @@ import {
   useCastAvailable,
   usePlaybackProgress,
 } from './PlayerExtras';
-import { readPlayerState, type PlayerSnapshot } from './playerState';
+import { readPlayerState, snapshotKey, type PlayerSnapshot } from './playerState';
 
-/** How often the controls re-read jellyfin-web's player (cheap: it reads cached state). */
+/**
+ * How often the controls re-read jellyfin-web's player (cheap: it reads cached state). They only redraw when what
+ * they show changed, and not at all in a background tab.
+ */
 const POLL_MS = 250;
 /** Controls fade out after this long without input while playing. */
 const IDLE_MS = 3000;
@@ -46,6 +49,9 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   const [fullscreen, setFullscreen] = useState(!!document.fullscreenElement);
   const idleTimer = useRef<number | undefined>(undefined);
   const missing = useRef(0);
+  /** Whether the position is on screen (controls, a panel or Playback info up), read by the poll below. */
+  const positionShown = useRef(true);
+  const readNow = useRef<() => void>(() => undefined);
 
   // Poll the player. Give it a moment to appear; if it never does, fall back to the stock controls. Without a playback
   // manager there's nothing to wait for (the takeover normally checks before mounting: takeover.ts playerCheck).
@@ -54,7 +60,9 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
       ctx.onFallback();
       return;
     }
+    let last: { player: Player; key: string } | null = null;
     const read = (): void => {
+      if (document.hidden) return;
       const manager = pm.current;
       const player = manager?.getCurrentPlayer();
       if (!manager || !player) {
@@ -63,11 +71,20 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
         return;
       }
       missing.current = 0;
-      setSnap(readPlayerState(manager, player));
+      const next = readPlayerState(manager, player);
+      const key = snapshotKey(next, positionShown.current || next.paused);
+      if (last?.player === player && last.key === key) return;
+      last = { player, key };
+      setSnap(next);
     };
+    readNow.current = read;
     read();
     const timer = setInterval(read, POLL_MS);
-    return () => clearInterval(timer);
+    document.addEventListener('visibilitychange', read);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', read);
+    };
   }, []);
 
   useEffect(() => {
@@ -155,6 +172,11 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   }, [progress.started]);
   useEffect(() => clearStarting, []);
   const [info, setInfo] = useState(false);
+  positionShown.current = visible || panel !== null || info;
+  // The position wasn't redrawn while hidden: bring it up to date before the controls are painted.
+  useLayoutEffect(() => {
+    if (positionShown.current) readNow.current();
+  }, [positionShown.current]);
   const castAvailable = useCastAvailable(pm.current, itemId);
 
   // Until the first frame: the title's backdrop and a spinner, not a black screen.

@@ -82,8 +82,45 @@ public class BadgeServiceTests
         Assert.Same(_user, query.User);
         Assert.Equal([series.Id], query.AncestorIds);
         Assert.Equal([BaseItemKind.Episode], query.IncludeItemTypes);
-        Assert.Equal(1, query.Limit);
+        Assert.Equal(BadgeService.EpisodeScanLimit, query.Limit);
+        Assert.Equal(TestData.Now.UtcDateTime - BadgeService.Window, query.MinDateCreated);
         Assert.Equal((ItemSortBy.DateCreated, Jellyfin.Database.Implementations.Enums.SortOrder.Descending), query.OrderBy[0]);
+    }
+
+    [Fact]
+    public void SeveralUpdatedSeries_AreBadgedFromOneQuery()
+    {
+        var a = Series(created: Old, lastMediaAdded: TestData.Now.UtcDateTime);
+        var b = Series(created: Old, lastMediaAdded: TestData.Now.UtcDateTime);
+        var c = Series(created: Old, lastMediaAdded: TestData.Now.UtcDateTime);
+
+        // Newest first: b's season opener, a's S1E4, then an older a's S2E1 (which must not decide a's badge).
+        NewestEpisode(TestData.Episode(b, 3, 1), TestData.Episode(a, 1, 4), TestData.Episode(a, 2, 1));
+
+        var badges = Badges(a, b, c);
+
+        Assert.Equal(CardBadges.NewEpisode, badges[Key(a)]);
+        Assert.Equal(CardBadges.NewSeason, badges[Key(b)]);
+        Assert.False(badges.ContainsKey(Key(c)));
+        var query = Assert.Single(_queries);
+        Assert.Equal([a.Id, b.Id, c.Id], query.AncestorIds);
+    }
+
+    [Fact]
+    public void SeriesPastAFullScan_AreLookedUpOnTheirOwn()
+    {
+        var busy = Series(created: Old, lastMediaAdded: TestData.Now.UtcDateTime);
+        var quiet = Series(created: Old, lastMediaAdded: TestData.Now.UtcDateTime);
+        var full = Enumerable.Range(1, BadgeService.EpisodeScanLimit).Select(n => (BaseItem)TestData.Episode(busy, 1, n)).ToArray();
+        _library.GetItemList(Arg.Do<InternalItemsQuery>(_queries.Add))
+            .Returns(ci => ci.Arg<InternalItemsQuery>().Limit == 1 ? [TestData.Episode(quiet, 2, 1)] : full);
+
+        var badges = Badges(busy, quiet);
+
+        Assert.Equal(CardBadges.NewEpisode, badges[Key(busy)]);
+        Assert.Equal(CardBadges.NewSeason, badges[Key(quiet)]);
+        Assert.Equal(2, _queries.Count);
+        Assert.Equal([quiet.Id], _queries[1].AncestorIds);
     }
 
     [Fact]

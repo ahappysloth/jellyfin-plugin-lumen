@@ -60,6 +60,15 @@ export function imageUrl(
   });
 }
 
+/**
+ * A full-width backdrop (the home banner, a details page): sized to the window in 160 px steps (so it caches across
+ * small resizes), at most 1920 CSS px and 2× pixel density. Phones and sharp screens don't need more under the fade.
+ */
+export function backdropUrl(client: Pick<JellyfinApiClient, 'getUrl'>, ref: ImageRef): string {
+  const width = Math.min(1920, Math.max(640, Math.ceil(window.innerWidth / 160) * 160));
+  return imageUrl(client, ref, { width }, Math.min(2, globalThis.devicePixelRatio || 1));
+}
+
 export interface CardArt {
   image: ImageRef | null;
   /** Title logo laid over a plain backdrop (Thumb art and episode stills already carry their own). */

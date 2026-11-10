@@ -87,3 +87,16 @@ export function readPlayerState(pm: PlaybackManager, player: Player): PlayerSnap
     mediaSource: state.MediaSource,
   };
 }
+
+/**
+ * What the controls would draw from a snapshot, as one comparable string: an unchanged key means nothing to redraw.
+ * The playing position is left out when it isn't on screen (controls hidden while playing).
+ */
+export function snapshotKey(snap: PlayerSnapshot, withPosition: boolean): string {
+  return JSON.stringify(snap, (key, value: unknown) => {
+    if (key === 'player') return undefined;
+    if (key === 'item') return (value as PlayerSnapshot['item'])?.Id;
+    if (!withPosition && (key === 'positionMs' || key === 'bufferedMs')) return undefined;
+    return value;
+  });
+}

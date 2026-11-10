@@ -56,12 +56,19 @@ export function useTrickplay(
   itemId: string | undefined,
   mediaSourceId: string | undefined,
 ): TrickplayPreview | null {
-  const [info, setInfo] = useState<TrickplayInfo | null>(null);
-  const [, setLoaded] = useState(0);
-  const tiles = useRef(new Map<number, string | 'loading' | 'failed'>());
+  // Everything is keyed by the item it belongs to: when the next episode starts on its own, the first render (before
+  // the effect below runs) and tiles still downloading for the previous one must not show its thumbnails.
+  const key = `${itemId ?? ''}|${mediaSourceId ?? ''}`;
+  const [loaded, setLoaded] = useState<{ key: string; info: TrickplayInfo | null }>({ key: '', info: null });
+  const [, setTiles] = useState(0);
+  const tiles = useRef<{ key: string; urls: Map<number, string | 'loading' | 'failed'> }>({
+    key,
+    urls: new Map(),
+  });
 
   useEffect(() => {
-    setInfo(null);
+    const cache = { key, urls: new Map<number, string | 'loading' | 'failed'>() };
+    tiles.current = cache;
     if (!itemId) return;
     let cancelled = false;
     api
@@ -70,33 +77,36 @@ export function useTrickplay(
         const sources =
           (item as { Trickplay?: Record<string, Record<string, TrickplayInfo>> }).Trickplay ?? {};
         const bySource = (mediaSourceId && sources[mediaSourceId]) || Object.values(sources)[0];
-        if (!cancelled) setInfo(pickResolution(bySource));
+        if (!cancelled) setLoaded({ key, info: pickResolution(bySource) });
       })
       .catch(() => undefined);
-    const cache = tiles.current;
     return () => {
       cancelled = true;
-      cache.forEach((url) => url !== 'loading' && url !== 'failed' && URL.revokeObjectURL(url));
-      cache.clear();
+      cache.urls.forEach((url) => url !== 'loading' && url !== 'failed' && URL.revokeObjectURL(url));
+      cache.urls.clear();
     };
   }, [itemId, mediaSourceId]);
 
-  if (!info || !itemId) return null;
+  const info = loaded.key === key ? loaded.info : null;
+  const cache = tiles.current;
+  if (!info || !itemId || cache.key !== key) return null;
   return (ms) => {
     const frame = trickplayFrame(ms, info);
-    const cached = tiles.current.get(frame.tile);
+    const cached = cache.urls.get(frame.tile);
     if (cached === undefined) {
-      tiles.current.set(frame.tile, 'loading');
+      cache.urls.set(frame.tile, 'loading');
       const url = client.getUrl(`Videos/${itemId}/Trickplay/${info.Width}/${frame.tile}.jpg`, {
         mediaSourceId: mediaSourceId ?? undefined,
       });
       fetch(url, { headers: { Authorization: `MediaBrowser Token="${client.accessToken() ?? ''}"` } })
         .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
         .then((blob) => {
-          tiles.current.set(frame.tile, URL.createObjectURL(blob));
-          setLoaded((n) => n + 1);
+          // The item changed while this downloaded: its tiles are gone, so don't keep this one.
+          if (tiles.current !== cache) return;
+          cache.urls.set(frame.tile, URL.createObjectURL(blob));
+          setTiles((n) => n + 1);
         })
-        .catch(() => tiles.current.set(frame.tile, 'failed'));
+        .catch(() => tiles.current === cache && cache.urls.set(frame.tile, 'failed'));
       return null;
     }
     return cached === 'loading' || cached === 'failed' ? null : { ...frame, url: cached };

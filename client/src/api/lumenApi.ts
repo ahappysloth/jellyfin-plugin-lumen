@@ -44,6 +44,11 @@ export interface BrowseQuery {
   searchTerm?: string;
   startIndex: number;
   limit: number;
+  /**
+   * Have Jellyfin count every match (TotalRecordCount), which costs a second query over the whole library. Only the
+   * first page needs it, so that's the default; later pages keep the first page's count.
+   */
+  count?: boolean;
 }
 
 /** Typed access to Lumen's and Jellyfin's HTTP APIs through jellyfin-web's authenticated ApiClient. */
@@ -200,7 +205,7 @@ export class LumenApi {
       enableUserData: true,
       imageTypeLimit: 1,
       enableImageTypes: 'Primary,Backdrop,Thumb,Logo',
-      enableTotalRecordCount: true,
+      enableTotalRecordCount: query.count ?? query.startIndex === 0,
     }));
   }
 
