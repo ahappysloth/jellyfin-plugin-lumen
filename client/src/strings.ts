@@ -232,8 +232,9 @@ export const strings = {
     airplay: 'AirPlay',
     fullscreen: 'Full screen',
     exitFullscreen: 'Exit full screen',
-    earlier: 'Earlier',
-    later: 'Later',
+    // Subtitle timing steps: the name starts with what the button shows.
+    earlier: '−0.1s, earlier',
+    later: '+0.1s, later',
     settings: 'Settings',
     repeat: 'Repeat',
     repeatOn: 'Repeat',
