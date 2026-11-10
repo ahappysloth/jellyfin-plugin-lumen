@@ -45,5 +45,24 @@ test('a partially watched movie appears in Continue Watching', async ({ page }) 
 
   await login(page, ADMIN);
 
-  await expect(page.getByRole('region', { name: 'Continue Watching' }).getByRole('button', { name: /Lumen Beta/ })).toBeVisible();
+  const card = page.getByRole('region', { name: 'Continue Watching' }).getByRole('link', { name: 'Lumen Beta', exact: true });
+  await expect(card).toBeVisible();
+  // Named by its visible title alone (axe label-content-name-mismatch), the rest read as its description.
+  await expect(card).not.toHaveAttribute('aria-label');
+  await expect(card).toHaveAccessibleDescription(/\b\d+% watched$/);
+  await expect(card.getByRole('progressbar')).toHaveCount(0);
+});
+
+test('every card on home is a link named by its visible title, not an aria-label', async ({ page }) => {
+  await login(page, ADMIN);
+  const cards = page.locator('#lmn-root a.lmn-card');
+  await expect(cards.first()).toBeVisible();
+
+  await expect(page.locator('#lmn-root .lmn-card[aria-label]')).toHaveCount(0);
+  for (const card of await cards.all()) {
+    // An episode's caption is part of its name ("Lumen Show S1:E2 · Pilot").
+    const shown = await card.locator('.lmn-card__title, .lmn-card__meta:not([aria-hidden])').allInnerTexts();
+    await expect(card).toHaveAccessibleName(shown.join(' ').replace(/\s+/g, ' ').trim());
+    await expect(card).toHaveAttribute('href', /#\/(details|list)\?/);
+  }
 });

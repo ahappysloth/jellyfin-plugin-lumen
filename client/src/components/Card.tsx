@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useId, useRef } from 'preact/hooks';
 import type { BadgeKey, BaseItem } from '../api/types';
-import type { JellyfinApiClient } from '../compat/jellyfin';
+import { infoHash, type JellyfinApiClient } from '../compat/jellyfin';
 import { strings } from '../strings';
 import { Icon } from './icons';
 import { CARD_SIZES, type CardVariant, cardArt, imageUrl } from './images';
@@ -11,11 +11,12 @@ interface CardProps {
   item: BaseItem;
   client: Pick<JellyfinApiClient, 'getUrl'>;
   variant: CardVariant;
-  /** Replaces the default meta line (e.g. "S1:E2 · Pilot" for episodes) and is read out with the title. */
+  /** Replaces the default meta line (e.g. "S1:E2 · Pilot" for episodes) and is part of the link's name. */
   caption?: string;
   badge?: BadgeKey;
+  /** A plain click or Enter on the card, which links to the item's page (infoHash): remember where it was, then go. */
   onSelect: (item: BaseItem) => void;
-  /** Right-click, the keyboard menu key, or a touch long-press: show actions for the item at that point. */
+  /** The More button, right-click, the keyboard menu key, or a touch long-press: show actions for the item at that point. */
   onMenu?: MenuCallback;
   /** The page's own item in a row of its siblings (an episode among its season's). */
   current?: boolean;
@@ -110,58 +111,104 @@ export function Card({ item, client, variant, caption, badge, onSelect, onMenu, 
   const artRef = useRef<HTMLSpanElement>(null);
   const width = useImageWidth(artRef, size.width);
   const progress = playedPercent(item);
+  const inProgress = progress > 0 && progress < 100;
   const title = item.Type === 'Episode' && item.SeriesName ? item.SeriesName : item.Name;
   const meta = cardMeta(item);
+  // The link's name is what it shows: the title, and an episode's caption. The rest is read as its description.
+  const descriptionId = useId();
+  const description = [
+    badge && strings.badges[badge],
+    ...(caption
+      ? []
+      : meta.map((part, i) => (i === 0 && item.CommunityRating ? strings.ratedValue(part) : part))),
+    inProgress && strings.percentWatched(Math.round(progress)),
+  ]
+    .filter(Boolean)
+    .join(', ');
   return (
-    <button
-      type="button"
-      class={`lmn-card lmn-card--${variant}${current ? ' is-current' : ''}`}
-      aria-current={current ? 'page' : undefined}
-      data-item-id={item.Id}
-      aria-label={caption ? `${item.Name}, ${caption}` : item.Name}
-      onClick={() => {
-        if (!consumeClick()) onSelect(item);
-      }}
-      {...handlers}
-    >
-      <span class="lmn-card__art" ref={artRef}>
-        {art.image ? (
-          <img
-            src={width ? imageUrl(client, art.image, boxAt(size, width)) : undefined}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            width={size.width}
-            height={size.height}
-          />
-        ) : (
-          <span class="lmn-card__placeholder">{title}</span>
-        )}
-        {art.logo && width > 0 && (
-          <img
-            class="lmn-card__logo"
-            src={imageUrl(client, art.logo, { width: Math.round(width * 0.6) })}
-            alt=""
-            loading="lazy"
-            decoding="async"
-          />
-        )}
-        {badge && <span class="lmn-card__badge">{strings.badges[badge]}</span>}
-        {progress > 0 && progress < 100 && <ProgressBar percent={progress} />}
-      </span>
-      <span class="lmn-card__title">{title}</span>
-      <span class="lmn-card__meta">
-        {caption ? (
-          <span>{caption}</span>
-        ) : (
-          meta.map((part, i) => (
-            <span key={part}>
-              {i === 0 && item.CommunityRating ? <Icon name="star" size={11} class="lmn-star" /> : null}
-              {part}
+    <div class="lmn-card-cell">
+      <a
+        href={infoHash(item)}
+        class={`lmn-card lmn-card--${variant}${current ? ' is-current' : ''}`}
+        aria-current={current ? 'page' : undefined}
+        aria-describedby={description ? descriptionId : undefined}
+        data-item-id={item.Id}
+        onClick={(e) => {
+          const longPress = consumeClick();
+          // Ctrl/Cmd/Shift-click: the browser opens the link in a new tab or window.
+          if (!longPress && (e.button || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)) return;
+          e.preventDefault();
+          if (!longPress) onSelect(item);
+        }}
+        {...handlers}
+      >
+        <span class="lmn-card__art" ref={artRef}>
+          {art.image ? (
+            <img
+              src={width ? imageUrl(client, art.image, boxAt(size, width)) : undefined}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              width={size.width}
+              height={size.height}
+            />
+          ) : (
+            <span class="lmn-card__placeholder" aria-hidden="true">
+              {title}
             </span>
-          ))
+          )}
+          {art.logo && width > 0 && (
+            <img
+              class="lmn-card__logo"
+              src={imageUrl(client, art.logo, { width: Math.round(width * 0.6) })}
+              alt=""
+              loading="lazy"
+              decoding="async"
+            />
+          )}
+          {badge && (
+            <span class="lmn-card__badge" aria-hidden="true">
+              {strings.badges[badge]}
+            </span>
+          )}
+          {inProgress && <ProgressBar percent={progress} />}
+        </span>
+        <span class="lmn-card__title">{title}</span>
+        <span class="lmn-card__meta" aria-hidden={caption ? undefined : 'true'}>
+          {caption ? (
+            <span>{caption}</span>
+          ) : (
+            meta.map((part, i) => (
+              <span key={part}>
+                {i === 0 && item.CommunityRating ? <Icon name="star" size={11} class="lmn-star" /> : null}
+                {part}
+              </span>
+            ))
+          )}
+        </span>
+        {description && (
+          <span id={descriptionId} hidden>
+            {description}
+          </span>
         )}
-      </span>
-    </button>
+      </a>
+      {onMenu && (
+        // Right-click, the menu key and long-press need a mouse, a full keyboard or a touch screen: this is the way in
+        // for everyone else. (Hidden in the TV layout, where it would be a second D-pad stop per card.)
+        <button
+          type="button"
+          class="lmn-card__more"
+          aria-haspopup="menu"
+          aria-label={strings.moreFor(item.Name)}
+          onClick={(e) => {
+            const from = e.currentTarget;
+            const box = from.getBoundingClientRect();
+            onMenu(item, { x: box.left, y: box.bottom }, from);
+          }}
+        >
+          <Icon name="more" size={18} />
+        </button>
+      )}
+    </div>
   );
 }

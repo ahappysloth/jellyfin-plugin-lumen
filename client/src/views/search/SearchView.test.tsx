@@ -48,7 +48,7 @@ describe('SearchView', () => {
     await flush();
 
     expect(screen.getByRole('list', { name: 'Movies' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Lumen Alpha' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Lumen Alpha' })).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Shows' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Ada Actor' })).toBeInTheDocument();
     expect(window.location.hash).toBe('#/search?query=alp');
@@ -113,7 +113,7 @@ describe('SearchView', () => {
     client.respond = routes({ Items: items, Persons: { Items: [] } });
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     await flush();
-    expect(screen.getByRole('button', { name: 'Lumen Alpha' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Lumen Alpha' })).toBeInTheDocument();
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
@@ -124,7 +124,7 @@ describe('SearchView', () => {
     render(<SearchView initialQuery="alp" ctx={makeContext(client)} />);
     await flush();
 
-    expect(screen.getByRole('button', { name: 'Lumen Alpha' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Lumen Alpha' })).toBeInTheDocument();
     expect(screen.queryByRole('alert')).toBeNull();
   });
 });

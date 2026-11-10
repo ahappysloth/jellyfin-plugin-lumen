@@ -34,6 +34,6 @@ test('a curated collection row shows the collection', async ({ page }) => {
   await login(page, ADMIN);
 
   const row = page.getByRole('region', { name: 'Lumen Picks' });
-  await expect(row.getByRole('button', { name: 'Lumen Alpha' })).toBeVisible();
-  await expect(row.getByRole('button', { name: 'Lumen Gamma' })).toBeVisible();
+  await expect(row.getByRole('link', { name: 'Lumen Alpha' })).toBeVisible();
+  await expect(row.getByRole('link', { name: 'Lumen Gamma' })).toBeVisible();
 });

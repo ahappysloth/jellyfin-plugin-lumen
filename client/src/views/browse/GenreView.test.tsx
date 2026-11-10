@@ -71,13 +71,13 @@ describe('GenreView', () => {
     const { ctx, itemRequests, view } = setup();
     await screen.findByText('2 titles');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Space Show' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Space Show' }));
     expect(ctx.navigate).toHaveBeenCalledWith('#/details?id=s1&serverId=s');
     view.unmount();
 
     const before = itemRequests().length;
     render(<GenreView id={GENRE} ctx={ctx} />);
-    expect(screen.getByRole('button', { name: 'Space Show' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Space Show' })).toBeInTheDocument();
     expect(itemRequests()).toHaveLength(before);
   });
 

@@ -211,6 +211,11 @@ export function genreHash(genreId: string, serverId?: string): string {
   return `#${STOCK_ROUTES.list}?genreId=${encodeURIComponent(genreId)}${server}`;
 }
 
+/** An item's page: where its card links to and its menu's "More info" goes. */
+export function infoHash(item: { Id: string; Type: string; ServerId?: string }): string {
+  return item.Type === 'Genre' ? genreHash(item.Id, item.ServerId) : detailsHash(item.Id, item.ServerId);
+}
+
 export const HOME_HASH = `#${STOCK_ROUTES.home}`;
 /** jellyfin-web's Favorites tab of home, which Lumen takes over. */
 export const FAVORITES_HASH = `#${STOCK_ROUTES.home}?tab=1`;

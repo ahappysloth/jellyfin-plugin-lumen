@@ -14,7 +14,15 @@ test('TV layout: focus starts on the hero and arrow keys move through rows', asy
   const first = await page.locator('#lmn-root .lmn-card:focus').getAttribute('data-item-id');
 
   await page.keyboard.press('ArrowRight');
-  await expect(page.locator('#lmn-root .lmn-card:focus')).not.toHaveAttribute('data-item-id', first!);
+  const card = page.locator('#lmn-root .lmn-card:focus');
+  await expect(card).not.toHaveAttribute('data-item-id', first!);
+  // The remote's Menu key and long-press open a card's menu on TV: no More button as a second stop per card.
+  await expect(page.locator('#lmn-root .lmn-card__more').first()).toBeHidden();
+
+  // OK opens the focused card's page.
+  const id = await card.getAttribute('data-item-id');
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(new RegExp(`#/(details|list)\\?.*Id=${id}`, 'i'));
 });
 
 test('TV layout: D-pad Right moves from an episode row to its details link and back', async ({ page }) => {

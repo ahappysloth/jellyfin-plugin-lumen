@@ -14,10 +14,10 @@ test('search finds library titles as you type and keeps the query for Back', { t
   await box.fill('alpha');
 
   const movies = page.getByRole('list', { name: 'Movies' });
-  await expect(movies.getByRole('button', { name: 'Lumen Alpha' })).toBeVisible();
+  await expect(movies.getByRole('link', { name: 'Lumen Alpha' })).toBeVisible();
   await expect(page).toHaveURL(/#\/search\?query=alpha$/);
 
-  await movies.getByRole('button', { name: 'Lumen Alpha' }).click();
+  await movies.getByRole('link', { name: 'Lumen Alpha' }).click();
   await expect(page).toHaveURL(/#\/details\?id=/);
   await page.goBack();
   await expect(page.getByRole('searchbox', { name: 'Search' })).toHaveValue('alpha');

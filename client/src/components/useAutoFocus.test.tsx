@@ -44,6 +44,24 @@ describe('useAutoFocus', () => {
     expect(document.activeElement).toBe(getByText('card'));
   });
 
+  it('falls back to the first button or card (a link) when there is no primary action', () => {
+    function Grid() {
+      const ref = useRef<HTMLDivElement>(null);
+      useAutoFocus(ref, true, 'tv');
+      return (
+        <div ref={ref}>
+          <a href="#/x">a link that isn't a card</a>
+          <a class="lmn-card" href="#/details?id=m1">
+            card
+          </a>
+          <button>after the cards</button>
+        </div>
+      );
+    }
+    const { getByText } = render(<Grid />);
+    expect(document.activeElement).toBe(getByText('card'));
+  });
+
   it('does not move focus on desktop or mobile', () => {
     (document.activeElement as HTMLElement | null)?.blur();
     render(<Harness layout="desktop" />);

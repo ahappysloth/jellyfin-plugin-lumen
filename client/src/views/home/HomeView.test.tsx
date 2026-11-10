@@ -82,7 +82,7 @@ describe('HomeView', () => {
     const ctx = makeContext(createFakeClient(routes({ 'Lumen/Home': home })));
     render(<HomeView ctx={ctx} />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Alpha' }));
+    fireEvent.click(await screen.findByRole('link', { name: 'Alpha' }));
 
     expect(screen.getByRole('region', { name: 'Recently Added' })).toBeInTheDocument();
     expect(ctx.navigate).toHaveBeenCalledWith('#/details?id=m1&serverId=s');
@@ -104,7 +104,7 @@ describe('HomeView', () => {
       </>,
     );
 
-    const card = await screen.findByRole('button', { name: /Pilot/ });
+    const card = await screen.findByRole('link', { name: /Pilot/ });
     fireEvent.click(card);
     expect(ctx.navigate).toHaveBeenCalledWith('#/details?id=e1');
 
@@ -150,7 +150,7 @@ describe('HomeView', () => {
     const row = await screen.findByRole('region', { name: 'Trending' });
     fireEvent.click(within(row).getByRole('button', { name: 'The Matrix, Request' }));
     expect(ctx.navigate).toHaveBeenCalledWith('#/home?title=movie-603');
-    fireEvent.click(within(row).getByRole('button', { name: 'Alpha' }));
+    fireEvent.click(within(row).getByRole('link', { name: 'Alpha' }));
     expect(ctx.navigate).toHaveBeenCalledWith('#/details?id=m1&serverId=s');
   });
 
@@ -197,7 +197,7 @@ describe('HomeView', () => {
       await vi.advanceTimersByTimeAsync(11_000);
 
       expect(ctx.onFallback).not.toHaveBeenCalled();
-      expect(screen.getByRole('button', { name: 'Alpha' })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Alpha' })).toBeInTheDocument();
     });
   });
 
@@ -213,7 +213,7 @@ describe('HomeView', () => {
     const ctx = makeContext(createFakeClient(() => Promise.reject(new Error('down'))));
     render(<HomeView ctx={ctx} />);
 
-    expect(screen.getByRole('button', { name: 'Alpha' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Alpha' })).toBeInTheDocument();
     await new Promise((r) => setTimeout(r, 700));
     expect(ctx.onFallback).not.toHaveBeenCalled();
   });
@@ -239,7 +239,7 @@ describe('HomeView', () => {
     const ctx = makeContext(createFakeClient(routes({ 'Lumen/Home': home })));
     render(<HomeView ctx={ctx} />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Alpha' }));
+    fireEvent.click(await screen.findByRole('link', { name: 'Alpha' }));
 
     expect(getSelection('user1')?.itemId).toBe('m1');
   });

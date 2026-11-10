@@ -7,7 +7,7 @@ const PRIMARY = '.lmn-autofocus';
 
 /**
  * TV layout: D-pad users need a focused element, pointer users don't. Focus goes to the previously selected item
- * if present, else the view's primary action (.lmn-autofocus), else its first button. jellyfin-web's own focus
+ * if present, else the view's primary action (.lmn-autofocus), else its first button or card. jellyfin-web's own focus
  * manager then handles the arrow keys inside #lmn-root.
  *
  * Other layouts: only a restored selection (Back to a page) is focused, without scrolling (the view has scrolled back
@@ -42,7 +42,7 @@ export function useAutoFocus(
       : null;
     if (layout !== 'tv') return preferred?.focus({ preventScroll: true });
     const primary = root.querySelector<HTMLElement>(PRIMARY);
-    const target = preferred ?? primary ?? root.querySelector<HTMLElement>('button');
+    const target = preferred ?? primary ?? root.querySelector<HTMLElement>('button, .lmn-card');
     target?.focus();
     if (preferred || primary || !target) return;
 

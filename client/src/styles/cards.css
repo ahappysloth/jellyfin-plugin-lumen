@@ -9,8 +9,54 @@
   background: none;
   color: inherit;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
   scroll-snap-align: start;
+}
+/* A card's link and its More button; it takes the card's place in rows and grids, at the card's size. */
+.lmn-card-cell {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.lmn-card-cell > .lmn-card {
+  flex-grow: 1;
+  min-width: 0;
+}
+.lmn-card__more {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.lmn-card-cell:hover .lmn-card__more,
+.lmn-card-cell:focus-within .lmn-card__more {
+  opacity: 1;
+}
+.lmn-card__more:focus-visible {
+  outline: 2px solid var(--lmn-focus);
+  outline-offset: 2px;
+}
+/* The remote's Menu key and touch long-press open the menu there; on TV it would be a second D-pad stop per card. */
+.layout-tv .lmn-card__more {
+  display: none;
+}
+@media (hover: none) {
+  .lmn-card__more {
+    display: none;
+  }
 }
 .lmn-card--poster {
   width: 180px;

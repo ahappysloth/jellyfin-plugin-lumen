@@ -14,5 +14,5 @@ test('a user without access to the Movies library never sees movies', async ({ p
 
   await login(page, KID);
   await expect(page.locator('#lmn-root .lmn-home')).toBeVisible();
-  await expect(page.locator('#lmn-root').getByRole('button', { name: /Lumen (Alpha|Beta|Gamma|Delta|Epsilon|Zeta|Eta|Theta)/ })).toHaveCount(0);
+  await expect(page.locator('#lmn-root').getByRole('link', { name: /Lumen (Alpha|Beta|Gamma|Delta|Epsilon|Zeta|Eta|Theta)/ })).toHaveCount(0);
 });

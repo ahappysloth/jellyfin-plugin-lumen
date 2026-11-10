@@ -34,13 +34,13 @@ test('Movies has Lumen tabs; Genres and Studios open their titles inside the lib
   await expect(action.getByText(/\d+ titles?/)).toBeVisible();
   await action.click();
   await expect(page.getByRole('heading', { name: 'Action', level: 1 })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Lumen Alpha' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Lumen Alpha' })).toBeVisible();
 
   await page.goBack();
   await tabs(page).getByRole('link', { name: 'Studios' }).click();
   await page.locator('#lmn-root').getByRole('link', { name: /^Lumen Pictures/ }).click();
   await expect(page.getByRole('heading', { name: 'Lumen Pictures', level: 1 })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Lumen Alpha' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Lumen Alpha' })).toBeVisible();
 });
 
 test.describe('library tabs with user data', () => {
@@ -76,11 +76,11 @@ test.describe('library tabs with user data', () => {
 
     await page.goto(`/web/#/movies?topParentId=${movies}&collectionType=movies&tab=2`);
     const root = page.locator('#lmn-root');
-    await expect(root.getByRole('button', { name: 'Lumen Beta' })).toBeVisible();
-    await expect(root.getByRole('button', { name: 'Lumen Alpha' })).toHaveCount(0);
+    await expect(root.getByRole('link', { name: 'Lumen Beta' })).toBeVisible();
+    await expect(root.getByRole('link', { name: 'Lumen Alpha' })).toHaveCount(0);
 
     await tabs(page).getByRole('link', { name: 'Collections' }).click();
-    await expect(root.getByRole('button', { name: 'Lumen Tabs Trilogy' })).toBeVisible();
+    await expect(root.getByRole('link', { name: 'Lumen Tabs Trilogy' })).toBeVisible();
   });
 });
 
@@ -102,10 +102,10 @@ test('Suggestions shows Jellyfin rows for each library; Upcoming says when nothi
   await login(page, ADMIN);
 
   await page.goto(`/web/#/movies?topParentId=${movies}&collectionType=movies&tab=1`);
-  await expect(page.getByRole('region', { name: 'Latest movies' }).getByRole('button').first()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Latest movies' }).getByRole('link').first()).toBeVisible();
 
   await page.goto(`/web/#/tv?topParentId=${shows}&collectionType=tvshows&tab=1`);
-  await expect(page.getByRole('region', { name: 'Latest episodes' }).getByRole('button').first()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Latest episodes' }).getByRole('link').first()).toBeVisible();
 
   // The test show's episodes have no future air dates.
   await tabs(page).getByRole('link', { name: 'Upcoming' }).click();
