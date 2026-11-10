@@ -85,6 +85,7 @@ npm run lint                   # eslint + prettier --check (CI runs this)
 npm run typecheck
 npm test                       # vitest
 npm run size                   # bundle size budget (CI runs this after build)
+npm run compat                 # the build parses in Chromium 68 and Safari 13 (CI runs this after build)
 npm run format                 # fix formatting
 
 dotnet test                    # from the repo root; needs `source scripts/env.sh` for the native .NET

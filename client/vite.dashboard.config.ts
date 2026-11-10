@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { target } from './vite.target';
 
 /**
  * The admin pages' stylesheet (src/styles/dashboard.css → dist/lumen-dashboard.css). Separate from lumen.css so
@@ -9,6 +10,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: false,
+    target,
     rollupOptions: {
       input: { 'lumen-dashboard': 'src/styles/dashboard.css' },
       output: { assetFileNames: '[name][extname]' },
