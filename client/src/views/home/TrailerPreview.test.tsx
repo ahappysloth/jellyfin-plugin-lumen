@@ -332,6 +332,31 @@ describe('TrailerPreview', () => {
     expect(container.querySelector('video')).toBeNull();
   });
 
+  it("pauses in place on the details page's Pause, and plays on from there", async () => {
+    const client = createFakeClient();
+    const { container, rerender, unmount } = render(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={client} />,
+    );
+    await startAfter(0);
+    const video = container.querySelector('video')!;
+    // On this element only: the prototype's spies are shared with the other tests.
+    const pause = (video.pause = vi.fn());
+    const play = (video.play = vi.fn(async () => undefined));
+
+    rerender(<TrailerPreview trailerId="t1" delaySeconds={0} client={client} paused />);
+    expect(pause).toHaveBeenCalledTimes(1);
+    // Paused before it got going is not a stall: it isn't given up on.
+    await startAfter(TRAILER_START_TIMEOUT_MS);
+    expect(container.querySelector('video')).toBe(video);
+
+    rerender(<TrailerPreview trailerId="t1" delaySeconds={0} client={client} />);
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('video')).toBe(video);
+    act(() => {
+      unmount();
+    });
+  });
+
   it('pauses, unloads, and releases the video when it stops or unmounts', async () => {
     const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
     const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);

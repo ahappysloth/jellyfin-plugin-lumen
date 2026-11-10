@@ -52,6 +52,8 @@ export const strings = {
   back: 'Back',
   mute: 'Mute trailer',
   unmute: 'Unmute trailer',
+  pauseTrailer: 'Pause trailer',
+  playTrailer: 'Play trailer',
   pauseRotation: 'Pause',
   resumeRotation: 'Play slideshow',
   scrollLeft: 'Scroll left',

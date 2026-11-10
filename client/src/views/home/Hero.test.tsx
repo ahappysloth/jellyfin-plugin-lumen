@@ -67,6 +67,19 @@ describe('Hero', () => {
     expect(heading).toContainElement(screen.getByRole('img', { name: 'Alpha' }));
   });
 
+  it('stops the trailer while the slideshow is paused (WCAG 2.2.2)', () => {
+    const { container } = render(
+      <Hero items={items} client={createFakeClient()} config={config} onPlay={vi.fn()} onInfo={vi.fn()} />,
+    );
+    expect(container.querySelector('.lmn-hero__trailer')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Pause/ }));
+    expect(container.querySelector('.lmn-hero__trailer')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Play slideshow' }));
+    expect(container.querySelector('.lmn-hero__trailer')).not.toBeNull();
+  });
+
   const renderHero = () =>
     render(
       <Hero items={items} client={createFakeClient()} config={config} onPlay={vi.fn()} onInfo={vi.fn()} />,

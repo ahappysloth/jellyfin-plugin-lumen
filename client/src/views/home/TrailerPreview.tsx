@@ -18,6 +18,8 @@ interface Props {
   client: JellyfinApiClient;
   /** Defaults to true; the details page offers an unmute toggle. */
   muted?: boolean;
+  /** The details page's Pause: the video holds its frame (and stays loaded) until this turns false again. */
+  paused?: boolean;
   class?: string;
   /** Called when the video starts or stops showing, so the page can reveal or hide its controls. */
   onPlayingChange?: (playing: boolean) => void;
@@ -52,6 +54,7 @@ export function TrailerPreview({
   delaySeconds,
   client,
   muted = true,
+  paused = false,
   class: className,
   onPlayingChange,
   allowTranscode = false,
@@ -67,6 +70,8 @@ export function TrailerPreview({
   const [state, setState] = useState<'waiting' | 'playing' | 'done'>('waiting');
   /** Whether this session's video has got going (played past TRAILER_STARTED_SECONDS). */
   const started = useRef(false);
+  const pausedNow = useRef(paused);
+  pausedNow.current = paused;
 
   // Look the trailer's container and codecs up once it's in view (most hero slides never get that far).
   useEffect(() => {
@@ -110,7 +115,7 @@ export function TrailerPreview({
     // policy): no other stream would be allowed either, so the backdrop stays. Other rejections come with an error
     // event or a stall, which move on to the next stream.
     try {
-      const playing = element?.play();
+      const playing = pausedNow.current ? undefined : element?.play();
       if (playing)
         playing.catch((e: unknown) => {
           if (live && (e as { name?: string } | null)?.name === 'NotAllowedError') setState('done');
@@ -120,7 +125,7 @@ export function TrailerPreview({
     }
     // Not under way by now, error or not (a stall, a silent decode failure): move on to the next stream.
     const watchdog = setTimeout(() => {
-      if (live && !started.current) onError();
+      if (live && !started.current && !pausedNow.current) onError();
     }, TRAILER_START_TIMEOUT_MS);
     return () => {
       live = false;
@@ -139,6 +144,16 @@ export function TrailerPreview({
   useEffect(() => {
     if (!visible && state === 'playing') setState('waiting');
   }, [visible, state]);
+
+  // Pause and play again in place. The start (above) leaves a video that's paused already alone.
+  const pausedBefore = useRef(paused);
+  useEffect(() => {
+    if (pausedBefore.current === paused) return;
+    pausedBefore.current = paused;
+    const element = video.current;
+    if (paused) element?.pause();
+    else element?.play()?.catch(() => undefined);
+  }, [paused]);
 
   useEffect(() => {
     onPlayingChange?.(state === 'playing');
