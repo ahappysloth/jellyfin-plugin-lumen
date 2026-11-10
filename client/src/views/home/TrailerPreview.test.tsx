@@ -70,7 +70,11 @@ const startAfter = async (ms: number) => {
 };
 
 describe('TrailerPreview', () => {
-  beforeEach(() => vi.useFakeTimers());
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // jsdom has no media playback.
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+  });
   afterEach(() => {
     // Unmount while timers are still fake: Preact flushes effects on a timer, and one scheduled on a real timer can
     // fire after Vitest tears down jsdom ("document is not defined").
@@ -210,10 +214,10 @@ describe('TrailerPreview', () => {
     vi.unstubAllGlobals();
   });
 
-  it('falls back to a remux when the browser fails to play the file after all', async () => {
+  it('falls back to a remux when the browser fails to play the file after all (details)', async () => {
     runAs({ ...SAFARI, plays: [/^video\/mp4/, /^application\/vnd\.apple\.mpegurl$/] });
     const { container } = render(
-      <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MP4_H264)} />,
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MP4_H264)} allowTranscode />,
     );
     await startAfter(0);
     expect(container.querySelector('video')!.getAttribute('src')).toContain('/stream?static=true');
@@ -225,10 +229,20 @@ describe('TrailerPreview', () => {
     expect(container.querySelector('video')!.getAttribute('src')).toContain('/master.m3u8?');
   });
 
+  it('plays only the file on the hero: no remux of H.264 in Matroska', async () => {
+    runAs(SAFARI);
+    const client = clientFor({ ...MP4_H264, Container: 'mkv' });
+    const { container } = render(<TrailerPreview trailerId="t1" delaySeconds={0} client={client} />);
+    await startAfter(1000);
+
+    expect(container.querySelector('video')).toBeNull();
+    expect(client.requests.map((r) => new URL(r.url).pathname)).toEqual(['/Items/t1']);
+  });
+
   it('moves on when nothing has played after a while, error or not (a stall)', async () => {
     runAs(SAFARI);
     const { container } = render(
-      <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MP4_H264)} />,
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MP4_H264)} allowTranscode />,
     );
     await startAfter(0);
     expect(container.querySelector('video')!.getAttribute('src')).toContain('/stream?static=true');
@@ -238,32 +252,60 @@ describe('TrailerPreview', () => {
     expect(container.querySelector('video')!.getAttribute('src')).toContain('/master.m3u8?');
   });
 
-  it('keeps playing once the video is under way', async () => {
+  it("moves on from WebKit's stall too: unpaused, all data, its clock a hair past zero", async () => {
     runAs(SAFARI);
-    vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(2);
+    vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0.000002);
+    vi.spyOn(HTMLMediaElement.prototype, 'paused', 'get').mockReturnValue(false);
+    vi.spyOn(HTMLMediaElement.prototype, 'readyState', 'get').mockReturnValue(
+      HTMLMediaElement.HAVE_ENOUGH_DATA,
+    );
     const { container } = render(
-      <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MP4_H264)} />,
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MP4_H264)} allowTranscode />,
     );
     await startAfter(0);
-    expect(container.querySelector('video')).not.toBeNull();
+    act(() => {
+      container.querySelector('video')!.dispatchEvent(new Event('playing'));
+      container.querySelector('video')!.dispatchEvent(new Event('timeupdate'));
+    });
+
+    await startAfter(TRAILER_START_TIMEOUT_MS);
+
+    expect(container.querySelector('video')!.getAttribute('src')).toContain('/master.m3u8?');
+  });
+
+  it('keeps playing once the video is under way', async () => {
+    runAs(SAFARI);
+    vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0.5);
+    const { container } = render(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MP4_H264)} allowTranscode />,
+    );
+    await startAfter(0);
+    act(() => {
+      container.querySelector('video')!.dispatchEvent(new Event('timeupdate'));
+    });
+
     await startAfter(TRAILER_START_TIMEOUT_MS);
 
     expect(container.querySelector('video')!.getAttribute('src')).toContain('/stream?static=true');
   });
 
-  it('gives up when the browser refused to autoplay it (it has the data but stays paused)', async () => {
+  it('starts the video itself, and keeps the backdrop when the browser refuses (iOS Low Power Mode)', async () => {
     runAs(SAFARI);
-    vi.spyOn(HTMLMediaElement.prototype, 'readyState', 'get').mockReturnValue(
-      HTMLMediaElement.HAVE_ENOUGH_DATA,
-    );
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, 'play')
+      .mockRejectedValue(new DOMException('The request is not allowed', 'NotAllowedError'));
+    const client = clientFor(MP4_H264);
     const { container } = render(
-      <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MP4_H264)} />,
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={client} allowTranscode />,
     );
     await startAfter(0);
-    expect(container.querySelector('video')).not.toBeNull();
-    await startAfter(TRAILER_START_TIMEOUT_MS);
 
+    expect(play).toHaveBeenCalledTimes(1);
     expect(container.querySelector('video')).toBeNull();
+    // Not on to the next stream: it would be refused too, after the server started it.
+    await startAfter(TRAILER_START_TIMEOUT_MS);
+    expect(container.querySelector('video')).toBeNull();
+    expect(client.requests.map((r) => new URL(r.url).pathname)).toEqual(['/Items/t1']);
   });
 
   it('shows no preview when the browser can play neither the file nor a transcode', async () => {

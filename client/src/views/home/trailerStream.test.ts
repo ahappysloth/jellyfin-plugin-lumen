@@ -160,7 +160,7 @@ describe('canDirectPlay', () => {
 
 describe('trailerOptions', () => {
   it('plays a playable file directly, with a remux behind it', () => {
-    expect(trailerOptions(source(MP4, h264, aac), safari, false)).toEqual([
+    expect(trailerOptions(source(MP4, h264, aac), safari, true)).toEqual([
       { kind: 'direct' },
       { kind: 'hls', copyVideo: true },
     ]);
@@ -195,17 +195,17 @@ describe('trailerOptions', () => {
     expect(trailerOptions(source('mkv', h264, dts), firefox, true)).toEqual([
       { kind: 'mp4', copyVideo: true },
     ]);
-    expect(trailerOptions(source('mkv', h264, aac), firefox, false)).toEqual([
-      { kind: 'mp4', copyVideo: true },
-    ]);
     expect(trailerOptions(source('mkv', { ...h264, Profile: 'High 10' }, aac), firefox, true)).toEqual([
       { kind: 'mp4', copyVideo: false },
     ]);
   });
 
-  it('never fully transcodes unless the caller allows it (the hero)', () => {
+  it('gives the hero (no server streams) the file or nothing: no transcode, and no remux either', () => {
     expect(trailerOptions(source('mkv', hevc10, aac), safari, false)).toEqual([]);
     expect(trailerOptions(source('mkv', hevc10, aac), chrome, false)).toEqual([]);
+    expect(trailerOptions(source('mkv', h264, aac), safari, false)).toEqual([]);
+    expect(trailerOptions(source('mkv', h264, dts), firefox, false)).toEqual([]);
+    expect(trailerOptions(source(MP4, h264, aac), safari, false)).toEqual([{ kind: 'direct' }]);
     expect(trailerOptions({ Id: 'ms1' }, chrome, false)).toEqual([{ kind: 'direct' }]);
   });
 

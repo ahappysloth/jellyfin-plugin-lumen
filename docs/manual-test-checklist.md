@@ -17,14 +17,15 @@ Run against the release build on the latest stable Jellyfin.
 
 ## Safari (macOS or iOS)
 
-- [ ] With an MKV trailer holding H.264: the preview plays on home and on details (remuxed to HLS).
-- [ ] With an HEVC-in-MKV or AV1 trailer: no preview on home (the backdrop stays); on details the preview plays,
-      transcoded to HLS. The Dashboard shows the transcode, and it ends within seconds of leaving the page, closing the
-      tab or reloading.
+- [ ] With an MKV trailer (H.264, HEVC or AV1): no preview on home (the backdrop stays, and the Dashboard shows no
+      stream); on details the preview plays through the server as HLS (remuxed for H.264, else transcoded). The
+      Dashboard shows the stream, and it ends within seconds of leaving the page, closing the tab or reloading.
+- [ ] In Low Power Mode (iOS): no preview, and the backdrop stays (no stuck first frame).
 
 ## Firefox
 
-- [ ] With an MKV trailer holding H.264: the preview starts promptly (remuxed to MP4, not the whole file loaded first).
+- [ ] With an MKV trailer holding H.264: no preview on home; on details it starts promptly (remuxed to MP4, not the
+      whole file loaded first).
 
 ## Official iOS app
 
