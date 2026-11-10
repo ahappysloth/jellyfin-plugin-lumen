@@ -1,4 +1,5 @@
-import type { StartingInfo } from '../../playback/starting';
+import { resolveImage } from '../../components/images';
+import { loadingBackdropUrl, type StartingInfo } from '../../playback/starting';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import type { PlayerSnapshot } from './playerState';
@@ -17,12 +18,11 @@ export function LoadingScreen({
   starting: StartingInfo | null;
 }) {
   const item = snap?.item;
-  const backdropId = item?.BackdropImageTags?.length ? item.Id : item?.ParentBackdropItemId;
-  const backdrop =
-    starting?.backdrop ??
-    (backdropId
-      ? ctx.client.getUrl(`Items/${backdropId}/Images/Backdrop`, { fillWidth: 1280, quality: 80 })
-      : null);
+  // The same URL as the Play click's `starting` backdrop, so taking over from it never downloads the image again.
+  const ref = item
+    ? resolveImage({ ...item, Name: item.Name ?? '', Type: item.Type ?? '' }, ['Backdrop'])
+    : null;
+  const backdrop = starting?.backdrop ?? (ref ? loadingBackdropUrl(ctx.client, ref) : null);
   const title = starting?.title ?? (item ? (item.Type === 'Episode' ? item.SeriesName : item.Name) : null);
   return (
     <div class="lmn-player-loading" role="status" aria-label={strings.player.starting}>

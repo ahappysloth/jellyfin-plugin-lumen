@@ -6,6 +6,9 @@ import { strings } from '../../strings';
 import { ProgressBar, playedPercent } from '../../components/ProgressBar';
 import { formatRuntime } from './badges';
 
+/** The still's box (.lmn-episode's first column, 16:9). */
+const STILL = { width: 260, height: 146 };
+
 interface Props {
   episodes: BaseItem[];
   client: Pick<JellyfinApiClient, 'getUrl'>;
@@ -32,11 +35,11 @@ export function EpisodeList({ episodes, client, onPlay, detailsHref }: Props) {
               <span class="lmn-episode__thumb">
                 {image ? (
                   <img
-                    src={imageUrl(client, image, { width: 240, height: 135 })}
+                    src={imageUrl(client, image, STILL)}
                     alt=""
                     loading="lazy"
-                    width={240}
-                    height={135}
+                    width={STILL.width}
+                    height={STILL.height}
                   />
                 ) : (
                   <span class="lmn-card__placeholder">{episode.Name}</span>

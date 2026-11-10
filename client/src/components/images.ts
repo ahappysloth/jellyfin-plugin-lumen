@@ -45,27 +45,51 @@ function parentImage(item: BaseItem, type: ImageType): ImageRef | null {
   }
 }
 
-/** Image URL sized for the rendered box. Dimensions must be integers or the server rejects the request. */
+/**
+ * The widths (CSS px) images are requested at. A request's width rounds up to the next step and its height keeps the
+ * box's shape, so the same artwork shown at nearby sizes (a 320 px card, a 268 px genre tile, a 260 px episode row)
+ * is one URL: the server resizes it once and the browser downloads and caches it once. Steps are at most 1.5× apart,
+ * so from 120 px up an image is never more than 1.5× wider than its box (the device pixel ratio applies on top).
+ */
+export const IMAGE_WIDTHS = [120, 180, 240, 320, 480, 640, 960, 1280, 1600, 1920] as const;
+
+/** The step a box `width` CSS px wide is requested at (the largest step for anything wider). */
+export function ladderWidth(width: number): number {
+  return IMAGE_WIDTHS.find((step) => step >= width) ?? IMAGE_WIDTHS[IMAGE_WIDTHS.length - 1]!;
+}
+
+/**
+ * Image URL for a box `size.width` × `size.height` CSS px (height optional: then the image keeps its own shape),
+ * rounded up to IMAGE_WIDTHS, times the device pixel ratio. The height is taken from the box's shape at the step's
+ * width before the ratio is applied, so boxes of one shape that round to the same step give the same URL at any
+ * ratio. Dimensions must be integers or the server rejects the request.
+ */
 export function imageUrl(
   client: Pick<JellyfinApiClient, 'getUrl'>,
   ref: ImageRef,
-  size: { width?: number; height?: number },
+  size: { width: number; height?: number },
   dpr: number = globalThis.devicePixelRatio || 1,
 ): string {
+  const width = ladderWidth(size.width);
+  const height = size.height ? Math.round((width * size.height) / size.width) : undefined;
   return client.getUrl(`Items/${ref.itemId}/Images/${ref.type}`, {
-    fillWidth: size.width ? Math.ceil(size.width * dpr) : undefined,
-    fillHeight: size.height ? Math.ceil(size.height * dpr) : undefined,
+    fillWidth: Math.ceil(width * dpr),
+    fillHeight: height ? Math.ceil(height * dpr) : undefined,
     quality: 90,
     tag: ref.tag,
   });
 }
 
+/** A title logo over the home banner or a details page (.lmn-hero__logo, .lmn-details__logo: at most 420 CSS px). */
+export const TITLE_LOGO = { width: 420 };
+
 /**
- * A full-width backdrop (the home banner, a details page): sized to the window in 160 px steps (so it caches across
- * small resizes), at most 1920 CSS px and 2× pixel density. Phones and sharp screens don't need more under the fade.
+ * A full-width backdrop (the home banner, a details page): the window's width on IMAGE_WIDTHS (so it caches across
+ * resizes), at least 640 and at most 1920 CSS px, and at most 2× pixel density. Phones and sharp screens don't need
+ * more under the fade.
  */
 export function backdropUrl(client: Pick<JellyfinApiClient, 'getUrl'>, ref: ImageRef): string {
-  const width = Math.min(1920, Math.max(640, Math.ceil(window.innerWidth / 160) * 160));
+  const width = Math.min(1920, Math.max(640, window.innerWidth));
   return imageUrl(client, ref, { width }, Math.min(2, globalThis.devicePixelRatio || 1));
 }
 

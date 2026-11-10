@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/preact';
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeClient } from '../../test/fakeClient';
 import type { BaseItem } from '../api/types';
+import { EpisodeList } from '../views/details/EpisodeList';
+import { GenreTile } from '../views/home/Row';
 import { Card } from './Card';
 
 const movie: BaseItem = { Id: 'm1', Name: 'Lumen Alpha', Type: 'Movie', ImageTags: { Primary: 'tag1' } };
@@ -50,6 +52,43 @@ describe('Card', () => {
     const sources = [...screen.getByRole('button').querySelectorAll('img')].map((i) => i.getAttribute('src'));
     expect(sources[0]).toContain('Images/Backdrop');
     expect(sources[1]).toContain('Images/Logo');
+  });
+
+  it("asks for the same image URL as a genre tile showing the card's backdrop", () => {
+    const client = createFakeClient();
+    const item: BaseItem = { Id: 'm1', Name: 'Lumen Alpha', Type: 'Movie', BackdropImageTags: ['bd'] };
+    const genre: BaseItem = {
+      Id: 'g1',
+      Name: 'Drama',
+      Type: 'Genre',
+      ParentBackdropItemId: 'm1',
+      ParentBackdropImageTags: ['bd'],
+    };
+    const { container } = render(
+      <>
+        <Card item={item} client={client} variant="landscape" onSelect={vi.fn()} />
+        <GenreTile item={genre} client={client} onSelect={vi.fn()} />
+      </>,
+    );
+
+    const [card, tile] = [...container.querySelectorAll('img')].map((i) => i.getAttribute('src'));
+    expect(card).toContain('Items/m1/Images/Backdrop');
+    expect(tile).toBe(card);
+  });
+
+  it("asks for the same image URL as the season's episode list for an episode's still", () => {
+    const client = createFakeClient();
+    const episode: BaseItem = { Id: 'e1', Name: 'Pilot', Type: 'Episode', ImageTags: { Primary: 'st' } };
+    const { container } = render(
+      <>
+        <Card item={episode} client={client} variant="landscape" onSelect={vi.fn()} />
+        <EpisodeList episodes={[episode]} client={client} onPlay={vi.fn()} />
+      </>,
+    );
+
+    const [card, row] = [...container.querySelectorAll('img')].map((i) => i.getAttribute('src'));
+    expect(card).toContain('Items/e1/Images/Primary');
+    expect(row).toBe(card);
   });
 
   it('renders a title placeholder when the item has no image', () => {

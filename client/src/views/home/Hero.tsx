@@ -4,7 +4,7 @@ import type { BadgeKey, BaseItem, ClientConfig, HeroItem } from '../../api/types
 import type { JellyfinApiClient } from '../../compat/jellyfin';
 import { cardMeta } from '../../components/Card';
 import { Icon } from '../../components/icons';
-import { backdropUrl, imageUrl, resolveImage } from '../../components/images';
+import { backdropUrl, imageUrl, resolveImage, TITLE_LOGO } from '../../components/images';
 import { usePrefersReducedMotion } from '../../components/usePrefersReducedMotion';
 import { strings } from '../../strings';
 import { TrailerPreview } from './TrailerPreview';
@@ -292,7 +292,7 @@ function Slide({
         {logo ? (
           <img
             class="lmn-hero__logo"
-            src={imageUrl(client, logo, { width: 840 })}
+            src={imageUrl(client, logo, TITLE_LOGO)}
             alt={item.Name}
             draggable={false}
           />
