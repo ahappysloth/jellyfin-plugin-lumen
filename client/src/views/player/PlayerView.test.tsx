@@ -228,6 +228,43 @@ describe('PlayerView', () => {
     expect(pm.seek).toHaveBeenLastCalledWith(650_000 * 10_000, pm.player);
   });
 
+  describe('the volume slider', () => {
+    // jellyfin-web's keyboard shortcuts listen on `document`: arrows left and right seek, up and down change the
+    // volume, Home and End seek, Page Up and Down skip chapters.
+    let reachedJellyfin: string[] = [];
+    const stock = (e: KeyboardEvent): void => void reachedJellyfin.push(e.key);
+    beforeEach(() => {
+      reachedJellyfin = [];
+      document.addEventListener('keydown', stock);
+    });
+    afterEach(() => document.removeEventListener('keydown', stock));
+
+    const open = async (layout: 'tv' | 'desktop') => {
+      const pm = fakeManager();
+      vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+      render(<PlayerView ctx={makeContext(createFakeClient(), { layout })} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      return screen.getByRole('slider', { name: strings.player.volume });
+    };
+    const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'];
+
+    it("keeps its keys from jellyfin-web's shortcuts, so they only change the volume", async () => {
+      const slider = await open('desktop');
+      for (const key of keys) fireEvent.keyDown(slider, { key });
+      expect(reachedJellyfin).toEqual([]);
+      fireEvent.keyDown(slider, { key: 'k' }); // other shortcuts still work from it
+      expect(reachedJellyfin).toEqual(['k']);
+    });
+
+    it('leaves up and down to D-pad navigation in the TV layout', async () => {
+      const slider = await open('tv');
+      for (const key of keys) fireEvent.keyDown(slider, { key });
+      expect(reachedJellyfin).toEqual(['ArrowUp', 'ArrowDown']);
+    });
+  });
+
   it('keeps "Ends at" moving while paused', async () => {
     vi.setSystemTime(new Date(2026, 10, 10, 21, 0, 0));
     const pm = fakeManager();

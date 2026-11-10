@@ -20,11 +20,13 @@ interface Props {
   preview?: TrickplayPreview | null;
   /** The video's current position, read when the arrow keys seek. */
   livePositionMs?: () => number;
+  /** The TV layout, where the up and down arrows move focus (jellyfin-web's D-pad navigation) instead of seeking. */
+  tv?: boolean;
 }
 
 /**
  * A slim scrubber: played (white), buffered (grey) and a thumb that grows on hover. Dragging previews the time and
- * seeks on release; arrow keys step 10 s (it is a slider for assistive tech).
+ * seeks on release; arrow keys step 10 s (it is a slider for assistive tech), up and down too outside the TV layout.
  */
 export function ProgressBar({
   positionMs,
@@ -34,6 +36,7 @@ export function ProgressBar({
   onSeek,
   preview,
   livePositionMs,
+  tv = false,
 }: Props) {
   const track = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<number | null>(null);
@@ -80,7 +83,10 @@ export function ProgressBar({
       aria-valuemin={0}
       aria-valuemax={Math.round(durationMs / 1000)}
       aria-valuenow={Math.round(shown / 1000)}
-      aria-valuetext={formatClock(shown, durationMs)}
+      aria-valuetext={strings.player.positionOf(
+        formatClock(shown, durationMs),
+        formatClock(durationMs, durationMs),
+      )}
       onPointerDown={(e) => {
         if (disabled || e.button !== 0) return;
         e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -102,10 +108,12 @@ export function ProgressBar({
       onPointerLeave={() => setHover(null)}
       onKeyDown={(e) => {
         if (disabled) return;
-        const step = e.key === 'ArrowRight' ? 10_000 : e.key === 'ArrowLeft' ? -10_000 : 0;
+        const forward = e.key === 'ArrowRight' || (!tv && e.key === 'ArrowUp');
+        const back = e.key === 'ArrowLeft' || (!tv && e.key === 'ArrowDown');
+        const step = forward ? 10_000 : back ? -10_000 : 0;
         if (!step) return;
         e.preventDefault();
-        e.stopPropagation(); // jellyfin-web also seeks on arrows; don't do it twice
+        e.stopPropagation(); // jellyfin-web also seeks on arrows (and changes the volume on up and down)
         // From where the video is now: positionMs isn't redrawn while the controls are hidden (PlayerView), and the
         // seek bar keeps focus then. A recent step still on its way counts (rapid presses add up); an old one doesn't,
         // whether or not a redraw has cleared it.

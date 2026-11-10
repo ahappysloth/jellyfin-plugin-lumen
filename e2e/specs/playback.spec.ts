@@ -62,6 +62,32 @@ test("the scroll wheel shows Lumen's volume pill, not jellyfin-web's card or the
   await expect(pill).not.toHaveClass(/is-shown/, { timeout: 4000 });
 });
 
+test("the volume slider's arrow keys change the volume, not the position", async ({ page }) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
+  const video = page.locator('video.htmlvideoplayer');
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0.3);
+  await video.evaluate((v: HTMLVideoElement) => {
+    v.pause();
+    v.currentTime = 8;
+  });
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeCloseTo(8, 0);
+  const volume = page.getByRole('slider', { name: 'Volume' });
+  const before = await video.evaluate((v: HTMLVideoElement) => v.volume);
+  expect(before).toBeGreaterThan(0.05);
+
+  await volume.focus();
+  await page.keyboard.press('ArrowLeft');
+
+  // jellyfin-web's shortcuts would have gone back 10 s, to the start.
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.volume)).toBeLessThan(before);
+  await page.waitForTimeout(500);
+  expect(await video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeCloseTo(8, 0);
+  await expect(volume).toBeFocused();
+});
+
 test('the seek bar stays where you click and shows trickplay thumbnails', async ({ page }) => {
   const { items } = loadState();
   await login(page, ADMIN);

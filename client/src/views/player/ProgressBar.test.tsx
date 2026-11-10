@@ -78,6 +78,42 @@ describe('ProgressBar', () => {
     expect(onSeek).toHaveBeenLastCalledWith(30_000);
   });
 
+  it('reads its value as "0:10 of 1:40"', () => {
+    const { slider } = bar();
+    expect(slider).toHaveAttribute('aria-valuetext', '0:10 of 1:40');
+  });
+
+  it('steps with up and down too, and keeps them from jellyfin-web (its volume keys)', () => {
+    const { slider, onSeek } = bar();
+    let reachedJellyfin = 0;
+    const stock = (): void => void (reachedJellyfin += 1);
+    document.addEventListener('keydown', stock);
+    try {
+      fireEvent.keyDown(slider, { key: 'ArrowUp' });
+      expect(onSeek).toHaveBeenLastCalledWith(20_000);
+      fireEvent.keyDown(slider, { key: 'ArrowDown' });
+      expect(onSeek).toHaveBeenLastCalledWith(10_000);
+      expect(reachedJellyfin).toBe(0);
+    } finally {
+      document.removeEventListener('keydown', stock);
+    }
+  });
+
+  it('leaves up and down to D-pad navigation in the TV layout', () => {
+    const { slider, onSeek } = bar({ tv: true });
+    let reachedJellyfin = 0;
+    const stock = (): void => void (reachedJellyfin += 1);
+    document.addEventListener('keydown', stock);
+    try {
+      fireEvent.keyDown(slider, { key: 'ArrowUp' });
+      fireEvent.keyDown(slider, { key: 'ArrowDown' });
+      expect(onSeek).not.toHaveBeenCalled();
+      expect(reachedJellyfin).toBe(2);
+    } finally {
+      document.removeEventListener('keydown', stock);
+    }
+  });
+
   it('steps from the live position once a step is old, even if no new position cleared it', () => {
     vi.useFakeTimers();
     try {
