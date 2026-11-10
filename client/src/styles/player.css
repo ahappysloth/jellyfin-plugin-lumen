@@ -44,7 +44,9 @@ html.lmn-skin-player .upNextContainer {
   left: 0;
   /* clamp(16px, 3vw, 40px), or more where a phone's notch is in landscape (jellyfin-web sets viewport-fit=cover).
      Spelled with min() and max(): Safari 13.0 has them but not clamp(). */
+  padding-right: 40px;
   padding-right: max(16px, min(3vw, 40px), env(safe-area-inset-right));
+  padding-left: 40px;
   padding-left: max(16px, min(3vw, 40px), env(safe-area-inset-left));
   transition:
     opacity 0.35s ease,
@@ -55,6 +57,7 @@ html.lmn-skin-player .upNextContainer {
   display: flex;
   align-items: flex-start;
   gap: 14px;
+  padding-top: 20px;
   padding-top: max(20px, env(safe-area-inset-top));
   padding-bottom: 60px;
   background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.3) 55%, transparent);
@@ -62,6 +65,7 @@ html.lmn-skin-player .upNextContainer {
 .lmn-player__bottom {
   bottom: 0;
   padding-top: 70px;
+  padding-bottom: 14px;
   padding-bottom: max(14px, env(safe-area-inset-bottom));
   background: linear-gradient(to top, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.35) 55%, transparent);
 }
@@ -122,6 +126,7 @@ html.lmn-skin-player .upNextContainer {
 .lmn-player__title {
   margin: 0;
   overflow: hidden;
+  font-size: 24px;
   font-size: clamp(18px, 1.8vw, 24px);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -182,7 +187,9 @@ html.lmn-skin-player .upNextContainer {
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
+  width: 440px;
   width: min(440px, calc(100vw - 32px));
+  max-height: 70vh;
   max-height: min(70vh, 560px);
   padding: 22px;
   overflow-y: auto;
@@ -472,8 +479,11 @@ html.lmn-skin-player .upNextContainer {
     position: static;
   }
   .lmn-panel {
+    top: 72px;
     top: calc(max(20px, env(safe-area-inset-top)) + 52px);
+    right: 16px;
     right: max(16px, env(safe-area-inset-right));
+    left: 16px;
     left: max(16px, env(safe-area-inset-left));
     width: auto;
   }
@@ -525,6 +535,7 @@ html.lmn-skin-player .volumeOsd {
 .lmn-volume-pill {
   position: fixed;
   z-index: 3;
+  top: 16px;
   top: calc(16px + env(safe-area-inset-top));
   left: 50%;
   display: flex;
@@ -629,6 +640,7 @@ html.lmn-skin-player .volumeOsd {
 
 /* ---- Settings (gear) panel ----------------------------------------------------------------------------------- */
 .lmn-panel--settings {
+  width: 340px;
   width: min(340px, calc(100vw - 32px));
 }
 .lmn-panel--settings .lmn-panel__speeds {
@@ -664,8 +676,11 @@ html.lmn-skin-player .volumeOsd {
 .lmn-player-info {
   position: absolute;
   z-index: 2;
+  top: 116px;
   top: calc(max(20px, env(safe-area-inset-top)) + 96px);
+  left: 40px;
   left: max(16px, min(3vw, 40px), env(safe-area-inset-left));
+  width: 360px;
   width: min(360px, calc(100vw - 32px));
   padding: 14px 16px 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -765,6 +780,7 @@ html.lmn-skin-player .volumeOsd {
 .lmn-player-loading__title {
   margin: 0;
   color: #fff;
+  font-size: 28px;
   font-size: clamp(20px, 2.4vw, 28px);
   font-weight: 700;
   letter-spacing: -0.02em;

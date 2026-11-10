@@ -3,6 +3,8 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 const HINT = 'use a loop, concat or index arithmetic.';
+// Globals newer than Chromium 68 / Safari 13, bare or as window.x / self.x.
+const NEWER_GLOBALS = ['globalThis', 'queueMicrotask', 'structuredClone'];
 // Array and string methods newer than Chromium 68 / Safari 13.
 const NEWER_METHODS = [
   'flat',
@@ -37,7 +39,7 @@ export default tseslint.config(
     rules: {
       'no-restricted-globals': [
         'error',
-        ...['globalThis', 'queueMicrotask', 'structuredClone'].map((name) => ({
+        ...NEWER_GLOBALS.map((name) => ({
           name,
           message: 'Not in Chromium 68 / Safari 13: use window, or a plain alternative.',
         })),
@@ -49,19 +51,23 @@ export default tseslint.config(
           ['Object', 'hasOwn'],
           ['Promise', 'allSettled'],
           ['Promise', 'any'],
+          ...['window', 'self'].flatMap((object) => NEWER_GLOBALS.map((name) => [object, name])),
         ].map(([object, property]) => ({
           object,
           property,
           message: `Not in Chromium 68 / Safari 13: ${HINT}`,
         })),
       ],
-      // Calls only: `at` is also a field name.
+      // Calls only (`at` is also a field name), as `.at(…)` or `['at'](…)`.
       'no-restricted-syntax': [
         'error',
-        {
-          selector: `CallExpression > MemberExpression.callee[property.name=/^(${NEWER_METHODS.join('|')})$/]`,
+        ...[
+          `[computed=false][property.name=/^(${NEWER_METHODS.join('|')})$/]`,
+          `[computed=true][property.value=/^(${NEWER_METHODS.join('|')})$/]`,
+        ].map((property) => ({
+          selector: `CallExpression > MemberExpression.callee${property}`,
           message: `Not in Chromium 68 / Safari 13: ${HINT}`,
-        },
+        })),
       ],
     },
   },

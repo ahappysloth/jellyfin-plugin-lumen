@@ -65,8 +65,10 @@
   position: absolute;
   z-index: 60;
   left: 0;
+  min-width: 200px;
   min-width: max(100%, 200px);
   max-width: calc(100vw - 16px);
+  max-height: 340px;
   max-height: min(340px, 60vh);
   margin: 0;
   padding: 6px;

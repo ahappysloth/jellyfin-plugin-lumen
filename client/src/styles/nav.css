@@ -155,6 +155,7 @@ button.lmn-nav__item {
     bottom: 0;
     left: 0;
     display: flex;
+    padding: 6px;
     padding: 6px max(6px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom))
       max(6px, env(safe-area-inset-left));
     border-top: 1px solid var(--lmn-line);
@@ -201,12 +202,15 @@ button.lmn-nav__item {
   }
   /* Room for the tab bar, and jellyfin-web's now-playing bar sits on top of it. */
   html.lmn-has-tabbar #lmn-root {
+    padding-bottom: 160px;
     padding-bottom: calc(96px + 64px + env(safe-area-inset-bottom));
   }
   html.lmn-has-tabbar.lmn-skin-settings .page {
+    padding-bottom: 96px !important;
     padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important;
   }
   html.lmn-has-tabbar .nowPlayingBar {
+    bottom: 64px !important;
     bottom: calc(64px + env(safe-area-inset-bottom)) !important;
   }
 }

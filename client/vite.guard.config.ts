@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import { target } from './vite.target';
+import { target } from './vite.target.ts';
 
 /** The tiny inline guard (src/veil/guard.ts): no Preact, inlined into index.html by the server. */
 export default defineConfig({

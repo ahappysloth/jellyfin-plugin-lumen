@@ -9,8 +9,11 @@
 // The inline guard runs before jellyfin-web loads its polyfills (core-js), so it is also checked for functions those
 // browsers lack. Lumen's own source is checked for them by eslint (eslint.config.js); this catches whatever else gets
 // bundled into the guard.
-import { readdirSync, readFileSync } from 'node:fs';
+//
+// The built stylesheets are checked for min(), max(), clamp() and env() without a fallback (css-fallbacks.mjs).
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { parse } from 'acorn';
+import { missingFallbacks } from './css-fallbacks.mjs';
 
 const GUARD = 'lumen-guard.js';
 const NEWER_GLOBALS = new Set(['globalThis', 'queueMicrotask', 'structuredClone']);
@@ -18,6 +21,7 @@ const NEWER_PROPERTIES = new Set([
   'fromEntries',
   'hasOwn',
   'allSettled',
+  'any',
   'flat',
   'flatMap',
   'at',
@@ -30,6 +34,14 @@ const NEWER_PROPERTIES = new Set([
 ]);
 
 const failures = [];
+// Every one of these must be there and checked: a missing file would otherwise pass unnoticed.
+const REQUIRED = ['lumen.js', GUARD, 'lumen-admin.js', 'lumen.css', 'lumen-dashboard.css'];
+for (const file of REQUIRED) {
+  if (!existsSync(`dist/${file}`)) failures.push(`dist/${file} is missing: run \`npm run build\` first`);
+}
+if (!readdirSync('dist').some((f) => f.startsWith('lumen-chunk-') && f.endsWith('.js'))) {
+  failures.push('no lumen-chunk-*.js in dist: run `npm run build` first');
+}
 const files = readdirSync('dist').filter((f) => f.endsWith('.js'));
 for (const file of files) {
   const code = readFileSync(`dist/${file}`, 'utf8');
@@ -54,8 +66,12 @@ for (const file of files) {
       if (node.type === 'Identifier' && NEWER_GLOBALS.has(node.name) && !isProperty && !isKey) {
         failures.push(`${node.name} (no polyfill before the guard): ${where(node)}`);
       }
-      if (node.type === 'MemberExpression' && !node.computed && NEWER_PROPERTIES.has(node.property.name)) {
-        failures.push(`.${node.property.name} (no polyfill before the guard): ${where(node)}`);
+      if (node.type === 'MemberExpression') {
+        // x.at, x['at'], and window.queueMicrotask / self.structuredClone.
+        const name = node.computed ? node.property.value : node.property.name;
+        if (typeof name === 'string' && (NEWER_PROPERTIES.has(name) || NEWER_GLOBALS.has(name))) {
+          failures.push(`.${name} (no polyfill before the guard): ${where(node)}`);
+        }
       }
     }
     if (node.type === 'ChainExpression') failures.push(`optional chaining: ${where(node)}`);
@@ -74,11 +90,18 @@ for (const file of files) {
   visit(ast, null);
 }
 
-if (files.length === 0) failures.push('no .js files in dist: run `npm run build` first');
+const styles = readdirSync('dist').filter((f) => f.endsWith('.css'));
+for (const file of styles) {
+  for (const problem of missingFallbacks(readFileSync(`dist/${file}`, 'utf8'))) {
+    failures.push(`${file}: no fallback for Chromium 68: ${problem.slice(0, 160)}`);
+  }
+}
+
 for (const f of failures.slice(0, 20)) console.error(f);
 if (failures.length > 20) console.error(`…and ${failures.length - 20} more`);
 if (failures.length) {
   console.error(`${failures.length} problem(s): the build must run in Chromium 68 and Safari 13`);
   process.exit(1);
 }
-console.log(`lumen compat: ${files.length} files OK for Chromium 68 / Safari 13 (${files.join(', ')})`);
+const checked = [...files, ...styles];
+console.log(`lumen compat: ${checked.length} files OK for Chromium 68 / Safari 13 (${checked.join(', ')})`);

@@ -21,6 +21,7 @@
 .lmn-browse__title {
   margin: 0;
   color: #fff;
+  font-size: 44px;
   font-size: clamp(30px, 3.4vw, 44px);
   font-weight: 700;
   letter-spacing: -0.03em;

@@ -85,11 +85,17 @@ npm run lint                   # eslint + prettier --check (CI runs this)
 npm run typecheck
 npm test                       # vitest
 npm run size                   # bundle size budget (CI runs this after build)
-npm run compat                 # the build parses in Chromium 68 and Safari 13 (CI runs this after build)
+npm run compat                 # nothing in the build that Chromium 68 / Safari 13 lack (CI runs this after build)
 npm run format                 # fix formatting
 
 dotnet test                    # from the repo root; needs `source scripts/env.sh` for the native .NET
 ```
+
+Older browsers: the client is built for Chromium 68 (LG webOS 5) and Safari 13 (`client/vite.target.ts`). The build compiles newer syntax down, but not functions or CSS:
+
+- eslint rejects functions those browsers lack (`globalThis`, `Object.fromEntries`, `.flatMap()`, `.at()`…). Lumen's main code would mostly get them from jellyfin-web's core-js, but the inline guard runs before it loads.
+- Chromium 68 drops any declaration with `min()`, `max()`, `clamp()` or `env()`: put a plain declaration of the same property first. Lightning CSS turns `clamp()` into `max(min())` for Safari 13.0, but not in a value with `var()`, so write those as `max(min())` yourself. A custom property needs an `@supports not` block instead (`styles/base.css`). `styles/safe-area.test.ts` checks the source, `npm run compat` the build.
+- webOS 4 (Chromium 53) and older can't run Lumen: neither its inline guard nor `lumen.js` parses there, so jellyfin-web's own interface shows.
 
 The .NET build treats warnings as errors and enforces StyleCop. Run `dotnet build` before you push.
 

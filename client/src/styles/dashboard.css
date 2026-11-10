@@ -117,6 +117,7 @@ html.lmn-skin-dashboard :is(.MuiTypography-h1, .MuiTypography-h2, .MuiTypography
   letter-spacing: -0.02em;
 }
 html.lmn-skin-dashboard .MuiTypography-h1 {
+  font-size: 34px;
   font-size: clamp(26px, 2.6vw, 34px);
 }
 html.lmn-skin-dashboard .MuiTypography-h2 {

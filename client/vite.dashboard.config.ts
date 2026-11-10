@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import { target } from './vite.target';
+import { target } from './vite.target.ts';
 
 /**
  * The admin pages' stylesheet (src/styles/dashboard.css → dist/lumen-dashboard.css). Separate from lumen.css so
