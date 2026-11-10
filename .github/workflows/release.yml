@@ -83,7 +83,7 @@ jobs:
       - name: Build and test
         if: steps.reuse.outputs.reused != 'true'
         run: |
-          (cd client && npm ci && npm run lint && npm run typecheck && npm test && npm run build && npm run size)
+          (cd client && npm ci && npm run lint && npm run typecheck && npm test && npm run build && npm run size && npm run compat)
           dotnet test --nologo -p:SkipClientBuild=true
           dotnet publish src/Jellyfin.Plugin.Lumen -c Release -o artifacts/plugin --nologo -p:SkipClientBuild=true \
             -p:Version=${{ steps.v.outputs.jellyfin }} -p:AssemblyVersion=${{ steps.v.outputs.jellyfin }} -p:FileVersion=${{ steps.v.outputs.jellyfin }}

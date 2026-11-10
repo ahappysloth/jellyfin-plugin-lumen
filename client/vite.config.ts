@@ -1,12 +1,13 @@
 import preact from '@preact/preset-vite';
 import { defineConfig } from 'vitest/config';
+import { target } from './vite.target';
 
 export default defineConfig({
   plugins: [preact()],
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    target: 'es2020',
+    target,
     cssCodeSplit: false,
     // An ES module, so the player can be a separate file that loads when it's needed (views/player/lazyPlayer.tsx).
     // Library mode: an app build would add Vite's preload helper to lumen.js and have the other files import it back.
