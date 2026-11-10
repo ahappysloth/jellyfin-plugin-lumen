@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MediaSourceInfo } from '../../api/types';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { resetSessionCaches } from '../../util/sessionCaches';
-import { TrailerPreview } from './TrailerPreview';
+import { TRAILER_START_TIMEOUT_MS, TrailerPreview } from './TrailerPreview';
 
 const MKV_HEVC: MediaSourceInfo = {
   Id: 'ms1',
@@ -31,13 +31,31 @@ const clientFor = (source: MediaSourceInfo) =>
     }),
   );
 
-/** Have the <video> answer canPlayType like a browser that plays the types matching these patterns. */
-const browserPlays = (...supported: RegExp[]) =>
-  vi
+interface FakeBrowser {
+  userAgent: string;
+  plays: RegExp[];
+}
+const SAFARI: FakeBrowser = {
+  userAgent:
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15',
+  plays: [/^video\/mp4; codecs="avc1\.64/, /^application\/vnd\.apple\.mpegurl$/],
+};
+// Chrome answers "maybe" for HLS as well.
+const CHROME: FakeBrowser = {
+  userAgent:
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+  plays: [/^video\/mp4; codecs="avc1\.64/, /^application\/vnd\.apple\.mpegurl$/],
+};
+
+/** Run as this browser: its user agent, and canPlayType saying yes to the types it plays. */
+const runAs = (browser: FakeBrowser) => {
+  vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(browser.userAgent);
+  return vi
     .spyOn(HTMLMediaElement.prototype, 'canPlayType')
-    .mockImplementation((type) => (supported.some((pattern) => pattern.test(type)) ? 'probably' : ''));
-const SAFARI = [/^video\/mp4; codecs="avc1\.64/, /^application\/vnd\.apple\.mpegurl$/];
-const FIREFOX = [/^video\/mp4; codecs="avc1\.64/];
+    .mockImplementation((type) => (browser.plays.some((pattern) => pattern.test(type)) ? 'probably' : ''));
+};
+
+const srcOf = (container: Element) => new URL(container.querySelector('video')!.getAttribute('src')!);
 
 /**
  * Lets the trailer's item load, then `ms` pass. Effects an act() schedules run as it ends, so this takes rounds: the
@@ -79,7 +97,7 @@ describe('TrailerPreview', () => {
   });
 
   it('plays the file as it is when the browser can play its container and codecs', async () => {
-    const canPlayType = browserPlays(...SAFARI);
+    const canPlayType = runAs(SAFARI);
     const { container } = render(
       <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MP4_H264)} />,
     );
@@ -102,14 +120,14 @@ describe('TrailerPreview', () => {
     expect(client.requests.filter((r) => r.url.includes('/Items/t1'))).toHaveLength(1);
   });
 
-  it('transcodes HEVC in Matroska to HLS where the browser plays HLS itself (Safari)', async () => {
-    browserPlays(...SAFARI);
+  it('transcodes HEVC in Matroska to HLS on Apple WebKit, where the caller allows it (details)', async () => {
+    runAs(SAFARI);
     const { container } = render(
-      <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MKV_HEVC)} />,
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MKV_HEVC)} allowTranscode />,
     );
     await startAfter(0);
 
-    const src = new URL(container.querySelector('video')!.getAttribute('src')!);
+    const src = srcOf(container);
     expect(src.pathname).toBe('/Videos/t1/master.m3u8');
     expect(Object.fromEntries(src.searchParams)).toMatchObject({
       MediaSourceId: 'ms1',
@@ -120,24 +138,45 @@ describe('TrailerPreview', () => {
     });
   });
 
-  it('transcodes to a progressive MP4 where the browser has no HLS of its own (Firefox)', async () => {
-    browserPlays(...FIREFOX);
+  it('transcodes to a progressive MP4 elsewhere, though Chrome answers "maybe" for HLS', async () => {
+    runAs(CHROME);
     const { container } = render(
-      <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MKV_HEVC)} />,
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MKV_HEVC)} allowTranscode />,
     );
     await startAfter(0);
 
-    const src = new URL(container.querySelector('video')!.getAttribute('src')!);
-    expect(src.pathname).toBe('/Videos/t1/stream.mp4');
-    expect(src.searchParams.get('VideoCodec')).toBe('h264');
+    expect(srcOf(container).pathname).toBe('/Videos/t1/stream.mp4');
+  });
+
+  it('does not transcode by default (hero slides): no preview of a file the browser cannot play', async () => {
+    runAs(SAFARI);
+    const client = clientFor(MKV_HEVC);
+    const { container } = render(<TrailerPreview trailerId="t1" delaySeconds={0} client={client} />);
+    await startAfter(1000);
+
+    expect(container.querySelector('video')).toBeNull();
+    expect(client.requests.map((r) => new URL(r.url).pathname)).toEqual(['/Items/t1']);
+  });
+
+  it('does not transcode for a user the server will not transcode for', async () => {
+    runAs(SAFARI);
+    const client = clientFor({ ...MKV_HEVC, SupportsTranscoding: false });
+    const { container } = render(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={client} allowTranscode />,
+    );
+    await startAfter(1000);
+
+    expect(container.querySelector('video')).toBeNull();
   });
 
   it('stops the transcode on the server when the preview goes', async () => {
-    browserPlays(...SAFARI);
+    runAs(SAFARI);
     const client = clientFor(MKV_HEVC);
-    const { container, unmount } = render(<TrailerPreview trailerId="t1" delaySeconds={0} client={client} />);
+    const { container, unmount } = render(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={client} allowTranscode />,
+    );
     await startAfter(0);
-    const session = new URL(container.querySelector('video')!.getAttribute('src')!).searchParams;
+    const session = srcOf(container).searchParams;
 
     act(() => {
       unmount();
@@ -151,8 +190,28 @@ describe('TrailerPreview', () => {
     expect(session.get('DeviceId')).toBe('dev+ice');
   });
 
-  it('falls back to a transcode when the browser fails to play the file after all', async () => {
-    browserPlays(/^video\/mp4/, /^application\/vnd\.apple\.mpegurl$/);
+  it('stops the transcode with a keepalive request when the page goes (reload, tab closed)', async () => {
+    runAs(SAFARI);
+    const fetch = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(new Response()),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const { container } = render(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MKV_HEVC)} allowTranscode />,
+    );
+    await startAfter(0);
+    const session = srcOf(container).searchParams.get('PlaySessionId');
+
+    window.dispatchEvent(new Event('pagehide'));
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0]![0]).toContain(`playSessionId=${session}`);
+    expect(fetch.mock.calls[0]![1]).toMatchObject({ method: 'DELETE', keepalive: true });
+    vi.unstubAllGlobals();
+  });
+
+  it('falls back to a remux when the browser fails to play the file after all', async () => {
+    runAs({ ...SAFARI, plays: [/^video\/mp4/, /^application\/vnd\.apple\.mpegurl$/] });
     const { container } = render(
       <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MP4_H264)} />,
     );
@@ -166,9 +225,52 @@ describe('TrailerPreview', () => {
     expect(container.querySelector('video')!.getAttribute('src')).toContain('/master.m3u8?');
   });
 
+  it('moves on when nothing has played after a while, error or not (a stall)', async () => {
+    runAs(SAFARI);
+    const { container } = render(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MP4_H264)} />,
+    );
+    await startAfter(0);
+    expect(container.querySelector('video')!.getAttribute('src')).toContain('/stream?static=true');
+
+    await startAfter(TRAILER_START_TIMEOUT_MS);
+
+    expect(container.querySelector('video')!.getAttribute('src')).toContain('/master.m3u8?');
+  });
+
+  it('keeps playing once the video is under way', async () => {
+    runAs(SAFARI);
+    vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(2);
+    const { container } = render(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MP4_H264)} />,
+    );
+    await startAfter(0);
+    expect(container.querySelector('video')).not.toBeNull();
+    await startAfter(TRAILER_START_TIMEOUT_MS);
+
+    expect(container.querySelector('video')!.getAttribute('src')).toContain('/stream?static=true');
+  });
+
+  it('gives up when the browser refused to autoplay it (it has the data but stays paused)', async () => {
+    runAs(SAFARI);
+    vi.spyOn(HTMLMediaElement.prototype, 'readyState', 'get').mockReturnValue(
+      HTMLMediaElement.HAVE_ENOUGH_DATA,
+    );
+    const { container } = render(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MP4_H264)} />,
+    );
+    await startAfter(0);
+    expect(container.querySelector('video')).not.toBeNull();
+    await startAfter(TRAILER_START_TIMEOUT_MS);
+
+    expect(container.querySelector('video')).toBeNull();
+  });
+
   it('shows no preview when the browser can play neither the file nor a transcode', async () => {
     const client = clientFor(MKV_HEVC);
-    const { container } = render(<TrailerPreview trailerId="t1" delaySeconds={0} client={client} />);
+    const { container } = render(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={client} allowTranscode />,
+    );
     await startAfter(1000);
 
     expect(container.querySelector('video')).toBeNull();

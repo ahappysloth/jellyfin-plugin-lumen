@@ -94,6 +94,7 @@ export function DetailsHeader(props: Props) {
           muted={muted}
           class="lmn-details__trailer"
           onPlayingChange={setTrailerPlaying}
+          allowTranscode
         />
       )}
       <div class="lmn-details__scrim" />

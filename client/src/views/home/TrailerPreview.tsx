@@ -4,7 +4,7 @@ import type { JellyfinApiClient } from '../../compat/jellyfin';
 import { useVisible } from '../../components/useVisible';
 import { newUuid } from '../../util/uuid';
 import {
-  browserCanPlay,
+  detectBrowser,
   getTrailerSource,
   stopTrailerTranscode,
   trailerOptions,
@@ -21,7 +21,18 @@ interface Props {
   class?: string;
   /** Called when the video starts or stops showing, so the page can reveal or hide its controls. */
   onPlayingChange?: (playing: boolean) => void;
+  /**
+   * May the server transcode the trailer when the browser can't play it? The details page says yes; the hero's slides
+   * show a preview for a few seconds each, so they get the file or a remux (which costs next to nothing) only.
+   */
+  allowTranscode?: boolean;
 }
+
+/**
+ * How long a preview may take to get going before the next way to play it is tried. Some failures never raise an
+ * error: WebKit stalls on HEVC the server copied into HLS for a user who may not transcode.
+ */
+export const TRAILER_START_TIMEOUT_MS = 12_000;
 
 interface Plan {
   source: MediaSourceInfo | null;
@@ -29,9 +40,9 @@ interface Plan {
 }
 
 /**
- * Muted local-trailer preview. It starts after a delay while visible, as the file itself when the browser can play it
- * and transcoded when it can't (trailerStream.ts). Unmounting the <video> stops and releases it and ends any transcode;
- * when every way to play it fails, the backdrop stays.
+ * Muted local-trailer preview. It starts after a delay while visible, as the file itself when the browser can play it,
+ * else remuxed or (where `allowTranscode`) transcoded by the server (trailerStream.ts). Unmounting the <video> stops and
+ * releases it and ends any transcode; when every way to play it fails or stalls, the backdrop stays.
  */
 export function TrailerPreview({
   trailerId,
@@ -40,6 +51,7 @@ export function TrailerPreview({
   muted = true,
   class: className,
   onPlayingChange,
+  allowTranscode = false,
 }: Props) {
   const wrapper = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLVideoElement>(null);
@@ -56,7 +68,7 @@ export function TrailerPreview({
     if (!visible || plan) return;
     let live = true;
     void getTrailerSource(client, trailerId).then((source) => {
-      if (live) setPlan({ source, options: trailerOptions(source, browserCanPlay) });
+      if (live) setPlan({ source, options: trailerOptions(source, detectBrowser(), allowTranscode) });
     });
     return () => {
       live = false;
@@ -79,12 +91,27 @@ export function TrailerPreview({
   const option = state === 'playing' ? plan?.options[attempt] : undefined;
 
   // Removing a <video> from the DOM does not necessarily stop its download; release it explicitly. A transcode is
-  // stopped on the server as well. The video is keyed by session, so a retry gets a fresh element.
+  // stopped on the server as well, including when the page itself goes (a reload, or the tab closing). The video is
+  // keyed by session, so a retry gets a fresh element.
   useEffect(() => {
     if (!option) return;
     const element = video.current;
+    const transcoding = option.kind !== 'direct';
+    const onPageHide = (): void => stopTrailerTranscode(client, session, true);
+    if (transcoding) window.addEventListener('pagehide', onPageHide);
+    // Nothing playing yet: an autoplay the browser refused (it has the data but stays paused) won't start on any
+    // other option, so give up; anything else (a stall, a silent decode failure) moves on to the next.
+    const watchdog = setTimeout(() => {
+      if (!element || element.currentTime > 0) return;
+      if (element.paused && element.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) setState('done');
+      else onError();
+    }, TRAILER_START_TIMEOUT_MS);
     return () => {
-      if (option.kind !== 'direct') stopTrailerTranscode(client, session);
+      clearTimeout(watchdog);
+      if (transcoding) {
+        window.removeEventListener('pagehide', onPageHide);
+        stopTrailerTranscode(client, session);
+      }
       if (!element) return;
       element.pause();
       element.removeAttribute('src');
