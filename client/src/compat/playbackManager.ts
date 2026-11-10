@@ -10,6 +10,7 @@
  * the stock player (fail open) and reports what it couldn't find.
  * Verified against jellyfin-web 12.1–12.4 (see docs/reference).
  */
+import type { BaseItem } from '../api/types';
 import { PLAYBACK_MANAGER_METHODS, STOCK_ROUTES, WEBPACK_CHUNK_GLOBAL } from './registry';
 import { webPluginSlot } from './webPlugin';
 
@@ -57,10 +58,13 @@ export interface PlaybackManager {
   getCurrentPlaylistIndex(player: Player): number;
   getPlaylist(player: Player): Promise<unknown[]>;
   /**
-   * Plays items in this tab's player (or the cast target the user picked). Loads the items itself, honours
-   * startPositionTicks and queues the following episodes when the user has next-episode autoplay on.
+   * Plays items in this tab's player (or the cast target the user picked). Loads the items by `ids` unless it is given
+   * the `items` themselves, honours startPositionTicks and queues the following episodes when the user has
+   * next-episode autoplay on.
    */
-  play?(options: { ids: string[]; startPositionTicks?: number; serverId?: string }): Promise<unknown>;
+  play?(
+    options: ({ ids: string[] } | { items: BaseItem[] }) & { startPositionTicks?: number; serverId?: string },
+  ): Promise<unknown>;
   /** RepeatNone, RepeatOne or RepeatAll. */
   getRepeatMode?(player: Player): RepeatMode;
   setRepeatMode?(mode: RepeatMode, player: Player): void;

@@ -119,6 +119,46 @@ describe('DetailsView', () => {
     );
   });
 
+  it("hands the page's fully loaded movie to the player and plays its trailer by id", async () => {
+    const play = vi.fn<(options: unknown) => Promise<void>>(async () => undefined);
+    vi.spyOn(compat, 'getPlaybackManager').mockReturnValue({ play } as unknown as compat.PlaybackManager);
+    const full: BaseItem = {
+      ...movie,
+      ServerId: 's1',
+      MediaType: 'Video',
+      IsFolder: false,
+      Chapters: [],
+      MediaSources: [{ Id: 'm1' }],
+      Trickplay: {},
+    };
+    const c = Object.assign(
+      createFakeClient(
+        routes({
+          'Items/m1': full,
+          'Items/m1/LocalTrailers': [{ Id: 't1', Name: 'Trailer', Type: 'Trailer' }],
+          'Items/m1/Similar': { Items: [] },
+        }),
+      ),
+      { serverId: () => 's1' },
+    );
+    render(<DetailsView id="m1" ctx={makeContext(c)} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /Resume/ }));
+    await waitFor(() =>
+      expect(play).toHaveBeenCalledWith({
+        items: [expect.objectContaining({ Id: 'm1', Chapters: [] })],
+        startPositionTicks: 400,
+        serverId: 's1',
+      }),
+    );
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Trailer' })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Trailer' }));
+    await waitFor(() =>
+      expect(play).toHaveBeenLastCalledWith({ ids: ['t1'], startPositionTicks: undefined, serverId: 's1' }),
+    );
+    expect(c.requests.filter((r) => r.url.includes('Items/m1?'))).toHaveLength(1);
+  });
+
   it('shows an inline error when playback cannot start', async () => {
     const c = client();
     c.respond = routes({

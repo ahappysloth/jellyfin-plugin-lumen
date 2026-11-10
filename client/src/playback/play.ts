@@ -32,6 +32,31 @@ export async function findOwnSession(api: LumenApi, client: JellyfinApiClient): 
   return null;
 }
 
+/** Types jellyfin-web plays as they are. It expands a Series, Season, BoxSet or folder into its episodes or children. */
+const PLAYABLE_AS_IS = new Set(['Movie', 'Episode', 'Video']);
+
+/**
+ * Whether jellyfin-web can be handed this item instead of its id, which saves the GET /Users/{u}/Items/{id} it
+ * otherwise makes before anything else (playbackmanager.js getItemsForPlayback). Only a single-item fetch
+ * (LumenApi.getItem) qualifies: it has every field the player reads. Chapters, MediaSources and Trickplay are left
+ * out of list queries unless asked for (an empty list or map when asked for and there are none), and everything else
+ * it reads (Type, MediaType, ServerId, PartCount, LocationType, IsPlaceHolder, SeriesId, RunTimeTicks, image tags) is
+ * always sent. A card's item from a row or grid query goes by id.
+ */
+export function canPlayAsIs(item: BaseItem, serverId: string): boolean {
+  return (
+    PLAYABLE_AS_IS.has(item.Type) &&
+    item.MediaType === 'Video' &&
+    !item.IsFolder &&
+    item.ServerId === serverId &&
+    Array.isArray(item.Chapters) &&
+    Array.isArray(item.MediaSources) &&
+    item.MediaSources.length > 0 &&
+    item.Trickplay != null &&
+    typeof item.Trickplay === 'object'
+  );
+}
+
 /**
  * Starts playback in jellyfin-web's own player, which keeps resume, subtitles, device profiles, native players and
  * next-episode autoplay.
@@ -39,19 +64,28 @@ export async function findOwnSession(api: LumenApi, client: JellyfinApiClient): 
  * The player is called directly in this tab. Asking the server to send PlayNow to "this browser's session" is only a
  * fallback (no playback manager or server id): every tab of a browser shares one device id, so the server delivers
  * the command to whichever tab owns the session's websocket, which may not be the one the user clicked in.
+ *
+ * `target` is the item, when the caller has it, or its id. A fully loaded movie, episode or video is handed to the
+ * player as it is (canPlayAsIs), anything else by id.
  */
 export async function playItem(
   api: LumenApi,
   client: JellyfinApiClient,
-  itemId: string,
+  target: BaseItem | string,
   startPositionTicks?: number,
   manager: PlaybackManager | null = getPlaybackManager(),
 ): Promise<void> {
+  const itemId = typeof target === 'string' ? target : target.Id;
   const ticks = startPositionTicks && startPositionTicks > 0 ? startPositionTicks : undefined;
   const serverId = client.serverId?.();
   if (manager?.play && serverId) {
+    // A copy: jellyfin-web writes its queue state (PlaylistItemId, playOptions) onto the items it's given.
+    const what =
+      typeof target !== 'string' && canPlayAsIs(target, serverId)
+        ? { items: [{ ...target }] }
+        : { ids: [itemId] };
     try {
-      await manager.play({ ids: [itemId], startPositionTicks: ticks, serverId });
+      await manager.play({ ...what, startPositionTicks: ticks, serverId });
     } catch {
       throw new PlaybackError(strings.playbackFailed);
     }

@@ -29,6 +29,6 @@ async function start(ctx: ViewContext, item: BaseItem): Promise<boolean> {
     await playItem(ctx.api, ctx.client, target.episodeId, target.startTicks);
     return true;
   }
-  await playItem(ctx.api, ctx.client, item.Id, resumeTicks(item));
+  await playItem(ctx.api, ctx.client, item, resumeTicks(item));
   return true;
 }

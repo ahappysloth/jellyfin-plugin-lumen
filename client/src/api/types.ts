@@ -32,6 +32,9 @@ export interface BaseItem {
   Id: string;
   Name: string;
   Type: string;
+  /** Video, Audio, Photo, Book, Unknown. */
+  MediaType?: string;
+  IsFolder?: boolean;
   ServerId?: string;
   Overview?: string;
   ProductionYear?: number;
@@ -55,6 +58,13 @@ export interface BaseItem {
   LocalTrailerCount?: number;
   UserData?: UserData;
   MediaStreams?: MediaStream[];
+  /**
+   * Sent only when asked for (a single-item fetch has them all); Lumen only checks they are there before handing the
+   * item to jellyfin-web's player (playback/play.ts canPlayAsIs).
+   */
+  Chapters?: unknown[];
+  MediaSources?: unknown[];
+  Trickplay?: Record<string, unknown>;
   People?: Person[];
   Genres?: string[];
   /** Library views only: `movies`, `tvshows`, `music`, … (absent for mixed folders). */
