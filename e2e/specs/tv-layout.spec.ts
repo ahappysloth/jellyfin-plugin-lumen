@@ -24,10 +24,11 @@ test('TV layout: D-pad Right moves from an episode row to its details link and b
   await page.goto(`/web/#/details?id=${items['Lumen Show']}`);
 
   const series = page.locator('#lmn-root .lmn-details--series');
+  // Play renders once the episodes have loaded; focus moves on to it from the Back button that stood in.
+  await expect(series.locator('.lmn-details__header .lmn-button--primary')).toBeFocused();
   const row = series.locator('.lmn-episode').first();
   await expect(row).toBeVisible();
-  // The page moves focus to its own default once it has loaded; start from the first episode row only once that has
-  // happened, i.e. focus put on the row stays there.
+  // Start from the first episode row once focus put there stays there (nothing else takes it back mid-test).
   await expect(async () => {
     await row.focus();
     await page.waitForTimeout(300);
