@@ -524,3 +524,62 @@ html.lmn-skin-dashboard .emby-tabs-slider .emby-tab-button-active {
 html.lmn-skin-dashboard ::selection {
   background: color-mix(in srgb, var(--lmn-accent) 45%, transparent);
 }
+
+/* ---- Page polish: the pages admins use most (Dashboard, Users, Plugins, General, Branding, Playback) ------------- */
+/* Room between the app bar and each page's title. */
+html.lmn-skin-dashboard .page.type-interior > .content-primary {
+  padding-top: 20px;
+}
+/* The Dashboard's Activity and Paths widgets (and other list panels): cards like the rest. */
+html.lmn-skin-dashboard .page .MuiList-root.MuiList-padding {
+  overflow: hidden;
+  border: 1px solid var(--lmn-line);
+  border-radius: 14px;
+  background-color: var(--lmn-surface);
+}
+html.lmn-skin-dashboard .page .MuiList-root .MuiListItemButton-root:hover {
+  background-color: var(--lmn-fill);
+}
+html.lmn-skin-dashboard .page .MuiListItemText-secondary {
+  color: var(--lmn-text-3);
+}
+/* Disk usage bars: neutral rather than success-green (they aren't a status). */
+html.lmn-skin-dashboard .MuiLinearProgress-colorSuccess .MuiLinearProgress-bar {
+  background-color: var(--lmn-text-2);
+}
+/* Users: jellyfin-web's square legacy cards, rounded and framed like Lumen's. */
+html.lmn-skin-dashboard .visualCardBox {
+  overflow: hidden;
+  border-radius: 14px !important;
+  background: var(--lmn-surface) !important;
+  /* jellyfin-web's top margin pushed the box out of its card, which clipped its bottom edge. */
+  margin-top: 0;
+  margin-bottom: 0;
+  /* An outline, not a border, so it doesn't change the card's size. */
+  outline: 1px solid var(--lmn-line);
+  outline-offset: -1px;
+  transition: outline-color 0.2s;
+}
+html.lmn-skin-dashboard .visualCardBox:hover {
+  outline-color: var(--lmn-line-strong);
+}
+html.lmn-skin-dashboard .visualCardBox .cardText {
+  color: var(--lmn-text);
+  font-family: var(--lmn-font);
+}
+html.lmn-skin-dashboard .visualCardBox .cardText-secondary {
+  color: var(--lmn-text-3);
+  font-size: 12px;
+}
+html.lmn-skin-dashboard .sectionTitleContainer .fab,
+html.lmn-skin-dashboard .sectionTitleButton {
+  background: var(--lmn-fill-3) !important;
+  color: #fff;
+}
+/* Helper text under fields: quieter and in line with the field's text. */
+html.lmn-skin-dashboard .MuiFormHelperText-root {
+  margin-top: 6px;
+  margin-left: 14px;
+  font-size: 13px;
+  line-height: 1.45;
+}
