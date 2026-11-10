@@ -5,8 +5,11 @@ import { type MenuEntry, openContextMenu } from '../../components/ContextMenu';
 import { Icon } from '../../components/icons';
 import { showToast } from '../../components/Toast';
 import { findOwnSession } from '../../playback/play';
+import type { StartingInfo } from '../../playback/starting';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
+import { openWatchTogether } from '../syncplay/WatchTogether';
+import { othersInGroup, type SyncPlayState } from '../syncplay/syncPlayState';
 import type { PlayerSnapshot } from './playerState';
 
 /* ---- Ends at ------------------------------------------------------------------------------------------------- */
@@ -39,6 +42,8 @@ export function repeatOptions(isEpisode: boolean): { mode: RepeatMode; label: st
 }
 
 export function SettingsPanel({
+  ctx,
+  syncPlay,
   manager,
   snap,
   isEpisode,
@@ -46,6 +51,8 @@ export function SettingsPanel({
   onInfo,
   onClose,
 }: {
+  ctx: ViewContext;
+  syncPlay: SyncPlayState;
   manager: PlaybackManager;
   snap: PlayerSnapshot;
   isEpisode: boolean;
@@ -88,21 +95,46 @@ export function SettingsPanel({
           </div>
         </section>
       )}
-      <button
-        type="button"
-        role="menuitemcheckbox"
-        aria-checked={info}
-        class={`lmn-panel__option lmn-panel__toggle${info ? ' is-selected' : ''}`}
-        onClick={() => {
-          onInfo(!info);
-          onClose();
-        }}
-      >
-        <Icon name="info" size={18} />
-        <span class="lmn-panel__option-label">
-          {info ? strings.player.hidePlaybackInfo : strings.player.playbackInfo}
-        </span>
-      </button>
+      <div class="lmn-panel__rows">
+        {syncPlay.available && (
+          <button
+            type="button"
+            role="menuitem"
+            aria-haspopup="menu"
+            class={`lmn-panel__option lmn-panel__toggle${syncPlay.group ? ' is-selected' : ''}`}
+            onClick={(e) => {
+              const from = e.currentTarget.closest('.lmn-player__pills') as HTMLElement | null;
+              void openWatchTogether(ctx, syncPlay, from ?? e.currentTarget);
+              onClose();
+            }}
+          >
+            <Icon name="group" size={18} />
+            <span class="lmn-panel__option-label">{strings.watchTogether}</span>
+            {syncPlay.group && (
+              <span class="lmn-panel__option-detail">
+                {othersInGroup(syncPlay).length > 0
+                  ? othersInGroup(syncPlay).join(', ')
+                  : syncPlay.group.GroupName}
+              </span>
+            )}
+          </button>
+        )}
+        <button
+          type="button"
+          role="menuitemcheckbox"
+          aria-checked={info}
+          class={`lmn-panel__option lmn-panel__toggle${info ? ' is-selected' : ''}`}
+          onClick={() => {
+            onInfo(!info);
+            onClose();
+          }}
+        >
+          <Icon name="info" size={18} />
+          <span class="lmn-panel__option-label">
+            {info ? strings.player.hidePlaybackInfo : strings.player.playbackInfo}
+          </span>
+        </button>
+      </div>
     </div>
   );
 }
@@ -395,17 +427,33 @@ export function usePlaybackProgress(): { started: boolean; buffering: boolean } 
   return { started, buffering };
 }
 
-/** Before the first frame: the title's backdrop, dimmed, with its name and a spinner. */
-export function LoadingScreen({ ctx, snap }: { ctx: ViewContext; snap: PlayerSnapshot | null }) {
+/**
+ * Before the first frame: the title's backdrop, dimmed, with its name and a spinner. Shown from the Play click
+ * (`starting`, over the page) and kept by the player until the video plays, so it's one continuous screen.
+ */
+export function LoadingScreen({
+  ctx,
+  snap,
+  starting,
+}: {
+  ctx: Pick<ViewContext, 'client'>;
+  snap: PlayerSnapshot | null;
+  starting: StartingInfo | null;
+}) {
   const item = snap?.item;
   const backdropId = item?.BackdropImageTags?.length ? item.Id : item?.ParentBackdropItemId;
-  const title = item ? (item.Type === 'Episode' ? item.SeriesName : item.Name) : null;
+  const backdrop =
+    starting?.backdrop ??
+    (backdropId
+      ? ctx.client.getUrl(`Items/${backdropId}/Images/Backdrop`, { fillWidth: 1280, quality: 80 })
+      : null);
+  const title = starting?.title ?? (item ? (item.Type === 'Episode' ? item.SeriesName : item.Name) : null);
   return (
     <div class="lmn-player-loading" role="status" aria-label={strings.player.starting}>
-      {backdropId && (
+      {backdrop && (
         <img
           class="lmn-player-loading__backdrop"
-          src={ctx.client.getUrl(`Items/${backdropId}/Images/Backdrop`, { fillWidth: 1280, quality: 80 })}
+          src={backdrop}
           alt=""
           onError={(e) => e.currentTarget.remove()}
         />

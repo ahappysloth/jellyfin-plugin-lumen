@@ -57,6 +57,9 @@ export const STOCK_SELECTORS = {
   /** jellyfin-web's toasts (components/toast/toast.ts), e.g. SyncPlay's "joined the group" notices. */
   toastContainer: { selector: '.toastContainer', probe: null, css: 'stock-skin.css' },
   toast: { selector: '.toastContainer .toast', probe: null, css: 'stock-skin.css' },
+  /** jellyfin-web's toast animation states (Lumen's pill drops in and fades out on them). */
+  toastShown: { selector: '.toast.toastVisible', probe: null, css: 'stock-skin.css' },
+  toastHiding: { selector: '.toast.toastHide', probe: null, css: 'stock-skin.css' },
   /** The admin pages (dashboard.css): the Dashboard's MUI frame, drawer and controls. */
   dashboardDrawer: { selector: '.MuiDrawer-paper', probe: 'dashboard', css: 'dashboard.css' },
   dashboardNavItem: { selector: '.MuiListItemButton-root', probe: 'dashboard', css: 'dashboard.css' },

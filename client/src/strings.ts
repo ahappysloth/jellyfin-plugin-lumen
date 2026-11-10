@@ -7,6 +7,8 @@ export const strings = {
   trailer: 'Trailer',
   watched: 'Watched',
   markWatched: 'Mark as watched',
+  markWatchedShort: 'Mark watched',
+  startOver: 'Start over',
   favorite: 'Favorite',
   favorited: 'Favorited',
   addFavorite: 'Add to favorites',

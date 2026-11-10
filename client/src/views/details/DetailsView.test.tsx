@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { makeContext } from '../../../test/viewContext';
 import type { BaseItem } from '../../api/types';
+import * as compat from '../../compat/playbackManager';
 import { DetailsView } from './DetailsView';
 
 const movie: BaseItem = {
@@ -84,12 +85,37 @@ describe('DetailsView', () => {
     const c = client();
     render(<DetailsView id="m1" ctx={makeContext(c)} />);
 
-    const watched = await screen.findByRole('button', { name: 'Mark as watched' });
+    const watched = await screen.findByRole('button', { name: 'Watched' });
     fireEvent.click(watched);
 
     expect(watched).toHaveAttribute('aria-pressed', 'true');
     await waitFor(() =>
       expect(c.requests.some((r) => r.type === 'POST' && r.url.includes('UserPlayedItems/m1'))).toBe(true),
+    );
+  });
+
+  it('offers Start over beside Resume, playing from the beginning', async () => {
+    const play = vi.fn(async () => undefined);
+    vi.spyOn(compat, 'getPlaybackManager').mockReturnValue({ play } as unknown as compat.PlaybackManager);
+    const c = client();
+    Object.assign(c, { serverId: () => 's1' });
+    c.respond = routes({
+      'Items/m1': movie,
+      'Items/m1/LocalTrailers': [],
+      'Items/m1/Similar': { Items: [] },
+    });
+    render(<DetailsView id="m1" ctx={makeContext(c)} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /Resume/ }));
+    await waitFor(() =>
+      expect(play).toHaveBeenCalledWith(expect.objectContaining({ ids: ['m1'], startPositionTicks: 400 })),
+    );
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Start over' })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Start over' }));
+    await waitFor(() =>
+      expect(play).toHaveBeenLastCalledWith(
+        expect.objectContaining({ ids: ['m1'], startPositionTicks: undefined }),
+      ),
     );
   });
 

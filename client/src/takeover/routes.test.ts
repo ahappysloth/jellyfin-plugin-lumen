@@ -4,6 +4,8 @@ import { parseRoute } from './routes';
 describe('parseRoute', () => {
   it.each([
     ['#/home', { kind: 'home' }],
+    // jellyfin-web's root (it redirects to home): Lumen's home through the redirect, no stock frame.
+    ['#/', { kind: 'home' }],
     ['#!/home', { kind: 'home' }],
     ['#/home?tab=0', { kind: 'home' }],
     ['#/home?tab=1', { kind: 'favorites' }],

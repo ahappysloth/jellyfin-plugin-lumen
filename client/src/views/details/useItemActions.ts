@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { HOME_HASH } from '../../compat/jellyfin';
 import type { BaseItem } from '../../api/types';
 import { playItem } from '../../playback/play';
+import { clearStarting, showStarting, startingFor } from '../../playback/starting';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { showToast } from '../../components/Toast';
@@ -34,8 +35,12 @@ export function useItemActions(item: BaseItem, ctx: ViewContext) {
     if (starting) return;
     setError(null);
     setStarting(true);
+    showStarting(startingFor(ctx.client, item));
     playItem(ctx.api, ctx.client, itemId, startTicks)
-      .catch(() => mounted.current && setError(strings.playbackFailed))
+      .catch(() => {
+        clearStarting();
+        if (mounted.current) setError(strings.playbackFailed);
+      })
       .finally(() => mounted.current && setStarting(false));
   };
 

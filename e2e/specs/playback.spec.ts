@@ -158,6 +158,8 @@ test('the player says when it ends, repeats, and shows playback info', async ({ 
   await expect(page.locator('#lmn-root').getByText(/^Ends at \d/)).toBeVisible();
 
   await page.getByRole('button', { name: 'Settings' }).click();
+  // Watch together lives in the settings panel.
+  await expect(page.getByRole('menu', { name: 'Settings' }).getByRole('menuitem', { name: /Watch together/ })).toBeVisible();
   // A movie repeats itself.
   await page.getByRole('button', { name: 'Repeat', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Repeat', exact: true })).toHaveAttribute('aria-pressed', 'true');

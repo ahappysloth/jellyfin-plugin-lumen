@@ -628,10 +628,6 @@ html.lmn-skin-player .volumeOsd {
 .lmn-panel--settings {
   width: min(340px, calc(100vw - 32px));
 }
-.lmn-panel--settings .lmn-panel__column + .lmn-panel__toggle,
-.lmn-panel--settings .lmn-panel__speeds + .lmn-panel__toggle {
-  margin-top: 16px;
-}
 .lmn-panel--settings .lmn-panel__speeds {
   margin-top: 10px;
 }
@@ -642,9 +638,23 @@ html.lmn-skin-player .volumeOsd {
   gap: 10px;
   width: 100%;
 }
-.lmn-panel--settings .lmn-panel__column + .lmn-panel__toggle {
-  padding-top: 14px;
+/* Watch together and Playback info: rows below Repeat, clear of the divider (their hover fill has room). */
+.lmn-panel--settings .lmn-panel__column + .lmn-panel__rows {
+  margin-top: 16px;
+  padding-top: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.lmn-panel__rows .lmn-panel__toggle {
+  margin: 0;
+}
+.lmn-panel__rows .lmn-panel__toggle + .lmn-panel__toggle {
+  margin-top: 2px;
+}
+.lmn-panel__toggle .lmn-panel__option-detail {
+  overflow: hidden;
+  margin-left: auto;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---- Playback info: a small glass card at the top left ---------------------------------------------------- */
@@ -700,6 +710,16 @@ html.lmn-skin-player .volumeOsd {
 }
 
 /* ---- Loading screen (until the first frame) and the buffering spinner --------------------------------------- */
+/* From the Play click until the player opens: the same screen, over Lumen's page and nav. */
+.lmn-starting {
+  position: fixed;
+  z-index: 2000;
+  inset: 0;
+}
+/* It answers a click: up at once, no fade. */
+.lmn-starting .lmn-player-loading {
+  animation: none;
+}
 /* While it loads: just the way back and the title, no 0:00 and Play button. */
 .lmn-osd.is-loading .lmn-player__bottom {
   visibility: hidden;
