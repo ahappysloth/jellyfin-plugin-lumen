@@ -32,6 +32,8 @@ public class ServiceRegistratorTests
         services.AddSingleton(Substitute.For<IHttpClientFactory>());
         services.AddSingleton(Substitute.For<IApplicationPaths>());
         services.AddSingleton(Substitute.For<MediaBrowser.Common.Updates.IInstallationManager>());
+        services.AddSingleton(Substitute.For<MediaBrowser.Controller.Configuration.IServerConfigurationManager>());
+        services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
 
         new ServiceRegistrator().RegisterServices(services, Substitute.For<IServerApplicationHost>());
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
@@ -43,6 +45,7 @@ public class ServiceRegistratorTests
         Assert.NotNull(provider.GetRequiredService<ISeerrUserMap>());
         Assert.NotNull(provider.GetRequiredService<ITmdbImageCache>());
         Assert.NotNull(provider.GetRequiredService<CatalogMapper>());
+        Assert.NotNull(provider.GetRequiredService<WebStaticFiles>());
         Assert.Contains(provider.GetServices<IStartupFilter>(), f => f is LumenStartupFilter);
         Assert.Equal(
             [

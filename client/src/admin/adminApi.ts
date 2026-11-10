@@ -35,6 +35,8 @@ export interface LumenConfig {
   LibraryTakeover: boolean;
   StyleStockPages: boolean;
   StyleVideoPlayer: boolean;
+  /** jellyfin-web's content-hashed files served precompressed and cached for good (absent from older servers: on). */
+  OptimizeWebClientFiles?: boolean;
   AccentColor: string;
   /** Jellyfin may serialize the enum as a name or a number; normalizeConfig converts it to a name. */
   HeroSource: string | number;

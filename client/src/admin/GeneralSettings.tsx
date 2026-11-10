@@ -43,6 +43,12 @@ export function GeneralSettings({
         checked={config.StyleVideoPlayer}
         onChange={(v) => update({ StyleVideoPlayer: v })}
       />
+      <Switch
+        label="Load Jellyfin's web app faster"
+        hint="Sends its versioned files at the best compression, and lets browsers and the Jellyfin apps keep them until Jellyfin updates. Applies even with Lumen off."
+        checked={config.OptimizeWebClientFiles ?? true}
+        onChange={(v) => update({ OptimizeWebClientFiles: v })}
+      />
       <Field label="Accent color" hint="Badges, ratings, progress bars and this page's buttons.">
         <input
           type="color"

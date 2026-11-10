@@ -163,6 +163,18 @@ describe('AdminApp', () => {
     expect(vi.mocked(api.saveConfig).mock.calls[1]![0].SeerrApiKey).toBe('new-key');
   });
 
+  it("saves the web app speed-up, on when the server doesn't say", async () => {
+    const api = fakeApi();
+    render(<AdminApp api={api} />);
+
+    const toggle = await screen.findByRole('switch', { name: /Load Jellyfin's web app faster/ });
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(api.saveConfig).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(api.saveConfig).mock.calls[0]![0].OptimizeWebClientFiles).toBe(false);
+  });
+
   it('tests the Seerr connection with the typed address and key', async () => {
     const api = fakeApi({
       testSeerr: vi.fn(async () => ({ Ok: false, Version: null, Error: 'Seerr rejected the API key.' })),
