@@ -30,6 +30,12 @@ function listNames(names: string[]): string {
     : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
+/** Promise.allSettled for one promise: Chromium 68 has no Promise.allSettled (76). */
+const settle = <T>(promise: Promise<T>): Promise<PromiseSettledResult<T>> =>
+  promise.then(
+    (value): PromiseSettledResult<T> => ({ status: 'fulfilled', value }),
+    (reason: unknown): PromiseSettledResult<T> => ({ status: 'rejected', reason }),
+  );
 /** A settled promise's value, or the fallback when it failed. */
 const valueOr = <T>(result: PromiseSettledResult<T>, fallback: T): T =>
   result.status === 'fulfilled' ? result.value : fallback;
@@ -73,13 +79,13 @@ export function useAdminConfig(api: AdminApi) {
 
   /** Resolves false (and shows the failure page with `failure`) when the essentials couldn't be loaded. */
   const load = async (failure = LOAD_FAILED): Promise<boolean> => {
-    const [config, types, libraries, collections, playlists, diagnostics] = await Promise.allSettled([
-      api.getConfig(),
-      api.getSectionTypes(),
-      api.getLibraries(),
-      api.getCollections(),
-      api.getPlaylists(),
-      api.getDiagnostics(),
+    const [config, types, libraries, collections, playlists, diagnostics] = await Promise.all([
+      settle(api.getConfig()),
+      settle(api.getSectionTypes()),
+      settle(api.getLibraries()),
+      settle(api.getCollections()),
+      settle(api.getPlaylists()),
+      settle(api.getDiagnostics()),
     ]);
     if (config.status === 'rejected' || types.status === 'rejected') {
       patch({ status: 'failed', failure });

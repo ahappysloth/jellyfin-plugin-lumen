@@ -31,7 +31,7 @@ export function episodeNeighbors(
   const at = season.findIndex((e) => e.Id === episodeId);
   if (at < 0) return { previous: null, next: null };
   return {
-    previous: season[at - 1] ?? seasonBefore.at(-1) ?? null,
+    previous: season[at - 1] ?? seasonBefore[seasonBefore.length - 1] ?? null,
     next: season[at + 1] ?? seasonAfter[0] ?? null,
   };
 }

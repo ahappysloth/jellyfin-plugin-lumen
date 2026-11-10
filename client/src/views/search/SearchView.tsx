@@ -75,7 +75,8 @@ export async function runSearch(ctx: ViewContext, query: string): Promise<Search
   const sections = KINDS.map((kind, i) => ({ ...kind, items: kinds[i]!.Items })).filter(
     (s) => s.items.length > 0,
   );
-  const listed = new Set(sections.flatMap((s) => s.items.map((i) => i.Id.replace(/-/g, '').toLowerCase())));
+  const listed = new Set<string>();
+  for (const s of sections) for (const i of s.items) listed.add(i.Id.replace(/-/g, '').toLowerCase());
   const catalog = (await catalogSearch.catch(() => [] as CatalogItem[])).filter(
     (c) => !c.JellyfinItemId || !listed.has(c.JellyfinItemId.replace(/-/g, '').toLowerCase()),
   );

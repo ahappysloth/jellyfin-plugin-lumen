@@ -253,10 +253,11 @@ function findInWebpack(win: Window): PlaybackManagerLookup {
 
     let exports: unknown[];
     if (require.c) {
-      exports = candidates.flatMap((id) => {
-        const cachedModule = require.c![id];
-        return cachedModule?.exports ? [cachedModule.exports] : [];
-      });
+      exports = [];
+      for (const id of candidates) {
+        const cachedModule = require.c[id];
+        if (cachedModule?.exports) exports.push(cachedModule.exports);
+      }
       if (exports.length === 0) return { manager: null, failed: ['playbackManager:notLoaded'] };
     } else {
       if (candidates.length > 1) return { manager: null, failed: ['playbackManager:ambiguous'] };

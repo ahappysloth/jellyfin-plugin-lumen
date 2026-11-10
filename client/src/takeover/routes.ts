@@ -39,9 +39,10 @@ export type TakeoverRoute = Exclude<Route, { kind: 'other' }>;
 const ITEM_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
 export type SettingsPage =
   'profile' | 'quickConnect' | 'display' | 'home' | 'playback' | 'subtitles' | 'controls';
-const SETTINGS_PATHS: Record<string, SettingsPage> = Object.fromEntries(
-  Object.entries(SETTINGS_ROUTES).map(([page, path]) => [path, page as SettingsPage]),
-);
+// Runs in the inline guard, before jellyfin-web's polyfills: no Object.fromEntries (Chromium 73).
+const SETTINGS_PATHS: Record<string, SettingsPage> = {};
+for (const page of Object.keys(SETTINGS_ROUTES) as SettingsPage[])
+  SETTINGS_PATHS[SETTINGS_ROUTES[page]] = page;
 /** jellyfin-web's signed-out pages, which Lumen restyles (CSS only; see veil/skin.ts). */
 export const SIGN_IN_PATHS = SIGN_IN_ROUTES;
 
