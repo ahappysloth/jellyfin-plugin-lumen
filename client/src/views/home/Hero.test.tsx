@@ -81,6 +81,38 @@ describe('Hero', () => {
     expect(screen.getByRole('img', { name: 'Alpha' })).toBeInTheDocument();
   });
 
+  // `inert` alone leaves them reachable on browsers without it (webOS TVs before Chrome 102, Safari before 15.5).
+  it("keeps the off-screen slides' buttons out of Tab and D-pad reach, without relying on inert", () => {
+    const { container } = renderHero();
+    const offscreen = () => [
+      ...container.querySelectorAll<HTMLButtonElement>('.lmn-hero__slide:not(.is-current) button'),
+    ];
+    const onscreen = () => [
+      ...container.querySelectorAll<HTMLButtonElement>('.lmn-hero__slide.is-current button'),
+    ];
+
+    expect(offscreen()).toHaveLength(4); // Play and More info on the previous and next slides
+    for (const button of offscreen()) {
+      expect(button.tabIndex).toBe(-1);
+      expect(button.getAttribute('tabindex')).toBe('-1'); // jellyfin-web's focusable query skips [tabindex="-1"]
+      expect(button).toBeDisabled();
+    }
+    expect(onscreen()).toHaveLength(2);
+    for (const button of onscreen()) {
+      expect(button.hasAttribute('tabindex')).toBe(false);
+      expect(button).toBeEnabled();
+    }
+
+    // The next slide's buttons come back when it slides in.
+    advance(8000 + SLIDE);
+    expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument();
+    for (const button of onscreen()) {
+      expect(button.hasAttribute('tabindex')).toBe(false);
+      expect(button).toBeEnabled();
+    }
+    for (const button of offscreen()) expect(button).toBeDisabled();
+  });
+
   it('pauses while the user navigates inside it with the keyboard', () => {
     const { container } = renderHero();
     fireEvent.keyDown(container.querySelector('.lmn-hero')!, { key: 'Tab' });

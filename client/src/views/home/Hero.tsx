@@ -276,6 +276,9 @@ function Slide({
   const backdrop = resolveImage(item, ['Backdrop']);
   const logo = resolveImage(item, ['Logo']);
   const meta = [...cardMeta(item), ...(item.Genres ?? []).slice(0, 2)];
+  // A slide off to the side is `inert`, but browsers without inert (webOS TVs' Chrome before 102, Safari before 15.5)
+  // would still let Tab and jellyfin-web's D-pad (its focusable query skips [tabindex="-1"] and :disabled) reach it.
+  const offscreen = current ? {} : { tabIndex: -1, disabled: true };
   return (
     <div
       class={`lmn-hero__slide${current ? ' is-current' : ''}`}
@@ -318,6 +321,7 @@ function Slide({
             disabled={starting}
             aria-busy={starting ? 'true' : undefined}
             onClick={() => onPlay(item)}
+            {...offscreen}
           >
             {starting ? <span class="lmn-spinner" aria-hidden="true" /> : <Icon name="play" />}
             {starting ? strings.starting : strings.play}
@@ -327,6 +331,7 @@ function Slide({
             class="lmn-button lmn-button--secondary"
             aria-label={strings.moreInfo}
             onClick={() => onInfo(item)}
+            {...offscreen}
           >
             <Icon name="info" />
             <span class="lmn-button__label">{strings.moreInfo}</span>
