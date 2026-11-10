@@ -2,6 +2,26 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.3.5] - 2026-11-10
+
+### Added
+- Details: Start over beside Resume.
+- Plugin pages: a status chip above the name (Enabled / Disabled, click to toggle), Settings and Uninstall under the
+  description, and the revision history as separate cards.
+
+### Changed
+- The loading screen (title backdrop, name, spinner) appears the moment Play is clicked, and stays until the first
+  frame.
+- Player: Watch together moved into the settings (gear) panel.
+- Jellyfin's notices (e.g. SyncPlay) drop from the top as a pill, like the volume pill.
+- A redrawn heart; the watched button reads "Mark watched" until it's watched.
+- Dashboard: destructive buttons (Restart, Shutdown, Delete, Uninstall) in Lumen's red; a tidier server card at the
+  top of the drawer.
+
+### Fixed
+- Clicking the server card in the Dashboard no longer flashes Jellyfin's own home page.
+- Settings panel rows no longer touch the divider.
+
 ## [0.3.4] - 2026-11-10
 
 ### Added
