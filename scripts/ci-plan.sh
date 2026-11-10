@@ -48,8 +48,9 @@ if [[ "${EVENT:-}" == push && -n "${REPO:-}" ]]; then
     pr_tree=$(gh api "repos/$REPO/git/commits/$head_sha" --jq .tree.sha 2>/dev/null || true)
     this_tree=$(git rev-parse "$HEAD^{tree}")
     if [[ -n "$pr_tree" && "$pr_tree" == "$this_tree" ]]; then
+      # One e2e job per browser: all of them must have passed.
       e2e=$(gh api "repos/$REPO/commits/$head_sha/check-runs" \
-        --jq '[.check_runs[] | select(.name | test("e2e")) | .conclusion] | if index("success") then "success" else (.[0] // "none") end' 2>/dev/null || true)
+        --jq '[.check_runs[] | select(.name | test("e2e")) | .conclusion] | if length > 0 and all(. == "success") then "success" else (map(select(. != "success")) | .[0]) // "none" end' 2>/dev/null || true)
       [[ "$e2e" == success ]] && decide false "PR #$number ran the e2e suite on this exact code"
     fi
   fi
