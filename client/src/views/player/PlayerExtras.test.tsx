@@ -1,5 +1,13 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/preact';
+import { useRef, useState } from 'preact/hooks';
 import { describe, expect, it } from 'vitest';
-import { endsAt, playbackInfoRows, reasonText, repeatOptions } from './PlayerExtras';
+import { createFakeClient, routes } from '../../../test/fakeClient';
+import { makeContext } from '../../../test/viewContext';
+import type { PlaybackManager } from '../../compat/playbackManager';
+import { ContextMenuHost } from '../../components/ContextMenu';
+import { NO_SYNCPLAY } from '../syncplay/syncPlayState';
+import { endsAt, playbackInfoRows, reasonText, repeatOptions, SettingsPanel } from './PlayerExtras';
+import type { PlayerSnapshot } from './playerState';
 
 describe('player extras', () => {
   it('says when playback ends, at the current speed', () => {
@@ -73,5 +81,62 @@ describe('player extras', () => {
 
   it('reads transcode reasons as words', () => {
     expect(reasonText('ContainerBitrateExceedsLimit')).toBe('container bitrate exceeds limit');
+  });
+});
+
+/** The settings pill and its panel, which closes the way PlayerView closes it. */
+function Settings() {
+  const pill = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(true);
+  const [info, setInfo] = useState(false);
+  const ctx = makeContext(createFakeClient(routes({ 'SyncPlay/List': [] })));
+  return (
+    <>
+      <div class="lmn-player__pills">
+        <button ref={pill} type="button" aria-label="Settings" onClick={() => setOpen(true)} />
+        {open && (
+          <SettingsPanel
+            ctx={ctx}
+            syncPlay={{ ...NO_SYNCPLAY, available: true, canCreate: true, self: 'Alex' }}
+            manager={{} as PlaybackManager}
+            snap={{ repeatMode: null } as PlayerSnapshot}
+            isEpisode={false}
+            info={info}
+            onInfo={setInfo}
+            pill={pill}
+            onClose={() => setOpen(false)}
+          />
+        )}
+      </div>
+      <ContextMenuHost />
+    </>
+  );
+}
+
+describe('player settings panel focus', () => {
+  it('gives focus back to the settings pill when Playback info closes the panel', () => {
+    render(<Settings />);
+    const entry = screen.getByRole('menuitemcheckbox', { name: 'Playback info' });
+    entry.focus();
+
+    fireEvent.click(entry);
+
+    expect(screen.queryByRole('menuitemcheckbox')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Settings' })).toHaveFocus();
+  });
+
+  it('hands focus from Watch together to its menu, and back to the settings pill when that closes', async () => {
+    render(<Settings />);
+    const entry = screen.getByRole('menuitem', { name: 'Watch together' });
+    entry.focus();
+
+    fireEvent.click(entry);
+    const pill = screen.getByRole('button', { name: 'Settings' });
+    expect(pill).toHaveFocus(); // while the groups load
+
+    const newGroup = await screen.findByRole('menuitem', { name: 'New group' });
+    await waitFor(() => expect(newGroup).toHaveFocus());
+    fireEvent.keyDown(newGroup, { key: 'Escape' });
+    expect(pill).toHaveFocus();
   });
 });

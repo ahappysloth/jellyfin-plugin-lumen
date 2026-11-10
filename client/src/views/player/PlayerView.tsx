@@ -177,6 +177,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   }, [progress.started]);
   useEffect(() => clearStarting, []);
   const [info, setInfo] = useState(false);
+  const settingsPill = useRef<HTMLButtonElement>(null);
   positionShown.current = visible || panel !== null || info;
   // The position wasn't redrawn while hidden: bring it up to date before the controls are painted.
   useLayoutEffect(() => {
@@ -227,7 +228,17 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
           <span class="lmn-spinner" aria-hidden="true" />
         </div>
       )}
-      {info && <PlaybackInfoCard ctx={ctx} snap={snap} onClose={() => setInfo(false)} />}
+      {info && (
+        <PlaybackInfoCard
+          ctx={ctx}
+          snap={snap}
+          onClose={() => {
+            // Its close button goes with it: focus goes to the settings pill, where Playback info is turned on.
+            settingsPill.current?.focus();
+            setInfo(false);
+          }}
+        />
+      )}
       <VolumePill volume={volume} />
       <SwitchOverlay state={switching.state} />
       {/* Clicking the picture toggles play (closes a menu first); double-click toggles full screen. */}
@@ -283,6 +294,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             <span class="lmn-player__pill-label">{strings.player.audioSubtitles}</span>
           </button>
           <button
+            ref={settingsPill}
             type="button"
             class={`lmn-player__pill lmn-player__pill--icon${panel === 'settings' ? ' is-open' : ''}`}
             aria-label={strings.player.settings}
@@ -308,6 +320,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
               isEpisode={isEpisode}
               info={info}
               onInfo={setInfo}
+              pill={settingsPill}
               onClose={() => setPanel(null)}
             />
           )}
