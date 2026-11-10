@@ -192,6 +192,18 @@ describe('PlayerView', () => {
     });
     fireEvent.keyDown(slider, { key: 'ArrowRight' });
     expect(pm.seek).toHaveBeenCalledWith(610_000 * 10_000, pm.player);
+
+    // The seek arrives, and playback goes on, still hidden: the next press steps from there, not from 610 s.
+    pm.currentTime.mockReturnValue(610_200);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    pm.currentTime.mockReturnValue(640_000);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    expect(pm.seek).toHaveBeenLastCalledWith(650_000 * 10_000, pm.player);
   });
 
   it('keeps "Ends at" moving while paused', async () => {

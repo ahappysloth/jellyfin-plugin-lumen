@@ -6,7 +6,7 @@ import type { TrickplayPreview } from './trickplay';
 /** A seek counts as arrived once the player reports a time this close to it. */
 const ARRIVED_MS = 1500;
 /** Give up waiting after this long (a seek the player refused, or a stream restart that took longer). */
-const PENDING_MAX_MS = 15_000;
+export const PENDING_MAX_MS = 15_000;
 /** Trickplay thumbnails are shown at this width (the tiles' own width is usually 320 px). */
 const PREVIEW_WIDTH = 192;
 
@@ -100,7 +100,7 @@ export function ProgressBar({
         e.preventDefault();
         e.stopPropagation(); // jellyfin-web also seeks on arrows; don't do it twice
         // From where the video is now: positionMs isn't redrawn while the controls are hidden (PlayerView), and the
-        // seek bar keeps focus then.
+        // seek bar keeps focus then. A step still on its way counts (rapid presses add up).
         const from = pending?.ms ?? livePositionMs?.() ?? positionMs;
         seek(Math.min(durationMs, Math.max(0, from + step)));
       }}

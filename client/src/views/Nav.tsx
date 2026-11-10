@@ -42,11 +42,12 @@ async function loadNavData(ctx: ViewContext): Promise<NavData> {
     getServerName(ctx.client),
     ctx.api.getUserViews().catch(() => null),
   ]);
+  const previous = cache.get(ctx.userId);
   return {
-    serverName,
-    libraries: (views?.Items ?? []).slice(0, MAX_LIBRARIES),
-    // Something missing (a failed request): not fresh, so the next page asks again.
-    loadedAt: views && serverName ? Date.now() : 0,
+    // A failed request keeps what was there, and isn't fresh, so the next page asks again.
+    serverName: serverName ?? previous?.serverName ?? null,
+    libraries: views ? views.Items.slice(0, MAX_LIBRARIES) : (previous?.libraries ?? []),
+    loadedAt: views ? Date.now() : 0,
   };
 }
 
