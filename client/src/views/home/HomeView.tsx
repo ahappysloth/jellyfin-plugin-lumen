@@ -95,6 +95,7 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
 
   return (
     <div ref={rootRef} class={`lmn-home${home.Hero.length === 0 ? ' lmn-home--no-hero' : ''}`}>
+      <h1 class="lmn-visually-hidden">{strings.home}</h1>
       {home.Hero.length > 0 && (
         <ErrorBoundary fallback={null}>
           <Hero

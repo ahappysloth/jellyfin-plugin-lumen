@@ -51,6 +51,10 @@ html.lmn-pending .MuiAppBar-root,
 html.lmn-pending .skinHeader {
   display: none !important;
 }
+/* The Modern layout's <main> is empty on Lumen's pages, which bring their own (App.tsx): one main landmark. */
+html.lmn-active #reactRoot main {
+  display: none !important;
+}
 /* jellyfin-web's splash logo and loading spinner never show on Lumen's pages; the veil covers the cold load. */
 html.lmn-pending .splashLogo,
 html.lmn-pending .docspinner,
@@ -161,6 +165,11 @@ html.lmn-active #lmn-root {
 }
 #lmn-root button {
   font-family: inherit;
+}
+/* Focus moves to a new page's heading (or main) for screen readers (usePageChange.ts); neither is a control. */
+.lmn-main:focus,
+.lmn-main h1:focus {
+  outline: none;
 }
 
 .lmn-icon {

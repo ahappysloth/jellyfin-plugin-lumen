@@ -1,9 +1,10 @@
 import { ContextMenuHost } from '../components/ContextMenu';
-import { useEffect } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ToastHost } from '../components/Toast';
 import { liftVeil } from '../veil/veil';
-import type { TakeoverRoute } from '../takeover/routes';
+import { routeKey, type TakeoverRoute } from '../takeover/routes';
+import { strings } from '../strings';
 import { FavoritesView } from './browse/FavoritesView';
 import { GenreView } from './browse/GenreView';
 import { LibraryView } from './browse/LibraryView';
@@ -18,6 +19,7 @@ import { ProfileView } from './profile/ProfileView';
 import { SettingsFrame } from './profile/SettingsFrame';
 import { SearchView } from './search/SearchView';
 import { Nav, type NavActive } from './Nav';
+import { usePageChange } from './usePageChange';
 
 function navActive(route: TakeoverRoute): NavActive {
   if (route.kind === 'library') return route.id;
@@ -81,6 +83,11 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
   useEffect(() => {
     if (route.kind === 'library' || route.kind === 'favorites' || route.kind === 'genre') liftVeil();
   }, [route.kind]);
+  // Lumen's own pages are the document's main content (jellyfin-web's, empty, is hidden: base.css). The player and
+  // settings pages frame jellyfin-web's, which keep its main and its title.
+  const framed = route.kind === 'player' || route.kind === 'settings';
+  const main = useRef<HTMLElement>(null);
+  usePageChange(main, routeKey(route), route.kind === 'search' ? strings.search : '', ctx);
   return (
     <ErrorBoundary fallback={null} onError={ctx.onFallback}>
       {route.kind !== 'details' && route.kind !== 'title' && route.kind !== 'player' && (
@@ -88,7 +95,13 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
           <Nav ctx={ctx} active={navActive(route)} />
         </ErrorBoundary>
       )}
-      <Page route={route} ctx={ctx} />
+      {framed ? (
+        <Page route={route} ctx={ctx} />
+      ) : (
+        <main ref={main} class="lmn-main" tabIndex={-1}>
+          <Page route={route} ctx={ctx} />
+        </main>
+      )}
       {route.kind !== 'player' && <StartingScreen ctx={ctx} />}
       <ContextMenuHost />
       <ToastHost />

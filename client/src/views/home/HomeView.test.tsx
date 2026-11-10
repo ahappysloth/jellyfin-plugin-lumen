@@ -72,6 +72,12 @@ describe('HomeView', () => {
     expect(ctx.navigate).toHaveBeenCalledWith('#/list?genreId=gid&serverId=s');
   });
 
+  it('has a page heading for screen readers (the hero and rows have h2s)', async () => {
+    render(<HomeView ctx={makeContext(createFakeClient(routes({ 'Lumen/Home': home })))} />);
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Home' })).toBeInTheDocument();
+  });
+
   it('renders rows and opens details for movies', async () => {
     const ctx = makeContext(createFakeClient(routes({ 'Lumen/Home': home })));
     render(<HomeView ctx={ctx} />);
