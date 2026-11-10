@@ -13,6 +13,32 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Whether the e2e suite has anything to check (scripts/ci-plan.sh): not for docs-only changes or release version
+  # bumps, nor for a push to main that a pull request already ran it on, unchanged.
+  plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+    outputs:
+      e2e: ${{ steps.plan.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          plan=$(scripts/ci-plan.sh)
+          echo "$plan" | tee -a "$GITHUB_OUTPUT"
+          echo "E2E $(echo "$plan" | sed -n 's/^e2e=//p'): $(echo "$plan" | sed -n 's/^reason=//p')" >> "$GITHUB_STEP_SUMMARY"
+
   client:
     runs-on: ubuntu-latest
     defaults:
@@ -56,7 +82,8 @@ jobs:
           path: artifacts/plugin/Jellyfin.Plugin.Lumen.dll
 
   e2e:
-    needs: server
+    needs: [plan, server]
+    if: needs.plan.outputs.e2e == 'true'
     uses: ./.github/workflows/e2e.yml
     with:
       jellyfin-image: jellyfin/jellyfin:12.4
