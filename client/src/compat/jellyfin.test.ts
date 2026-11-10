@@ -6,6 +6,7 @@ import {
   getAppBarHeight,
   getLayout,
   isBackKey,
+  isRemoteBack,
   isModernLayout,
   libraryHash,
   selfTest,
@@ -65,6 +66,18 @@ describe('compat', () => {
     for (const keyCode of [27, 196, 461, 10009]) expect(back({ key: 'Unidentified', keyCode })).toBe(true);
     expect(back({ key: 'Backspace', keyCode: 8 })).toBe(false);
     expect(back({ key: 'Enter', keyCode: 13 })).toBe(false);
+  });
+
+  it("tells a TV remote's Back, which goes back in every layout, from Escape and a gamepad's B", () => {
+    const remote = (init: KeyboardEventInit) => isRemoteBack(new KeyboardEvent('keydown', init));
+    for (const keyCode of [461, 10009]) expect(remote({ key: 'Unidentified', keyCode })).toBe(true);
+    expect(remote({ key: 'Escape', keyCode: 27 })).toBe(false);
+    expect(remote({ key: 'Unidentified', keyCode: 196 })).toBe(false);
+    const vidaa =
+      'Mozilla/5.0 (Linux; VIDAA 7.0; Hisense SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0';
+    const backspace = new KeyboardEvent('keydown', { key: 'Backspace', keyCode: 8 });
+    expect(isRemoteBack(backspace, vidaa)).toBe(true);
+    expect(isRemoteBack(backspace, navigator.userAgent)).toBe(false);
   });
 
   it('reads Backspace as Back on a Hisense VIDAA TV, as jellyfin-web does, but not while typing', () => {

@@ -3,7 +3,7 @@ import { useTrickplay } from './trickplay';
 import { LoadingScreen } from './LoadingScreen';
 import { othersInGroup, useSyncPlayState } from '../syncplay/syncPlayState';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { isBackKey } from '../../compat/jellyfin';
+import { isBackKey, isRemoteBack } from '../../compat/jellyfin';
 import { getPlaybackManager, type PlaybackManager, type Player } from '../../compat/playbackManager';
 import { Icon } from '../../components/icons';
 import { strings } from '../../strings';
@@ -185,6 +185,40 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   }, [positionShown.current]);
   const castAvailable = useCastAvailable(pm.current, itemId);
 
+  // Back closes an open panel and stays in the player; with none open it leaves the player, on the first press.
+  // jellyfin-web's video OSD (hidden under Lumen's) would otherwise take that first press: while it counts its controls
+  // as shown (3 s after the player opens, and after a D-pad key in the TV layout, each key restarting the 3 s) its
+  // `document` keydown listener hides them on Back and stops the event before jellyfin-web goes back
+  // (controllers/playback/video/index.js, 12.1–12.4). This listener, on <body>, runs before it and after Lumen's own
+  // menus, which stop the Back they use.
+  const osdRef = useRef<HTMLDivElement>(null);
+  const panelOpen = useRef(false);
+  panelOpen.current = panel !== null;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !isBackKey(e)) return;
+      if (panelOpen.current) {
+        e.preventDefault();
+        e.stopPropagation(); // which also keeps it from the document listener that wakes the controls
+        // The focused entry is about to unmount: give focus back to the pill that opened the panel, so a remote
+        // isn't left on nothing, and keep the controls up for it.
+        osdRef.current?.querySelector<HTMLElement>('.lmn-player__pill[aria-expanded="true"]')?.focus();
+        setPanel(null);
+        wake();
+        return;
+      }
+      // Leave only where jellyfin-web would: Escape (and a gamepad's B) go back in the TV layout only.
+      if (!isRemoteBack(e) && ctx.layout !== 'tv') return;
+      // A jellyfin-web dialog over the player (its OSD ignores Back then too) closes on it instead.
+      if (document.querySelector('.dialogContainer .dialog.opened')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      window.history.back();
+    };
+    document.body.addEventListener('keydown', onKey);
+    return () => document.body.removeEventListener('keydown', onKey);
+  }, [ctx.layout]);
+
   // Until the first frame: the title's backdrop and a spinner, not a black screen.
   if (!snap || !pm.current)
     return pm.current ? <LoadingScreen ctx={ctx} snap={null} starting={starting} /> : null;
@@ -208,19 +242,8 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
 
   return (
     <div
+      ref={osdRef}
       class={`lmn-osd${shown ? '' : ' is-idle'}${panel ? ' has-panel' : ''}${progress.started ? '' : ' is-loading'}`}
-      onKeyDown={(e) => {
-        // Back closes an open panel and stays in the player; with none open, jellyfin-web leaves the player.
-        if (isBackKey(e) && panel) {
-          e.preventDefault();
-          e.stopPropagation(); // which also keeps it from the document listener that wakes the controls
-          // The focused entry is about to unmount: give focus back to the pill that opened the panel, so a remote
-          // isn't left on nothing, and keep the controls up for it.
-          e.currentTarget.querySelector<HTMLElement>('.lmn-player__pill[aria-expanded="true"]')?.focus();
-          setPanel(null);
-          wake();
-        }
-      }}
     >
       {!progress.started && <LoadingScreen ctx={ctx} snap={snap} starting={starting} />}
       {progress.started && progress.buffering && !switching.state?.shown && (

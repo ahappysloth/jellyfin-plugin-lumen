@@ -324,10 +324,85 @@ describe('PlayerView', () => {
       });
       expect(document.querySelector('.lmn-osd')).not.toHaveClass('is-idle');
 
-      // With no panel open, Back is jellyfin-web's: it leaves the player.
-      expect(pressRemoteBack(tracks, keyCode).reachedJellyfin).toBe(true);
+      // With no panel open, Back leaves the player.
+      const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+      pressRemoteBack(tracks, keyCode);
+      expect(back).toHaveBeenCalledTimes(1);
     },
   );
+
+  describe('Back with no panel open', () => {
+    let osdTookBack = false;
+    // jellyfin-web's video OSD while it counts its (hidden) controls as shown: hides them and stops the Back.
+    const stockOsd = (e: KeyboardEvent): void => {
+      if (e.keyCode === 27 || e.keyCode === 461 || e.keyCode === 10009) {
+        osdTookBack = true;
+        e.stopPropagation();
+      }
+    };
+    beforeEach(() => {
+      osdTookBack = false;
+      document.addEventListener('keydown', stockOsd);
+    });
+    afterEach(() => document.removeEventListener('keydown', stockOsd));
+
+    const open = async (layout: 'tv' | 'desktop' = 'tv') => {
+      const pm = fakeManager();
+      vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+      render(<PlayerView ctx={makeContext(createFakeClient(), { layout })} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      return vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    };
+
+    it.each(REMOTE_BACK_KEY_CODES)(
+      "leaves the player on a TV remote's first Back (keyCode %i), before jellyfin-web's hidden OSD takes it",
+      async (keyCode) => {
+        const back = await open();
+        // Focus on nothing, as after the controls hid: the key comes from <body>.
+        expect(pressRemoteBack(document.body, keyCode).reachedJellyfin).toBe(false);
+        expect(back).toHaveBeenCalledTimes(1);
+        expect(osdTookBack).toBe(false);
+
+        // From a focused control too.
+        pressRemoteBack(screen.getByRole('button', { name: 'Settings' }), keyCode);
+        expect(back).toHaveBeenCalledTimes(2);
+      },
+    );
+
+    it('leaves on Escape in the TV layout only, as jellyfin-web does', async () => {
+      const back = await open('desktop');
+      fireEvent.keyDown(document.body, { key: 'Escape', keyCode: 27 });
+      expect(back).not.toHaveBeenCalled();
+      expect(osdTookBack).toBe(true);
+    });
+
+    it('leaves Back to an open jellyfin-web dialog', async () => {
+      const back = await open();
+      const dialog = document.createElement('div');
+      dialog.className = 'dialogContainer';
+      dialog.innerHTML = '<div class="dialog opened"></div>';
+      document.body.appendChild(dialog);
+      try {
+        pressRemoteBack(document.body, 461);
+        expect(back).not.toHaveBeenCalled();
+      } finally {
+        dialog.remove();
+      }
+    });
+
+    it('closes a panel open while focus is on nothing', async () => {
+      const back = await open();
+      fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+      expect(screen.getByRole('menu', { name: 'Settings' })).toBeInTheDocument();
+
+      pressRemoteBack(document.body, 461);
+
+      expect(screen.queryByRole('menu', { name: 'Settings' })).toBeNull();
+      expect(back).not.toHaveBeenCalled();
+    });
+  });
 
   it('does nothing when the current quality, audio or subtitle track is picked again', async () => {
     const pm = fakeManager();
