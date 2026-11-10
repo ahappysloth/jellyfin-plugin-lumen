@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/ahappysloth/jellyfin-plugin-lumen/main/assets/lumen-plugin.png",
     "versions": [
       {
+        "version": "0.3.5.0",
+        "changelog": "\n### Added\n- Details: Start over beside Resume.\n- Plugin pages: a status chip above the name (Enabled / Disabled, click to toggle), Settings and Uninstall under the\n  description, and the revision history as separate cards.\n\n### Changed\n- The loading screen (title backdrop, name, spinner) appears the moment Play is clicked, and stays until the first\n  frame.\n- Player: Watch together moved into the settings (gear) panel.\n- Jellyfin's notices (e.g. SyncPlay) drop from the top as a pill, like the volume pill.\n- A redrawn heart; the watched button reads \"Mark watched\" until it's watched.\n- Dashboard: destructive buttons (Restart, Shutdown, Delete, Uninstall) in Lumen's red; a tidier server card at the\n  top of the drawer.\n\n### Fixed\n- Clicking the server card in the Dashboard no longer flashes Jellyfin's own home page.\n- Settings panel rows no longer touch the divider.",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/ahappysloth/jellyfin-plugin-lumen/releases/download/v0.3.5/lumen_0.3.5.0.zip",
+        "checksum": "7efd913c69d7cc4df4af29b029780359",
+        "timestamp": "2026-11-10T04:39:02Z"
+      },
+      {
         "version": "0.3.4.0",
         "changelog": "\n### Added\n- Player: Watch together as a pill next to Quality, with the same menu as the nav.\n- Player: Cast, next to picture-in-picture and AirPlay, when Jellyfin can see another place to play (cast devices,\n  other Jellyfin apps). It moves what's playing there, from the same position.\n- Player: \"Ends at\" opposite the elapsed time, at the current speed.\n- Player: a settings (gear) pill with Repeat (movies: Off / Repeat; episodes: Off / This episode / All episodes) and\n  Playback info (direct play or transcode and why, codecs, resolution, container, bitrate, encode speed).\n- Player: a loading screen (the title's backdrop, its name and a spinner) until the video starts, and a spinner when\n  playback stalls.",
         "targetAbi": "12.1.0.0",
