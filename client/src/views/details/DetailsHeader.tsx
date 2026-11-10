@@ -3,7 +3,7 @@ import { useState } from 'preact/hooks';
 import type { BaseItem, ClientConfig } from '../../api/types';
 import type { JellyfinApiClient } from '../../compat/jellyfin';
 import { Icon } from '../../components/icons';
-import { backdropUrl, type ImageRef, imageUrl, resolveImage } from '../../components/images';
+import { backdropUrl, type ImageRef, imageUrl, resolveImage, TITLE_LOGO } from '../../components/images';
 import { ProgressBar } from '../../components/ProgressBar';
 import { usePrefersReducedMotion } from '../../components/usePrefersReducedMotion';
 import { strings } from '../../strings';
@@ -119,7 +119,7 @@ export function DetailsHeader(props: Props) {
       <div class="lmn-details__info">
         {props.eyebrow && <p class="lmn-details__eyebrow">{props.eyebrow}</p>}
         {logo ? (
-          <img class="lmn-details__logo" src={imageUrl(client, logo, { width: 840 })} alt={item.Name} />
+          <img class="lmn-details__logo" src={imageUrl(client, logo, TITLE_LOGO)} alt={item.Name} />
         ) : (
           <h1 class="lmn-details__title">{item.Name}</h1>
         )}

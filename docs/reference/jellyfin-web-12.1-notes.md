@@ -299,6 +299,7 @@ There is no `main` element in the legacy layout.
   - The code comment reads "Dimensions must be rounded or the API will reject the request", so always send integers.
   - `apiclient` `getImageUrl` defaults quality to 90, or 80 for Backdrop.
   - Use `item.ImageTags[type]` (or `BackdropImageTags[0]`, `ParentThumbImageTag`, `ParentBackdropImageTags[0]` with `ParentThumbItemId`/`ParentBackdropItemId`) as `tag` for strong caching. Blurhash is in `item.ImageBlurHashes[type][tag]`.
+- **Lumen's sizes.** `client/src/components/images.ts imageUrl` rounds every requested width up to one ladder (`IMAGE_WIDTHS`: 120, 180, 240, 320, 480, 640, 960, 1280, 1600, 1920 CSS px), takes the height from the box's shape at that width, then multiplies by the device pixel ratio. The same artwork at nearby sizes (a 320 px card, a 268 px genre tile, a 260 px episode row) is then one URL, so the server resizes it once and the browser downloads it once. `fillWidth` + `fillHeight` scale the image to cover the box (`DrawingUtils.ResizeFill`), never past the source size.
 
 ## Side effects of hiding (not removing) stock pages
 
