@@ -27,7 +27,7 @@ Prerequisites: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - Run `up` again after changing code: it rebuilds and restarts the container with the new plugin.
 - The first `up` generates fixture media into `artifacts/docker/media`, mounted at `/media` in the container. If you skip `e2e`, Jellyfin opens on its setup wizard; when it asks for libraries, add `/media/movies` (Movies) and `/media/tv` (Shows).
 - After `e2e`, sign in as `admin` / `lumen-admin` or as the restricted user `kid` / `kid-pass`. E2E hides the admin from the login screen, so type the name in by hand.
-- `JELLYFIN_IMAGE=jellyfin/jellyfin:unstable ./scripts/docker-dev.sh` tests against another server version (the nightly CI job runs `12.1`, `latest` and `unstable`).
+- `JELLYFIN_IMAGE=jellyfin/jellyfin:unstable ./scripts/docker-dev.sh` tests against another server version (the nightly CI job runs `12.1`, `12.4`, `latest` and `unstable`).
 - The Jellyfin container can reach services on your machine at `host.docker.internal`, e.g. a local Seerr at `http://host.docker.internal:5055`.
 - To start fresh, run `./scripts/docker-dev.sh down && rm -rf artifacts/docker`.
 - `e2e` runs against this same server and **resets Lumen's settings** (sections, hero, Seerr connection) as it goes. Re-enter anything you set by hand afterwards.

@@ -12,7 +12,8 @@ test.use({ viewport: { width: 1280, height: 720 }, reducedMotion: 'reduce' });
 
 async function signInOnTv(page: Page): Promise<void> {
   await page.addInitScript(() => localStorage.setItem('layout', 'tv'));
-  // Hold the hero on one slide: a slide change swaps which slide's buttons are live partway through the walk.
+  // No automatic slide changes: one would swap which slide's buttons are live partway through the walk. (The walk can
+  // still change slides itself with Left/Right on the pager, as a remote would; it only checks the current slide's.)
   await page.route(/\/Lumen\/ClientConfig/, async (route) => {
     const response = await route.fetch();
     await route.fulfill({ response, json: { ...(await response.json()), HeroIntervalSeconds: 3600 } });
