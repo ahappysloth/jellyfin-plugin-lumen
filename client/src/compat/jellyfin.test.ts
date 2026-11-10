@@ -67,6 +67,28 @@ describe('compat', () => {
     expect(back({ key: 'Enter', keyCode: 13 })).toBe(false);
   });
 
+  it('reads Backspace as Back on a Hisense VIDAA TV, as jellyfin-web does, but not while typing', () => {
+    const vidaa =
+      'Mozilla/5.0 (Linux; VIDAA 7.0; Hisense SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0';
+    const backspace = (target: Element) => {
+      const e = new KeyboardEvent('keydown', { key: 'Backspace', keyCode: 8 });
+      Object.defineProperty(e, 'target', { value: target });
+      return e;
+    };
+    const button = document.createElement('button');
+    const text = document.createElement('input');
+    const checkbox = Object.assign(document.createElement('input'), { type: 'checkbox' });
+
+    expect(isBackKey(backspace(button), vidaa)).toBe(true);
+    expect(isBackKey(backspace(checkbox), vidaa)).toBe(true);
+    expect(isBackKey(backspace(text), vidaa)).toBe(false);
+    expect(isBackKey(backspace(document.createElement('textarea')), vidaa)).toBe(false);
+    // Not a TV by jellyfin-web's reckoning, or not VIDAA: Backspace is just Backspace.
+    expect(isBackKey(backspace(button), 'Mozilla/5.0 (Linux; VIDAA 7.0; Hisense) Chrome/96.0')).toBe(false);
+    expect(isBackKey(backspace(button), 'Mozilla/5.0 (Linux; Hisense SmartTV) Chrome/96.0')).toBe(false);
+    expect(isBackKey(backspace(button), navigator.userAgent)).toBe(false);
+  });
+
   it('measures the first visible app bar', () => {
     const bar = document.querySelector('.MuiAppBar-root') as HTMLElement;
     bar.getBoundingClientRect = () => ({ height: 55.6 }) as DOMRect;

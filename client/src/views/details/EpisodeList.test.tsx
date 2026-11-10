@@ -32,6 +32,11 @@ describe('EpisodeList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Episode 2/ }));
     expect(onPlay).toHaveBeenCalledWith(episodes[1]);
+    // The strip of the row under the details link (the list item itself) plays as well; the link doesn't.
+    fireEvent.click(screen.getByRole('button', { name: /Episode 1/ }).closest('li')!);
+    expect(onPlay).toHaveBeenLastCalledWith(episodes[0]);
+    fireEvent.click(screen.getByRole('link', { name: 'Details for Episode 1' }));
+    expect(onPlay).toHaveBeenCalledTimes(2);
     expect(screen.getByRole('link', { name: 'Details for Episode 2' })).toHaveAttribute(
       'href',
       '#/details?id=e2',

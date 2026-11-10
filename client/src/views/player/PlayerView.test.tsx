@@ -305,6 +305,12 @@ describe('PlayerView', () => {
       expect(pressRemoteBack(option, keyCode).reachedJellyfin).toBe(false);
       expect(screen.queryByRole('menuitemradio')).toBeNull();
       expect(tracks).toHaveAttribute('aria-expanded', 'false');
+      // Focus goes back to the pill that opened it (not to nothing), and the controls stay up.
+      expect(tracks).toHaveFocus();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2800); // past the idle timeout counted from when the player opened
+      });
+      expect(document.querySelector('.lmn-osd')).not.toHaveClass('is-idle');
 
       // With no panel open, Back is jellyfin-web's: it leaves the player.
       expect(pressRemoteBack(tracks, keyCode).reachedJellyfin).toBe(true);

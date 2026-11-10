@@ -1,5 +1,5 @@
 import type { ComponentChildren } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { BadgeKey, BaseItem, ClientConfig, HeroItem } from '../../api/types';
 import type { JellyfinApiClient } from '../../compat/jellyfin';
 import { cardMeta } from '../../components/Card';
@@ -63,13 +63,30 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
   const dragging = drag.current?.swiping ?? false;
   const paused = stopped || keyboardInside || dragging || sliding !== 0;
 
+  const track = useRef<HTMLDivElement>(null);
+  /** The button (by position) focused on the slide that's leaving, to focus on the one arriving. */
+  const followFocus = useRef<number | null>(null);
+  const currentButtons = (): HTMLElement[] => [
+    ...(track.current?.querySelectorAll<HTMLElement>('.lmn-hero__slide.is-current button') ?? []),
+  ];
+
   const settle = (delta: -1 | 1): void => {
     clearTimeout(slideTimer.current);
+    // The leaving slide's buttons are disabled once it's off screen; focus on one would drop to the page (stranding a
+    // TV remote), so it moves to the same button on the new slide.
+    const focused = currentButtons().indexOf(document.activeElement as HTMLElement);
+    followFocus.current = focused >= 0 ? focused : null;
     setSnap(true);
     setSliding(0);
     setDragX(0);
     setIndex((i) => mod(i + delta, count));
   };
+  useLayoutEffect(() => {
+    const button = followFocus.current;
+    if (button === null) return;
+    followFocus.current = null;
+    currentButtons()[button]?.focus({ preventScroll: true });
+  }, [index]);
   useEffect(() => {
     if (!snap) return;
     const frame = requestAnimationFrame(() => setSnap(false));
@@ -171,6 +188,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
       }}
     >
       <div
+        ref={track}
         class={`lmn-hero__track${!snap && (sliding !== 0 || !dragging) ? ' is-animated' : ''}`}
         style={trackStyle}
         onTransitionEnd={(e) => {

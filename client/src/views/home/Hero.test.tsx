@@ -113,6 +113,21 @@ describe('Hero', () => {
     for (const button of offscreen()) expect(button).toBeDisabled();
   });
 
+  it.each(['Play', 'More info'])(
+    'moves focus on %s to the same button of the next slide when it rotates (a TV remote is never left on nothing)',
+    (name) => {
+      renderHero();
+      screen.getByRole('button', { name }).focus();
+
+      advance(8000 + SLIDE);
+      expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument();
+      const next = screen.getByRole('button', { name });
+      expect(next).toHaveFocus();
+      expect(next).toBeEnabled();
+      expect(next.closest('.lmn-hero__slide')).toHaveClass('is-current');
+    },
+  );
+
   it('pauses while the user navigates inside it with the keyboard', () => {
     const { container } = renderHero();
     fireEvent.keyDown(container.querySelector('.lmn-hero')!, { key: 'Tab' });

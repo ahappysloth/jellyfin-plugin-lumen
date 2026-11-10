@@ -25,7 +25,13 @@ export function EpisodeList({ episodes, client, onPlay, detailsHref }: Props) {
         const percent = playedPercent(episode);
         const runtime = formatRuntime(episode.RunTimeTicks);
         return (
-          <li key={episode.Id} class="lmn-episodes__item">
+          // The row's own strip under the details link plays too, as the whole row did when the link sat on top of it.
+          // (Mouse only: the button is the row's keyboard and D-pad target.)
+          <li
+            key={episode.Id}
+            class="lmn-episodes__item"
+            onClick={(e) => e.target === e.currentTarget && onPlay(episode)}
+          >
             <button
               type="button"
               class="lmn-episode"
