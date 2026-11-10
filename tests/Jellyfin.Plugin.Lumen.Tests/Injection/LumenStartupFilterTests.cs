@@ -26,7 +26,7 @@ public sealed class LumenStartupFilterTests : IDisposable
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task BuildingJellyfinsPipeline_PreparesIndexHtmlsBundles_AndServesThemCachedForGood(bool enabled)
+    public async Task BuildingJellyfinsPipeline_PreparesIndexHtmlsBundles_AndServesThemRevalidated(bool enabled)
     {
         var config = Substitute.For<ILumenConfigReader>();
         config.Current.Returns(new PluginConfiguration { OptimizeWebClientFiles = enabled });
@@ -54,6 +54,6 @@ public sealed class LumenStartupFilterTests : IDisposable
         await pipeline(context);
 
         // Served from the copies made at startup, without a request having asked for them first.
-        Assert.Equal(enabled ? WebStaticFiles.ImmutableCacheControl : string.Empty, context.Response.Headers.CacheControl.ToString());
+        Assert.Equal(enabled ? WebStaticFiles.NoCacheControl : string.Empty, context.Response.Headers.CacheControl.ToString());
     }
 }

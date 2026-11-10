@@ -39,6 +39,23 @@ public class LumenAssetTests
         Assert.Equal(expected, asset.Select(acceptEncoding).ContentEncoding);
     }
 
+    [Theory]
+    [InlineData("text/javascript", true)]
+    [InlineData("text/css; charset=utf-8", true)]
+    [InlineData("application/wasm", true)]
+    [InlineData("image/svg+xml", true)]
+    [InlineData("application/json", true)]
+    [InlineData("application/x-font-ttf", true)]
+    [InlineData("application/vnd.ms-fontobject", true)]
+    [InlineData("image/x-icon", true)]
+    [InlineData("image/png", false)]
+    [InlineData("image/gif", false)]
+    [InlineData("font/woff2", false)]
+    [InlineData("application/font-woff", false)]
+    [InlineData("audio/mpeg", false)]
+    public void UncompressedTypes_AreCompressible(string contentType, bool compressible) =>
+        Assert.Equal(compressible, LumenAsset.IsCompressible(contentType));
+
     [Fact]
     public void Images_AreAlwaysSentAsTheyAre()
     {

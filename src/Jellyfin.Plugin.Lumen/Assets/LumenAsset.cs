@@ -20,6 +20,22 @@ public sealed class LumenAsset
     private const int BrotliQuality = 11;
     private const int BrotliWindow = 24;
 
+    private static readonly HashSet<string> CompressibleTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application/javascript",
+        "application/json",
+        "application/manifest+json",
+        "application/xml",
+        "application/wasm",
+        "image/svg+xml",
+        "image/x-icon",
+        "image/vnd.microsoft.icon",
+        "font/ttf",
+        "font/otf",
+        "application/x-font-ttf",
+        "application/vnd.ms-fontobject",
+    };
+
     private readonly Encoded _brotli;
     private readonly Encoded _gzip;
 
@@ -37,7 +53,7 @@ public sealed class LumenAsset
         Name = name;
         Content = content;
         ContentType = contentType;
-        Compressible = contentType.StartsWith("text/", StringComparison.Ordinal);
+        Compressible = IsCompressible(contentType);
         var hash = Convert.ToHexStringLower(SHA256.HashData(content))[..16];
         Identity = new AssetRepresentation(content, null, new EntityTagHeaderValue($"\"{hash}\""));
         _brotli = new Encoded(() => new AssetRepresentation(compress(content, Brotli), Brotli, new EntityTagHeaderValue($"\"{hash}-br\"")));
@@ -51,13 +67,24 @@ public sealed class LumenAsset
 
     public string ContentType { get; }
 
-    /// <summary>Whether the file is text, and so is offered compressed (images are compressed already).</summary>
+    /// <summary>Whether the file is offered compressed (<see cref="IsCompressible"/>).</summary>
     public bool Compressible { get; }
 
     public AssetRepresentation Identity { get; }
 
     /// <summary>Whether both compressed copies have been made (by <see cref="Precompress"/> or by requests).</summary>
     internal bool IsPrecompressed => _brotli.IsCreated && _gzip.IsCreated;
+
+    /// <summary>
+    /// Whether a content type compresses: text, and the uncompressed binary and markup types jellyfin-web ships
+    /// (WebAssembly, SVG, JSON, TrueType and Embedded OpenType fonts, icons). Already-compressed types (PNG, JPEG, GIF,
+    /// WOFF and WOFF2, audio) aren't.
+    /// </summary>
+    public static bool IsCompressible(string contentType)
+    {
+        var mediaType = contentType.Split(';', 2)[0].Trim();
+        return mediaType.StartsWith("text/", StringComparison.OrdinalIgnoreCase) || CompressibleTypes.Contains(mediaType);
+    }
 
     /// <summary>
     /// The representation to send for a request's Accept-Encoding: of Brotli and gzip, the one with the higher q-value

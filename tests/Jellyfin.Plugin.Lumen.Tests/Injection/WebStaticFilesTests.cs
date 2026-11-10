@@ -32,6 +32,7 @@ public sealed class WebStaticFilesTests : IDisposable
         Write("config.json", "{}");
         Write("themes/dark/theme.css", "body{}");
         Write("MaterialIcons-Regular.08cefa1bc6566a650da7.unknownext", "?");
+        Write("10092.5b72cb544b645e273855.chunk.js.LICENSE.txt", "MIT");
 
         // Outside the web root, with a content-hashed name.
         File.WriteAllText(Path.Combine(_root, "secret.0123456789abcdef0123.js"), "secret");
@@ -45,7 +46,7 @@ public sealed class WebStaticFilesTests : IDisposable
     [InlineData("73560.49e7c92878ed0bb4fad6.css")]
     [InlineData("MaterialIcons-Regular.08cefa1bc6566a650da7.woff")]
     [InlineData("favicon.bc8d51405ec040305a87.ico")]
-    [InlineData("10092.5b72cb544b645e273855.chunk.js.LICENSE.txt")]
+    [InlineData("x.0123456789abcdef0123456789abcdef.js")]
     public void ContentHashedNames(string name) => Assert.True(WebStaticFiles.IsContentHashedName(name));
 
     [Theory]
@@ -61,6 +62,8 @@ public sealed class WebStaticFilesTests : IDisposable
     [InlineData("chunk.5b72cb544b645e27.")]
     [InlineData("chunk.5b72cb544b645e2.js")]
     [InlineData("index-AbC123xy.js")]
+    [InlineData("10092.5b72cb544b645e273855.chunk.js.LICENSE.txt")]
+    [InlineData("x.0123456789abcdef0123456789abcdef0.js")]
     public void NamesWithoutAContentHash(string name) => Assert.False(WebStaticFiles.IsContentHashedName(name));
 
     [Fact]
@@ -91,11 +94,13 @@ public sealed class WebStaticFilesTests : IDisposable
         Assert.Empty(WebStaticFiles.ParseIndexReferences(html));
 
     [Theory]
-    [InlineData(Chunk, null)]
-    [InlineData(Chunk, "?anything")]
-    [InlineData("/main.jellyfin.bundle.js", "?" + Hash)]
-    [InlineData("/node_modules.@mui.material.bundle.js", "?" + Hash)]
-    public void ContentAddressedRequests_AreFound(string file, string? query)
+    [InlineData(Chunk, null, false)]
+    [InlineData(Chunk, "?anything", false)]
+    [InlineData("/main.jellyfin.bundle.js", "?" + Hash, true)]
+    [InlineData("/main.jellyfin.bundle.js", "?0000000000aff1f2de00", true)]
+    [InlineData("/main.jellyfin.bundle.js", null, true)]
+    [InlineData("/node_modules.@mui.material.bundle.js", "?" + Hash, true)]
+    public void TheFilesLumenServes_AreFound_WhateverTheQuery(string file, string? query, bool bundle)
     {
         var files = Files();
 
@@ -105,12 +110,20 @@ public sealed class WebStaticFilesTests : IDisposable
         Assert.Equal(file, found.SubPath);
         Assert.Equal(Path.Combine(_webRoot, file[1..]), found.PhysicalPath);
         Assert.Equal("text/javascript", found.ContentType);
+        Assert.Equal(bundle ? WebFileKind.IndexBundle : WebFileKind.ContentHashed, found.Kind);
+    }
+
+    [Fact]
+    public void AContentHashedFileIndexHtmlLoadsByTheBuildHash_IsABundle()
+    {
+        const string Css = "main.jellyfin.d0fe7ebed50c35511f89.css";
+        Write(Css, "body{}");
+        Write("index.html", $"<link href=\"{Css}?{Hash}\" rel=\"stylesheet\">");
+
+        Assert.Equal(WebFileKind.IndexBundle, Files().Find(Request("/web/" + Css, "?" + Hash))!.Kind);
     }
 
     [Theory]
-    [InlineData("/web/main.jellyfin.bundle.js", null)]
-    [InlineData("/web/main.jellyfin.bundle.js", "?0000000000aff1f2de00")]
-    [InlineData("/web/main.jellyfin.bundle.js", "?" + Hash + "&x")]
     [InlineData("/web/serviceworker.js", "?" + Hash)]
     [InlineData("/web/index.html", null)]
     [InlineData("/web/", null)]
@@ -119,6 +132,7 @@ public sealed class WebStaticFilesTests : IDisposable
     [InlineData("/web/themes/dark/theme.css", null)]
     [InlineData("/web/1234.0123456789abcdef0123.chunk.js", null)]
     [InlineData("/web/MaterialIcons-Regular.08cefa1bc6566a650da7.unknownext", null)]
+    [InlineData("/web/10092.5b72cb544b645e273855.chunk.js.LICENSE.txt", null)]
     [InlineData("/Items/10092.5b72cb544b645e273855.chunk.js", null)]
     [InlineData("/webx" + Chunk, null)]
     public void OtherRequests_AreNotFound(string path, string? query) => Assert.Null(Files().Find(Request(path, query)));
@@ -213,23 +227,22 @@ public sealed class WebStaticFilesTests : IDisposable
             .AddInMemoryCollection(new Dictionary<string, string?> { ["hostwebclient"] = hostWebClient.ToString() })
             .Build();
 
-        using var files = new WebStaticFiles(configuration, appConfiguration, NullLogger<WebStaticFiles>.Instance);
+        using var files = new WebStaticFiles(configuration, appConfiguration, TimeProvider.System, NullLogger<WebStaticFiles>.Instance);
 
         Assert.Equal(prefix is not null, files.Hosted);
         Assert.Equal(prefix is not null, files.Find(Request("/jf/web" + Chunk, null)) is not null);
     }
 
     [Fact]
-    public void ANewIndexHtml_ChangesWhichQueryIsCurrent()
+    public void ANewIndexHtml_ChangesWhichFilesAreBundles()
     {
         var files = Files();
-        Assert.NotNull(files.Find(Request("/web/main.jellyfin.bundle.js", "?" + Hash)));
+        Assert.NotNull(files.Find(Request("/web/node_modules.@mui.material.bundle.js", "?" + Hash)));
 
-        const string Upgraded = "1111111111aff1f2de11";
-        Write("index.html", $"<script defer=\"defer\" src=\"main.jellyfin.bundle.js?{Upgraded}\"></script><!-- upgraded -->");
+        Write("index.html", "<script defer=\"defer\" src=\"main.jellyfin.bundle.js?1111111111aff1f2de11\"></script><!-- upgraded -->");
 
-        Assert.Null(files.Find(Request("/web/main.jellyfin.bundle.js", "?" + Hash)));
-        Assert.NotNull(files.Find(Request("/web/main.jellyfin.bundle.js", "?" + Upgraded)));
+        Assert.Null(files.Find(Request("/web/node_modules.@mui.material.bundle.js", "?" + Hash)));
+        Assert.NotNull(files.Find(Request("/web/main.jellyfin.bundle.js", "?1111111111aff1f2de11")));
     }
 
     [Fact]
@@ -240,18 +253,18 @@ public sealed class WebStaticFilesTests : IDisposable
 
         Assert.Null(files.TryGetReady(file));
         await files.WhenIdleAsync();
-        var asset = files.TryGetReady(file);
+        var ready = files.TryGetReady(file);
 
-        Assert.NotNull(asset);
-        Assert.True(asset.IsPrecompressed);
-        Assert.Equal("chunk()"u8.ToArray(), asset.Content);
+        Assert.NotNull(ready);
+        Assert.True(ready.Asset.IsPrecompressed);
+        Assert.Equal("chunk()"u8.ToArray(), ready.Asset.Content);
 
         Write(Chunk[1..], "chunk() // changed");
         var changed = files.Find(Request("/web" + Chunk, null))!;
 
         Assert.Null(files.TryGetReady(changed));
         await files.WhenIdleAsync();
-        Assert.Equal("chunk() // changed"u8.ToArray(), files.TryGetReady(changed)!.Content);
+        Assert.Equal("chunk() // changed"u8.ToArray(), files.TryGetReady(changed)!.Asset.Content);
     }
 
     [Fact]
@@ -332,6 +345,121 @@ public sealed class WebStaticFilesTests : IDisposable
         Assert.Equal(0, files.SizeBytes);
     }
 
+    [Fact]
+    public async Task AFileChangedWhileItWasRead_IsNotKept()
+    {
+        var files = Files();
+        var file = files.Find(Request("/web" + Chunk, null))!;
+        files.AfterRead = _ => Write(Chunk[1..], "chunk() // rewritten while read");
+
+        Assert.Null(files.TryGetReady(file));
+        await files.WhenIdleAsync();
+        files.AfterRead = null;
+
+        Assert.Equal(0, files.SizeBytes);
+        var changed = files.Find(Request("/web" + Chunk, null))!;
+        await Ready(files, changed);
+        Assert.Equal("chunk() // rewritten while read"u8.ToArray(), files.TryGetReady(changed)!.Asset.Content);
+    }
+
+    [Theory]
+    [InlineData("12394.ee3d55fe627e7f25f96a.chunk.js")]
+    [InlineData("39469.ecb9e7873ce7fbb4c4db.chunk.js")]
+    public void JellyfinWebsContentHashes_MatchTheirFiles(string name)
+    {
+        var content = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Injection", "Fixtures", "jellyfin-web-12.4", name));
+
+        Assert.True(WebStaticFiles.HashMatchesContent(name, content));
+    }
+
+    [Fact]
+    public void AHashThatAppearsInItsFile_IsLeftOutOfTheHash()
+    {
+        // This one's license comment names the file, so its hash is in it; webpack hashes the file without it.
+        const string Name = "39469.ecb9e7873ce7fbb4c4db.chunk.js";
+        var content = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Injection", "Fixtures", "jellyfin-web-12.4", Name));
+
+        Assert.Contains("ecb9e7873ce7fbb4c4db", Encoding.ASCII.GetString(content), StringComparison.Ordinal);
+        Assert.NotEqual("ecb9e7873ce7fbb4c4db", Convert.ToHexStringLower(Md4.Hash(content))[..20]);
+        Assert.True(WebStaticFiles.HashMatchesContent(Name, content));
+    }
+
+    [Theory]
+    [InlineData("12394.ee3d55fe627e7f25f96b.chunk.js")]
+    [InlineData("12394.ee3d55fe627e7f25f96a.chunk.js.LICENSE.txt")]
+    [InlineData("12394.chunk.js")]
+    public void OtherNames_DontMatch(string name)
+    {
+        var content = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Injection", "Fixtures", "jellyfin-web-12.4", "12394.ee3d55fe627e7f25f96a.chunk.js"));
+
+        Assert.False(WebStaticFiles.HashMatchesContent(name, content));
+    }
+
+    [Fact]
+    public void APatchedFile_DoesntMatchItsName()
+    {
+        const string Name = "12394.ee3d55fe627e7f25f96a.chunk.js";
+        var content = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Injection", "Fixtures", "jellyfin-web-12.4", Name));
+
+        Assert.False(WebStaticFiles.HashMatchesContent(Name, [.. content, .. "/* patched */"u8]));
+    }
+
+    [Fact]
+    public async Task TheHashCheck_IsMadeWithTheCopies()
+    {
+        var content = "export const x = 1;"u8.ToArray();
+        var verified = "/x." + Convert.ToHexStringLower(Md4.Hash(content))[..20] + ".chunk.js";
+        File.WriteAllBytes(Path.Combine(_webRoot, verified[1..]), content);
+        var files = Files();
+
+        var good = files.Find(Request("/web" + verified, null))!;
+        var bad = files.Find(Request("/web" + Chunk, null))!;
+        await Ready(files, good);
+        await Ready(files, bad);
+
+        Assert.True(files.TryGetReady(good)!.HashMatches);
+        Assert.False(files.TryGetReady(bad)!.HashMatches);
+    }
+
+    [Fact]
+    public void CacheControl_IsAWeekForAMatchingHash_NoCacheForBundles_ElseJellyfins()
+    {
+        var files = Files();
+        var chunk = files.Find(Request("/web" + Chunk, null))!;
+        var bundle = files.Find(Request("/web/main.jellyfin.bundle.js", "?" + Hash))!;
+
+        Assert.Equal(WebStaticFiles.WeekCacheControl, files.CacheControlFor(chunk, hashMatches: true));
+        Assert.Null(files.CacheControlFor(chunk, hashMatches: false));
+        Assert.Equal(WebStaticFiles.NoCacheControl, files.CacheControlFor(bundle, hashMatches: true));
+        Assert.Equal(WebStaticFiles.NoCacheControl, files.CacheControlFor(bundle, hashMatches: false));
+    }
+
+    [Fact]
+    public void WithFileTransformationLoaded_NothingGetsALifetime()
+    {
+        var files = Files(fileTransformation: Watch(loaded: true));
+        var chunk = files.Find(Request("/web" + Chunk, null))!;
+        var bundle = files.Find(Request("/web/main.jellyfin.bundle.js", "?" + Hash))!;
+
+        Assert.Null(files.CacheControlFor(chunk, hashMatches: true));
+        Assert.Equal(WebStaticFiles.NoCacheControl, files.CacheControlFor(bundle, hashMatches: true));
+    }
+
+    [Fact]
+    public void ReadsJellyfinsWebPathAndBaseUrl_AndLooksForFileTransformation()
+    {
+        var paths = Substitute.For<IServerApplicationPaths>();
+        paths.WebPath.Returns(_webRoot);
+        var configuration = Substitute.For<IServerConfigurationManager>();
+        configuration.ApplicationPaths.Returns(paths);
+        var appConfiguration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["hostwebclient"] = "true" }).Build();
+
+        using var files = new WebStaticFiles(configuration, appConfiguration, TimeProvider.System, NullLogger<WebStaticFiles>.Instance);
+
+        // No File Transformation in the test run: the real lookup finds none.
+        Assert.Equal(WebStaticFiles.WeekCacheControl, files.CacheControlFor(files.Find(Request("/web" + Chunk, null))!, hashMatches: true));
+    }
+
     private static async Task Ready(WebStaticFiles files, WebFile file, bool expectReady = true)
     {
         _ = files.TryGetReady(file);
@@ -353,8 +481,16 @@ public sealed class WebStaticFilesTests : IDisposable
         return context.Request;
     }
 
-    private WebStaticFiles Files(string? baseUrl = null, long capacity = WebStaticFiles.DefaultCapacityBytes, Func<byte[], string, byte[]>? compress = null) =>
-        new(_webRoot, baseUrl, NullLogger.Instance, capacity, compress);
+    /// <summary>A real lookup, for an assembly that is loaded (Lumen's) or isn't (File Transformation's).</summary>
+    private static AssemblyWatch Watch(bool loaded) =>
+        new(loaded ? typeof(WebStaticFiles).Assembly.GetName().Name! : WebStaticFiles.FileTransformationAssembly, TimeProvider.System);
+
+    private WebStaticFiles Files(
+        string? baseUrl = null,
+        long capacity = WebStaticFiles.DefaultCapacityBytes,
+        Func<byte[], string, byte[]>? compress = null,
+        AssemblyWatch? fileTransformation = null) =>
+        new(_webRoot, baseUrl, NullLogger.Instance, fileTransformation, capacity, compress);
 
     private void Write(string relative, string content)
     {
