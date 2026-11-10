@@ -3,8 +3,12 @@ import { strings } from '../../strings';
 
 /** A switch only shows the overlay if the stream actually restarts within this long. */
 const ARM_MS = 2000;
-/** Never cover the picture longer than this. */
-const MAX_SHOWN_MS = 20_000;
+/**
+ * Never cover the picture longer than this. A server transcoding without hardware acceleration can take well over 20 s
+ * to deliver the new stream's first segment; dropping the note before that left a black, frozen picture that looked
+ * paused while the stream was still loading.
+ */
+export const MAX_SHOWN_MS = 90_000;
 
 interface Switching {
   label: string;
@@ -52,11 +56,17 @@ export function useStreamSwitch(): { state: Switching | null; begin: (label: str
       if (!(video instanceof HTMLVideoElement) || video.paused || video.readyState < 3) return;
       setState((s) => (s?.shown ? null : s));
     };
+    // The new stream failed (jellyfin-web reports it): nothing is coming.
+    const onError = (e: Event): void => {
+      if (e.target instanceof HTMLVideoElement) setState((s) => (s?.shown ? null : s));
+    };
     document.addEventListener('emptied', onReload, true);
+    document.addEventListener('error', onError, true);
     document.addEventListener('loadstart', onReload, true);
     document.addEventListener('timeupdate', onProgress, true);
     return () => {
       document.removeEventListener('emptied', onReload, true);
+      document.removeEventListener('error', onError, true);
       document.removeEventListener('loadstart', onReload, true);
       document.removeEventListener('timeupdate', onProgress, true);
       clearTimeout(timer.current);

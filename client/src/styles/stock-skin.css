@@ -20,6 +20,17 @@
   display: none !important;
 }
 
+/* Keep the page's scrollbar while a menu is open. MUI's scroll lock sets overflow: hidden on <body>, which passes up
+   to the viewport and removes its scrollbar, and pads <body> and fixed bars by the scrollbar's width: the page jumped
+   sideways. <body>'s own overflow wins instead (the page stays scrollable; menus close on scroll anyway). */
+html:is(.lmn-skin-settings, .lmn-skin-dashboard) body {
+  overflow-y: auto !important;
+  padding-right: 0 !important;
+}
+html:is(.lmn-skin-settings, .lmn-skin-dashboard) .mui-fixed {
+  padding-right: 0 !important;
+}
+
 /* ---- Shared controls ------------------------------------------------------------------------------------------ */
 :is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
   .skinBody
@@ -79,10 +90,41 @@
   color: var(--lmn-text);
   font-family: var(--lmn-font);
 }
+/* Checkboxes: a 20px rounded box, centred on its label; the accent with a white tick when checked. */
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-checkbox-label {
+  padding-left: 32px;
+}
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .checkboxFieldDescription {
+  padding-left: 32px;
+}
 :is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .checkboxOutline {
+  top: 50%;
+  width: 20px;
+  height: 20px;
   border: 1.5px solid var(--lmn-line-strong) !important;
   border-radius: 6px !important;
   background: rgba(255, 255, 255, 0.04) !important;
+  transform: translateY(-50%);
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+}
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .checkboxIcon {
+  font-size: 16px;
+}
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
+  .emby-checkbox-label:hover
+  .emby-checkbox:not(:checked)
+  + span
+  + .checkboxOutline {
+  border-color: rgba(255, 255, 255, 0.36) !important;
+}
+/* jellyfin-web outlines a focused (just clicked) box in its blue; keep Lumen's. */
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
+  .emby-checkbox:focus:not(:checked)
+  + span
+  + .checkboxOutline {
+  border-color: var(--lmn-line-strong) !important;
 }
 :is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
   .emby-checkbox:checked
@@ -129,7 +171,7 @@
 }
 :is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
   .emby-button.raised.button-submit:hover {
-  background: color-mix(in srgb, var(--lmn-accent) 88%, #fff) !important;
+  background: color-mix(in srgb, var(--lmn-accent) 82%, #000) !important;
 }
 :is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-button:focus-visible {
   outline: 2px solid var(--lmn-focus);
@@ -170,13 +212,71 @@ html.lmn-skin-settings .MuiFormControlLabel-label + * {
   color: var(--lmn-text-3);
   font-family: var(--lmn-font);
 }
-html.lmn-skin-settings .MuiCheckbox-root.Mui-checked,
 html.lmn-skin-settings .MuiSwitch-switchBase.Mui-checked,
 html.lmn-skin-settings .MuiRadio-root.Mui-checked {
   color: var(--lmn-accent) !important;
 }
 html.lmn-skin-settings .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track {
   background-color: var(--lmn-accent) !important;
+}
+/* MUI checkboxes (Display page, Dashboard) drawn like the emby ones above: MUI's icon hidden, no tinted hover glow. */
+:is(html.lmn-skin-settings, html.lmn-skin-dashboard) .MuiCheckbox-root {
+  color: transparent !important;
+}
+:is(html.lmn-skin-settings, html.lmn-skin-dashboard) .MuiCheckbox-root .MuiSvgIcon-root {
+  visibility: hidden;
+}
+:is(html.lmn-skin-settings, html.lmn-skin-dashboard) .MuiCheckbox-root .MuiTouchRipple-root {
+  display: none;
+}
+:is(html.lmn-skin-settings, html.lmn-skin-dashboard) .MuiCheckbox-root:hover {
+  background-color: transparent !important;
+}
+:is(html.lmn-skin-settings, html.lmn-skin-dashboard) .MuiCheckbox-root::before,
+:is(html.lmn-skin-settings, html.lmn-skin-dashboard) .MuiCheckbox-root.Mui-checked::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  transform: translate(-50%, -50%);
+  border-radius: 6px;
+  pointer-events: none;
+}
+:is(html.lmn-skin-settings, html.lmn-skin-dashboard) .MuiCheckbox-root::before {
+  border: 1.5px solid var(--lmn-line-strong);
+  background: rgba(255, 255, 255, 0.04);
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+}
+:is(html.lmn-skin-settings, html.lmn-skin-dashboard) .MuiCheckbox-root:hover:not(.Mui-checked)::before {
+  border-color: rgba(255, 255, 255, 0.36);
+}
+:is(html.lmn-skin-settings, html.lmn-skin-dashboard) .MuiCheckbox-root.Mui-checked::before {
+  border-color: var(--lmn-accent);
+  background: var(--lmn-accent);
+}
+:is(html.lmn-skin-settings, html.lmn-skin-dashboard) .MuiCheckbox-root.Mui-checked::after {
+  background: #fff;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z'/%3E%3C/svg%3E")
+    center / 15px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z'/%3E%3C/svg%3E")
+    center / 15px no-repeat;
+}
+:is(html.lmn-skin-settings, html.lmn-skin-dashboard) .MuiCheckbox-root.Mui-focusVisible::before {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lmn-accent) 35%, transparent);
+}
+:is(html.lmn-skin-settings, html.lmn-skin-dashboard) .MuiCheckbox-root.Mui-disabled::before {
+  opacity: 0.4;
+}
+/* MUI's other hover tints (switches, radios, icon buttons) come from its primary colour's channels: keep them neutral. */
+html.lmn-skin-settings {
+  --jf-palette-primary-main: var(--lmn-accent);
+  --jf-palette-primary-mainChannel: 255 255 255;
+  --jf-palette-secondary-mainChannel: 255 255 255;
 }
 html.lmn-skin-settings .MuiButton-containedPrimary {
   min-height: 46px;
@@ -187,6 +287,9 @@ html.lmn-skin-settings .MuiButton-containedPrimary {
   font-weight: 600;
   text-transform: none;
   box-shadow: none;
+}
+html.lmn-skin-settings .MuiButton-containedPrimary:not(.Mui-disabled):hover {
+  background: color-mix(in srgb, var(--lmn-accent) 82%, #000) !important;
 }
 
 /* ---- Settings pages: Lumen's nav and title bar sit over the stock page ---------------------------------------- */
@@ -204,7 +307,7 @@ html.lmn-skin-settings .lmn-settings-frame {
   position: absolute;
   top: calc(var(--lmn-nav-h) + 20px);
   left: 50%;
-  width: min(760px, calc(100% - 2 * var(--lmn-gutter)));
+  width: min(880px, calc(100% - 2 * var(--lmn-gutter)));
   transform: translateX(-50%);
 }
 .lmn-settings-frame__back {
@@ -238,22 +341,21 @@ html.lmn-skin-settings .lmn-settings-frame {
   color: var(--lmn-text-3);
   font-size: 14px;
 }
-/* Room for the nav and title bar; the stock page's own content column, narrowed to match. */
+/* Room for the nav and title bar; the stock page's own content column, as wide as the settings menu (.lmn-profile). */
 html.lmn-skin-settings .page {
   padding-top: calc(var(--lmn-nav-h) + 150px) !important;
 }
 html.lmn-skin-settings .page > .padded-left {
-  max-width: 760px;
+  box-sizing: border-box;
+  max-width: calc(880px + 2 * var(--lmn-gutter));
   margin-right: auto;
   margin-left: auto;
-  padding-right: 0 !important;
-  padding-left: 0 !important;
+  padding-right: var(--lmn-gutter) !important;
+  padding-left: var(--lmn-gutter) !important;
 }
-@media (max-width: 800px) {
-  html.lmn-skin-settings .page > .padded-left {
-    padding-right: 16px !important;
-    padding-left: 16px !important;
-  }
+/* jellyfin-web caps the settings form at 54em and centres it; the column above sets the width instead. */
+html.lmn-skin-settings .page > .padded-left > form {
+  max-width: none;
 }
 /* Section headings inside settings: smaller, our style; the page title is ours. */
 html.lmn-skin-settings .page .sectionTitle {

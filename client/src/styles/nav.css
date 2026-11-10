@@ -93,6 +93,13 @@
     color 0.2s,
     background-color 0.2s;
 }
+/* Buttons in the pill (Watch together) look like its links: no browser button chrome. */
+button.lmn-nav__item {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
 .lmn-nav__item:hover {
   color: #fff;
 }

@@ -64,6 +64,26 @@ test('settings pages keep working inside Lumen’s frame', async ({ page }) => {
   await expect(page.locator('html')).not.toHaveClass(/lmn-skin-settings/);
 });
 
+test('settings pages match the settings menu’s width, and an open menu doesn’t take the scrollbar away', async ({ page }) => {
+  await login(page, ADMIN);
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings and profile' }).click();
+  const menuLeft = (await page.locator('.lmn-profile__list').first().boundingBox())!.x;
+  await page.getByRole('link', { name: /Display/ }).click();
+
+  const select = page.locator('.page:not(.hide) .MuiSelect-select').first();
+  await expect(select).toBeVisible();
+  // The settings form lines up with the menu's content and the page title.
+  const field = (await page.locator('.page:not(.hide) .MuiFilledInput-root').first().boundingBox())!;
+  expect(Math.abs(field.x - menuLeft)).toBeLessThan(2);
+  expect(Math.abs(field.x - (await page.locator('.lmn-settings-frame__title').boundingBox())!.x)).toBeLessThan(2);
+
+  // MUI's scroll lock hides <body>'s overflow (and the viewport's scrollbar with it) while a menu is open; not here.
+  await select.click();
+  await expect(page.getByRole('listbox')).toBeVisible();
+  await expect(page.locator('body')).toHaveCSS('overflow-y', 'auto');
+  await expect(page.locator('body')).toHaveCSS('padding-right', '0px');
+});
+
 test('installing to a home screen uses Lumen’s icon and the server’s name', async ({ page }) => {
   await page.goto('/web/#/login');
 

@@ -230,7 +230,7 @@ html.lmn-skin-dashboard .MuiButton-containedPrimary:not(.Mui-disabled) {
   color: #fff;
 }
 html.lmn-skin-dashboard .MuiButton-containedPrimary:not(.Mui-disabled):hover {
-  background-color: color-mix(in srgb, var(--lmn-accent) 88%, #fff);
+  background-color: color-mix(in srgb, var(--lmn-accent) 82%, #000);
 }
 html.lmn-skin-dashboard .MuiButton-outlined:not(.MuiButton-colorError, .Mui-disabled) {
   border-color: var(--lmn-line-strong);
@@ -342,7 +342,7 @@ html.lmn-skin-dashboard .MuiFormLabel-root.Mui-focused {
 html.lmn-skin-dashboard .MuiFormHelperText-root:not(.Mui-error) {
   color: var(--lmn-text-3);
 }
-html.lmn-skin-dashboard :is(.MuiCheckbox-root, .MuiRadio-root) {
+html.lmn-skin-dashboard .MuiRadio-root {
   color: var(--lmn-text-3);
 }
 html.lmn-skin-dashboard
@@ -486,7 +486,7 @@ html.lmn-skin-dashboard .btnHeaderSave {
   font-weight: 600;
 }
 html.lmn-skin-dashboard .btnHeaderSave:hover {
-  background: color-mix(in srgb, var(--lmn-accent) 88%, #fff);
+  background: color-mix(in srgb, var(--lmn-accent) 82%, #000);
 }
 html.lmn-skin-dashboard .libraryTree .jstree-anchor {
   border-radius: 6px;
