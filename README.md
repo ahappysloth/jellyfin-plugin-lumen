@@ -13,7 +13,7 @@ It is a single, self-contained server plugin, with no other plugins required. Wh
 
 ## Requirements
 
-- Jellyfin **12.1 or newer** (tested on 12.4: CI and a nightly run on 12.4, plus nightly runs against the latest and unstable builds, in Chromium, Firefox and iPhone WebKit; the list is in [`client/src/compat/tested-jellyfin.json`](client/src/compat/tested-jellyfin.json))
+- Jellyfin **12.1 or newer** (tested on 12.4: CI and a nightly run on 12.4, plus nightly runs against 12.1 and the latest and unstable builds, in Chromium, Firefox and iPhone WebKit; the list is in [`client/src/compat/tested-jellyfin.json`](client/src/compat/tested-jellyfin.json))
 
 ## Install
 
