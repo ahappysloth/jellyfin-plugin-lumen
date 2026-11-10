@@ -27,6 +27,8 @@ export const STOCK_SELECTORS = {
   reactRoot: { selector: '#reactRoot', probe: 'home', css: 'base.css' },
   /** Routed page content in both the Modern and Legacy layouts. Hidden via CSS only. */
   stockPage: { selector: '#reactRoot .skinBody', probe: 'home', css: 'base.css' },
+  /** The Modern layout's (empty) main landmark; Lumen's pages bring their own. The Legacy (TV) layout has none. */
+  stockMain: { selector: '#reactRoot main', probe: 'home', css: 'base.css' },
   backdrop: { selector: '.backdropContainer', probe: 'home', css: 'base.css' },
   background: { selector: '.backgroundContainer', probe: 'home', css: 'stock-skin.css' },
   /** The Modern layout's app bar. */
