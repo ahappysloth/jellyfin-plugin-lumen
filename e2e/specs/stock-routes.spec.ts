@@ -85,3 +85,29 @@ test('in the TV layout, every library link Lumen builds opens a real page', asyn
     });
   }
 });
+
+/**
+ * What Lumen itself builds on a TV: its nav links a Books library to the list page (the Legacy app has no Books page),
+ * and the link opens a real page. The fixture has no Books library, so the server's list of libraries gets one more,
+ * first: the test show's folder, presented as a Books library.
+ */
+test("in the TV layout, Lumen's nav links a Books library to a page that exists", async ({ page }) => {
+  const { items } = loadState();
+  // A real folder that isn't already in the nav (a library's id would repeat its key there).
+  const folder = items['Lumen Show']!;
+  await page.route(/\/UserViews(\?|$)/, async (route) => {
+    const response = await route.fetch();
+    const views = (await response.json()) as { Items: { ServerId: string }[] };
+    const books = { ...views.Items[0], Id: folder, Name: 'Lumen Books', CollectionType: 'books' };
+    // First, as the nav shows only the first few libraries.
+    await route.fulfill({ response, json: { ...views, Items: [books, ...views.Items] } });
+  });
+  await page.addInitScript(() => localStorage.setItem('layout', 'tv'));
+  await login(page, ADMIN);
+  await expect(page.locator('html')).toHaveClass(/layout-tv/);
+
+  const link = page.locator('#lmn-root .lmn-nav__pill').getByRole('link', { name: 'Lumen Books' });
+  await expect(link).toHaveAttribute('href', new RegExp(`^#/list\\?parentId=${folder}&serverId=`));
+  await openFresh(page, (await link.getAttribute('href'))!);
+  await expect(page.locator(NOT_FOUND)).toHaveCount(0);
+});

@@ -212,8 +212,12 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
         // Back closes an open panel and stays in the player; with none open, jellyfin-web leaves the player.
         if (isBackKey(e) && panel) {
           e.preventDefault();
-          e.stopPropagation();
+          e.stopPropagation(); // which also keeps it from the document listener that wakes the controls
+          // The focused entry is about to unmount: give focus back to the pill that opened the panel, so a remote
+          // isn't left on nothing, and keep the controls up for it.
+          e.currentTarget.querySelector<HTMLElement>('.lmn-player__pill[aria-expanded="true"]')?.focus();
           setPanel(null);
+          wake();
         }
       }}
     >

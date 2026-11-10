@@ -86,14 +86,37 @@ export function isModernLayout(doc: Document = document, win: Window = window): 
 }
 
 /**
- * Escape, or a TV remote's or gamepad's Back (registry.ts BACK_KEY_CODES). An overlay that closes on it must also
+ * jellyfin-web's `browser.tv && browser.hisense && browser.vidaa` (scripts/browser.js `detectBrowser`, `isTv`): a
+ * Hisense VIDAA TV, whose remote's Back arrives as Backspace (scripts/keyboardNavigation.js).
+ */
+export function isHisenseVidaaTv(userAgent: string): boolean {
+  const ua = userAgent.toLowerCase();
+  if (!ua.includes('hisense') || !ua.includes('vidaa')) return false;
+  const isTv =
+    !ua.includes('oculusbrowser') &&
+    ['tv', 'viera', 'titanos', 'netcast', 'web0s'].some((t) => ua.includes(t));
+  return isTv || ['playstation 4', 'kepler', 'xbox'].some((t) => ua.includes(t));
+}
+
+/** Where Backspace edits text, so it's never Back (jellyfin-web's isInteractiveElement). */
+function isTextField(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target instanceof HTMLTextAreaElement || target.isContentEditable) return true;
+  const nonText = ['button', 'checkbox', 'color', 'file', 'hidden', 'image', 'radio', 'reset', 'submit'];
+  return target instanceof HTMLInputElement && !nonText.includes(target.type);
+}
+
+/**
+ * Escape, or a TV remote's or gamepad's Back (registry.ts BACK_KEY_CODES; Backspace on a Hisense VIDAA TV, outside a
+ * text field). An overlay that closes on it must also
  * preventDefault and stopPropagation: jellyfin-web's own handler, on `window` in the bubble phase, would otherwise go
  * back a page as well. A handler on Lumen's element runs before it; jellyfin-web's capture-phase keydown listeners (the
  * screensaver's, the video OSD's idle timer) don't act on Back.
  */
-export function isBackKey(e: KeyboardEvent): boolean {
+export function isBackKey(e: KeyboardEvent, userAgent: string = navigator.userAgent): boolean {
   // keyCode is deprecated, but it is all webOS and Tizen remotes report (their `key` is often "Unidentified").
-  return e.key === 'Escape' || BACK_KEY_CODES.includes(e.keyCode);
+  if (e.key === 'Escape' || BACK_KEY_CODES.includes(e.keyCode)) return true;
+  return e.key === 'Backspace' && isHisenseVidaaTv(userAgent) && !isTextField(e.target);
 }
 
 /** Height of the visible fixed app bar (Modern) or header (Legacy), in CSS pixels. */
