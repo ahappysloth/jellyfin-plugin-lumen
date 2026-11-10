@@ -123,7 +123,7 @@ export function SeriesDetails({ series, initialSeasonId, ctx }: Props) {
           <EpisodeList
             episodes={episodes}
             client={ctx.client}
-            onPlay={(ep) => actions.play(ep.Id, resumeTicks(ep))}
+            onPlay={(ep) => actions.play(ep, resumeTicks(ep))}
             detailsHref={(ep) => detailsHash(ep.Id, ep.ServerId)}
           />
         )}

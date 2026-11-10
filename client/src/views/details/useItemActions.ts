@@ -32,12 +32,13 @@ export function useItemActions(item: BaseItem, ctx: ViewContext) {
 
   const toggleWatched = (): void => toggleUserData(ctx, item, 'Played', !played, showToast);
   const toggleFavorite = (): void => toggleUserData(ctx, item, 'IsFavorite', !favorite, showToast);
-  const play = (itemId: string, startTicks?: number): void => {
+  /** Plays an item (handed to the player as is when it's fully loaded, as this page's own item is) or an id. */
+  const play = (target: BaseItem | string, startTicks?: number): void => {
     if (starting) return;
     setError(null);
     showStarting(startingFor(ctx.client, item));
     runStarting(true, () =>
-      playItem(ctx.api, ctx.client, itemId, startTicks).catch(() => {
+      playItem(ctx.api, ctx.client, target, startTicks).catch(() => {
         clearStarting();
         if (mounted.current) setError(strings.playbackFailed);
       }),
