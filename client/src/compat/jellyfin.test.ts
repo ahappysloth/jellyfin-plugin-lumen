@@ -5,6 +5,7 @@ import {
   genreHash,
   getAppBarHeight,
   getLayout,
+  isModernLayout,
   libraryHash,
   selfTest,
   setFavicon,
@@ -23,6 +24,7 @@ describe('compat', () => {
   afterEach(() => {
     document.body.innerHTML = '';
     document.documentElement.className = '';
+    localStorage.clear();
   });
 
   it('passes against a stock jellyfin-web page', () => {
@@ -79,6 +81,57 @@ describe('compat', () => {
       '#/list?parentId=c&serverId=s',
     );
     expect(genreHash('g', 's')).toBe('#/list?genreId=g&serverId=s');
+  });
+
+  it('tells the Modern layout from the Legacy and TV ones', () => {
+    expect(isModernLayout()).toBe(true); // nothing saved: a browser's default
+    for (const saved of ['auto', 'modern', 'desktop', 'mobile']) {
+      localStorage.setItem('layout', saved);
+      expect(isModernLayout()).toBe(true);
+    }
+    for (const saved of ['desktop-legacy', 'mobile-legacy', 'tv']) {
+      localStorage.setItem('layout', saved);
+      expect(isModernLayout()).toBe(false);
+    }
+    localStorage.clear();
+    document.documentElement.className = 'layout-tv'; // a TV picked by the browser, with nothing saved
+    expect(isModernLayout()).toBe(false);
+  });
+
+  // appRouter.getRouteUrl: books, music videos and playlists have pages only in the Modern layout; Live TV in every one.
+  it.each([
+    ['Modern', 'layout-desktop', null],
+    ['Legacy desktop', 'layout-desktop', 'desktop-legacy'],
+    ['Legacy mobile', 'layout-mobile', 'mobile-legacy'],
+    ['TV', 'layout-tv', 'tv'],
+  ])('links each library type to a page the %s layout has', (layout, layoutClass, saved) => {
+    document.documentElement.className = layoutClass;
+    if (saved) localStorage.setItem('layout', saved);
+    const modern = layout === 'Modern';
+    const hash = (CollectionType: string) => libraryHash({ Id: 'l', CollectionType, ServerId: 's' });
+
+    expect(hash('movies')).toBe('#/movies?topParentId=l&collectionType=movies');
+    expect(hash('tvshows')).toBe('#/tv?topParentId=l&collectionType=tvshows');
+    expect(hash('music')).toBe('#/music?topParentId=l&collectionType=music');
+    for (const [type, route] of [
+      ['books', '/books'],
+      ['musicvideos', '/musicvideos'],
+      ['playlists', '/playlists'],
+    ]) {
+      expect(hash(type!)).toBe(
+        modern ? `#${route}?topParentId=l&collectionType=${type}` : '#/list?parentId=l&serverId=s',
+      );
+    }
+    expect(hash('livetv')).toBe('#/livetv?collectionType=livetv');
+    expect(hash('boxsets')).toBe('#/list?parentId=l&collectionType=boxsets&serverId=s');
+    expect(hash('homevideos')).toBe('#/list?parentId=l&serverId=s');
+  });
+
+  it('takes the layout as an argument where there is no document (the e2e suite)', () => {
+    document.documentElement.className = 'layout-tv';
+    expect(libraryHash({ Id: 'l', CollectionType: 'books' }, true)).toBe(
+      '#/books?topParentId=l&collectionType=books',
+    );
   });
 });
 

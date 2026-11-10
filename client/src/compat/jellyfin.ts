@@ -6,8 +6,12 @@
 import {
   API_CLIENT_METHODS,
   LAYOUT_CLASSES,
+  LAYOUT_SETTING_KEY,
+  LEGACY_LAYOUT_MODES,
   LIBRARY_ROUTES,
   LIST_PARAMS,
+  LIVE_TV_ROUTE,
+  MODERN_LIBRARY_ROUTES,
   PIGGY_BACKED_PARAMS,
   SETTINGS_ROUTES,
   STOCK_ROUTES,
@@ -64,6 +68,22 @@ export function getLayout(doc: Document = document): Layout {
   return 'desktop';
 }
 
+/**
+ * True when jellyfin-web runs its Modern app rather than the Legacy one (its `layoutManager.modern`, which it doesn't
+ * expose). The TV layout is always Legacy; `desktop-legacy` and `mobile-legacy` are only known from the saved setting.
+ * Nothing saved (or `auto`) is Modern outside the TV layout, in a browser and in the iOS and Android apps.
+ */
+export function isModernLayout(doc: Document = document, win: Window = window): boolean {
+  if (getLayout(doc) === 'tv') return false;
+  let saved: string | null = null;
+  try {
+    saved = win.localStorage.getItem(LAYOUT_SETTING_KEY);
+  } catch {
+    // storage blocked: jellyfin-web couldn't have saved a layout either
+  }
+  return !(saved && LEGACY_LAYOUT_MODES.includes(saved));
+}
+
 /** Height of the visible fixed app bar (Modern) or header (Legacy), in CSS pixels. */
 export function getAppBarHeight(doc: Document = document): number {
   for (const selector of [SELECTORS.modernAppBar, SELECTORS.legacyHeader]) {
@@ -103,10 +123,20 @@ export function detailsHash(itemId: string, serverId?: string): string {
   return `#${STOCK_ROUTES.details}?id=${encodeURIComponent(itemId)}${server}`;
 }
 
-/** jellyfin-web's own library page for a user view (mirrors appRouter.getRouteUrl in 12.x). */
-export function libraryHash(view: { Id: string; CollectionType?: string; ServerId?: string }): string {
+/**
+ * jellyfin-web's own library page for a user view (mirrors appRouter.getRouteUrl in 12.x). Some library pages exist
+ * only in the Modern layout (registry.ts MODERN_LIBRARY_ROUTES); `modern` defaults to the running layout.
+ */
+export function libraryHash(
+  view: { Id: string; CollectionType?: string; ServerId?: string },
+  modern: boolean = isModernLayout(),
+): string {
   const id = encodeURIComponent(view.Id);
-  const route = view.CollectionType ? LIBRARY_ROUTES[view.CollectionType] : undefined;
+  if (view.CollectionType === 'livetv') return `#${LIVE_TV_ROUTE}?collectionType=livetv`;
+  const route = view.CollectionType
+    ? (LIBRARY_ROUTES[view.CollectionType] ??
+      (modern ? MODERN_LIBRARY_ROUTES[view.CollectionType] : undefined))
+    : undefined;
   if (route) return `#${route}?topParentId=${id}&collectionType=${view.CollectionType}`;
   const server = view.ServerId ? `&serverId=${encodeURIComponent(view.ServerId)}` : '';
   // Tagged so Lumen can take the Collections library over; jellyfin-web's list page ignores the extra parameter
@@ -118,7 +148,7 @@ export function libraryHash(view: { Id: string; CollectionType?: string; ServerI
 
 /** A Movies or Shows library page on one of its tabs (jellyfin-web's `?tab=` index, registry.ts LIBRARY_TABS). */
 export function libraryTabHash(id: string, collection: 'movies' | 'tvshows', tab: number): string {
-  const base = libraryHash({ Id: id, CollectionType: collection });
+  const base = libraryHash({ Id: id, CollectionType: collection }, true); // both routes exist in every layout
   return tab === 0 ? base : `${base}&tab=${tab}`;
 }
 
