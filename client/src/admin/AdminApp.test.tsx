@@ -75,6 +75,7 @@ function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     checkForUpdates: vi.fn(async () => update()),
     installUpdate: vi.fn(async () => update({ UpdateAvailable: false, RestartPending: true })),
     restartServer: vi.fn(async () => undefined),
+    serverState: vi.fn(async () => ({ up: true as const, restartPending: false })),
     ...overrides,
   };
 }
@@ -83,7 +84,15 @@ describe('AdminApp updates', () => {
   it("checks on open from Jellyfin's Plugins page, installs the update and restarts Jellyfin", async () => {
     const api = fakeApi();
     const confirm = vi.fn(() => true);
-    render(<AdminApp api={api} confirm={confirm} hash="#/configurationpage?name=Lumen&check=updates" />);
+    const reload = vi.fn();
+    render(
+      <AdminApp
+        api={api}
+        confirm={confirm}
+        reload={reload}
+        hash="#/configurationpage?name=Lumen&check=updates"
+      />,
+    );
 
     expect(await screen.findByText('Lumen 0.3.3 is available.')).toBeInTheDocument();
     // The release's CHANGELOG entry, as headings and items.
@@ -100,6 +109,8 @@ describe('AdminApp updates', () => {
     expect(confirm).toHaveBeenCalled();
     await waitFor(() => expect(api.restartServer).toHaveBeenCalled());
     expect(await screen.findByText(/Restarting Jellyfin/)).toBeInTheDocument();
+    // Once Jellyfin is back (here at the first check), the page reloads to run the new version.
+    await waitFor(() => expect(reload).toHaveBeenCalled(), { timeout: 4000 });
   });
 
   it('checks only when asked, and says when Lumen is up to date', async () => {

@@ -17,6 +17,8 @@ interface AdminAppProps {
   confirm?: (message: string) => boolean;
   /** The page's URL hash: `?check=updates` (from Jellyfin's Plugins page) checks for updates on open. */
   hash?: string;
+  /** Reloads the page once Jellyfin is back from a restart. */
+  reload?: () => void;
 }
 
 export function AdminApp({
@@ -24,6 +26,7 @@ export function AdminApp({
   newId = newUuid,
   confirm = (m) => window.confirm(m),
   hash = window.location.hash,
+  reload,
 }: AdminAppProps) {
   const admin = useAdminConfig(api);
   const { config, status, errors, warnings, dirty, update } = admin;
@@ -73,7 +76,7 @@ export function AdminApp({
         </div>
       ))}
 
-      <UpdatesSettings api={api} autoCheck={wantsCheck(hash)} confirm={confirm} />
+      <UpdatesSettings api={api} autoCheck={wantsCheck(hash)} confirm={confirm} reload={reload} />
       <GeneralSettings config={config} update={update} />
       <HeroSettings config={config} lookups={admin.lookups} update={update} />
       <HomeSectionsSettings

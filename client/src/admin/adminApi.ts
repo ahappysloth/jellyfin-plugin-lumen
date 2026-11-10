@@ -111,6 +111,11 @@ export interface AdminApi {
   checkForUpdates(): Promise<UpdateStatus>;
   installUpdate(version: string): Promise<UpdateStatus>;
   restartServer(): Promise<void>;
+  /**
+   * Where a restart has got to: 'down' while Jellyfin doesn't answer; 'up' when it answers, with whether it still has
+   * a restart pending (it does until it has actually restarted).
+   */
+  serverState(): Promise<{ up: false } | { up: true; restartPending: boolean }>;
 }
 
 const isResponse = (value: unknown): value is Response =>
@@ -182,6 +187,14 @@ export function createAdminApi(client: JellyfinApiClient): AdminApi {
       })) as UpdateStatus,
     async restartServer() {
       await client.ajax({ type: 'POST', url: client.getUrl('System/Restart') });
+    },
+    async serverState() {
+      try {
+        const info = await getJson<{ HasPendingRestart?: boolean }>('System/Info');
+        return { up: true, restartPending: !!info.HasPendingRestart };
+      } catch {
+        return { up: false };
+      }
     },
   };
 }

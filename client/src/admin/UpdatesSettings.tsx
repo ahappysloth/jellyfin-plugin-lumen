@@ -8,21 +8,49 @@ type Step =
   | { kind: 'checking' }
   | { kind: 'checked'; status: UpdateStatus }
   | { kind: 'installing'; status: UpdateStatus }
-  | { kind: 'restarting' }
+  | { kind: 'restarting'; back: boolean }
   | { kind: 'failed'; message: string; status?: UpdateStatus };
 
 /**
  * Check for updates: Lumen's manifest on GitHub and Jellyfin's plugin repositories, checked fresh by the server; then
  * Jellyfin's own installer, and a restart to load the new version.
  */
+/** How often a restart is checked on, and how long before giving up on it coming back. */
+export const RESTART_POLL_MS = 2000;
+export const RESTART_TIMEOUT_MS = 180_000;
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Resolves true once Jellyfin is back from a restart: it stopped answering and answers again, or it answers and no
+ * longer has a restart pending (a restart quicker than one poll). False after `timeoutMs`.
+ */
+export async function waitForRestart(
+  api: AdminApi,
+  pollMs = RESTART_POLL_MS,
+  timeoutMs = RESTART_TIMEOUT_MS,
+): Promise<boolean> {
+  let wentDown = false;
+  for (let waited = 0; waited < timeoutMs; waited += pollMs) {
+    await sleep(pollMs);
+    const state = await api.serverState();
+    if (!state.up) wentDown = true;
+    else if (wentDown || !state.restartPending) return true;
+  }
+  return false;
+}
+
 export function UpdatesSettings({
   api,
   autoCheck = false,
   confirm,
+  reload = () => window.location.reload(),
 }: {
   api: AdminApi;
   autoCheck?: boolean;
   confirm: (message: string) => boolean;
+  /** Reloads the page once Jellyfin is back (so it runs the new version). */
+  reload?: () => void;
 }) {
   const [step, setStep] = useState<Step>({ kind: 'idle' });
 
@@ -48,13 +76,23 @@ export function UpdatesSettings({
   };
   const restart = async (): Promise<void> => {
     if (!confirm('Restart Jellyfin now? Anyone watching is disconnected for a moment.')) return;
-    setStep({ kind: 'restarting' });
+    setStep({ kind: 'restarting', back: false });
     try {
       await api.restartServer();
     } catch {
       setStep({
         kind: 'failed',
         message: "Couldn't restart Jellyfin. Restart it from the Dashboard instead.",
+      });
+      return;
+    }
+    if (await waitForRestart(api)) {
+      setStep({ kind: 'restarting', back: true });
+      reload();
+    } else {
+      setStep({
+        kind: 'failed',
+        message: "Jellyfin hasn't come back after 3 minutes. Reload this page once it's running again.",
       });
     }
   };
@@ -76,7 +114,14 @@ export function UpdatesSettings({
         <div class="lmn-admin__updates-text">
           {step.kind === 'idle' && <p>Check whether a newer version of Lumen is out.</p>}
           {step.kind === 'checking' && <p>Checking for updates…</p>}
-          {step.kind === 'restarting' && <p>Restarting Jellyfin… this page reconnects when it's back.</p>}
+          {step.kind === 'restarting' && (
+            <p class="lmn-admin__updates-ok">
+              <span class="lmn-admin__spinner" aria-hidden="true" />
+              {step.back
+                ? 'Jellyfin is back. Reloading…'
+                : "Restarting Jellyfin… this page reloads when it's back."}
+            </p>
+          )}
           {step.kind === 'failed' && (
             <p role="alert" class="lmn-admin__updates-error">
               {step.message}
