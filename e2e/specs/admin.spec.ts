@@ -40,7 +40,12 @@ test('the Dashboard wears Lumen’s look, and only on admin pages', async ({ pag
 
 test('Check for Lumen updates on the Plugins page opens Lumen’s settings and checks', async ({ page }) => {
   await login(page, ADMIN);
-  await page.goto('/web/#/dashboard/plugins');
+  // Lumen's page opened once first: jellyfin-web keeps that copy, and the button's URL opens a second one beside it.
+  await page.goto('/web/#/configurationpage?name=Lumen');
+  await expect(page.getByRole('group', { name: 'Home sections' })).toBeVisible();
+  await page.evaluate(() => {
+    location.hash = '#/dashboard/plugins';
+  });
 
   const check = page.getByRole('link', { name: 'Check for Lumen updates' });
   await expect(check).toBeVisible();
@@ -50,7 +55,8 @@ test('Check for Lumen updates on the Plugins page opens Lumen’s settings and c
   await check.click();
 
   await expect(page).toHaveURL(/configurationpage\?name=Lumen&check=updates/);
-  const updates = page.getByRole('group', { name: 'Updates' });
+  // The copy on screen is mounted (not stuck on "Loading Lumen settings…").
+  const updates = page.locator('[id="lmn-admin-root"]:visible').getByRole('group', { name: 'Updates' });
   // The server checks GitHub and Jellyfin's repositories; whichever way it comes out, it's an answer, not an error.
   await expect(updates.getByText(/is the latest version|is available|No Lumen release was found/)).toBeVisible({ timeout: 30_000 });
   await expect(updates.getByRole('alert')).toHaveCount(0);

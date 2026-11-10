@@ -585,3 +585,17 @@
 .lmn-admin .lmn-admin__updates-notes + .lmna-card__intro {
   margin-top: 12px;
 }
+
+.lmn-admin .lmn-admin__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: lmn-admin-spin 0.7s linear infinite;
+}
+@keyframes lmn-admin-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
