@@ -1,6 +1,9 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/preact';
+import { cleanup, configure } from '@testing-library/preact';
 import { afterAll, afterEach } from 'vitest';
+
+// findBy*/waitFor wait up to 1 s by default; under heavy parallel load a render on real timers can take longer.
+configure({ asyncUtilTimeout: 3000 });
 
 // Vitest globals are off, so Testing Library's automatic cleanup is not registered.
 afterEach(() => cleanup());

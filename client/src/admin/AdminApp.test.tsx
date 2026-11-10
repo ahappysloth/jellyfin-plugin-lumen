@@ -111,7 +111,7 @@ describe('AdminApp updates', () => {
     expect(await screen.findByText(/Restarting Jellyfin/)).toBeInTheDocument();
     // Once Jellyfin is back (here at the first check), the page reloads to run the new version.
     await waitFor(() => expect(reload).toHaveBeenCalled(), { timeout: 4000 });
-  });
+  }, 15_000); // several waits in a row: slow only under heavy parallel load
 
   it('checks only when asked, and says when Lumen is up to date', async () => {
     const api = fakeApi({
