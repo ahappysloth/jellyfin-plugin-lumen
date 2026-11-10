@@ -37,6 +37,10 @@ html.lmn-skin-player .upNextContainer {
   position: absolute;
   inset: 0;
 }
+/* Where Escape leaves focus as the controls go away: nothing to show. */
+.lmn-player__surface:focus {
+  outline: none;
+}
 .lmn-player__top,
 .lmn-player__bottom {
   position: absolute;

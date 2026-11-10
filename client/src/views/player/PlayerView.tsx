@@ -4,6 +4,7 @@ import { LoadingScreen } from './LoadingScreen';
 import { othersInGroup, useSyncPlayState } from '../syncplay/syncPlayState';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { HOME_HASH, isBackKey, isRemoteBack } from '../../compat/jellyfin';
+import { IGNORED_KEY_CODE } from '../../compat/registry';
 import { getPlaybackManager, type PlaybackManager, type Player } from '../../compat/playbackManager';
 import { Icon } from '../../components/icons';
 import { strings } from '../../strings';
@@ -118,19 +119,43 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   }, [itemId, snap?.playlistIndex]);
 
   const osdRef = useRef<HTMLDivElement>(null);
+  /** The picture: where Escape leaves focus as it puts the controls away. */
+  const surfaceRef = useRef<HTMLDivElement>(null);
   /**
-   * Whether a control has keyboard focus (not a click's). Outside the TV layout the controls stay up for it: they
-   * aren't hidden from someone using them with the keyboard. In the TV layout focus is always on a control, so they
-   * hide after a pause as jellyfin-web's TV controls do, and come back with the next D-pad press.
+   * Whether focus came to the player by keyboard (Tab, a D-pad, Enter on a pill), not by a click or tap. Tracked from
+   * the input that moved it, not :focus-visible: Chromium and WebKit count a clicked button as :focus-visible once any
+   * key is pressed (Space to play again, say).
+   */
+  const keyboardFocus = useRef(false);
+  useEffect(() => {
+    let keyboard = false;
+    const onKey = (): void => void (keyboard = true);
+    const onPointer = (): void => void (keyboard = keyboardFocus.current = false);
+    const onFocus = (e: FocusEvent): void =>
+      void (keyboardFocus.current = keyboard && !!osdRef.current?.contains(e.target as Node));
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('pointerdown', onPointer, true);
+    document.addEventListener('focusin', onFocus, true);
+    return () => {
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('pointerdown', onPointer, true);
+      document.removeEventListener('focusin', onFocus, true);
+    };
+  }, []);
+  /**
+   * Whether a control has keyboard focus. Outside the TV layout the controls stay up for it: they aren't hidden from
+   * someone using them with the keyboard. In the TV layout focus is always on a control, so they hide after a pause as
+   * jellyfin-web's TV controls do, and come back with the next D-pad press.
    */
   const holdsKeyboardFocus = (): boolean => {
     const focused = document.activeElement;
-    if (ctx.layout === 'tv' || !focused || !osdRef.current?.contains(focused)) return false;
-    try {
-      return focused.matches(':focus-visible');
-    } catch {
-      return false; // a browser without :focus-visible can't tell a click's focus from the keyboard's
-    }
+    return (
+      ctx.layout !== 'tv' &&
+      keyboardFocus.current &&
+      !!focused &&
+      focused !== surfaceRef.current &&
+      !!osdRef.current?.contains(focused)
+    );
   };
   // Show on any input; hide after a pause while playing with no menu open.
   const wake = (): void => {
@@ -241,10 +266,11 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
         return;
       }
       // Escape on a control (outside the TV layout) puts the controls away, as it does jellyfin-web's: they stay up
-      // while they have keyboard focus.
+      // while they have keyboard focus. Focus goes to the picture, not <body>, so the next Tab comes back to them (in
+      // WebKit, Tab from <body> starts at the top of the page).
       if (e.key === 'Escape' && holdsKeyboardFocus()) {
         consume(e);
-        (document.activeElement as HTMLElement).blur();
+        surfaceRef.current?.focus();
         clearTimeout(idleTimer.current);
         setVisible(false);
         return;
@@ -287,12 +313,12 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
     <div
       ref={osdRef}
       onKeyDown={(e) => {
-        // Space presses the focused button, as anywhere else: jellyfin-web's shortcut (keyCode 32) would play or pause
-        // instead, and keep the press from the button. It still gets the key, as one it ignores: it remembers which
-        // element the keyboard is on, and in Firefox drops a click on any other (controllers/playback/video/index.js,
-        // onClickCapture).
-        if (e.key === ' ' && (e.target as Element).closest('button'))
-          Object.defineProperty(e, 'keyCode', { value: 0 });
+        // Space presses a button the keyboard is on, as anywhere else: jellyfin-web's shortcut would play or pause
+        // instead, and keep the press from the button. It still gets the key, as one it ignores (registry.ts
+        // IGNORED_KEY_CODE): it remembers which element the keyboard is on, and in Firefox drops a click on any other
+        // (controllers/playback/video/index.js, onClickCapture). After a click, Space stays play/pause.
+        if (e.key === ' ' && keyboardFocus.current && (e.target as Element).closest('button'))
+          Object.defineProperty(e, 'keyCode', { value: IGNORED_KEY_CODE });
       }}
       class={`lmn-osd${shown ? '' : ' is-idle'}${panel ? ' has-panel' : ''}${progress.started ? '' : ' is-loading'}`}
     >
@@ -317,6 +343,8 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
       <SwitchOverlay state={switching.state} />
       {/* Clicking the picture toggles play (closes a menu first); double-click toggles full screen. */}
       <div
+        ref={surfaceRef}
+        tabIndex={-1}
         class="lmn-player__surface"
         onClick={(e) => {
           if (panel) return setPanel(null);
@@ -396,6 +424,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
           {panel === 'settings' && (
             <SettingsPanel
               ctx={ctx}
+              tv={ctx.layout === 'tv'}
               syncPlay={syncPlay}
               manager={manager}
               snap={snap}

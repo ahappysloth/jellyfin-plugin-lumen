@@ -150,6 +150,15 @@ export const LIBRARY_TABS = {
  */
 export const BACK_KEY_CODES: readonly number[] = [27, 196, 461, 10009];
 
+/**
+ * A keyCode jellyfin-web's player ignores. Its video OSD plays or pauses on keyCode 32 and takes it from buttons outside
+ * the TV layout (controllers/playback/video/index.js onKeyDown), so Lumen's player hands it Space on its own buttons
+ * with this keyCode instead. Both its listeners name keys with scripts/keyboardNavigation.js getKeyName, which reads
+ * `KeyNames[keyCode] || code`: KeyNames has no 0, so Space reads as its code, 'Space', which neither the OSD's switch nor
+ * keyboard navigation handles (checked against 12.4's source).
+ */
+export const IGNORED_KEY_CODE = 0;
+
 /** jellyfin-web's list page filtered to one studio (`#/list?studioId=`), like its genre list. */
 export const LIST_PARAMS = { genre: 'genreId', studio: 'studioId', parent: 'parentId' } as const;
 
