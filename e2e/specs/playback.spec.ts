@@ -145,3 +145,50 @@ test("Lumen's player controls drive jellyfin-web's player, including subtitle tr
     )
     .toBe(true);
 });
+
+test('the player says when it ends, repeats, and shows playback info', async ({ page }) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
+  await expect.poll(() => page.locator('video.htmlvideoplayer').evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0.3);
+  // The loading screen is gone once the video plays.
+  await expect(page.getByRole('status', { name: 'Starting…' })).toHaveCount(0);
+  await page.mouse.move(400, 300);
+  await expect(page.locator('#lmn-root').getByText(/^Ends at \d/)).toBeVisible();
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  // A movie repeats itself.
+  await page.getByRole('button', { name: 'Repeat', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Repeat', exact: true })).toHaveAttribute('aria-pressed', 'true');
+
+  await page.getByRole('menuitemcheckbox', { name: 'Playback info' }).click();
+  const info = page.getByRole('complementary', { name: 'Playback info' });
+  await expect(info).toContainText('Direct play');
+  await expect(info).toContainText('VP9');
+});
+
+test('Cast moves what is playing to another Jellyfin session', async ({ page, browser }) => {
+  const { items } = loadState();
+  // A second browser (its own device id): a Jellyfin web session that takes remote control.
+  const tv = await browser.newContext();
+  const tvPage = await tv.newPage();
+  await login(tvPage, ADMIN);
+
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
+  await expect.poll(() => page.locator('video.htmlvideoplayer').evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0.3);
+  await page.mouse.move(400, 300);
+
+  const cast = page.getByRole('button', { name: 'Cast' });
+  await expect(cast).toBeVisible({ timeout: 15_000 });
+  await cast.click();
+  await page.getByRole('menu', { name: 'Cast' }).getByRole('menuitem').first().click();
+
+  // It plays there, and stops here.
+  await expect(tvPage).toHaveURL(/#\/video/, { timeout: 20_000 });
+  await expect.poll(() => tvPage.locator('video.htmlvideoplayer').evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 20_000 }).toBeGreaterThan(0);
+  await expect(page).not.toHaveURL(/#\/video/, { timeout: 20_000 });
+  await tv.close();
+});

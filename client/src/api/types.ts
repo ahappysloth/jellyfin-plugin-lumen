@@ -134,6 +134,24 @@ export interface SessionInfo {
   Id: string;
   DeviceId: string;
   UserId?: string;
+  /** What the server is doing for this session's playback (Playback info). */
+  TranscodingInfo?: TranscodingInfo;
+}
+
+/** The server's transcode for a session (Jellyfin's TranscodingInfo subset). */
+export interface TranscodingInfo {
+  VideoCodec?: string;
+  AudioCodec?: string;
+  Container?: string;
+  Bitrate?: number;
+  Width?: number;
+  Height?: number;
+  AudioChannels?: number;
+  Framerate?: number;
+  IsVideoDirect?: boolean;
+  IsAudioDirect?: boolean;
+  HardwareAccelerationType?: string;
+  TranscodeReasons?: string[];
 }
 
 /** The signed-in user (Jellyfin's UserDto subset). */

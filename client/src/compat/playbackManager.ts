@@ -56,12 +56,48 @@ export interface PlaybackManager {
    * startPositionTicks and queues the following episodes when the user has next-episode autoplay on.
    */
   play?(options: { ids: string[]; startPositionTicks?: number; serverId?: string }): Promise<unknown>;
+  /** RepeatNone, RepeatOne or RepeatAll. */
+  getRepeatMode?(player: Player): RepeatMode;
+  setRepeatMode?(mode: RepeatMode, player: Player): void;
+  /** Where playback could go: this browser, cast devices, other Jellyfin apps that take remote control. */
+  getTargets?(): Promise<PlayTarget[]>;
+  /** Stops playback (the player page closes itself). */
+  stop?(player: Player): void;
+  /** Makes a target the active player once it pairs (fires 'playerchange'); doesn't move what's playing. */
+  trySetActivePlayer?(playerName: string, target: PlayTarget): void;
+}
+
+export type RepeatMode = 'RepeatNone' | 'RepeatOne' | 'RepeatAll';
+
+/** A place to play (jellyfin-web's player targets). */
+export interface PlayTarget {
+  id: string;
+  name: string;
+  playerName: string;
+  appName?: string;
+  deviceType?: string;
+  isLocalPlayer?: boolean;
 }
 
 export interface Player {
   name?: string;
   id?: string;
   isLocalPlayer?: boolean;
+}
+
+/** A media source's stream, as Playback info shows it. */
+export interface MediaStreamInfo {
+  Type?: string;
+  Codec?: string;
+  Height?: number;
+  Width?: number;
+  BitRate?: number;
+  Channels?: number;
+  VideoRangeType?: string;
+  Language?: string;
+  Index?: number;
+  AverageFrameRate?: number;
+  RealFrameRate?: number;
 }
 
 export interface Stream {
@@ -76,6 +112,8 @@ export interface Stream {
 
 export interface PlayerState {
   PlayState?: {
+    /** DirectPlay, DirectStream or Transcode. */
+    PlayMethod?: string;
     PositionTicks?: number;
     BufferedRanges?: { start: number; end: number }[];
     CanSeek?: boolean;
@@ -90,8 +128,17 @@ export interface PlayerState {
     RunTimeTicks?: number;
     ProductionYear?: number;
     UserData?: { IsFavorite?: boolean };
+    /** The series (for an episode) or item with a backdrop, for the loading screen. */
+    ParentBackdropItemId?: string;
+    BackdropImageTags?: string[];
+    ParentBackdropImageTags?: string[];
   };
-  MediaSource?: { Id?: string; MediaStreams?: { Type?: string; Height?: number; Width?: number }[] };
+  MediaSource?: {
+    Id?: string;
+    Container?: string;
+    Bitrate?: number;
+    MediaStreams?: MediaStreamInfo[];
+  };
 }
 
 type WebpackModule = { exports?: unknown };

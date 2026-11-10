@@ -2,8 +2,9 @@
 import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 
-// Raised from 60 KB in 0.3.1 (episode page, library tabs, Watch together, volume pill).
-const BUDGET = 64 * 1024;
+// Raised from 60 KB in 0.3.1 (episode page, library tabs, Watch together, volume pill), and from 64 KB in 0.3.4
+// (player: Watch together, Cast, Ends at, settings with Repeat and Playback info, loading screen).
+const BUDGET = 68 * 1024;
 const files = ['dist/lumen.js', 'dist/lumen.css'];
 const total = files.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
 console.log(`lumen bundle: ${(total / 1024).toFixed(1)} KB gzipped (budget ${BUDGET / 1024} KB)`);

@@ -60,8 +60,71 @@ function fakeManager() {
     previousTrack: vi.fn(),
     getCurrentPlaylistIndex: () => 0,
     getPlaylist: () => Promise.resolve([{}, {}]),
+    getRepeatMode: vi.fn(() => 'RepeatNone' as const),
+    setRepeatMode: vi.fn(),
   };
 }
+
+describe('PlayerView extras', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    document.querySelectorAll('video').forEach((v) => v.remove());
+  });
+
+  const start = async () => {
+    const pm = fakeManager();
+    vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+    render(<PlayerView ctx={makeContext(createFakeClient())} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    return pm;
+  };
+
+  it('shows a loading screen until the video plays, then a spinner only for a real stall', async () => {
+    await start();
+    expect(screen.getByRole('status', { name: 'Starting…' })).toHaveTextContent('Lumen Show');
+
+    const video = document.createElement('video');
+    document.body.appendChild(video);
+    Object.defineProperty(video, 'paused', { value: false, configurable: true });
+    act(() => void video.dispatchEvent(new Event('playing')));
+    expect(screen.queryByRole('status', { name: 'Starting…' })).toBeNull();
+
+    act(() => void video.dispatchEvent(new Event('waiting')));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    expect(screen.queryByRole('status', { name: 'Loading' })).toBeNull(); // a blip: no spinner
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
+    act(() => void video.dispatchEvent(new Event('playing')));
+    expect(screen.queryByRole('status', { name: 'Loading' })).toBeNull();
+  });
+
+  it('settings: Repeat this episode or all episodes, and Playback info', async () => {
+    const pm = await start();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'All episodes' }));
+    expect(pm.setRepeatMode).toHaveBeenCalledWith('RepeatAll', pm.player);
+
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Playback info' }));
+    const card = screen.getByRole('complementary', { name: 'Playback info' });
+    expect(card).toHaveTextContent('Direct play');
+    expect(card).toHaveTextContent('1080p');
+    fireEvent.click(screen.getByRole('button', { name: 'Hide playback info' }));
+    expect(screen.queryByRole('complementary', { name: 'Playback info' })).toBeNull();
+  });
+
+  it('says when the episode ends', async () => {
+    await start();
+    expect(screen.getByText(/^Ends at /)).toBeInTheDocument();
+  });
+});
 
 describe('PlayerView', () => {
   beforeEach(() => vi.useFakeTimers());

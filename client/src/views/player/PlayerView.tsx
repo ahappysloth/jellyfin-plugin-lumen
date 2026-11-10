@@ -11,6 +11,16 @@ import { AudioSubtitlesPanel, QualityPanel, qualityLabel } from './PlayerPanels'
 import { ProgressBar } from './ProgressBar';
 import { SkipIcon } from './SkipIcon';
 import { setUserData, useUserData } from '../userDataStore';
+import { WatchTogetherButton } from '../syncplay/WatchTogether';
+import {
+  endsAt,
+  LoadingScreen,
+  openCastMenu,
+  PlaybackInfoCard,
+  SettingsPanel,
+  useCastAvailable,
+  usePlaybackProgress,
+} from './PlayerExtras';
 import { readPlayerState, type PlayerSnapshot } from './playerState';
 
 /** How often the controls re-read jellyfin-web's player (cheap: it reads cached state). */
@@ -20,7 +30,7 @@ const IDLE_MS = 3000;
 /** How long the volume pill stays after the last change. */
 const PILL_MS = 1200;
 
-type Panel = 'quality' | 'tracks' | null;
+type Panel = 'quality' | 'tracks' | 'settings' | null;
 
 /**
  * Lumen's controls over jellyfin-web's video player. Playback, subtitles rendering, keyboard shortcuts and the
@@ -137,8 +147,12 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
 
   const preview = useTrickplay(ctx.api, ctx.client, snap?.item?.Id, snap?.mediaSourceId);
   const switching = useStreamSwitch();
+  const progress = usePlaybackProgress();
+  const [info, setInfo] = useState(false);
+  const castAvailable = useCastAvailable(pm.current, itemId);
 
-  if (!snap || !pm.current) return null;
+  // Until the first frame: the title's backdrop and a spinner, not a black screen.
+  if (!snap || !pm.current) return pm.current ? <LoadingScreen ctx={ctx} snap={null} /> : null;
   const manager = pm.current;
   const player: Player = snap.player;
   const shown = visible || snap.paused || panel !== null;
@@ -159,7 +173,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
 
   return (
     <div
-      class={`lmn-osd${shown ? '' : ' is-idle'}${panel ? ' has-panel' : ''}`}
+      class={`lmn-osd${shown ? '' : ' is-idle'}${panel ? ' has-panel' : ''}${progress.started ? '' : ' is-loading'}`}
       onKeyDown={(e) => {
         if (e.key === 'Escape' && panel) {
           e.stopPropagation();
@@ -167,6 +181,13 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
         }
       }}
     >
+      {!progress.started && <LoadingScreen ctx={ctx} snap={snap} />}
+      {progress.started && progress.buffering && !switching.state?.shown && (
+        <div class="lmn-player-buffering" role="status" aria-label={strings.player.buffering}>
+          <span class="lmn-spinner" aria-hidden="true" />
+        </div>
+      )}
+      {info && <PlaybackInfoCard ctx={ctx} snap={snap} onClose={() => setInfo(false)} />}
       <VolumePill volume={volume} />
       <SwitchOverlay state={switching.state} />
       {/* Clicking the picture toggles play (closes a menu first); double-click toggles full screen. */}
@@ -202,6 +223,12 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
           )}
         </div>
         <div class="lmn-player__pills">
+          <WatchTogetherButton
+            ctx={ctx}
+            state={syncPlay}
+            class="lmn-player__pill lmn-player__pill--icon"
+            size={20}
+          />
           <button
             type="button"
             class={`lmn-player__pill${panel === 'quality' ? ' is-open' : ''}`}
@@ -221,12 +248,31 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             <Icon name="closedCaption" size={20} />
             <span class="lmn-player__pill-label">{strings.player.audioSubtitles}</span>
           </button>
+          <button
+            type="button"
+            class={`lmn-player__pill lmn-player__pill--icon${panel === 'settings' ? ' is-open' : ''}`}
+            aria-label={strings.player.settings}
+            aria-expanded={panel === 'settings'}
+            onClick={() => setPanel(panel === 'settings' ? null : 'settings')}
+          >
+            <Icon name="settings" size={20} />
+          </button>
           {panel === 'quality' && (
             <QualityPanel
               manager={manager}
               snap={snap}
               onClose={() => setPanel(null)}
               onSwitch={switching.begin}
+            />
+          )}
+          {panel === 'settings' && (
+            <SettingsPanel
+              manager={manager}
+              snap={snap}
+              isEpisode={isEpisode}
+              info={info}
+              onInfo={setInfo}
+              onClose={() => setPanel(null)}
             />
           )}
           {panel === 'tracks' && (
@@ -241,9 +287,12 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
       </header>
 
       <footer class="lmn-player__bottom">
-        <p class="lmn-player__time">
-          {`${formatClock(snap.positionMs, snap.durationMs)} / ${formatClock(snap.durationMs, snap.durationMs)}`}
-        </p>
+        <div class="lmn-player__times">
+          <p class="lmn-player__time">
+            {`${formatClock(snap.positionMs, snap.durationMs)} / ${formatClock(snap.durationMs, snap.durationMs)}`}
+          </p>
+          <p class="lmn-player__ends">{endsAt(snap)}</p>
+        </div>
         <ProgressBar
           positionMs={snap.positionMs}
           durationMs={snap.durationMs}
@@ -314,6 +363,17 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
                 onClick={act(() => manager.toggleAirPlay?.(player))}
               >
                 <Icon name="airplay" size={22} />
+              </button>
+            )}
+            {castAvailable && (
+              <button
+                type="button"
+                class="lmn-player__icon"
+                aria-label={strings.player.cast}
+                title={strings.player.cast}
+                onClick={(e) => void openCastMenu(ctx, manager, snap, e.currentTarget)}
+              >
+                <Icon name="cast" size={22} />
               </button>
             )}
             <button
