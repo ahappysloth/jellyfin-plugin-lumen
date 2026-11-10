@@ -232,5 +232,12 @@ export const PLAYBACK_MANAGER_METHODS = {
     'toggleAirPlay',
     // Starts playback in this tab (playItem). Missing: Play falls back to the server's remote PlayNow.
     'play',
+    // The player's settings (gear) panel: Repeat. Missing: no Repeat row.
+    'getRepeatMode',
+    'setRepeatMode',
+    // Cast: the devices playback can move to. Missing: no Cast button.
+    'getTargets',
+    'trySetActivePlayer',
+    'stop',
   ],
 } as const;

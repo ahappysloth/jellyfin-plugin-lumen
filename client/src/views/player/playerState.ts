@@ -1,4 +1,4 @@
-import type { PlaybackManager, Player, PlayerState, Stream } from '../../compat/playbackManager';
+import type { PlaybackManager, Player, PlayerState, RepeatMode, Stream } from '../../compat/playbackManager';
 
 /** Everything the controls show, read from jellyfin-web's playback manager in one pass. */
 export interface PlayerSnapshot {
@@ -29,6 +29,11 @@ export interface PlayerSnapshot {
   subtitleOffset: number | null;
   /** Position in jellyfin-web's play queue (episodes queued by "play"), -1 if unknown. */
   playlistIndex: number;
+  /** null when the player can't repeat (no Repeat row). */
+  repeatMode: RepeatMode | null;
+  /** DirectPlay, DirectStream or Transcode (Playback info). */
+  playMethod: string | null;
+  mediaSource: PlayerState['MediaSource'];
 }
 
 const TICKS_PER_MS = 10_000;
@@ -77,5 +82,8 @@ export function readPlayerState(pm: PlaybackManager, player: Player): PlayerSnap
       null,
     ),
     playlistIndex,
+    repeatMode: pm.getRepeatMode ? attempt<RepeatMode | null>(() => pm.getRepeatMode!(player), null) : null,
+    playMethod: state.PlayState?.PlayMethod ?? null,
+    mediaSource: state.MediaSource,
   };
 }

@@ -163,6 +163,16 @@ html.lmn-skin-player .upNextContainer {
   color: rgba(255, 255, 255, 0.55);
   font-weight: 500;
 }
+/* Icon-only pills: Watch together and Settings. */
+.lmn-player__pill--icon {
+  justify-content: center;
+  width: 42px;
+  padding: 0;
+}
+.lmn-player__pill.is-syncplay {
+  background: rgba(30, 30, 30, 0.72);
+  color: var(--lmn-accent);
+}
 
 /* Panels: glass cards under the pills. */
 .lmn-panel {
@@ -296,14 +306,28 @@ html.lmn-skin-player .upNextContainer {
 }
 
 /* Bottom: time, progress, controls. */
-.lmn-player__time {
+.lmn-player__times {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
   margin: 0 0 10px;
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 14px;
-  font-weight: 600;
-  text-align: right;
   font-variant-numeric: tabular-nums;
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+}
+.lmn-player__time,
+.lmn-player__ends {
+  margin: 0;
+  font-size: 14px;
+}
+.lmn-player__time {
+  color: rgba(255, 255, 255, 0.82);
+  font-weight: 600;
+}
+/* "Ends at 10:42 PM": the remaining time at the current speed. */
+.lmn-player__ends {
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
 }
 .lmn-seek {
   position: relative;
@@ -598,4 +622,145 @@ html.lmn-skin-player .volumeOsd {
 .lmn-seek__thumbnail {
   transform-origin: 0 0;
   background-repeat: no-repeat;
+}
+
+/* ---- Settings (gear) panel ----------------------------------------------------------------------------------- */
+.lmn-panel--settings {
+  width: min(340px, calc(100vw - 32px));
+}
+.lmn-panel--settings .lmn-panel__column + .lmn-panel__toggle,
+.lmn-panel--settings .lmn-panel__speeds + .lmn-panel__toggle {
+  margin-top: 16px;
+}
+.lmn-panel--settings .lmn-panel__speeds {
+  margin-top: 10px;
+}
+.lmn-panel__toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.lmn-panel--settings .lmn-panel__column + .lmn-panel__toggle {
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ---- Playback info: a small glass card at the top left ---------------------------------------------------- */
+.lmn-player-info {
+  position: absolute;
+  z-index: 2;
+  top: calc(max(20px, env(safe-area-inset-top)) + 96px);
+  left: clamp(16px, 3vw, 40px);
+  width: min(360px, calc(100vw - 32px));
+  padding: 14px 16px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  background: rgba(20, 20, 20, 0.78);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  font-size: 13px;
+}
+.lmn-player-info__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -4px -6px 6px 0;
+}
+.lmn-player-info__header h2 {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.lmn-player-info__header .lmn-player__icon {
+  width: 32px;
+  height: 32px;
+}
+.lmn-player-info dl {
+  margin: 0;
+}
+.lmn-player-info__row {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 10px;
+  padding: 4px 0;
+}
+.lmn-player-info dt {
+  color: rgba(255, 255, 255, 0.55);
+}
+.lmn-player-info dd {
+  margin: 0;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Loading screen (until the first frame) and the buffering spinner --------------------------------------- */
+/* While it loads: just the way back and the title, no 0:00 and Play button. */
+.lmn-osd.is-loading .lmn-player__bottom {
+  visibility: hidden;
+}
+.lmn-player-loading {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #000;
+  animation: lmn-fade-in 0.3s ease;
+}
+.lmn-player-loading__backdrop {
+  position: absolute;
+  inset: -24px;
+  width: calc(100% + 48px);
+  height: calc(100% + 48px);
+  object-fit: cover;
+  filter: blur(18px) brightness(0.45);
+  transform: scale(1.04);
+}
+.lmn-player-loading__content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 0 24px;
+  text-align: center;
+}
+.lmn-player-loading__spinner,
+.lmn-player-buffering .lmn-spinner {
+  width: 44px;
+  height: 44px;
+  border-width: 3px;
+  color: #fff;
+}
+.lmn-player-loading__title {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(20px, 2.4vw, 28px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.6);
+}
+.lmn-player-buffering {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.lmn-player-buffering .lmn-spinner {
+  padding: 0;
+  filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.6));
+}
+@keyframes lmn-fade-in {
+  from {
+    opacity: 0;
+  }
 }
