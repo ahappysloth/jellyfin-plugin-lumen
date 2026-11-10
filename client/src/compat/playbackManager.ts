@@ -2,7 +2,7 @@
  * jellyfin-web's playback manager. It isn't exported on `window`; Lumen gets it two ways:
  * 1. From jellyfin-web itself: it hands its plugins the manager, and Lumen registers one (compat/webPlugin.ts). This
  *    is jellyfin-web's supported interface, so it survives changes to how jellyfin-web is bundled.
- * 2. Failing that (the plugin wasn't loaded: the inline guard was blocked, or jellyfin-web hasn't loaded its plugins
+ * 2. Failing that (the plugin wasn't loaded: config.json didn't list it, or jellyfin-web hasn't loaded its plugins
  *    yet), from its webpack bundle: Lumen asks the bundle's module registry for the module whose code defines
  *    `getCurrentPlayer` and mentions `setMaxStreamingBitrate`.
  * Either way the manager must have every method in PLAYBACK_MANAGER_METHODS.required (compat/registry.ts). No module

@@ -54,7 +54,7 @@ test('stock selectors in the video player', async ({ page }) => {
 test("jellyfin-web loads Lumen's web plugin, and Lumen's player takes jellyfin-web's playback manager from it", async ({
   page,
 }) => {
-  // jellyfin-web's plugin hook (compat/webPlugin.ts): config.json lists the plugin, the inline guard defines it, and
+  // jellyfin-web's plugin hook (compat/webPlugin.ts): config.json lists the plugin, an inline script defines it, and
   // jellyfin-web hands it its playback manager. A miss means Lumen is back to finding the manager in the bundle.
   const warnings: string[] = [];
   page.on('console', (message) => {

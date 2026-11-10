@@ -24,10 +24,10 @@ namespace Jellyfin.Plugin.Lumen.Injection;
 /// </para>
 /// <para>
 /// It also lists Lumen's jellyfin-web plugin in <c>config.json</c> (<see cref="WebConfigInjector"/>), the same way, but
-/// only while the page it serves defines that plugin: the current page (same build and configuration) was rewritten
-/// with the inline guard, and Lumen is on. jellyfin-web fetches config.json after the page, so a page served without
-/// the guard (Lumen off, no guard in the build, no &lt;/head&gt;, a failed rewrite) never meets a config.json that lists it.
-/// Otherwise config.json passes through untouched.
+/// only while the page it serves defines that plugin: Lumen is on, and the page last served for this build carried the
+/// plugin's inline definer. jellyfin-web fetches config.json after the page, so a page served without the definer
+/// (Lumen off, none in the build, no &lt;/head&gt;, a failed rewrite) doesn't meet a config.json that lists it (other tabs
+/// can: lumen.js defines the plugin too). Otherwise config.json passes through untouched.
 /// </para>
 /// </summary>
 public sealed class IndexHtmlMiddleware
@@ -178,6 +178,10 @@ public sealed class IndexHtmlMiddleware
         var (body, encoding, etag) = rendered.Select(acceptEncoding);
         var headers = context.Response.Headers;
         headers.Remove(HeaderNames.LastModified);
+
+        // Revalidate every time (Jellyfin sends no-cache for index.html; config.json gets no caching headers), so no
+        // cache, a shared one included, keeps a rewrite after Lumen is switched off, changed or uninstalled.
+        headers.CacheControl = "no-cache";
         headers.ETag = etag;
         headers.Vary = HeaderNames.AcceptEncoding;
         if (encoding is null)
@@ -218,11 +222,14 @@ public sealed class IndexHtmlMiddleware
         var guard = config?.Enabled != false && assets.TryGet(HtmlInjector.GuardAsset, out var guardAsset)
             ? Encoding.UTF8.GetString(guardAsset.Content)
             : null;
+        var webPlugin = config?.Enabled != false && assets.TryGet(HtmlInjector.WebPluginAsset, out var webPluginAsset)
+            ? Encoding.UTF8.GetString(webPluginAsset.Content)
+            : null;
         var skin = config is { Enabled: true, StyleStockPages: true };
         var appIdentity = config is { Enabled: true };
         var html = Encoding.UTF8.GetString(original);
         var notFound = new List<string>();
-        var injected = HtmlInjector.Inject(html, assets.BuildHash, guard, skin, appIdentity, notFound, config?.AccentColor, assets.CoreChunk);
+        var injected = HtmlInjector.Inject(html, assets.BuildHash, guard, skin, appIdentity, notFound, config?.AccentColor, assets.CoreChunk, webPlugin);
         if (ReferenceEquals(injected, html) && !html.Contains(HtmlInjector.Marker, StringComparison.Ordinal)
             && Interlocked.Exchange(ref _warnedNoHead, 1) == 0)
         {
@@ -236,10 +243,10 @@ public sealed class IndexHtmlMiddleware
                 string.Join(", ", notFound));
         }
 
-        // The guard defines Lumen's jellyfin-web plugin; only a page that carries it may meet a config.json listing it.
-        var definesWebPlugin = guard is not null
+        // Only a page that carries the plugin's definer may meet a config.json listing the plugin.
+        var definesWebPlugin = webPlugin is not null
             && !ReferenceEquals(injected, html)
-            && guard.Contains(WebConfigInjector.PluginName, StringComparison.Ordinal);
+            && webPlugin.Contains(WebConfigInjector.PluginName, StringComparison.Ordinal);
         var rendered = Encode(assets.BuildHash, configVersion, original, Encoding.UTF8.GetBytes(injected), definesWebPlugin);
         Volatile.Write(ref _cache, rendered);
         return rendered;
@@ -247,17 +254,16 @@ public sealed class IndexHtmlMiddleware
 
     /// <summary>
     /// True when config.json should list Lumen's jellyfin-web plugin: Lumen is on, and the page last served for this build
-    /// and configuration defines the plugin. A failure to tell (the config store) means no.
+    /// carried the plugin's definer. A failure to tell (the config store) means no. Of the configuration only Enabled
+    /// decides whether a page carries the definer, so that's what's checked, not the configuration version.
     /// </summary>
     private bool ServesWebPlugin(AssetCatalog assets, ILumenConfigReader? store)
     {
         try
         {
-            var config = store?.Current;
-            return config is { Enabled: true }
+            return store?.Current is { Enabled: true }
                 && Volatile.Read(ref _cache) is { DefinesWebPlugin: true } page
-                && page.BuildHash == assets.BuildHash
-                && page.ConfigVersion == config.ConfigVersion;
+                && page.BuildHash == assets.BuildHash;
         }
         catch (Exception)
         {
@@ -273,7 +279,8 @@ public sealed class IndexHtmlMiddleware
             return cached;
         }
 
-        var json = Encoding.UTF8.GetString(original);
+        // A byte order mark: JSON.parse after fetch's decoding never sees one, System.Text.Json does.
+        var json = Encoding.UTF8.GetString(original).TrimStart('\uFEFF');
         var listed = WebConfigInjector.AddPlugin(json);
         if (listed is null || ReferenceEquals(listed, json))
         {
@@ -287,7 +294,7 @@ public sealed class IndexHtmlMiddleware
 
     /// <summary>
     /// A rewritten file and what it was made from. Each encoding gets its own ETag, as HTTP requires.
-    /// <paramref name="DefinesWebPlugin"/>: the page carries the guard, which defines Lumen's jellyfin-web plugin.
+    /// <paramref name="DefinesWebPlugin"/>: the page carries the definer of Lumen's jellyfin-web plugin.
     /// </summary>
     private sealed record Rendered(string BuildHash, int ConfigVersion, byte[] Input, byte[] Output, string ETag, byte[]? Gzip, byte[]? Brotli, bool DefinesWebPlugin)
     {

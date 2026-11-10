@@ -115,7 +115,7 @@ Both loops listen on all network interfaces. Other devices on the same network c
   2. Push to `main` and let CI pass.
   3. Tag `vx.y.z` and push the tag.
 - If the release job fails partway through, re-run it.
-- The inline guard script changes with every release. Users with a strict Content-Security-Policy need its hash: after a build, `cd client && npm run guard-hash` prints it (README, "Reverse proxies"). The guard also defines Lumen's jellyfin-web plugin (`client/src/compat/webPlugin.ts`), which the server lists in `/web/config.json` only while it serves that guard.
+- The inline scripts change with every release: the guard, and the ES5 definer of Lumen's jellyfin-web plugin (`client/src/compat/webPluginDefiner.js`, copied to `dist/lumen-web-plugin.js` verbatim; the server lists the plugin in `/web/config.json` only while the page it serves carries the definer). Users with a strict Content-Security-Policy need their hashes: after a build, `cd client && npm run guard-hash` prints them (README, "Reverse proxies").
 
 ## Further reading
 
