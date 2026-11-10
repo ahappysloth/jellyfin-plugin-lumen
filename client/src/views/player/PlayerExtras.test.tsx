@@ -116,18 +116,18 @@ function Settings() {
 describe('player settings panel focus', () => {
   it('gives focus back to the settings pill when Playback info closes the panel', () => {
     render(<Settings />);
-    const entry = screen.getByRole('menuitemcheckbox', { name: 'Playback info' });
+    const entry = screen.getByRole('button', { name: 'Playback info' });
     entry.focus();
 
     fireEvent.click(entry);
 
-    expect(screen.queryByRole('menuitemcheckbox')).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.getByRole('button', { name: 'Settings' })).toHaveFocus();
   });
 
   it('hands focus from Watch together to its menu, and back to the settings pill when that closes', async () => {
     render(<Settings />);
-    const entry = screen.getByRole('menuitem', { name: 'Watch together' });
+    const entry = screen.getByRole('button', { name: 'Watch together' });
     entry.focus();
 
     fireEvent.click(entry);

@@ -317,6 +317,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
           <button
             type="button"
             class={`lmn-player__pill${panel === 'quality' ? ' is-open' : ''}`}
+            aria-haspopup="dialog"
             aria-expanded={panel === 'quality'}
             onClick={() => setPanel(panel === 'quality' ? null : 'quality')}
           >
@@ -327,6 +328,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
           <button
             type="button"
             class={`lmn-player__pill${panel === 'tracks' ? ' is-open' : ''}`}
+            aria-haspopup="dialog"
             aria-expanded={panel === 'tracks'}
             onClick={() => setPanel(panel === 'tracks' ? null : 'tracks')}
           >
@@ -338,6 +340,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             type="button"
             class={`lmn-player__pill lmn-player__pill--icon${panel === 'settings' ? ' is-open' : ''}`}
             aria-label={strings.player.settings}
+            aria-haspopup="dialog"
             aria-expanded={panel === 'settings'}
             onClick={() => setPanel(panel === 'settings' ? null : 'settings')}
           >
@@ -347,6 +350,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             <QualityPanel
               manager={manager}
               snap={snap}
+              tv={ctx.layout === 'tv'}
               onClose={() => setPanel(null)}
               onSwitch={switching.begin}
             />
@@ -368,6 +372,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             <AudioSubtitlesPanel
               manager={manager}
               snap={snap}
+              tv={ctx.layout === 'tv'}
               onClose={() => setPanel(null)}
               onSwitch={switching.begin}
             />

@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'preact/hooks';
+import { type ComponentChildren, toChildArray } from 'preact';
+import { useEffect, useId, useRef } from 'preact/hooks';
 import type { PlaybackManager, Stream } from '../../compat/playbackManager';
 import { strings } from '../../strings';
 import type { PlayerSnapshot } from './playerState';
@@ -40,9 +41,18 @@ export function qualityLabel(snap: PlayerSnapshot): string {
     : presetFor(snap.maxBitrate).label;
 }
 
-/** Closes on a click outside the panel and its pill (the pills row contains both). */
-function useOutsideClose(ref: { current: HTMLElement | null }, onClose: () => void): void {
+/**
+ * A panel's behaviour as a non-modal dialog under its pill: it closes on a click outside the panel and its pill (the
+ * pills row contains both), and takes focus as it opens, to the current choice (else its first control). Escape and a
+ * remote's Back close it and give focus back to the pill (PlayerView).
+ */
+export function usePanel(ref: { current: HTMLElement | null }, onClose: () => void): void {
   useEffect(() => {
+    const panel = ref.current;
+    (
+      panel?.querySelector<HTMLElement>('[aria-checked="true"], [aria-pressed="true"]') ??
+      panel?.querySelector<HTMLElement>('button')
+    )?.focus();
     const onDown = (e: PointerEvent): void => {
       const pills = ref.current?.parentElement;
       if (pills && !pills.contains(e.target as Node)) onClose();
@@ -50,6 +60,58 @@ function useOutsideClose(ref: { current: HTMLElement | null }, onClose: () => vo
     document.addEventListener('pointerdown', onDown, true);
     return () => document.removeEventListener('pointerdown', onDown, true);
   }, []);
+}
+
+/**
+ * A column of choices: a radio group named by its heading. Outside the TV layout the arrow keys move between its
+ * choices (Space or Enter picks one: picking may restart the stream, so moving doesn't), and stay from jellyfin-web's
+ * shortcuts, which would seek or change the volume. In the TV layout they stay jellyfin-web's D-pad navigation.
+ */
+function Choices({
+  heading,
+  tv,
+  empty,
+  children,
+}: {
+  heading: string;
+  tv?: boolean;
+  /** A note under the choices ("No subtitles for this title"). */
+  empty?: string | false;
+  children: ComponentChildren;
+}) {
+  const id = useId();
+  const options = toChildArray(children);
+  return (
+    <section class="lmn-panel__column">
+      <h2 class="lmn-panel__heading" id={id}>
+        {heading}
+      </h2>
+      {options.length > 0 && (
+        <div
+          role="radiogroup"
+          aria-labelledby={id}
+          onKeyDown={(e) => {
+            if (tv) return;
+            const step =
+              e.key === 'ArrowDown' || e.key === 'ArrowRight'
+                ? 1
+                : e.key === 'ArrowUp' || e.key === 'ArrowLeft'
+                  ? -1
+                  : 0;
+            const radios = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]'));
+            const at = radios.indexOf(e.target as HTMLElement);
+            if (!step || at < 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+            radios[(at + step + radios.length) % radios.length]!.focus();
+          }}
+        >
+          {options}
+        </div>
+      )}
+      {empty && <p class="lmn-panel__empty">{empty}</p>}
+    </section>
+  );
 }
 
 function Option({
@@ -66,7 +128,7 @@ function Option({
   return (
     <button
       type="button"
-      role="menuitemradio"
+      role="radio"
       aria-checked={selected}
       class={`lmn-panel__option${selected ? ' is-selected' : ''}`}
       onClick={onSelect}
@@ -80,17 +142,19 @@ function Option({
 export function QualityPanel({
   manager,
   snap,
+  tv,
   onClose,
   onSwitch,
 }: {
   manager: PlaybackManager;
   snap: PlayerSnapshot;
+  tv?: boolean;
   onClose: () => void;
   /** Called with a label ("720p") before a change that may restart the stream. */
   onSwitch?: (label: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  useOutsideClose(ref, onClose);
+  usePanel(ref, onClose);
   const sourceHeight = snap.videoHeight ?? 0;
   const presets = QUALITY_PRESETS.filter((p) => sourceHeight === 0 || p.minHeight <= sourceHeight);
   const current = snap.autoQuality ? null : presetFor(snap.maxBitrate).bitrate;
@@ -106,10 +170,9 @@ export function QualityPanel({
   const speeds = SPEEDS.filter((s) => snap.rates.length === 0 || snap.rates.includes(s));
 
   return (
-    <div ref={ref} class="lmn-panel lmn-panel--quality" role="menu" aria-label={strings.player.quality}>
+    <div ref={ref} class="lmn-panel lmn-panel--quality" role="dialog" aria-label={strings.player.quality}>
       <div class="lmn-panel__columns">
-        <section class="lmn-panel__column">
-          <h2 class="lmn-panel__heading">{strings.player.quality}</h2>
+        <Choices heading={strings.player.quality} tv={tv}>
           <Option
             selected={current === null}
             label={strings.player.auto}
@@ -125,10 +188,9 @@ export function QualityPanel({
               onSelect={() => setQuality(p.bitrate, p.label)}
             />
           ))}
-        </section>
+        </Choices>
         {snap.aspectRatios.length > 1 && (
-          <section class="lmn-panel__column">
-            <h2 class="lmn-panel__heading">{strings.player.aspectRatio}</h2>
+          <Choices heading={strings.player.aspectRatio} tv={tv}>
             {snap.aspectRatios.map((a) => (
               <Option
                 key={a.id}
@@ -137,7 +199,7 @@ export function QualityPanel({
                 onSelect={() => manager.setAspectRatio(a.id, snap.player)}
               />
             ))}
-          </section>
+          </Choices>
         )}
       </div>
       {speeds.length > 1 && (
@@ -182,11 +244,13 @@ export function trackParts(track: Stream): { label: string; detail?: string } {
 export function AudioSubtitlesPanel({
   manager,
   snap,
+  tv,
   onClose,
   onSwitch,
 }: {
   manager: PlaybackManager;
   snap: PlayerSnapshot;
+  tv?: boolean;
   onClose: () => void;
   /** Called with a label before a change that may restart the stream. */
   onSwitch?: (label: string) => void;
@@ -203,49 +267,52 @@ export function AudioSubtitlesPanel({
     manager.setSubtitleStreamIndex(index, snap.player);
   };
   const ref = useRef<HTMLDivElement>(null);
-  useOutsideClose(ref, onClose);
+  usePanel(ref, onClose);
   const offset = snap.subtitleOffset;
   const nudge = (delta: number): void =>
     manager.setSubtitleOffset?.(Math.round(((offset ?? 0) + delta) * 10) / 10, snap.player);
 
   return (
-    <div ref={ref} class="lmn-panel lmn-panel--tracks" role="menu" aria-label={strings.player.audioSubtitles}>
+    <div
+      ref={ref}
+      class="lmn-panel lmn-panel--tracks"
+      role="dialog"
+      aria-label={strings.player.audioSubtitles}
+    >
       <div class="lmn-panel__columns">
-        <section class="lmn-panel__column">
-          <h2 class="lmn-panel__heading">{strings.player.audio}</h2>
-          {snap.audioTracks.length > 0 ? (
-            snap.audioTracks.map((t) => (
-              <Option
-                key={t.Index}
-                selected={snap.audioIndex === t.Index}
-                {...trackParts(t)}
-                onSelect={() => setAudio(t.Index, trackParts(t).label)}
-              />
-            ))
-          ) : (
-            <p class="lmn-panel__empty">{strings.player.noAudio}</p>
-          )}
-        </section>
-        <section class="lmn-panel__column">
-          <h2 class="lmn-panel__heading">{strings.player.subtitles}</h2>
+        <Choices
+          heading={strings.player.audio}
+          tv={tv}
+          empty={snap.audioTracks.length === 0 && strings.player.noAudio}
+        >
+          {snap.audioTracks.map((t) => (
+            <Option
+              key={t.Index}
+              selected={snap.audioIndex === t.Index}
+              {...trackParts(t)}
+              onSelect={() => setAudio(t.Index, trackParts(t).label)}
+            />
+          ))}
+        </Choices>
+        <Choices
+          heading={strings.player.subtitles}
+          tv={tv}
+          empty={snap.subtitleTracks.length === 0 && strings.player.noSubtitles}
+        >
           <Option
             selected={snap.subtitleIndex === -1}
             label={strings.player.off}
             onSelect={() => setSubtitles(-1, strings.player.subtitlesOff)}
           />
-          {snap.subtitleTracks.length > 0 ? (
-            snap.subtitleTracks.map((t) => (
-              <Option
-                key={t.Index}
-                selected={snap.subtitleIndex === t.Index}
-                {...trackParts(t)}
-                onSelect={() => setSubtitles(t.Index, trackParts(t).label)}
-              />
-            ))
-          ) : (
-            <p class="lmn-panel__empty">{strings.player.noSubtitles}</p>
-          )}
-        </section>
+          {snap.subtitleTracks.map((t) => (
+            <Option
+              key={t.Index}
+              selected={snap.subtitleIndex === t.Index}
+              {...trackParts(t)}
+              onSelect={() => setSubtitles(t.Index, trackParts(t).label)}
+            />
+          ))}
+        </Choices>
       </div>
       {offset !== null && snap.subtitleIndex !== -1 && (
         <div class="lmn-panel__footer">
