@@ -130,7 +130,7 @@ describe('DetailsView', () => {
     const watched = await screen.findByRole('button', { name: 'Mark watched' });
     fireEvent.click(watched);
 
-    expect(watched).toHaveAttribute('aria-pressed', 'true');
+    expect(watched).toHaveAccessibleName('Watched');
     await waitFor(() =>
       expect(c.requests.some((r) => r.type === 'POST' && r.url.includes('UserPlayedItems/m1'))).toBe(true),
     );

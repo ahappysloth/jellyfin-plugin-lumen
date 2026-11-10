@@ -57,12 +57,10 @@ describe('DetailsHeader', () => {
     expect(screen.getByTestId('trailer')).toHaveAttribute('data-paused', 'false');
   });
 
-  it('names Favorite and Watched as they read, pressed or not (WCAG 2.5.3)', () => {
+  it('names Favorite and Watched as they read, their label saying the state (WCAG 2.5.3)', () => {
     const { rerender } = renderHeader();
-    expect(screen.getByRole('button', { name: 'Favorite', pressed: false })).toHaveTextContent('Favorite');
-    expect(screen.getByRole('button', { name: 'Mark watched', pressed: false })).toHaveTextContent(
-      'Mark watched',
-    );
+    expect(screen.getByRole('button', { name: 'Favorite' })).toHaveTextContent('Favorite');
+    expect(screen.getByRole('button', { name: 'Mark watched' })).toHaveTextContent('Mark watched');
 
     rerender(
       <DetailsHeader
@@ -80,7 +78,10 @@ describe('DetailsHeader', () => {
         toggleFavorite={vi.fn()}
       />,
     );
-    expect(screen.getByRole('button', { name: 'Favorited', pressed: true })).toHaveTextContent('Favorited');
-    expect(screen.getByRole('button', { name: 'Watched', pressed: true })).toHaveTextContent('Watched');
+    expect(screen.getByRole('button', { name: 'Favorited' })).toHaveTextContent('Favorited');
+    expect(screen.getByRole('button', { name: 'Watched' })).toHaveTextContent('Watched');
+    // Not toggle buttons as well: their name would then change with their state.
+    for (const name of ['Favorited', 'Watched'])
+      expect(screen.getByRole('button', { name })).not.toHaveAttribute('aria-pressed');
   });
 });

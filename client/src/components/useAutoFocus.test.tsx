@@ -50,6 +50,14 @@ describe('useAutoFocus', () => {
     expect(document.activeElement).toBe(document.body);
   });
 
+  it('focuses a restored selection on desktop too (Back to a page), without scrolling to it', () => {
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+    const { getByText } = render(<Harness layout="desktop" preferred="abc123" />);
+    expect(document.activeElement).toBe(getByText('card'));
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+    focus.mockRestore();
+  });
+
   it('moves on to a primary action that renders after the view is ready', () => {
     const { getByText } = render(<LateHarness />);
     expect(document.activeElement).toBe(getByText('back'));

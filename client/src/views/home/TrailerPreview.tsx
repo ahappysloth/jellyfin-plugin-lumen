@@ -18,7 +18,10 @@ interface Props {
   client: JellyfinApiClient;
   /** Defaults to true; the details page offers an unmute toggle. */
   muted?: boolean;
-  /** The details page's Pause: the video holds its frame (and stays loaded) until this turns false again. */
+  /**
+   * The details page's Pause: the video stops where it is; one that (re)starts meanwhile (a retry, or the page scrolled
+   * back into view) waits. Either plays when this turns false again.
+   */
   paused?: boolean;
   class?: string;
   /** Called when the video starts or stops showing, so the page can reveal or hide its controls. */
@@ -70,8 +73,6 @@ export function TrailerPreview({
   const [state, setState] = useState<'waiting' | 'playing' | 'done'>('waiting');
   /** Whether this session's video has got going (played past TRAILER_STARTED_SECONDS). */
   const started = useRef(false);
-  const pausedNow = useRef(paused);
-  pausedNow.current = paused;
 
   // Look the trailer's container and codecs up once it's in view (most hero slides never get that far).
   useEffect(() => {
@@ -115,7 +116,7 @@ export function TrailerPreview({
     // policy): no other stream would be allowed either, so the backdrop stays. Other rejections come with an error
     // event or a stall, which move on to the next stream.
     try {
-      const playing = pausedNow.current ? undefined : element?.play();
+      const playing = paused ? undefined : element?.play();
       if (playing)
         playing.catch((e: unknown) => {
           if (live && (e as { name?: string } | null)?.name === 'NotAllowedError') setState('done');
@@ -123,13 +124,8 @@ export function TrailerPreview({
     } catch {
       // jsdom, or a browser whose play() returns nothing
     }
-    // Not under way by now, error or not (a stall, a silent decode failure): move on to the next stream.
-    const watchdog = setTimeout(() => {
-      if (live && !started.current && !pausedNow.current) onError();
-    }, TRAILER_START_TIMEOUT_MS);
     return () => {
       live = false;
-      clearTimeout(watchdog);
       if (transcoding) {
         window.removeEventListener('pagehide', onPageHide);
         stopTrailerTranscode(client, session);
@@ -144,6 +140,16 @@ export function TrailerPreview({
   useEffect(() => {
     if (!visible && state === 'playing') setState('waiting');
   }, [visible, state]);
+
+  // Not under way by now, error or not (a stall, a silent decode failure): move on to the next stream. Paused, it
+  // isn't expected to be; the wait starts over when it plays again.
+  useEffect(() => {
+    if (!option || paused) return;
+    const watchdog = setTimeout(() => {
+      if (!started.current) onError();
+    }, TRAILER_START_TIMEOUT_MS);
+    return () => clearTimeout(watchdog);
+  }, [option, session, paused]);
 
   // Pause and play again in place. The start (above) leaves a video that's paused already alone.
   const pausedBefore = useRef(paused);

@@ -33,7 +33,7 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
   );
   const rootRef = useRef<HTMLDivElement>(null);
   const previous = getSelection(ctx.userId);
-  useAutoFocus(rootRef, home !== null, ctx.layout, previous?.itemId);
+  useAutoFocus(rootRef, home !== null, ctx.layout, previous?.itemId, previous?.rowId);
   // Restore on the first render (cached home) and once more when fresh data lands, then leave scrolling to the user.
   const restores = useRef(0);
   useLayoutEffect(() => {

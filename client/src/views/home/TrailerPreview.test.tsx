@@ -357,6 +357,29 @@ describe('TrailerPreview', () => {
     });
   });
 
+  it('waits to play a video that starts while paused, then gives it the usual time to get going', async () => {
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    const client = createFakeClient();
+    const { container, rerender, unmount } = render(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={client} paused />,
+    );
+    await startAfter(0);
+    const video = container.querySelector('video')!;
+    expect(play).not.toHaveBeenCalled();
+    // However long it stays paused, it isn't taken for a stall.
+    await startAfter(2 * TRAILER_START_TIMEOUT_MS);
+    expect(container.querySelector('video')).toBe(video);
+
+    rerender(<TrailerPreview trailerId="t1" delaySeconds={0} client={client} />);
+    expect(play).toHaveBeenCalledTimes(1);
+    // Played but never under way: a stall after all, so it moves on (here, to the backdrop).
+    await startAfter(TRAILER_START_TIMEOUT_MS);
+    expect(container.querySelector('video')).toBeNull();
+    act(() => {
+      unmount();
+    });
+  });
+
   it('pauses, unloads, and releases the video when it stops or unmounts', async () => {
     const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
     const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
