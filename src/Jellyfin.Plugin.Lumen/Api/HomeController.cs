@@ -27,6 +27,7 @@ public sealed class HomeController : ControllerBase
     }
 
     [HttpGet("Home")]
+    [CompressOverHttps]
     public async Task<ActionResult<HomeResponseDto>> GetHome(CancellationToken cancellationToken)
     {
         var user = User.GetJellyfinUserId(_logger) is { } id ? _users.GetUserById(id) : null;
