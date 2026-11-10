@@ -159,6 +159,49 @@ describe('DetailsView', () => {
     expect(c.requests.filter((r) => r.url.includes('Items/m1?'))).toHaveLength(1);
   });
 
+  it("hands the page's fully loaded episode to the player", async () => {
+    const play = vi.fn(async () => undefined);
+    vi.spyOn(compat, 'getPlaybackManager').mockReturnValue({ play } as unknown as compat.PlaybackManager);
+    const full: BaseItem = {
+      Id: 'e1',
+      Name: 'Pilot',
+      Type: 'Episode',
+      MediaType: 'Video',
+      IsFolder: false,
+      ServerId: 's1',
+      SeriesId: 'sr',
+      SeriesName: 'Lumen Show',
+      SeasonId: 'sn1',
+      ParentIndexNumber: 1,
+      IndexNumber: 1,
+      UserData: { PlaybackPositionTicks: 0, Played: false },
+      Chapters: [],
+      MediaSources: [{ Id: 'e1' }],
+      Trickplay: {},
+    };
+    const c = Object.assign(
+      createFakeClient(
+        routes({
+          'Items/e1': full,
+          'Items/sr': { Id: 'sr', Name: 'Lumen Show', Type: 'Series', ServerId: 's1' },
+          'Shows/sr/Seasons': { Items: [{ Id: 'sn1', Name: 'Season 1', Type: 'Season', IndexNumber: 1 }] },
+          'Shows/sr/Episodes': { Items: [{ ...full, Chapters: undefined, MediaSources: undefined }] },
+        }),
+      ),
+      { serverId: () => 's1' },
+    );
+    render(<DetailsView id="e1" ctx={makeContext(c)} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /^Play/ }));
+    await waitFor(() =>
+      expect(play).toHaveBeenCalledWith({
+        items: [expect.objectContaining({ Id: 'e1', Type: 'Episode' })],
+        startPositionTicks: undefined,
+        serverId: 's1',
+      }),
+    );
+  });
+
   it('shows an inline error when playback cannot start', async () => {
     const c = client();
     c.respond = routes({

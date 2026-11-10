@@ -72,6 +72,17 @@ export function imageUrl(
 ): string {
   const width = ladderWidth(size.width);
   const height = size.height ? Math.round((width * size.height) / size.width) : undefined;
+  return exactImageUrl(client, ref, width, height, dpr);
+}
+
+/** Image URL for exactly `width` (× `height`) CSS px, times the device pixel ratio. */
+function exactImageUrl(
+  client: Pick<JellyfinApiClient, 'getUrl'>,
+  ref: ImageRef,
+  width: number,
+  height: number | undefined,
+  dpr: number,
+): string {
   return client.getUrl(`Items/${ref.itemId}/Images/${ref.type}`, {
     fillWidth: Math.ceil(width * dpr),
     fillHeight: height ? Math.ceil(height * dpr) : undefined,
@@ -84,13 +95,22 @@ export function imageUrl(
 export const TITLE_LOGO = { width: 420 };
 
 /**
- * A full-width backdrop (the home banner, a details page): the window's width on IMAGE_WIDTHS (so it caches across
- * resizes), at least 640 and at most 1920 CSS px, and at most 2× pixel density. Phones and sharp screens don't need
- * more under the fade.
+ * A full-width backdrop (the home banner, a details page; one URL for both): sized to the window in 160 px steps (so
+ * it caches across small resizes), at least 640 and at most 1920 CSS px, and at most 2× pixel density. Phones and
+ * sharp screens don't need more under the fade. Not on IMAGE_WIDTHS: at these sizes its steps up to 1.5× apart would
+ * cost up to 2.25× the pixels, and no smaller box shows the same backdrop.
  */
 export function backdropUrl(client: Pick<JellyfinApiClient, 'getUrl'>, ref: ImageRef): string {
-  const width = Math.min(1920, Math.max(640, window.innerWidth));
-  return imageUrl(client, ref, { width }, Math.min(2, globalThis.devicePixelRatio || 1));
+  const width = Math.min(1920, Math.max(640, Math.ceil(window.innerWidth / 160) * 160));
+  return exactImageUrl(client, ref, width, undefined, Math.min(2, globalThis.devicePixelRatio || 1));
+}
+
+/**
+ * The loading screen's backdrop, blurred and dimmed: 1280 px at any pixel density is plenty. One of backdropUrl's
+ * steps, so on a 1121–1280 px window at 1× it is the URL the home banner and details page already loaded.
+ */
+export function loadingBackdropUrl(client: Pick<JellyfinApiClient, 'getUrl'>, ref: ImageRef): string {
+  return exactImageUrl(client, ref, 1280, undefined, 1);
 }
 
 export interface CardArt {
