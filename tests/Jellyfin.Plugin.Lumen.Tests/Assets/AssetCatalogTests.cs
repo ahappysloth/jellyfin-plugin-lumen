@@ -1,5 +1,7 @@
 using System.Text;
 using Jellyfin.Plugin.Lumen.Assets;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Jellyfin.Plugin.Lumen.Tests.Assets;
@@ -41,16 +43,39 @@ public class AssetCatalogTests
     }
 
     [Fact]
-    public async Task Precompress_MakesTheTextFilesEncodings_AndLeavesTheRawBytes()
+    public async Task StartPrecompression_MakesTheTextFilesEncodings_InTheBackground_Once()
     {
         var catalog = Catalog();
-
-        await catalog.PrecompressAsync();
-
         Assert.True(catalog.TryGet("lumen.css", out var css));
-        Assert.Equal("br", css.Select("br").ContentEncoding);
-        Assert.Equal("gzip", css.Select("gzip").ContentEncoding);
+        Assert.True(catalog.TryGet("lumen.js", out var js));
+        Assert.False(css.IsPrecompressed);
+
+        var task = catalog.StartPrecompression(NullLogger.Instance);
+        await task;
+
+        Assert.True(css.IsPrecompressed);
+        Assert.True(js.IsPrecompressed);
+        Assert.Same(task, catalog.StartPrecompression(NullLogger.Instance));
         Assert.Equal("body{}", Encoding.UTF8.GetString(css.Content));
+    }
+
+    [Fact]
+    public async Task StartPrecompression_LogsAFileThatFails_AndCarriesOn()
+    {
+        var logger = new ListLogger<AssetCatalogTests>();
+        var catalog = new AssetCatalog(
+            new Dictionary<string, byte[]> { ["bad.css"] = "a{}"u8.ToArray(), ["lumen.css"] = "b{}"u8.ToArray() },
+            (content, coding) => content.Length > 0 && content[0] == (byte)'a' ? throw new InvalidOperationException("boom") : content);
+
+        await catalog.StartPrecompression(logger);
+
+        Assert.True(catalog.TryGet("lumen.css", out var good));
+        Assert.True(good.IsPrecompressed);
+        Assert.True(catalog.TryGet("bad.css", out var bad));
+        Assert.False(bad.IsPrecompressed);
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Error, entry.Level);
+        Assert.Contains("bad.css", entry.Message, StringComparison.Ordinal);
     }
 
     [Fact]
