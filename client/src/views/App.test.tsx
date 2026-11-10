@@ -68,7 +68,7 @@ describe('App', () => {
     rerender(<App route={{ kind: 'home' }} ctx={ctx} />);
 
     const card = () =>
-      within(screen.getByRole('region', { name: 'Two' })).getByRole('button', { name: 'Alpha' });
+      within(screen.getByRole('region', { name: 'Two' })).getByRole('link', { name: 'Alpha' });
     await waitFor(() => expect(card()).toHaveFocus());
     await new Promise((r) => setTimeout(r, 50));
     expect(card()).toHaveFocus();

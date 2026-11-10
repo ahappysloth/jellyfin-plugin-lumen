@@ -11,13 +11,12 @@ const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-prac
  *   (follow-up: contrast over artwork).
  * - target-size: controls below 24×24 px (follow-up: small targets). axe passes the hero's pager even at its old
  *   14×3 px, so its size is measured below instead.
- * - label-content-name-mismatch on cards: a card is named after its title but also shows its year, episode or
- *   progress (follow-up: card names). Checked on everything else.
+ * - label-content-name-mismatch: experimental in axe, so off in the main run and checked on its own (cards included).
  */
 const DEFERRED = ['color-contrast', 'target-size', 'label-content-name-mismatch'];
 
 type Also = { rules: string[]; include?: string; exclude?: string };
-const NAMES: Also = { rules: ['label-content-name-mismatch'], exclude: '.lmn-card' };
+const NAMES: Also = { rules: ['label-content-name-mismatch'] };
 
 /** No serious or critical violation, nor any landmark one (one main, one banner, each landmark told apart). */
 async function expectNoViolations(page: Page, name: string, also: Also[] = []): Promise<void> {
