@@ -24,11 +24,15 @@ test('TV layout: D-pad Right moves from an episode row to its details link and b
   await page.goto(`/web/#/details?id=${items['Lumen Show']}`);
 
   const series = page.locator('#lmn-root .lmn-details--series');
-  // The page focuses its Play button once loaded; start from the first episode row after that.
-  await expect(series.locator('.lmn-autofocus')).toBeFocused();
   const row = series.locator('.lmn-episode').first();
-  await row.focus();
-  await expect(row).toBeFocused();
+  await expect(row).toBeVisible();
+  // The page moves focus to its own default once it has loaded; start from the first episode row only once that has
+  // happened, i.e. focus put on the row stays there.
+  await expect(async () => {
+    await row.focus();
+    await page.waitForTimeout(300);
+    await expect(row).toBeFocused({ timeout: 100 });
+  }).toPass({ timeout: 10_000 });
 
   // jellyfin-web's focus manager moves right only to an element whose right edge is past the row's.
   await page.keyboard.press('ArrowRight');
