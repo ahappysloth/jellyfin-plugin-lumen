@@ -202,7 +202,7 @@
 .lmn-person__photo--empty {
   display: grid;
   place-items: center;
-  color: var(--lmn-text-4);
+  color: var(--lmn-text-3);
   font-size: 28px;
   font-weight: 700;
 }

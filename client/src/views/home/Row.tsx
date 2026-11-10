@@ -49,7 +49,8 @@ export function Row({ row, client, catalogImageToken, badges, onSelect, onMenu, 
   }, [row.Items.length, row.Entries?.length]);
   const scroll = (direction: 1 | -1): void => {
     const el = scroller.current;
-    el?.scrollBy({ left: direction * el.clientWidth * 0.85, behavior: 'smooth' });
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    el?.scrollBy({ left: direction * el.clientWidth * 0.85, behavior: reduced ? 'auto' : 'smooth' });
   };
   const genres = row.Type === 'Genres';
   return (
