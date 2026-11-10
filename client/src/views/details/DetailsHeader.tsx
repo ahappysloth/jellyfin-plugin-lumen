@@ -64,6 +64,7 @@ export function airDate(iso: string | undefined): string | undefined {
 export function DetailsHeader(props: Props) {
   const { item, client, primary } = props;
   const [muted, setMuted] = useState(true);
+  const [paused, setPaused] = useState(false);
   const [trailerPlaying, setTrailerPlaying] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
   const backdrop =
@@ -92,6 +93,7 @@ export function DetailsHeader(props: Props) {
           delaySeconds={DETAILS_TRAILER_DELAY_SECONDS}
           client={client}
           muted={muted}
+          paused={paused}
           class="lmn-details__trailer"
           onPlayingChange={setTrailerPlaying}
           allowTranscode
@@ -108,14 +110,24 @@ export function DetailsHeader(props: Props) {
           <Icon name="back" size={18} />
         </button>
         {trailerPlaying && (
-          <button
-            type="button"
-            class="lmn-icon-button lmn-icon-button--lg"
-            aria-label={muted ? strings.unmute : strings.mute}
-            onClick={() => setMuted((m) => !m)}
-          >
-            <Icon name={muted ? 'volumeOff' : 'volumeOn'} size={18} />
-          </button>
+          <div class="lmn-details__trailer-controls">
+            <button
+              type="button"
+              class="lmn-icon-button lmn-icon-button--lg"
+              aria-label={paused ? strings.playTrailer : strings.pauseTrailer}
+              onClick={() => setPaused((p) => !p)}
+            >
+              <Icon name={paused ? 'play' : 'pause'} size={18} />
+            </button>
+            <button
+              type="button"
+              class="lmn-icon-button lmn-icon-button--lg"
+              aria-label={muted ? strings.unmute : strings.mute}
+              onClick={() => setMuted((m) => !m)}
+            >
+              <Icon name={muted ? 'volumeOff' : 'volumeOn'} size={18} />
+            </button>
+          </div>
         )}
       </div>
       <div class="lmn-details__info">

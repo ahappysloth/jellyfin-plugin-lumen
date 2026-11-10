@@ -211,7 +211,8 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
               onInfo={onInfo}
               starting={startingId === hero.Item.Id}
             >
-              {rel === 0 && trailerId && sliding === 0 && !dragging && (
+              {/* Pause stops the trailer too: no moving picture the user can't stop (WCAG 2.2.2). */}
+              {rel === 0 && trailerId && sliding === 0 && !dragging && !stopped && (
                 <TrailerPreview
                   key={trailerId}
                   trailerId={trailerId}
