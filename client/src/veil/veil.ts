@@ -9,6 +9,14 @@ export const VEIL_ID = 'lmn-veil';
 export const PENDING_CLASS = 'lmn-pending';
 const NAME_KEY = 'lmn-server-name';
 const LIFT_MS = 900;
+/** How long the veil waits before saying it's slow and offering Try again (the server may be down). */
+export const SLOW_MS = 6000;
+/**
+ * The veil ships in the inline guard, before Lumen's strings (and any network) are there, so these two are inline.
+ * Keep them in step with strings.ts's tone.
+ */
+const SLOW_TEXT = 'This is taking longer than usual.';
+const RETRY_TEXT = 'Try again';
 
 /**
  * Routes Lumen may own, plus the bare app URL (jellyfin-web's hash router redirects it to home). An empty hash counts
@@ -45,12 +53,38 @@ export function showVeil(doc: Document, markSvg: string): HTMLElement {
   const veil = doc.createElement('div');
   veil.id = VEIL_ID;
   veil.setAttribute('aria-hidden', 'true');
-  // Inline basics so it covers the page even before lumen.css applies.
-  veil.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:#000';
+  // Inline basics so it covers the page, centred, even before lumen.css applies (or if it never does: the server went
+  // down). The mark's size is set on the SVG too, or a page without the stylesheet draws it full screen.
+  veil.style.cssText =
+    'position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;align-content:center;background:#000;color:#fff';
   veil.innerHTML = `<div class="lmn-veil__brand"><span class="lmn-veil__mark">${markSvg}</span><span class="lmn-veil__name"></span></div>`;
   veil.querySelector('.lmn-veil__name')!.textContent = veilName();
+  const mark = veil.querySelector('svg');
+  mark?.setAttribute('width', '56');
+  mark?.setAttribute('height', '56');
   (doc.body ?? doc.documentElement).appendChild(veil);
+  setTimeout(() => showSlow(doc, veil), SLOW_MS);
   return veil;
+}
+
+/**
+ * Still veiled after SLOW_MS: say so and offer Try again (a reload), rather than a silent screen until a safety timer
+ * hands the page to jellyfin-web.
+ */
+function showSlow(doc: Document, veil: HTMLElement): void {
+  if (!veil.isConnected || veil.classList.contains('is-lifting')) return;
+  veil.removeAttribute('aria-hidden');
+  const slow = doc.createElement('div');
+  slow.className = 'lmn-veil__slow';
+  slow.setAttribute('role', 'alert');
+  slow.innerHTML = '<p></p><button type="button" class="lmn-button lmn-button--secondary"></button>';
+  slow.querySelector('p')!.textContent = SLOW_TEXT;
+  const retry = slow.querySelector('button')!;
+  retry.textContent = RETRY_TEXT;
+  retry.addEventListener('click', () => doc.defaultView?.location.reload());
+  veil.appendChild(slow);
+  // A TV remote needs something focused to press.
+  retry.focus();
 }
 
 /** Raises the veil (or fades it, for reduced motion) and removes it. Safe to call more than once or with no veil. */
