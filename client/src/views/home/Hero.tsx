@@ -1,7 +1,7 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { BadgeKey, BaseItem, ClientConfig, HeroItem } from '../../api/types';
-import type { JellyfinApiClient } from '../../compat/jellyfin';
+import { getLayout, type JellyfinApiClient } from '../../compat/jellyfin';
 import { cardMeta } from '../../components/Card';
 import { Icon } from '../../components/icons';
 import { backdropUrl, imageUrl, resolveImage, TITLE_LOGO } from '../../components/images';
@@ -263,10 +263,12 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
   };
 
   return (
+    // A row to jellyfin-web's D-pad (focuscontainer-x, as Lumen's rows are): Right from the slide's buttons goes to its
+    // controls rather than down to whichever card is nearest, and Left from the controls comes back.
     <section
       aria-roledescription="carousel"
       aria-label={strings.featured}
-      class={`lmn-hero${dragging ? ' is-dragging' : ''}`}
+      class={`lmn-hero focuscontainer-x${dragging ? ' is-dragging' : ''}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={(e) => endDrag(e, false)}
@@ -327,7 +329,26 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
       {/* Pause stops the slideshow and the trailer; one title alone still gets it while a trailer can play. */}
       {(count > 1 || trailerId) && (
         <div class="lmn-hero__controls">
-          {/* Tabs with roving focus: Tab reaches the current one, arrows pick another (and pause rotation). */}
+          {/* First, so the D-pad reaches it in one press from the slide's buttons, before the titles' pills. */}
+          <button
+            type="button"
+            class="lmn-icon-button"
+            aria-label={
+              count > 1
+                ? stopped
+                  ? strings.resumeRotation
+                  : strings.pauseRotation
+                : stopped
+                  ? strings.playTrailer
+                  : strings.pauseTrailer
+            }
+            onClick={() => setStopped((s) => !s)}
+          >
+            <Icon name={stopped ? 'play' : 'pause'} size={14} />
+          </button>
+          {/* Tabs with roving focus: Tab reaches the current one, arrows pick another (and pause rotation). On a TV
+              they're a row like any other: past either end the D-pad moves on (Left from the first pill to Pause)
+              rather than wrapping round, which would keep a remote in here for good. */}
           {count > 1 && (
             <div
               class={`lmn-hero__pager${paused ? ' is-paused' : ''}`}
@@ -335,8 +356,10 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
               aria-label={strings.featuredTitles}
               onKeyDown={(e) => {
                 const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-                if (!step || sliding !== 0) return;
+                if (!step) return;
+                if (getLayout() === 'tv' && (index + step < 0 || index + step >= count)) return;
                 e.preventDefault();
+                if (sliding !== 0) return;
                 const next = mod(index + step, count);
                 setIndex(next);
                 const tabs = e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]');
@@ -374,22 +397,6 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
               })}
             </div>
           )}
-          <button
-            type="button"
-            class="lmn-icon-button"
-            aria-label={
-              count > 1
-                ? stopped
-                  ? strings.resumeRotation
-                  : strings.pauseRotation
-                : stopped
-                  ? strings.playTrailer
-                  : strings.pauseTrailer
-            }
-            onClick={() => setStopped((s) => !s)}
-          >
-            <Icon name={stopped ? 'play' : 'pause'} size={14} />
-          </button>
         </div>
       )}
     </section>

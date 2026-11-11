@@ -305,6 +305,40 @@ describe('Hero', () => {
       expect(fills(container)[0]).not.toBe(first); // a new element: its animation runs from empty
     });
 
+    it('puts Pause first, then the pills, along a row the D-pad keeps Left and Right in', () => {
+      const { container } = renderHero();
+      const pause = screen.getByRole('button', { name: 'Pause slideshow' });
+
+      expect(container.querySelector('.lmn-hero')).toHaveClass('focuscontainer-x');
+      expect(pause.compareDocumentPosition(pager(container)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(pause.compareDocumentPosition(screen.getByRole('button', { name: 'More info' }))).toBe(
+        Node.DOCUMENT_POSITION_PRECEDING,
+      );
+    });
+
+    it('wraps round with the arrow keys, but on a TV lets the D-pad move on past either end', () => {
+      renderHero();
+      // Not consumed: jellyfin-web's D-pad (on window, skipping defaultPrevented) gets the key.
+      const press = (tab: number, key: string) => fireEvent.keyDown(tabs()[tab]!, { key });
+
+      expect(press(0, 'ArrowLeft')).toBe(false); // wraps to the last title
+      expect(tabs()[1]).toHaveAttribute('aria-selected', 'true');
+      expect(press(1, 'ArrowRight')).toBe(false); // and back round to the first
+      expect(tabs()[0]).toHaveAttribute('aria-selected', 'true');
+
+      document.documentElement.classList.add('layout-tv');
+      try {
+        expect(press(0, 'ArrowLeft')).toBe(true); // on to Pause
+        expect(tabs()[0]).toHaveAttribute('aria-selected', 'true');
+        expect(press(0, 'ArrowRight')).toBe(false); // the next title, as anywhere
+        expect(tabs()[1]).toHaveAttribute('aria-selected', 'true');
+        expect(press(1, 'ArrowRight')).toBe(true); // past the last: the D-pad's
+        expect(tabs()[1]).toHaveAttribute('aria-selected', 'true');
+      } finally {
+        document.documentElement.classList.remove('layout-tv');
+      }
+    });
+
     it('names each pill after its title and follows the arrow keys', () => {
       renderHero();
       expect(tabs().map((tab) => tab.getAttribute('aria-label'))).toEqual(['Show Alpha', 'Show Beta']);
