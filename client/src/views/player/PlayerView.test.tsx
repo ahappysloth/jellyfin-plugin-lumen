@@ -504,17 +504,97 @@ describe('PlayerView', () => {
 
     it('skips on a double tap at either side, not going full screen', async () => {
       const { pm, osd, surface } = await open();
+      // jellyfin-web's default skips: 10 s back, 30 s forward.
+      const video = document.body.appendChild(document.createElement('video'));
+      video.className = 'htmlvideoplayer';
+      video.currentTime = 60;
+      pm.rewind.mockImplementation(() => (video.currentTime -= 10));
+      pm.fastForward.mockImplementation(() => (video.currentTime += 30));
       await idle();
       press(surface, 'touch', 100);
       press(surface, 'touch', 100);
       fireEvent.dblClick(surface); // Chrome on Android sends one
       expect(pm.rewind).toHaveBeenCalledTimes(1);
       expect(osd).not.toHaveClass('is-idle'); // showing where it went
+      expect(osd.querySelector('.lmn-player-skipped')).toHaveTextContent('−10 s');
+      press(surface, 'touch', 100); // a third tap on goes back again, and adds up
+      expect(pm.rewind).toHaveBeenCalledTimes(2);
+      expect(osd.querySelector('.lmn-player-skipped')).toHaveTextContent('−20 s');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(osd.querySelector('.lmn-player-skipped')).toBeNull();
       press(surface, 'touch', 800);
       press(surface, 'touch', 800);
       expect(pm.fastForward).toHaveBeenCalledTimes(1);
+      expect(osd.querySelector('.lmn-player-skipped.is-forward')).toHaveTextContent('+30 s');
       expect(pm.toggleFullscreen).not.toHaveBeenCalled();
       expect(pm.playPause).not.toHaveBeenCalled();
+      video.remove();
+    });
+
+    it("takes a double tap's first tap away slowly, so the second brings the controls back without a flash", async () => {
+      const { pm, osd, surface } = await open();
+      press(surface, 'touch', 100);
+      expect(osd).toHaveClass('is-idle');
+      expect(osd).toHaveClass('is-tapped'); // player.css: a fade that starts slowly
+      press(surface, 'touch', 100);
+      expect(pm.rewind).toHaveBeenCalledTimes(1);
+      expect(osd).not.toHaveClass('is-idle');
+      expect(osd).not.toHaveClass('is-tapped');
+    });
+
+    it('brings the hidden controls back on a tap, without pressing the control under the finger', async () => {
+      const { pm, osd, surface } = await open();
+      vi.spyOn(window.history, 'length', 'get').mockReturnValue(2);
+      const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+      for (const name of ['Pause', 'Back', /Quality/]) {
+        await idle();
+        // Hidden, the bars let the press through to the picture; it wakes them, and its click comes to the control.
+        fireEvent.pointerDown(surface, { pointerType: 'touch', pointerId: 1 });
+        fireEvent.pointerUp(surface, { pointerType: 'touch', pointerId: 1 });
+        fireEvent.click(screen.getByRole('button', { name }));
+        expect(osd).not.toHaveClass('is-idle');
+      }
+      expect(pm.playPause).not.toHaveBeenCalled();
+      expect(back).not.toHaveBeenCalled();
+      expect(screen.queryByRole('dialog', { name: 'Quality' })).toBeNull();
+      // Shown, a tap presses it.
+      press(screen.getByRole('button', { name: 'Pause' }), 'touch');
+      expect(pm.playPause).toHaveBeenCalledTimes(1);
+    });
+
+    it('takes a long press on the picture as a tap, not a click', async () => {
+      const { pm, osd, surface } = await open();
+      await idle();
+      fireEvent.pointerDown(surface, { pointerType: 'touch', pointerId: 1, clientX: 450 });
+      vi.advanceTimersByTime(1500);
+      fireEvent.pointerUp(surface, { pointerType: 'touch', pointerId: 1, clientX: 450 });
+      fireEvent.click(surface, { clientX: 450, clientY: 250 });
+      expect(pm.playPause).not.toHaveBeenCalled();
+      expect(osd).not.toHaveClass('is-idle');
+      // A click long after its press counts as the last pointer's.
+      fireEvent.pointerDown(surface, { pointerType: 'touch', pointerId: 1, clientX: 450 });
+      vi.advanceTimersByTime(1500);
+      fireEvent.click(surface, { clientX: 450, clientY: 250 });
+      expect(pm.playPause).not.toHaveBeenCalled();
+    });
+
+    it('brings the controls back when playback is paused from elsewhere after a tap put them away', async () => {
+      const { pm, osd, surface } = await open();
+      press(surface, 'touch');
+      expect(osd).toHaveClass('is-idle');
+      pm.playPause(); // a Watch together member, headphones, the lock screen
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(osd).not.toHaveClass('is-idle');
+      // Put away while paused, they stay away.
+      press(surface, 'touch');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(osd).toHaveClass('is-idle');
     });
 
     it('closes an open panel and does nothing else, by mouse or by finger', async () => {
@@ -557,6 +637,7 @@ describe('PlayerView', () => {
     it('turns to landscape in full screen where the browser can, and back on the way out', async () => {
       const lock = vi.fn(() => Promise.reject(new Error('NotSupportedError'))); // as iOS and desktops answer
       const unlock = vi.fn();
+      const original = Object.getOwnPropertyDescriptor(window.screen, 'orientation');
       Object.defineProperty(window.screen, 'orientation', { value: { lock, unlock }, configurable: true });
       let element: Element | null = null;
       Object.defineProperty(document, 'fullscreenElement', { get: () => element, configurable: true });
@@ -568,14 +649,16 @@ describe('PlayerView', () => {
         element = null;
         act(() => void document.dispatchEvent(new Event('fullscreenchange')));
         expect(unlock).toHaveBeenCalledTimes(1);
-      } finally {
+        // Without the API (Safari before 16.4) there's nothing to call, and nothing throws.
         Object.defineProperty(window.screen, 'orientation', { value: undefined, configurable: true });
+        element = document.documentElement;
+        act(() => void document.dispatchEvent(new Event('fullscreenchange')));
+        expect(screen.getByRole('button', { name: 'Exit full screen' })).toBeInTheDocument();
+      } finally {
+        if (original) Object.defineProperty(window.screen, 'orientation', original);
+        else delete (window.screen as { orientation?: unknown }).orientation;
+        delete (document as { fullscreenElement?: unknown }).fullscreenElement;
       }
-      // Without the API (Safari before 16.4) there's nothing to call, and nothing throws.
-      element = document.documentElement;
-      act(() => void document.dispatchEvent(new Event('fullscreenchange')));
-      expect(screen.getByRole('button', { name: 'Exit full screen' })).toBeInTheDocument();
-      delete (document as { fullscreenElement?: unknown }).fullscreenElement;
     });
   });
 

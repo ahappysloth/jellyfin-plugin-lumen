@@ -8,6 +8,8 @@ export const playerStrings = {
   pause: 'Pause',
   rewind: 'Back 10 seconds',
   forward: 'Forward 10 seconds',
+  /** After a double tap on the picture's side: "−10 s", "+20 s". */
+  skipped: (seconds: number) => `${seconds < 0 ? '−' : '+'}${Math.abs(seconds)} s`,
   mute: 'Mute',
   unmute: 'Unmute',
   volume: 'Volume',
