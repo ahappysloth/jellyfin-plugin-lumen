@@ -32,6 +32,32 @@ test('a genre page lists its movies and shows, with All / Movies / Shows', async
   await filter.getByRole('button', { name: 'All' }).click();
 });
 
+test("a music genre's page stays jellyfin-web's", async ({ page }) => {
+  const { admin } = loadState();
+  const genres = await api<{ Items: { Id: string; Name: string }[] }>('/Genres', {
+    token: admin.token,
+    query: { userId: admin.userId },
+  });
+  const genre = genres.Items.find((g) => g.Name === 'Science Fiction')!;
+  await login(page, ADMIN);
+  // The fixtures have no music: the server describes this genre as a music genre.
+  let lookedUp = false;
+  await page.route(new RegExp(`/Items/${genre.Id}\\?`), async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...(await response.json()), Type: 'MusicGenre' } });
+    lookedUp = true;
+  });
+
+  await page.goto(`/web/#/list?genreId=${genre.Id}`);
+
+  await expect.poll(() => lookedUp).toBe(true);
+  await expect(page.locator('#lmn-root .lmn-genre-page')).toHaveCount(0);
+  await expect(page.locator('html')).not.toHaveClass(/\blmn-active\b/);
+  // jellyfin-web's own page, with its app bar (Lumen hides it on its pages).
+  await expect(page.locator('#reactRoot main')).toBeVisible();
+  await expect(page.locator('.MuiAppBar-root')).toBeVisible();
+});
+
 test('a person page, opened from the cast row, lists their titles in the library', async ({ page }) => {
   const { items } = loadState();
   await login(page, ADMIN);

@@ -5,7 +5,7 @@ import { makeContext } from '../../../test/viewContext';
 import type { BaseItem } from '../../api/types';
 import type { AjaxRequest } from '../../compat/jellyfin';
 import { clearBrowseState } from './browseStore';
-import { GenreView } from './GenreView';
+import { GenreView, isVideoFacet } from './GenreView';
 
 const GENRE = 'g1';
 const LIB = 'lib1';
@@ -79,6 +79,35 @@ describe('GenreView', () => {
     render(<GenreView id={GENRE} ctx={ctx} />);
     expect(screen.getByRole('link', { name: 'Space Show' })).toBeInTheDocument();
     expect(itemRequests()).toHaveLength(before);
+  });
+
+  it('hands a music genre back to the stock page', async () => {
+    const ctx = makeContext(
+      createFakeClient(
+        routes({
+          [`Items/${GENRE}`]: { Id: GENRE, Name: 'Synthpop', Type: 'MusicGenre' },
+          [`Items/${LIB}`]: { Id: LIB, Name: 'Music', Type: 'CollectionFolder', CollectionType: 'music' },
+          Items: { Items: [], TotalRecordCount: 0 },
+        }),
+      ),
+    );
+    render(<GenreView id={GENRE} parentId={LIB} ctx={ctx} />);
+
+    await waitFor(() => expect(ctx.onFallback).toHaveBeenCalled());
+  });
+
+  it.each([
+    ['music videos', 'musicvideos', false],
+    ['books', 'books', false],
+    ['movies', 'movies', true],
+    ['shows', 'tvshows', true],
+  ])('keeps a genre opened from a %s library only if its grid can list it', (_name, type, lumen) => {
+    const genre: BaseItem = { Id: GENRE, Name: 'Pop', Type: 'Genre' };
+    expect(isVideoFacet(genre, { Id: LIB, Name: 'L', Type: 'CollectionFolder', CollectionType: type })).toBe(
+      lumen,
+    );
+    // Opened without a library (home's genre tiles), or one that didn't load: Lumen's page.
+    expect(isVideoFacet(genre, null)).toBe(true);
   });
 
   it('says so when the genre is empty', async () => {

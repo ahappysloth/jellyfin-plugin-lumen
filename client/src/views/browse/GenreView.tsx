@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import type { BaseItem } from '../../api/types';
 import { Dropdown } from '../../components/Dropdown';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
@@ -28,6 +29,17 @@ interface Choice {
 }
 const DEFAULT_CHOICE: Choice = { kind: 'all', sort: 'added' };
 
+/** Libraries whose genres and studios Lumen's grid (movies and shows) can show. */
+const VIDEO_LIBRARIES: readonly (string | undefined)[] = [undefined, 'movies', 'tvshows', 'boxsets'];
+
+/**
+ * Whether Lumen's page fits this genre or studio: not a music genre, nor one opened from a music, music video, books,
+ * photos or other library, whose titles its grid of movies and shows wouldn't list. jellyfin-web has the page for those.
+ */
+export function isVideoFacet(facet: BaseItem, library: BaseItem | null): boolean {
+  return facet.Type !== 'MusicGenre' && (!library || VIDEO_LIBRARIES.includes(library.CollectionType));
+}
+
 /**
  * One genre's movies and shows (jellyfin-web's `#/list?genreId=…`, which the home genre tiles open), optionally inside
  * one library. Same grid, chips and sort menu as the library pages.
@@ -55,14 +67,19 @@ export function GenreView({
 
   useEffect(() => {
     let cancelled = false;
-    ctx.api
-      .getItem(id)
-      .then((genre) => !cancelled && setName(genre.Name))
+    // A library that may not be there (or not this user's) shouldn't cost the page: only a known type counts.
+    const parent = parentId ? ctx.api.getItem(parentId).catch(() => null) : Promise.resolve(null);
+    Promise.all([ctx.api.getItem(id), parent])
+      .then(([genre, library]) => {
+        if (cancelled) return;
+        if (isVideoFacet(genre, library)) setName(genre.Name);
+        else ctx.onFallback();
+      })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [id, ctx.userId]);
+  }, [id, parentId, ctx.userId]);
 
   const queryKey = `${ctx.userId}|${facet}|${id}|${parentId ?? ''}|${choice.kind}|${choice.sort}`;
   const { state, select, onMenu } = useGridPage(ctx, queryKey, (page) =>

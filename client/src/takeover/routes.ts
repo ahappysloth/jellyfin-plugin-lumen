@@ -87,7 +87,9 @@ export function parseRoute(hash: string): Route {
   const settings = SETTINGS_PATHS[path];
   if (settings) return { kind: 'settings', page: settings };
   if (path === STOCK_ROUTES.list) {
-    // jellyfin-web's item list filtered to one genre or studio (home genre tiles, a library's Genres/Studios tab).
+    // jellyfin-web's item list filtered to one genre or studio (home genre tiles, a library's Genres/Studios tab). The
+    // URL doesn't say what kind of genre it is: GenreView hands music genres, and those of libraries other than movies
+    // and shows, back to jellyfin-web once it has looked them up (isVideoFacet).
     const genreId = query.get('genreId');
     const studioId = query.get('studioId');
     const parentId = query.get('parentId');
