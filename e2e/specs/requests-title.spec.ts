@@ -93,3 +93,13 @@ test('a user without a Seerr account gets library-only search and no title pages
   await expect(page.getByText('No results for “matrix”')).toBeVisible();
   await expect(page.getByRole('list', { name: 'More to request' })).toHaveCount(0);
 });
+
+test("a user without a Seerr account who opens a catalog title keeps Lumen's nav and a way back", async ({ page }) => {
+  await login(page, KID);
+
+  await page.goto('/web/#/home?title=movie-603');
+
+  await expect(page.getByText("Couldn't load this title from Seerr.")).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Back' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+});

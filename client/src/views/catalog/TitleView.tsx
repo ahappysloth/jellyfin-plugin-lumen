@@ -8,6 +8,7 @@ import { strings } from '../../strings';
 import { liftVeil } from '../../veil/veil';
 import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import type { ViewContext } from '../context';
+import { FailedPageMark } from '../pageError';
 import { initials } from '../details/CastRow';
 import { goBack } from '../details/useItemActions';
 import {
@@ -63,6 +64,8 @@ export function TitleView({
   if (failed) {
     return (
       <article ref={rootRef} class="lmn-details lmn-title">
+        {/* Lumen's nav comes back, so the page isn't a dead end. */}
+        <FailedPageMark />
         <LoadError
           class="lmn-title__failed"
           message={strings.titleFailed}
