@@ -128,6 +128,7 @@ export function DetailsView({ id, ctx }: { id: string; ctx: ViewContext }) {
           failure === 'forbidden'
             ? undefined
             : () => {
+                if (retrying) return;
                 setRetrying(true);
                 setAttempt((n) => n + 1);
               }
