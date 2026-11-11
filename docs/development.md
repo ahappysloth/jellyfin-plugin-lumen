@@ -67,7 +67,7 @@ The request features talk to Seerr. End-to-end tests never use a real one: Playw
 
 ## jellyfin-web internals
 
-Every jellyfin-web selector, route, global and PlaybackManager method that Lumen's TypeScript depends on is listed once, in `client/src/compat/registry.ts`. The stylesheets can't import it, so they repeat the selectors they need, and `registry.test.ts` checks those still appear in the CSS. Two E2E specs check the registry against a real server, and the nightly job runs them against Jellyfin's `latest` and `unstable` images:
+Every jellyfin-web selector, route, global and PlaybackManager method that Lumen's TypeScript depends on is listed once, in `client/src/compat/registry.ts`. The stylesheets can't import it, so they repeat the selectors they need, and `registry.test.ts` checks those still appear in the CSS. Which page each selector is probed on and which stylesheet repeats it are in `registry.meta.ts`, which only the tests import; a new selector needs an entry in both files. Two E2E specs check the registry against a real server, and the nightly job runs them against Jellyfin's `latest` and `unstable` images:
 - `stock-probe.spec.ts` opens each page (sign-in, home, Playback and Display settings, the player) and asserts that every selector registered for that page matches.
 - `stock-routes.spec.ts` opens every stock route Lumen links to and asserts it isn't jellyfin-web's 404 page.
 
