@@ -12,6 +12,8 @@ export const strings = {
   play: 'Play',
   resume: 'Resume',
   starting: 'Starting…',
+  // Shared: the request dialog and Lumen's confirmation dialogs.
+  cancel: 'Cancel',
   moreInfo: 'More info',
   trailer: 'Trailer',
   download: 'Download',

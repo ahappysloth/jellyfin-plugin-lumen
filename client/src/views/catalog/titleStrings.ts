@@ -13,7 +13,6 @@ export const titleStrings = {
   chooseSeasons: 'Choose the seasons to request.',
   allSeasons: 'All seasons',
   seasonEpisodes: (n: number) => (n === 1 ? '1 episode' : `${n} episodes`),
-  cancel: 'Cancel',
   sendRequest: 'Request',
   sending: 'Requesting…',
   close: 'Close',

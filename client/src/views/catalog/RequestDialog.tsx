@@ -196,7 +196,7 @@ export function RequestDialog({ title, ctx, onClose, onRequested }: Props) {
                 disabled={phase.kind === 'sending'}
                 onClick={onClose}
               >
-                {titleStrings.cancel}
+                {strings.cancel}
               </button>
               <button
                 type="button"
