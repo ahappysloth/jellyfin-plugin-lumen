@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { strings } from '../../strings';
 import { formatClock } from './PlayerView';
 import type { TrickplayPreview } from './trickplay';
+import { playerStrings } from './playerStrings';
 
 /** A seek counts as arrived once the player reports a time this close to it. */
 const ARRIVED_MS = 1500;
@@ -79,11 +79,11 @@ export function ProgressBar({
       class={`lmn-seek${drag !== null ? ' is-dragging' : ''}${disabled ? ' is-disabled' : ''}`}
       role="slider"
       tabIndex={disabled ? -1 : 0}
-      aria-label={strings.player.seek}
+      aria-label={playerStrings.seek}
       aria-valuemin={0}
       aria-valuemax={Math.round(durationMs / 1000)}
       aria-valuenow={Math.round(shown / 1000)}
-      aria-valuetext={strings.player.positionOf(
+      aria-valuetext={playerStrings.positionOf(
         formatClock(shown, durationMs),
         formatClock(durationMs, durationMs),
       )}

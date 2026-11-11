@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { isBackKey } from '../compat/jellyfin';
-import { Icon, type IconName } from './icons';
+import { Icon, type IconRef } from './icons';
 
 export interface MenuEntry {
   label: string;
-  icon: IconName;
+  icon: IconRef;
   onSelect: () => void;
   /** A second, quieter line (e.g. who is in a group). */
   detail?: string;

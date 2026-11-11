@@ -24,6 +24,8 @@ import {
   usePlaybackProgress,
 } from './PlayerExtras';
 import { readPlayerState, snapshotKey, type PlayerSnapshot } from './playerState';
+import { PLAYER_ICONS } from './playerIcons';
+import { playerStrings } from './playerStrings';
 
 /**
  * How often the controls re-read jellyfin-web's player (cheap: it reads cached state). They only redraw when what
@@ -324,7 +326,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
     >
       {!progress.started && <LoadingScreen ctx={ctx} snap={snap} starting={starting} />}
       {progress.started && progress.buffering && !switching.state?.shown && (
-        <div class="lmn-player-buffering" role="status" aria-label={strings.player.buffering}>
+        <div class="lmn-player-buffering" role="status" aria-label={playerStrings.buffering}>
           <span class="lmn-spinner" aria-hidden="true" />
         </div>
       )}
@@ -358,14 +360,14 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
         <button
           type="button"
           class="lmn-player__icon lmn-player__back"
-          aria-label={strings.player.back}
+          aria-label={playerStrings.back}
           onClick={() => {
             // Opened with nothing behind it: go home, as a details page's Back does.
             if (window.history.length > 1) window.history.back();
             else ctx.navigate(HOME_HASH);
           }}
         >
-          <Icon name="arrowLeft" size={26} />
+          <Icon name={PLAYER_ICONS.arrowLeft} size={26} />
         </button>
         <div class="lmn-player__titles">
           <h1 class="lmn-player__title">{title}</h1>
@@ -374,7 +376,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             <p class="lmn-player__syncplay">
               <Icon name="watchTogether" size={16} />
               {othersInGroup(syncPlay).length > 0
-                ? strings.watchingWith(othersInGroup(syncPlay))
+                ? playerStrings.watchingWith(othersInGroup(syncPlay))
                 : strings.inGroup(syncPlay.group.GroupName)}
             </p>
           )}
@@ -387,8 +389,8 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             aria-expanded={panel === 'quality'}
             onClick={() => setPanel(panel === 'quality' ? null : 'quality')}
           >
-            <Icon name="quality" size={20} />
-            <span class="lmn-player__pill-label">{strings.player.quality}</span>
+            <Icon name={PLAYER_ICONS.quality} size={20} />
+            <span class="lmn-player__pill-label">{playerStrings.quality}</span>
             <span class="lmn-player__pill-value">{qualityLabel(snap)}</span>
           </button>
           <button
@@ -398,14 +400,14 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             aria-expanded={panel === 'tracks'}
             onClick={() => setPanel(panel === 'tracks' ? null : 'tracks')}
           >
-            <Icon name="closedCaption" size={20} />
-            <span class="lmn-player__pill-label">{strings.player.audioSubtitles}</span>
+            <Icon name={PLAYER_ICONS.closedCaption} size={20} />
+            <span class="lmn-player__pill-label">{playerStrings.audioSubtitles}</span>
           </button>
           <button
             ref={settingsPill}
             type="button"
             class={`lmn-player__pill lmn-player__pill--icon${panel === 'settings' ? ' is-open' : ''}`}
-            aria-label={strings.player.settings}
+            aria-label={playerStrings.settings}
             aria-haspopup="dialog"
             aria-expanded={panel === 'settings'}
             onClick={() => setPanel(panel === 'settings' ? null : 'settings')}
@@ -472,7 +474,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             <button
               type="button"
               class="lmn-player__icon"
-              aria-label={snap.paused ? strings.player.play : strings.player.pause}
+              aria-label={snap.paused ? playerStrings.play : playerStrings.pause}
               onClick={act(() => manager.playPause(player))}
             >
               <Icon name={snap.paused ? 'play' : 'pause'} size={28} />
@@ -480,7 +482,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             <button
               type="button"
               class="lmn-player__icon"
-              aria-label={strings.player.rewind}
+              aria-label={playerStrings.rewind}
               onClick={act(() => manager.rewind(player))}
             >
               <SkipIcon direction="back" />
@@ -488,7 +490,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             <button
               type="button"
               class="lmn-player__icon"
-              aria-label={strings.player.forward}
+              aria-label={playerStrings.forward}
               onClick={act(() => manager.fastForward(player))}
             >
               <SkipIcon direction="forward" />
@@ -500,12 +502,12 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
               <button
                 type="button"
                 class="lmn-player__icon lmn-player__next"
-                aria-label={strings.player.nextEpisode}
-                title={strings.player.nextEpisode}
+                aria-label={playerStrings.nextEpisode}
+                title={playerStrings.nextEpisode}
                 onClick={act(() => manager.nextTrack(player))}
               >
-                <Icon name="skipNext" size={24} />
-                <span class="lmn-player__next-label">{strings.player.nextEpisode}</span>
+                <Icon name={PLAYER_ICONS.skipNext} size={24} />
+                <span class="lmn-player__next-label">{playerStrings.nextEpisode}</span>
               </button>
             )}
             {item && <FavoriteButton ctx={ctx} item={item} />}
@@ -513,42 +515,42 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
               <button
                 type="button"
                 class="lmn-player__icon"
-                aria-label={strings.player.pip}
-                title={strings.player.pip}
+                aria-label={playerStrings.pip}
+                title={playerStrings.pip}
                 onClick={act(() => manager.togglePictureInPicture?.(player))}
               >
-                <Icon name="pip" size={22} />
+                <Icon name={PLAYER_ICONS.pip} size={22} />
               </button>
             )}
             {manager.toggleAirPlay && 'WebKitPlaybackTargetAvailabilityEvent' in window && (
               <button
                 type="button"
                 class="lmn-player__icon"
-                aria-label={strings.player.airplay}
-                title={strings.player.airplay}
+                aria-label={playerStrings.airplay}
+                title={playerStrings.airplay}
                 onClick={act(() => manager.toggleAirPlay?.(player))}
               >
-                <Icon name="airplay" size={22} />
+                <Icon name={PLAYER_ICONS.airplay} size={22} />
               </button>
             )}
             {castAvailable && (
               <button
                 type="button"
                 class="lmn-player__icon"
-                aria-label={strings.player.cast}
-                title={strings.player.cast}
+                aria-label={playerStrings.cast}
+                title={playerStrings.cast}
                 onClick={(e) => void openCastMenu(ctx, manager, snap, e.currentTarget)}
               >
-                <Icon name="cast" size={22} />
+                <Icon name={PLAYER_ICONS.cast} size={22} />
               </button>
             )}
             <button
               type="button"
               class="lmn-player__icon"
-              aria-label={fullscreen ? strings.player.exitFullscreen : strings.player.fullscreen}
+              aria-label={fullscreen ? playerStrings.exitFullscreen : playerStrings.fullscreen}
               onClick={act(() => manager.toggleFullscreen(player))}
             >
-              <Icon name={fullscreen ? 'fullscreenExit' : 'fullscreen'} size={24} />
+              <Icon name={fullscreen ? PLAYER_ICONS.fullscreenExit : PLAYER_ICONS.fullscreen} size={24} />
             </button>
           </div>
         </div>
@@ -567,7 +569,7 @@ function Volume({ manager, snap, tv }: { manager: PlaybackManager; snap: PlayerS
       <button
         type="button"
         class="lmn-player__icon"
-        aria-label={snap.muted ? strings.player.unmute : strings.player.mute}
+        aria-label={snap.muted ? playerStrings.unmute : playerStrings.mute}
         onClick={() => manager.toggleMute(snap.player)}
       >
         <Icon name={level === 0 ? 'volumeOff' : 'volumeOn'} size={24} />
@@ -579,7 +581,7 @@ function Volume({ manager, snap, tv }: { manager: PlaybackManager; snap: PlayerS
         max={100}
         step={1}
         value={level}
-        aria-label={strings.player.volume}
+        aria-label={playerStrings.volume}
         style={{ '--lmn-fill': `${level}%` }}
         onKeyDown={(e) => {
           // The slider's own keys are the slider's: jellyfin-web's shortcuts would also seek (arrows left and right,
@@ -616,9 +618,9 @@ function FavoriteButton({ ctx, item }: { ctx: ViewContext; item: NonNullable<Pla
     <button
       type="button"
       class={`lmn-player__icon${favorite ? ' is-on' : ''}`}
-      aria-label={strings.player.favorite}
+      aria-label={playerStrings.favorite}
       aria-pressed={favorite}
-      title={strings.player.favorite}
+      title={playerStrings.favorite}
       onClick={() => void setUserData(ctx, asItem, 'IsFavorite', !favorite)}
     >
       <Icon name={favorite ? 'heart' : 'heartOutline'} size={22} />
@@ -633,14 +635,14 @@ function VolumePill({ volume }: { volume: { level: number; muted: boolean; shown
     <div
       class={`lmn-volume-pill${volume && volume.shownAt ? ' is-shown' : ''}`}
       role="status"
-      aria-label={strings.player.volume}
+      aria-label={playerStrings.volume}
       aria-live="polite"
     >
       <Icon name={volume?.muted || level === 0 ? 'volumeOff' : 'volumeOn'} size={18} />
       <span class="lmn-volume-pill__track" aria-hidden="true">
         <span class="lmn-volume-pill__fill" style={{ width: `${level}%` }} />
       </span>
-      <span class="lmn-volume-pill__value">{volume?.muted ? strings.player.muted : `${level}%`}</span>
+      <span class="lmn-volume-pill__value">{volume?.muted ? playerStrings.muted : `${level}%`}</span>
     </div>
   );
 }

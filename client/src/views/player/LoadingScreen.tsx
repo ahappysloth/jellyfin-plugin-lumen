@@ -25,7 +25,7 @@ export function LoadingScreen({
   const backdrop = starting?.backdrop ?? (ref ? loadingBackdropUrl(ctx.client, ref) : null);
   const title = starting?.title ?? (item ? (item.Type === 'Episode' ? item.SeriesName : item.Name) : null);
   return (
-    <div class="lmn-player-loading" role="status" aria-label={strings.player.starting}>
+    <div class="lmn-player-loading" role="status" aria-label={strings.starting}>
       {backdrop && (
         <img
           class="lmn-player-loading__backdrop"

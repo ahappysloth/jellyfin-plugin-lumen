@@ -13,6 +13,8 @@ import { openWatchTogether } from '../syncplay/WatchTogether';
 import { othersInGroup, type SyncPlayState } from '../syncplay/syncPlayState';
 import { usePanel } from './PlayerPanels';
 import type { PlayerSnapshot } from './playerState';
+import { PLAYER_ICONS } from './playerIcons';
+import { playerStrings } from './playerStrings';
 
 /* ---- Ends at ------------------------------------------------------------------------------------------------- */
 
@@ -24,7 +26,7 @@ export function endsAt(
   if (!snap.durationMs) return null;
   const remaining = Math.max(0, snap.durationMs - snap.positionMs) / (snap.rate > 0 ? snap.rate : 1);
   const time = formatTime(new Date(now + remaining), { hour: 'numeric', minute: '2-digit' });
-  return strings.player.endsAt(time);
+  return playerStrings.endsAt(time);
 }
 
 /* ---- Settings (gear) panel: Repeat and Playback info ----------------------------------------------------------- */
@@ -33,13 +35,13 @@ export function endsAt(
 export function repeatOptions(isEpisode: boolean): { mode: RepeatMode; label: string }[] {
   return isEpisode
     ? [
-        { mode: 'RepeatNone', label: strings.player.off },
-        { mode: 'RepeatOne', label: strings.player.repeatEpisode },
-        { mode: 'RepeatAll', label: strings.player.repeatAll },
+        { mode: 'RepeatNone', label: playerStrings.off },
+        { mode: 'RepeatOne', label: playerStrings.repeatEpisode },
+        { mode: 'RepeatAll', label: playerStrings.repeatAll },
       ]
     : [
-        { mode: 'RepeatNone', label: strings.player.off },
-        { mode: 'RepeatOne', label: strings.player.repeatOn },
+        { mode: 'RepeatNone', label: playerStrings.off },
+        { mode: 'RepeatOne', label: playerStrings.repeatOn },
       ];
 }
 
@@ -76,11 +78,11 @@ export function SettingsPanel({
   };
   usePanel(ref, onClose, tv);
   return (
-    <div ref={ref} class="lmn-panel lmn-panel--settings" role="dialog" aria-label={strings.player.settings}>
+    <div ref={ref} class="lmn-panel lmn-panel--settings" role="dialog" aria-label={playerStrings.settings}>
       {snap.repeatMode !== null && manager.setRepeatMode && (
         <section class="lmn-panel__column">
-          <h2 class="lmn-panel__heading">{strings.player.repeat}</h2>
-          <div class="lmn-panel__speeds" role="group" aria-label={strings.player.repeat}>
+          <h2 class="lmn-panel__heading">{playerStrings.repeat}</h2>
+          <div class="lmn-panel__speeds" role="group" aria-label={playerStrings.repeat}>
             {repeatOptions(isEpisode).map((o) => {
               // A movie set to repeat the queue reads as "Repeat" too.
               const selected =
@@ -135,7 +137,7 @@ export function SettingsPanel({
         >
           <Icon name="info" size={18} />
           <span class="lmn-panel__option-label">
-            {info ? strings.player.hidePlaybackInfo : strings.player.playbackInfo}
+            {info ? playerStrings.hidePlaybackInfo : playerStrings.playbackInfo}
           </span>
         </button>
       </div>
@@ -177,20 +179,20 @@ export function playbackInfoRows(
   const audio: MediaStreamInfo | undefined = streams.find((s) => s.Type === 'Audio');
   const method =
     snap.playMethod === 'Transcode'
-      ? strings.player.transcoding
+      ? playerStrings.transcoding
       : snap.playMethod === 'DirectStream'
-        ? strings.player.directStream
-        : strings.player.directPlay;
+        ? playerStrings.directStream
+        : playerStrings.directPlay;
   const transcoding = snap.playMethod === 'Transcode' && transcode;
   const rows: InfoRow[] = [
     {
-      label: strings.player.infoPlayback,
+      label: playerStrings.infoPlayback,
       value: join(method, transcoding ? transcode.HardwareAccelerationType : null),
     },
   ];
   if (transcoding && transcode.TranscodeReasons?.length)
     rows.push({
-      label: strings.player.infoReason,
+      label: playerStrings.infoReason,
       value: transcode.TranscodeReasons.map(reasonText).join(', '),
     });
 
@@ -203,7 +205,7 @@ export function playbackInfoRows(
       : '';
   if (sourceVideo)
     rows.push({
-      label: strings.player.infoVideo,
+      label: playerStrings.infoVideo,
       value: outVideo ? `${sourceVideo} → ${outVideo}` : sourceVideo,
     });
 
@@ -214,7 +216,7 @@ export function playbackInfoRows(
       : '';
   if (sourceAudio)
     rows.push({
-      label: strings.player.infoAudio,
+      label: playerStrings.infoAudio,
       value: outAudio ? `${sourceAudio} → ${outAudio}` : sourceAudio,
     });
 
@@ -222,7 +224,7 @@ export function playbackInfoRows(
   const outContainer = transcoding ? upper(transcode.Container) : null;
   if (container)
     rows.push({
-      label: strings.player.infoContainer,
+      label: playerStrings.infoContainer,
       value: outContainer && outContainer !== container ? `${container} → ${outContainer}` : container,
     });
 
@@ -230,7 +232,7 @@ export function playbackInfoRows(
   const outBitrate = transcoding ? mbps(transcode.Bitrate) : null;
   if (bitrate || outBitrate)
     rows.push({
-      label: strings.player.infoBitrate,
+      label: playerStrings.infoBitrate,
       value: outBitrate && bitrate ? `${bitrate} → ${outBitrate}` : (outBitrate ?? bitrate)!,
     });
 
@@ -239,7 +241,7 @@ export function playbackInfoRows(
     const source = video?.RealFrameRate || video?.AverageFrameRate;
     const speed = source ? ` (${(transcode.Framerate / source).toFixed(1)}×)` : '';
     rows.push({
-      label: strings.player.infoEncoding,
+      label: playerStrings.infoEncoding,
       value: `${Math.round(transcode.Framerate)} fps${speed}`,
     });
   }
@@ -273,13 +275,13 @@ export function PlaybackInfoCard({
   }, [transcoding, snap.mediaSourceId]);
 
   return (
-    <aside class="lmn-player-info" aria-label={strings.player.playbackInfo}>
+    <aside class="lmn-player-info" aria-label={playerStrings.playbackInfo}>
       <header class="lmn-player-info__header">
-        <h2>{strings.player.playbackInfo}</h2>
+        <h2>{playerStrings.playbackInfo}</h2>
         <button
           type="button"
           class="lmn-player__icon"
-          aria-label={strings.player.hidePlaybackInfo}
+          aria-label={playerStrings.hidePlaybackInfo}
           onClick={onClose}
         >
           <Icon name="close" size={18} />
@@ -336,7 +338,7 @@ async function castTo(
   manager.trySetActivePlayer!(target.playerName, target);
   const started = Date.now();
   while (manager.getCurrentPlayer()?.isLocalPlayer !== false) {
-    if (Date.now() - started > PAIR_WAIT_MS) return showToast(strings.player.castFailed);
+    if (Date.now() - started > PAIR_WAIT_MS) return showToast(playerStrings.castFailed);
     await new Promise((r) => setTimeout(r, PAIR_POLL_MS));
   }
   try {
@@ -345,9 +347,9 @@ async function castTo(
       startPositionTicks,
       serverId: ctx.client.serverId?.() ?? undefined,
     });
-    showToast(strings.player.castingTo(target.name));
+    showToast(playerStrings.castingTo(target.name));
   } catch {
-    showToast(strings.player.castFailed);
+    showToast(playerStrings.castFailed);
   }
 }
 
@@ -359,20 +361,20 @@ export async function openCastMenu(
 ): Promise<void> {
   const targets = (await manager.getTargets?.().catch(() => [])) ?? [];
   const remote = targets.filter((t) => !t.isLocalPlayer);
-  if (remote.length === 0) return showToast(strings.player.noCastTargets);
+  if (remote.length === 0) return showToast(playerStrings.noCastTargets);
   const rect = from.getBoundingClientRect();
   const entries: MenuEntry[] = remote.map((t) => ({
     label: t.name,
     detail: t.appName && t.appName !== t.name ? t.appName : undefined,
-    icon: 'cast',
+    icon: PLAYER_ICONS.cast,
     onSelect: () => void castTo(ctx, manager, snap, t),
   }));
   openContextMenu({
     x: rect.left,
     y: rect.top - 8,
     returnFocus: from,
-    label: strings.player.cast,
-    title: strings.player.castTo,
+    label: playerStrings.cast,
+    title: playerStrings.castTo,
     entries,
   });
 }
