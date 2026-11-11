@@ -232,6 +232,13 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
   // Where a trailer that's put back starts: where it was, on this visit.
   const trailerStart = (): number =>
     run.current.index === index && run.current.video ? run.current.position : 0;
+  // Taken off in its last second, it's as good as over: TrailerPreview won't seek that close to the end, so put back it
+  // would play again from the start under an almost full pill.
+  useLayoutEffect(() => {
+    const slide = run.current;
+    if (!holding || (canShowTrailer && !pageHidden) || slide.index !== index || !slide.video) return;
+    if (slide.duration - slide.position < 1) endTrailer();
+  }, [holding, canShowTrailer, pageHidden]);
   // A trailer that stopped getting anywhere without an error or an end would hold the slide for good. Only while it's
   // on: one being put back has TrailerPreview's own start watchdog, and one out of view waits to be seen.
   useEffect(() => {

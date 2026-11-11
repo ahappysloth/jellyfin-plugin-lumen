@@ -301,6 +301,24 @@ describe('Hero: letting trailers finish (HeroWaitForTrailer)', () => {
     expect(showing('Beta')).toBeInTheDocument();
   });
 
+  it("doesn't put back a trailer taken off in its last second: it would only replay from the start", () => {
+    const { container } = renderHero();
+    const hero = container.querySelector<HTMLElement>('.lmn-hero')!;
+    advance(4000);
+    const v = video(12);
+    start(v);
+    play(v, 11); // 11.5 s of 12
+
+    const release = springBack(hero);
+    takeOff(v);
+    release();
+    advance(16);
+    expect(mounts).toBe(1);
+    expect(trailer).toBeNull();
+    advance(1500 + SLIDE);
+    expect(showing('Beta')).toBeInTheDocument();
+  });
+
   it('holds on when a trailer that stalled gets going again', () => {
     renderHero();
     advance(4000);
