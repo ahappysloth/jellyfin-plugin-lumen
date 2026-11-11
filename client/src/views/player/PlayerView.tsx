@@ -38,8 +38,10 @@ const POLL_MS = 250;
 const IDLE_MS = 3000;
 /** How long the volume pill stays after the last change. */
 const PILL_MS = 1200;
-/** The longest a press on the picture can be held for its click still to count as a tap (see `press`). */
+/** How long after a press is lifted its click may arrive and still be counted as that press's (see `press`). */
 const PRESS_MS = 1000;
+/** How long "−10 s" stays on screen after a double tap skips. */
+const SKIPPED_MS = 700;
 
 type Panel = 'quality' | 'tracks' | 'settings' | null;
 
@@ -53,7 +55,10 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   const syncPlay = useSyncPlayState(ctx);
   const [snap, setSnap] = useState<PlayerSnapshot | null>(null);
   const [visible, setVisible] = useState(true);
-  /** A tap put the controls away while paused (they otherwise stay up while paused). Any input brings them back. */
+  /**
+   * A tap put the controls away (while paused, they otherwise stay up). Any input brings them back, and so does a
+   * pause from elsewhere (below).
+   */
   const [tapHidden, setTapHidden] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
   const [fullscreen, setFullscreen] = useState(!!document.fullscreenElement);
@@ -146,7 +151,8 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   /**
    * The last press, anywhere, and what was on screen just before it (the document's other listeners are about to wake
    * the controls and close a panel). A click on the picture asks it which pointer it came from: WebKit's click is a
-   * MouseEvent, even for a tap, and a tap on a bar may land its click on the picture underneath.
+   * MouseEvent, even for a tap, and a tap on a bar may land its click on the picture underneath. `at` is when it was
+   * lifted (or pressed, until then): a long press's click comes as the finger lifts.
    */
   const press = useRef<{ pointerType: string; shown: boolean; panelOpen: boolean; at: number } | null>(null);
   /** Kept from the last press, for a double click (a double tap's, in Chrome on Android, isn't full screen's). */
@@ -285,9 +291,49 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
         at: Date.now(),
       };
     };
+    const onUp = (): void => {
+      if (press.current) press.current.at = Date.now();
+    };
+    // A tap that brings the hidden controls back does only that. The press woke them, so its click would land on
+    // whatever control is now under the finger: Play, a pill, Back.
+    const onClick = (e: MouseEvent): void => {
+      const p = press.current;
+      if (!p || p.shown || !isTouchLike(p.pointerType) || Date.now() - p.at >= PRESS_MS) return;
+      if (!(e.target as Element).closest?.('.lmn-player__top, .lmn-player__bottom')) return;
+      press.current = null;
+      e.preventDefault();
+      e.stopPropagation();
+    };
     document.addEventListener('pointerdown', onDown, true);
-    return () => document.removeEventListener('pointerdown', onDown, true);
+    document.addEventListener('pointerup', onUp, true);
+    document.addEventListener('click', onClick, true);
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('pointerup', onUp, true);
+      document.removeEventListener('click', onClick, true);
+    };
   }, []);
+  // Paused from elsewhere while a tap had put the controls away (a Watch together member, headphones, the lock
+  // screen, a call): they come back, as for any pause.
+  const wasPaused = useRef<boolean | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (snap?.paused && wasPaused.current === false) setTapHidden(false);
+    wasPaused.current = snap?.paused;
+  }, [snap?.paused]);
+  // "−10 s" or "+30 s" by the side a double tap skipped on; quick taps on add up. It's what the seek did (the skip
+  // lengths are the user's jellyfin-web settings, which Lumen can't read; and near the end a skip falls short).
+  const [skipped, setSkipped] = useState<{ seconds: number; n: number } | null>(null);
+  const skippedTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => clearTimeout(skippedTimer.current), []);
+  const showSkipped = (seconds: number): void => {
+    if (!seconds) return; // a stream that restarts to seek (or another player): nothing to measure
+    setSkipped((s) => ({
+      seconds: s && s.seconds < 0 === seconds < 0 ? s.seconds + seconds : seconds,
+      n: (s?.n ?? 0) + 1,
+    }));
+    clearTimeout(skippedTimer.current);
+    skippedTimer.current = window.setTimeout(() => setSkipped(null), SKIPPED_MS);
+  };
   useEffect(() => {
     const consume = (e: KeyboardEvent): void => {
       e.preventDefault();
@@ -369,7 +415,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
         if (e.key === ' ' && keyboardFocus.current && (e.target as Element).closest('button'))
           Object.defineProperty(e, 'keyCode', { value: IGNORED_KEY_CODE });
       }}
-      class={`lmn-osd${shown ? '' : ' is-idle'}${panel ? ' has-panel' : ''}${progress.started ? '' : ' is-loading'}`}
+      class={`lmn-osd${shown ? '' : ' is-idle'}${tapHidden ? ' is-tapped' : ''}${panel ? ' has-panel' : ''}${progress.started ? '' : ' is-loading'}`}
     >
       {!progress.started && <LoadingScreen ctx={ctx} snap={snap} starting={starting} />}
       {progress.started && progress.buffering && !switching.state?.shown && (
@@ -390,6 +436,15 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
       )}
       <VolumePill volume={volume} />
       <SwitchOverlay state={switching.state} />
+      {skipped && (
+        <div
+          key={skipped.n}
+          class={`lmn-player-skipped${skipped.seconds > 0 ? ' is-forward' : ''}`}
+          aria-hidden="true"
+        >
+          {playerStrings.skipped(skipped.seconds)}
+        </div>
+      )}
       {/* A click on the picture plays or pauses (or closes a panel); a double click toggles full screen. A tap shows or
           hides the controls, and a double tap at the sides skips (touch.ts). */}
       <div
@@ -397,10 +452,14 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
         tabIndex={-1}
         class="lmn-player__surface"
         onClick={(e) => {
-          // A click with no press just before it (a script's) is a mouse's.
+          // A click with no press just before it comes from the last pointer used (a script's, from a mouse).
           const recent = press.current && Date.now() - press.current.at < PRESS_MS ? press.current : null;
           press.current = null;
-          const down = recent ?? { pointerType: 'mouse', shown, panelOpen: panel !== null };
+          const down = recent ?? {
+            pointerType: lastPointer.current ?? 'mouse',
+            shown,
+            panelOpen: panel !== null,
+          };
           const box = e.currentTarget.getBoundingClientRect();
           const tap = surfaceTap(
             down,
@@ -420,10 +479,15 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
               setVisible(false);
               return setTapHidden(true);
             case 'back':
-            case 'forward':
+            case 'forward': {
               seekingUntil.current = Date.now() + PENDING_MAX_MS;
+              // The <video>'s own clock: it moves as the seek is made, where jellyfin-web's waits for the next tick.
+              const video = document.querySelector<HTMLVideoElement>('video.htmlvideoplayer');
+              const from = video?.currentTime ?? 0;
               act(() => (tap.action === 'back' ? manager.rewind(player) : manager.fastForward(player)))();
+              showSkipped(Math.round((video?.currentTime ?? 0) - from));
               return wake();
+            }
           }
         }}
         onDblClick={() => {
@@ -466,8 +530,14 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             onClick={() => setPanel(panel === 'quality' ? null : 'quality')}
           >
             <Icon name={PLAYER_ICONS.quality} size={20} />
-            <span class="lmn-player__pill-label">{playerStrings.quality}</span>
-            <span class="lmn-player__pill-value">{qualityLabel(snap)}</span>
+            {/* Phones show the icon only; the name is always there for screen readers. */}
+            <span class="lmn-visually-hidden">{`${playerStrings.quality} ${qualityLabel(snap)}`}</span>
+            <span class="lmn-player__pill-label" aria-hidden="true">
+              {playerStrings.quality}
+            </span>
+            <span class="lmn-player__pill-value" aria-hidden="true">
+              {qualityLabel(snap)}
+            </span>
           </button>
           <button
             type="button"
@@ -477,7 +547,10 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             onClick={() => setPanel(panel === 'tracks' ? null : 'tracks')}
           >
             <Icon name={PLAYER_ICONS.closedCaption} size={20} />
-            <span class="lmn-player__pill-label">{playerStrings.audioSubtitles}</span>
+            <span class="lmn-visually-hidden">{playerStrings.audioSubtitles}</span>
+            <span class="lmn-player__pill-label" aria-hidden="true">
+              {playerStrings.audioSubtitles}
+            </span>
           </button>
           <button
             ref={settingsPill}

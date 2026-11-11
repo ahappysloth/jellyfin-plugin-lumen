@@ -76,17 +76,20 @@ html.lmn-skin-player .upNextContainer {
   padding-bottom: max(14px, env(safe-area-inset-bottom));
   background: linear-gradient(to top, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.35) 55%, transparent);
 }
-/* The bars' shading is the picture's: a tap or a click there is one on the picture. Only what's in them takes it, and
-   only while they're shown. */
-.lmn-player__top,
-.lmn-player__bottom {
-  pointer-events: none;
-}
-.lmn-osd:not(.is-idle) .lmn-player__back,
-.lmn-osd:not(.is-idle) .lmn-player__pills,
-.lmn-osd:not(.is-idle) .lmn-seek,
-.lmn-osd:not(.is-idle) .lmn-player__group {
-  pointer-events: auto;
+/* On a touch screen the bars' shading is the picture's: a tap there shows or hides the controls, as one on the picture
+   does. Only what's in them takes it, and only while they're shown. A mouse (a TV's pointer remote too) still clicks
+   the shading for nothing: a click on the picture plays or pauses. */
+@media (hover: none) {
+  .lmn-player__top,
+  .lmn-player__bottom {
+    pointer-events: none;
+  }
+  .lmn-osd:not(.is-idle) .lmn-player__back,
+  .lmn-osd:not(.is-idle) .lmn-player__pills,
+  .lmn-osd:not(.is-idle) .lmn-seek,
+  .lmn-osd:not(.is-idle) .lmn-player__group {
+    pointer-events: auto;
+  }
 }
 /* An open panel lies over the bottom bar (and Playback info), so every entry in it can be reached. The top bar doesn't
    slide while one is open: a moving bar would carry a phone's panel along (it's fixed to the screen, below). */
@@ -103,6 +106,13 @@ html.lmn-skin-player .upNextContainer {
   opacity: 0;
   transform: translateY(12px);
   pointer-events: none;
+}
+/* A tap puts the controls away at once, but they fade slowly at first: if it was the first of a double tap (a skip),
+   the second (within touch.ts DOUBLE_TAP_MS) brings them back before they've visibly gone. */
+.lmn-osd.is-tapped .lmn-player__top,
+.lmn-osd.is-tapped .lmn-player__bottom {
+  transition-duration: 0.45s;
+  transition-timing-function: cubic-bezier(0.8, 0, 1, 1);
 }
 
 /* Buttons: bare icons that light up on hover, like the reference. */
@@ -375,6 +385,18 @@ html.lmn-skin-player .upNextContainer {
   cursor: pointer;
   touch-action: none;
 }
+/* A finger gets more than the bar's 18px to land on: up over the times, and down to the control row but not into it.
+   Offsets, not inset, which older TV browsers lack. */
+@media (pointer: coarse) {
+  .lmn-seek::before {
+    position: absolute;
+    top: -14px;
+    right: 0;
+    bottom: -6px;
+    left: 0;
+    content: '';
+  }
+}
 .lmn-seek.is-disabled {
   cursor: default;
   opacity: 0.5;
@@ -513,14 +535,7 @@ html.lmn-skin-player .upNextContainer {
 /* Phones: icon-only pills (their names stay for screen readers), a smaller control row; the panel spans the width. */
 @media (max-width: 640px) {
   .lmn-player__pill-label,
-  .lmn-player__pill-value {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
+  .lmn-player__pill-value,
   .lmn-player__next-label {
     display: none;
   }
@@ -559,6 +574,15 @@ html.lmn-skin-player .upNextContainer {
   .lmn-panel {
     transition: none;
     animation: none;
+  }
+  /* Hidden, they needn't move. A tap still fades them (the double tap above), without the slide. */
+  .lmn-osd.is-idle .lmn-player__top,
+  .lmn-osd.is-idle .lmn-player__bottom {
+    transform: none;
+  }
+  .lmn-osd.is-tapped .lmn-player__top,
+  .lmn-osd.is-tapped .lmn-player__bottom {
+    transition-property: opacity;
   }
 }
 
@@ -632,6 +656,40 @@ html.lmn-skin-player .volumeOsd {
   .lmn-volume-pill {
     transition: opacity 0.2s;
     transform: translate(-50%, 0);
+  }
+}
+
+/* "−10 s" or "+10 s" by the side of the picture a double tap skipped on, for a moment. */
+.lmn-player-skipped {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 17%;
+  padding: 10px 16px;
+  border: 1px solid var(--lmn-line);
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.82);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: lmn-skipped 0.7s ease both;
+}
+.lmn-player-skipped.is-forward {
+  left: 83%;
+}
+@keyframes lmn-skipped {
+  from,
+  to {
+    opacity: 0;
+  }
+  15%,
+  70% {
+    opacity: 1;
   }
 }
 
@@ -773,6 +831,25 @@ html.lmn-skin-player .volumeOsd {
   color: #fff;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
+}
+
+/* Short windows (a phone in landscape): the card sits higher, under the title, with tighter rows, and stops above the
+   time and the seek bar (97px of the bottom bar, past its bottom padding, and a gap), scrolling inside if need be. */
+@media (max-height: 500px) {
+  .lmn-player-info {
+    top: 72px;
+    top: calc(max(20px, env(safe-area-inset-top)) + 52px);
+    max-height: calc(100% - 191px);
+    max-height: calc(
+      100% - max(20px, env(safe-area-inset-top)) - 52px - 105px - max(14px, env(safe-area-inset-bottom))
+    );
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  .lmn-player-info__row {
+    padding: 2px 0;
+  }
 }
 
 /* ---- Loading screen (until the first frame) and the buffering spinner --------------------------------------- */
