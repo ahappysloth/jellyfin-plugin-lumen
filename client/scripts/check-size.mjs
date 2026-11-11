@@ -69,8 +69,9 @@ console.log(`lumen catalog title: ${kb(title)} gzipped (budget ${TITLE_BUDGET / 
 const PROFILE_BUDGET = 5 * 1024;
 const profile = gz(`dist/${profileChunk}`);
 console.log(`lumen profile: ${kb(profile)} gzipped (budget ${PROFILE_BUDGET / 1024} KB)`);
-// Loads as a details page shows, or a card's "More actions…" is picked (views/itemMenu/lazyItemMenu.ts).
-const ITEM_MENU_BUDGET = 4 * 1024;
+// Loads as a details page shows, or a card's "More actions…" is picked (views/itemMenu/lazyItemMenu.ts). 5 KB since its
+// own strings and icons moved here out of the core (views/itemMenu/itemMenuStrings.ts, itemMenuIcons.ts).
+const ITEM_MENU_BUDGET = 5 * 1024;
 const itemMenu = gz(`dist/${itemMenuChunk}`);
 console.log(`lumen item menu: ${kb(itemMenu)} gzipped (budget ${ITEM_MENU_BUDGET / 1024} KB)`);
 // The guard and the web plugin's definer are inlined into every index.html, so they share a small budget.

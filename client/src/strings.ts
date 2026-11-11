@@ -5,8 +5,8 @@ import { formatNumber } from './util/locale';
  * Jellyfin display language (util/locale.ts).
  *
  * This object downloads at startup whole, used or not, so strings only a lazily loaded view shows live beside it, in a
- * module only that view's chunk imports: views/player/playerStrings.ts, views/catalog/titleStrings.ts and
- * views/profile/profileStrings.ts. A string the core needs too belongs here.
+ * module only that view's chunk imports: views/player/playerStrings.ts, views/catalog/titleStrings.ts,
+ * views/profile/profileStrings.ts and views/itemMenu/itemMenuStrings.ts. A string the core needs too belongs here.
  */
 export const strings = {
   play: 'Play',
@@ -38,30 +38,9 @@ export const strings = {
   ratedValue: (rating: string) => `Rated ${rating}`,
   percentWatched: (percent: number) => `${formatNumber(percent)}% watched`,
   moreLikeThis: 'You may like',
-  // The item menu (views/itemMenu): jellyfin-web's ⋯ actions. Its button is `more`, below.
+  // What cards and details pages show of the item menu (views/itemMenu: its own strings are in itemMenuStrings.ts).
   moreActions: 'More actions…',
   moreActionsFor: (name: string) => `More actions for ${name}`,
-  addToPlaylist: 'Add to playlist',
-  addToCollection: 'Add to collection',
-  downloadAll: 'Download all',
-  copyStreamUrl: 'Copy stream URL',
-  streamUrlCopied: 'Stream URL copied',
-  copyFailed: 'Couldn’t copy the stream URL',
-  mediaInfo: 'Media info',
-  editMetadata: 'Edit metadata',
-  editImages: 'Edit images',
-  editSubtitles: 'Edit subtitles',
-  identify: 'Identify',
-  refreshMetadata: 'Refresh metadata',
-  deleteItem: (type: string) =>
-    ({
-      Movie: 'Delete movie',
-      Series: 'Delete series',
-      Season: 'Delete season',
-      Episode: 'Delete episode',
-      BoxSet: 'Delete collection',
-    })[type] ?? 'Delete',
-  noMoreActions: 'Nothing more to do with this one',
   itemMenuFailed: 'Couldn’t load the actions. Try again.',
   cast: 'Cast',
   episodes: 'Episodes',
