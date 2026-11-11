@@ -41,4 +41,23 @@ describe('ProfileView', () => {
     expect(screen.getByText('Administrator')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
   });
+
+  it('leaves the administration group out on a TV, as jellyfin-web does (layoutManager.tv)', async () => {
+    document.documentElement.classList.add('layout-tv');
+    try {
+      const client = createFakeClient(
+        routes({ 'Users/user1': { Id: 'user1', Name: 'Root', Policy: { IsAdministrator: true } } }),
+      );
+      render(<ProfileView ctx={makeContext(client, { layout: 'tv' })} />);
+
+      expect(await screen.findByRole('heading', { name: 'Root' })).toBeInTheDocument();
+      expect(screen.getByText('Administrator')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Playback/ })).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: /Dashboard/ })).toBeNull();
+      expect(screen.queryByRole('link', { name: /Metadata manager/ })).toBeNull();
+      expect(screen.queryByText('Administration')).toBeNull();
+    } finally {
+      document.documentElement.classList.remove('layout-tv');
+    }
+  });
 });

@@ -68,6 +68,29 @@ test("TV layout: the hero's Pause is reachable with no card below it", async ({ 
   await page.keyboard.press('ArrowLeft');
   await expect(pause).toBeFocused();
 
+  // Every title's pill in turn; past the last, Right goes nowhere (no wrapping round to the first). Then back the same
+  // way to Pause, More info and Play.
+  const pills = hero.getByRole('tab');
+  const count = await pills.count();
+  expect(count).toBeGreaterThan(1);
+  for (let i = 0; i < count; i++) {
+    await page.keyboard.press('ArrowRight');
+    await expect(pills.nth(i)).toBeFocused();
+    await expect(pills.nth(i)).toHaveAttribute('aria-selected', 'true');
+  }
+  await page.keyboard.press('ArrowRight');
+  await expect(pills.nth(count - 1)).toBeFocused();
+  for (let i = count - 2; i >= 0; i--) {
+    await page.keyboard.press('ArrowLeft');
+    await expect(pills.nth(i)).toBeFocused();
+  }
+  await page.keyboard.press('ArrowLeft');
+  await expect(pause).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(hero.getByRole('button', { name: 'More info' })).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(start).toBeFocused();
+
   const { unreachable } = await walkDpad(page, start);
   expect(unreachable.map((c) => c.name)).toEqual([]);
 });
@@ -91,6 +114,52 @@ test('TV layout: every control on a series page is reachable with the D-pad', as
   // Including each episode row's details link, which sat over the row's right end, out of reach (#89).
   expect(controls.filter((c) => c.classes.split(' ').includes('lmn-episodes__details'))).toHaveLength(3);
   expect(unreachable.map((c) => c.name)).toEqual([]);
+});
+
+test('TV layout: Mark as unwatched asks; the D-pad moves between its buttons and Back cancels', async ({ page }) => {
+  const { admin, items } = loadState();
+  const id = items['Lumen Epsilon']!;
+  const query = { userId: admin.userId };
+  await api(`/UserPlayedItems/${id}`, { method: 'POST', token: admin.token, query });
+  try {
+    await signInOnTv(page);
+    await page.goto(`/web/#/details?id=${id}`);
+    const details = page.locator('#lmn-root .lmn-details--movie');
+    // The page focuses its Play once loaded; the remote goes on from there.
+    await expect(details.locator('.lmn-autofocus')).toBeFocused();
+    const watched = details.getByRole('button', { name: 'Watched', exact: true });
+    await watched.focus();
+
+    const confirm = page.getByRole('alertdialog', { name: 'Mark as unwatched?' });
+    const cancel = confirm.getByRole('button', { name: 'Cancel' });
+    const ok = confirm.getByRole('button', { name: 'Mark unwatched' });
+    await page.keyboard.press('Enter');
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press('ArrowRight');
+    await expect(ok).toBeFocused();
+    // Nothing above or below: focus stays in the dialog.
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('ArrowDown');
+    await expect(ok).toBeFocused();
+    await page.keyboard.press('ArrowLeft');
+    await expect(cancel).toBeFocused();
+
+    // Back (Escape, to jellyfin-web's TV layout) cancels, and stays on the page.
+    await page.keyboard.press('Escape');
+    await expect(confirm).toBeHidden();
+    await expect(page).toHaveURL(new RegExp(`#/details\\?id=${id}`));
+    await expect(watched).toBeFocused();
+
+    await page.keyboard.press('Enter');
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('Enter');
+    await expect(confirm).toBeHidden();
+    await expect(details.getByRole('button', { name: 'Mark watched' })).toBeFocused();
+  } finally {
+    for (const method of ['POST', 'DELETE'] as const)
+      await api(`/UserPlayedItems/${id}`, { method, token: admin.token, query });
+  }
 });
 
 test("TV layout: the focused item of jellyfin-web's ⋯ menu shows its ring inside the sheet", async ({ page }) => {

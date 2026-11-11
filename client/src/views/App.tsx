@@ -1,3 +1,4 @@
+import { ConfirmHost } from '../components/ConfirmDialog';
 import { ContextMenuHost } from '../components/ContextMenu';
 import { useEffect, useRef } from 'preact/hooks';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -122,6 +123,7 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
       )}
       {route.kind !== 'player' && <StartingScreen ctx={ctx} />}
       <ContextMenuHost />
+      <ConfirmHost />
       <ToastHost />
     </ErrorBoundary>
   );

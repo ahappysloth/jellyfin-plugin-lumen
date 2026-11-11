@@ -2,6 +2,17 @@ import { expect, test } from '@playwright/test';
 import { ADMIN, api, loadState } from '../support/api';
 import { login } from '../support/login';
 
+/** Titles a test marked watched: put back to never played afterwards (marking played, then unplayed, clears the date). */
+let played: string[] = [];
+
+test.afterEach(async () => {
+  const { admin } = loadState();
+  for (const id of played)
+    for (const method of ['POST', 'DELETE'] as const)
+      await api(`/UserPlayedItems/${id}`, { method, token: admin.token, query: { userId: admin.userId } });
+  played = [];
+});
+
 test('movie details are rendered by Lumen, including the local trailer', { tag: '@smoke' }, async ({ page }) => {
   const { items } = loadState();
   await login(page, ADMIN);
@@ -128,4 +139,53 @@ test('items Lumen does not handle stay on the stock details page', async ({ page
 
   await expect(page.locator('#itemDetailPage:not(.hide)')).toBeVisible();
   await expect(page.locator('#lmn-root')).toBeHidden();
+});
+
+test('Watched asks before marking unwatched: Cancel keeps it watched, confirming marks it unwatched', async ({ page }) => {
+  const { admin, items } = loadState();
+  const id = items['Lumen Delta']!;
+  played = [id];
+  await api(`/UserPlayedItems/${id}`, { method: 'POST', token: admin.token, query: { userId: admin.userId } });
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${id}`);
+
+  const details = page.locator('#lmn-root .lmn-details--movie');
+  const watched = details.getByRole('button', { name: 'Watched', exact: true });
+  const confirm = page.getByRole('alertdialog', { name: 'Mark as unwatched?' });
+  const isPlayed = async () => {
+    const data = await api<{ Played: boolean }>(`/UserItems/${id}/UserData`, {
+      token: admin.token,
+      query: { userId: admin.userId },
+    });
+    return data.Played;
+  };
+
+  await watched.click();
+  await expect(confirm).toContainText('This resets how far you got and removes it from your History.');
+  await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await confirm.getByRole('button', { name: 'Cancel' }).click();
+  await expect(confirm).toBeHidden();
+  await expect(watched).toBeVisible();
+  expect(await isPlayed()).toBe(true);
+
+  // Escape is Cancel too, on a computer.
+  await watched.click();
+  await expect(confirm).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(confirm).toBeHidden();
+  await expect(page).toHaveURL(new RegExp(`#/details\\?id=${id}`));
+  await expect(watched).toBeVisible();
+
+  await watched.click();
+  await confirm.getByRole('button', { name: 'Mark unwatched' }).click();
+  await expect(confirm).toBeHidden();
+  const unwatched = details.getByRole('button', { name: 'Mark watched' });
+  await expect(unwatched).toBeVisible();
+  await expect.poll(isPlayed).toBe(false);
+
+  // Marking watched doesn't ask.
+  await unwatched.click();
+  await expect(watched).toBeVisible();
+  await expect(confirm).toHaveCount(0);
+  await expect.poll(isPlayed).toBe(true);
 });

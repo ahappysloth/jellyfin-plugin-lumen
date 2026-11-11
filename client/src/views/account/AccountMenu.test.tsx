@@ -112,6 +112,20 @@ describe('AccountMenu', () => {
     );
   });
 
+  it('leaves the admin entries out on a TV, as jellyfin-web does (layoutManager.tv)', async () => {
+    document.documentElement.classList.add('layout-tv');
+    try {
+      const { button } = setup({ user: ROOT, layout: 'tv' });
+      const menu = await openByClick(button, 'Root');
+      expect(screen.getByText('Administrator')).toBeInTheDocument();
+      expect(within(menu).queryByRole('menuitem', { name: 'Dashboard' })).toBeNull();
+      expect(within(menu).queryByRole('menuitem', { name: 'Metadata manager' })).toBeNull();
+      expect(names(menu)).toContain('Profile');
+    } finally {
+      document.documentElement.classList.remove('layout-tv');
+    }
+  });
+
   it('has no admin entries for other users', async () => {
     const { button } = setup();
     const menu = await openByClick(button);

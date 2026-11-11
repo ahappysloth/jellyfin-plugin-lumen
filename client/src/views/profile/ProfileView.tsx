@@ -93,7 +93,7 @@ export function ProfileView({ ctx }: { ctx: ViewContext }) {
         <div>
           <h1 class="lmn-browse__title">{user.Name}</h1>
           <p class="lmn-browse__meta">
-            {access.admin && <span class="lmn-profile__tag">{strings.administrator}</span>}
+            {user.Policy?.IsAdministrator && <span class="lmn-profile__tag">{strings.administrator}</span>}
             {serverName ?? user.ServerName}
           </p>
         </div>
@@ -143,6 +143,7 @@ export function ProfileView({ ctx }: { ctx: ViewContext }) {
             />
           )}
         </Group>
+        {/* Not on a TV, as in jellyfin-web (see accountAccess). */}
         {access.admin && (
           <Group title={profileStrings.administration}>
             {ADMIN.map(({ key, icon }) => setting(key, icon))}

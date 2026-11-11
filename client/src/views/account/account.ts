@@ -1,5 +1,11 @@
 import type { UserInfo } from '../../api/types';
-import { appSupports, canSelectServer, canSignOut, supportsMultiServer } from '../../compat/jellyfin';
+import {
+  appSupports,
+  canSelectServer,
+  canSignOut,
+  getLayout,
+  supportsMultiServer,
+} from '../../compat/jellyfin';
 import { APP_FEATURES } from '../../compat/registry';
 import { registerSessionCache } from '../../util/sessionCaches';
 import type { ViewContext } from '../context';
@@ -38,7 +44,10 @@ export function loadAccount(ctx: ViewContext): Promise<Account> {
  * this client get. The account menu and the profile page both follow it.
  */
 export interface AccountAccess {
-  /** Dashboard and Metadata manager. */
+  /**
+   * Dashboard and Metadata manager: administrators, but not on a TV, where jellyfin-web leaves its admin section out
+   * too (`IsAdministrator && !layoutManager.tv`, UserSettingsPage): its admin pages aren't made for a remote.
+   */
   admin: boolean;
   quickConnect: boolean;
   selectServer: boolean;
@@ -51,7 +60,7 @@ export interface AccountAccess {
 
 export function accountAccess(account: Account | null, win: Window = window): AccountAccess {
   return {
-    admin: !!account?.user.Policy?.IsAdministrator,
+    admin: !!account?.user.Policy?.IsAdministrator && getLayout(win.document) !== 'tv',
     quickConnect: !!account?.quickConnect,
     selectServer: !!account?.multiServer && canSelectServer(win),
     signOut: canSignOut(win),

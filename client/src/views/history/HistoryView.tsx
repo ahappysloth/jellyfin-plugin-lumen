@@ -1,4 +1,4 @@
-import { useRef } from 'preact/hooks';
+import { useLayoutEffect, useRef } from 'preact/hooks';
 import type { BaseItem, ItemsResult } from '../../api/types';
 import { Icon } from '../../components/icons';
 import { useAutoFocus } from '../../components/useAutoFocus';
@@ -10,6 +10,7 @@ import { dayKey } from '../browse/SuggestionsTabs';
 import { PageHeader } from '../browse/Toolbar';
 import { useGridPage } from '../browse/useGridPage';
 import type { ViewContext } from '../context';
+import { markedUnwatched, useUserDataChanges } from '../userDataStore';
 
 /** The titles in a page up to the first one never played: sorted by last played, those come last. */
 export function playedOnly(page: ItemsResult): ItemsResult {
@@ -62,8 +63,8 @@ export function historyCells(items: BaseItem[]): GridCell[] {
 
 /**
  * What the user watched lately, newest first, by day: movies and episodes (shown under their show's name) they played
- * to the end or part of the way. The card menu's Mark as unwatched takes a title off the list (Jellyfin forgets when
- * it was played).
+ * to the end or part of the way. The card menu's Mark as unwatched (once confirmed) takes a title off the list at once:
+ * Jellyfin forgets when it was played.
  */
 export function HistoryView({ ctx }: { ctx: ViewContext }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -77,11 +78,24 @@ export function HistoryView({ ctx }: { ctx: ViewContext }) {
   );
   // TV: once the first page is in, focus the first card (or the card the user came back from).
   useAutoFocus(rootRef, state.total !== null, ctx.layout, state.restoredSelectedId ?? undefined);
+  useUserDataChanges();
+  const items = state.items.filter((item) => !markedUnwatched(item.Id));
+  const shown =
+    items.length === state.items.length
+      ? state
+      : { ...state, items, total: items.length === 0 && !state.hasMore ? 0 : state.total };
+  // TV: the focused card was the one taken off; a remote needs something focused, so the first card takes over.
+  useLayoutEffect(() => {
+    if (ctx.layout !== 'tv' || items.length === state.items.length) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && document.contains(active)) return;
+    rootRef.current?.querySelector<HTMLElement>('.lmn-card')?.focus();
+  }, [items.length]);
   return (
     <div ref={rootRef} class="lmn-browse lmn-history">
       <PageHeader title={strings.history} />
       <BrowseGrid
-        state={state}
+        state={shown}
         client={ctx.client}
         variant="landscape"
         label={strings.history}

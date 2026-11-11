@@ -88,7 +88,7 @@ test.describe('wide screens', () => {
     await expect(page).toHaveURL(/#\/home$/);
   });
 
-  test('History lists what the user watched, newest first, by day; Mark as unwatched takes a title off', async ({
+  test('History lists what the user watched, newest first, by day; Mark as unwatched asks, then takes a title off', async ({
     page,
   }) => {
     const { admin, items } = loadState();
@@ -122,9 +122,23 @@ test.describe('wide screens', () => {
     // The account button is lit on its pages.
     await expect(accountButton(page)).toHaveClass(/is-active/);
 
-    // Jellyfin forgets when an unwatched title was played: it leaves History (on the next visit).
+    // Jellyfin forgets when an unwatched title was played, so Lumen asks first. Cancel keeps it.
+    const confirm = page.getByRole('alertdialog', { name: 'Mark as unwatched?' });
     await cards.first().click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Mark as unwatched' }).click();
+    await expect(confirm).toContainText('removes it from your History');
+    await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
+    await confirm.getByRole('button', { name: 'Cancel' }).click();
+    await expect(confirm).toBeHidden();
+    await expect(cards).toHaveCount(2);
+
+    // Confirmed, it leaves History at once, and stays gone.
+    await cards.first().click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Mark as unwatched' }).click();
+    await confirm.getByRole('button', { name: 'Mark unwatched' }).click();
+    await expect(confirm).toBeHidden();
+    await expect(cards).toHaveCount(1);
+    await expect(cards.first()).toHaveAccessibleName('Lumen Beta');
     await page.reload();
     await expect(page.getByRole('list', { name: 'Today' }).getByRole('link')).toHaveCount(1);
   });
@@ -152,11 +166,26 @@ test.describe('wide screens', () => {
     await page.keyboard.press('ArrowLeft');
     await expect(second).toBeFocused();
     await expect(accountMenu(page)).toBeVisible();
+    // No admin pages on a TV, as in jellyfin-web, though this is an administrator.
+    await expect(accountMenu(page).getByRole('menuitem', { name: 'Profile' })).toBeVisible();
+    await expect(accountMenu(page).getByRole('menuitem', { name: 'Dashboard' })).toHaveCount(0);
+    await expect(accountMenu(page).getByRole('menuitem', { name: 'Metadata manager' })).toHaveCount(0);
 
     await page.keyboard.press('Escape');
     await expect(accountMenu(page)).toBeHidden();
     await expect(button).toBeFocused();
     await expect(page).toHaveURL(/#\/home$/);
+  });
+
+  test('TV layout: the settings page leaves out the admin pages too', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('layout', 'tv'));
+    await login(page, ADMIN);
+    await page.goto('/web/#/mypreferencesmenu');
+    const profile = page.locator('#lmn-root .lmn-profile');
+    await expect(profile.getByRole('link', { name: /Playback/ })).toBeVisible();
+    await expect(profile.getByText('Administrator')).toBeVisible();
+    await expect(page.getByRole('link', { name: /Dashboard/ })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /Metadata manager/ })).toHaveCount(0);
   });
 
   test("History: a show marked watched is one card for its episodes, which opens the show", async ({ page }) => {

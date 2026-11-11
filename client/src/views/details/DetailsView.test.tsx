@@ -5,6 +5,7 @@ import { setJellyfinLocale } from '../../../test/locale';
 import { makeContext, testConfig } from '../../../test/viewContext';
 import type { BaseItem } from '../../api/types';
 import * as compat from '../../compat/playbackManager';
+import { ConfirmHost } from '../../components/ConfirmDialog';
 import { PAGE_SIZE } from '../browse/useBrowseItems';
 import { DetailsView, loadFailure } from './DetailsView';
 
@@ -151,6 +152,41 @@ describe('DetailsView', () => {
     await waitFor(() =>
       expect(c.requests.some((r) => r.type === 'POST' && r.url.includes('UserPlayedItems/m1'))).toBe(true),
     );
+  });
+
+  it('asks before marking unwatched: Cancel keeps it watched, confirming marks it unwatched', async () => {
+    const c = createFakeClient(
+      routes({
+        'Items/m1': { ...movie, UserData: { ...movie.UserData, Played: true } },
+        'Items/m1/LocalTrailers': [],
+        'Items/m1/Similar': { Items: [] },
+        'UserPlayedItems/m1': {},
+      }),
+    );
+    render(
+      <>
+        <DetailsView id="m1" ctx={makeContext(c)} />
+        <ConfirmHost />
+      </>,
+    );
+    const unplays = () =>
+      c.requests.filter((r) => r.type === 'DELETE' && r.url.includes('UserPlayedItems/m1'));
+
+    const watched = await screen.findByRole('button', { name: 'Watched' });
+    fireEvent.click(watched);
+    const dialog = screen.getByRole('alertdialog', { name: 'Mark as unwatched?' });
+    expect(dialog).toHaveTextContent('This resets how far you got and removes it from your History.');
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(watched).toHaveFocus();
+    expect(watched).toHaveAccessibleName('Watched');
+
+    fireEvent.click(watched);
+    fireEvent.click(screen.getByRole('button', { name: 'Mark unwatched' }));
+    await waitFor(() => expect(watched).toHaveAccessibleName('Mark watched'));
+    expect(watched).toHaveFocus();
+    await waitFor(() => expect(unplays()).toHaveLength(1));
   });
 
   it('offers Start over beside Resume, playing from the beginning', async () => {

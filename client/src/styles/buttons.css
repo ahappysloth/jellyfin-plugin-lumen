@@ -36,6 +36,14 @@
 .lmn-button--primary:hover {
   background: rgba(255, 255, 255, 0.82);
 }
+/* Goes ahead with something that can't be taken back in a click (Mark as unwatched forgets the play history). */
+.lmn-button--danger {
+  background: var(--lmn-accent);
+  color: #fff;
+}
+.lmn-button--danger:hover {
+  background: #b80912;
+}
 .lmn-icon-button {
   display: inline-grid;
   place-items: center;
