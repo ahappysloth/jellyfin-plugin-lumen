@@ -7,9 +7,10 @@ import { App } from './App';
 import { clearBrowseState } from './browse/browseStore';
 import { rememberSelection } from './home/homeStore';
 
-function context() {
+function context(extra: Record<string, unknown> = {}) {
   const client = createFakeClient(
     routes({
+      ...extra,
       Items: { Items: [], TotalRecordCount: 0 },
       UserViews: { Items: [] },
       'Lumen/Home': {
@@ -50,6 +51,21 @@ describe('App', () => {
     expect(banners).toHaveLength(1);
     expect(within(banners[0]!).getByRole('navigation', { name: 'Main' })).toBeInTheDocument();
     await waitFor(() => expect(document.title).toBe('Favorites – Den'));
+  });
+
+  it("brings back Lumen's nav while a details page can't load, so it isn't a dead end", async () => {
+    const ctx = context({
+      'Items/m1': () => Promise.reject(new Response(null, { status: 404 })),
+      'Items/m2': () => new Promise(() => undefined),
+    });
+    const { rerender } = render(<App route={{ kind: 'details', id: 'm1' }} ctx={ctx} />);
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Not found' })).toBeInTheDocument();
+    expect(await screen.findByRole('navigation', { name: 'Main' })).toBeInTheDocument();
+
+    // The next details page draws its own header again.
+    rerender(<App route={{ kind: 'details', id: 'm2' }} ctx={ctx} />);
+    await waitFor(() => expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull());
   });
 
   it("moves focus to the next page's heading", () => {

@@ -72,3 +72,24 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* A page Lumen couldn't show (views/pageError.tsx): centred under the nav. */
+.lmn-page-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+  padding: calc(var(--lmn-nav-h) + 24px) var(--lmn-gutter) 48px;
+  text-align: center;
+}
+.lmn-page-error__title {
+  margin: 0;
+  color: var(--lmn-text);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.lmn-page-error .lmn-browse__error {
+  padding: 8px 0 0;
+}
