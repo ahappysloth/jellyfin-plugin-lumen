@@ -5,6 +5,7 @@
  */
 import {
   API_CLIENT_METHODS,
+  APP_FEATURES,
   BACK_KEY_CODES,
   LAYOUT_CLASSES,
   LAYOUT_SETTING_KEY,
@@ -17,7 +18,9 @@ import {
   SETTINGS_ROUTES,
   STOCK_ROUTES,
   STOCK_SELECTORS,
+  WEB_CONFIG,
 } from './registry';
+import { webPluginDeps } from './webPlugin';
 
 export interface AjaxRequest {
   type: 'GET' | 'POST' | 'DELETE';
@@ -249,6 +252,8 @@ export const HOME_HASH = `#${STOCK_ROUTES.home}`;
 export const FAVORITES_HASH = `#${STOCK_ROUTES.home}?tab=1`;
 export const SEARCH_HASH = `#${STOCK_ROUTES.search}`;
 export const PREFERENCES_HASH = `#${STOCK_ROUTES.preferencesMenu}`;
+/** Lumen's watch history: a page jellyfin-web doesn't have, so it rides on home (PIGGY_BACKED_PARAMS). */
+export const HISTORY_HASH = `#${STOCK_ROUTES.home}?${PIGGY_BACKED_PARAMS.lumenPage}=history`;
 
 /** The server's display name for the nav, or null. */
 export async function getServerName(client: JellyfinApiClient): Promise<string | null> {
@@ -287,7 +292,7 @@ export function setFavicon(svg: string, doc: Document = document): void {
   }
 }
 
-type DashboardWindow = Window & { Dashboard?: { logout?: () => void } };
+type DashboardWindow = Window & { Dashboard?: { logout?: () => void; selectServer?: () => void } };
 
 /** True when jellyfin-web exposes its sign-out (window.Dashboard.logout, all 10.9+ releases). */
 export function canSignOut(win: Window = window): boolean {
@@ -297,6 +302,82 @@ export function canSignOut(win: Window = window): boolean {
 /** Signs out through jellyfin-web, which clears credentials and shows the login (or server select) page. */
 export function signOut(win: Window = window): void {
   (win as DashboardWindow).Dashboard?.logout?.();
+}
+
+/** True when jellyfin-web exposes Select server (window.Dashboard.selectServer). */
+export function canSelectServer(win: Window = window): boolean {
+  return typeof (win as DashboardWindow).Dashboard?.selectServer === 'function';
+}
+
+/** jellyfin-web's Select server: the app's own server list, or its `#/selectserver` page in a browser. */
+export function selectServer(win: Window = window): void {
+  (win as DashboardWindow).Dashboard?.selectServer?.();
+}
+
+export type AppFeature = (typeof APP_FEATURES)[keyof typeof APP_FEATURES];
+
+interface NativeShell {
+  AppHost?: { supports?: (feature: string) => boolean; exit?: () => void };
+  openClientSettings?: () => void;
+  openDownloadManager?: () => void;
+}
+const nativeShell = (win: Window): NativeShell | undefined =>
+  (win as Window & { NativeShell?: NativeShell }).NativeShell;
+
+/** jellyfin-web's own answer (appHost.supports, from Lumen's web plugin), or undefined without the plugin. */
+function appHostSupports(feature: AppFeature, win: Window): boolean | undefined {
+  const appHost = webPluginDeps(win)?.appHost as { supports?: (feature: string) => unknown } | undefined;
+  if (typeof appHost?.supports !== 'function') return undefined;
+  try {
+    return appHost.supports(feature) === true;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Whether the app around jellyfin-web offers `feature`, as jellyfin-web's user menu decides it: its appHost when
+ * Lumen's web plugin has it; otherwise the official app's NativeShell (false in a browser).
+ */
+export function appSupports(feature: AppFeature, win: Window = window): boolean {
+  const known = appHostSupports(feature, win);
+  if (known !== undefined) return known;
+  try {
+    return nativeShell(win)?.AppHost?.supports?.(feature) === true;
+  } catch {
+    return false;
+  }
+}
+
+/** The app's own screens and actions, offered only where appSupports() says so (as jellyfin-web's user menu does). */
+export const appActions = {
+  exit: (win: Window = window) => nativeShell(win)?.AppHost?.exit?.(),
+  clientSettings: (win: Window = window) => nativeShell(win)?.openClientSettings?.(),
+  downloadManager: (win: Window = window) => nativeShell(win)?.openDownloadManager?.(),
+};
+
+let multiServer: Promise<boolean> | null = null;
+
+/**
+ * Whether this client can switch servers (jellyfin-web's AppFeature.MultiServer): jellyfin-web's appHost says so, or
+ * without it, the app does, or in a browser the web config turns it on (fetched once per page load; failing, it's
+ * off, as in jellyfin-web).
+ */
+export function supportsMultiServer(win: Window = window): Promise<boolean> {
+  const known = appHostSupports(APP_FEATURES.multiServer, win);
+  if (known !== undefined) return Promise.resolve(known);
+  if (nativeShell(win)) return Promise.resolve(appSupports(APP_FEATURES.multiServer, win));
+  multiServer ??= win
+    .fetch(WEB_CONFIG.file)
+    .then((r): Promise<Record<string, unknown>> | object => (r.ok ? r.json() : {}))
+    .then((config) => (config as Record<string, unknown>)[WEB_CONFIG.multiServer] === true)
+    .catch(() => false);
+  return multiServer;
+}
+
+/** For tests: forget the fetched web config. */
+export function resetMultiServer(): void {
+  multiServer = null;
 }
 
 /** jellyfin-web's settings pages, linked from Lumen's profile page. */

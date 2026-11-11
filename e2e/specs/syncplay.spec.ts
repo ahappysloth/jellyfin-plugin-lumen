@@ -2,6 +2,7 @@ import { type Browser, expect, type Page, test } from '@playwright/test';
 import { ADMIN, api, KID, loadState } from '../support/api';
 import { CANNOT_PLAY, cannotPlay } from '../support/browsers';
 import { login } from '../support/login';
+import { accountButton, accountMenu } from '../support/nav';
 
 /** A second viewer: its own browser context, so its own device id and Jellyfin session. */
 async function viewer(browser: Browser, user: { name: string; password: string }): Promise<Page> {
@@ -12,10 +13,17 @@ async function viewer(browser: Browser, user: { name: string; password: string }
   return page;
 }
 
-const watchTogether = (page: Page) =>
-  page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: /^Watch together/ });
+/** The account button: it says whether the user is in a group ("Account: In admin's group"). */
+const account = (page: Page) => accountButton(page);
 
-// (Phones also have no Watch together button in the nav, which this spec drives.)
+/** Opens Watch together from the account menu. */
+async function watchTogether(page: Page): Promise<void> {
+  await accountButton(page).click();
+  await accountMenu(page).getByRole('menuitem', { name: /^Watch together/ }).click();
+  await expect(page.getByRole('menu', { name: 'Watch together' })).toBeVisible();
+}
+
+// (Phones have Watch together on the profile page instead of the account menu this spec drives.)
 test.skip(cannotPlay, CANNOT_PLAY);
 
 const opened: Page[] = [];
@@ -49,11 +57,10 @@ test('two viewers watch together: create, join, leave and rejoin, play for both'
   const a = await viewer(browser, ADMIN);
   const b = await viewer(browser, KID);
 
-  // A creates a group; the button lights up.
-  await watchTogether(a).click();
-  await expect(a.getByRole('menu', { name: 'Watch together' })).toBeVisible();
+  // A creates a group; the account button says so.
+  await watchTogether(a);
   await a.getByRole('menuitem', { name: 'New group' }).click();
-  await expect(watchTogether(a)).toHaveAccessibleName("Watch together: In admin's group", { timeout: 15_000 });
+  await expect(account(a)).toHaveAccessibleName("Account: In admin's group", { timeout: 15_000 });
   // jellyfin-web's "SyncPlay enabled" toast drops in below the nav, never over its tabs.
   const toast = a.locator('.toastContainer .toast.toastVisible').first();
   await expect(toast).toBeVisible();
@@ -62,26 +69,26 @@ test('two viewers watch together: create, join, leave and rejoin, play for both'
   expect((await toast.boundingBox())!.y).toBeGreaterThanOrEqual(pill.y + pill.height);
 
   // B sees A's group, with who's in it, and joins.
-  await watchTogether(b).click();
+  await watchTogether(b);
   const join = b.getByRole('menuitem', { name: /admin's group/ });
   await expect(join).toContainText('admin');
   await join.click();
-  await expect(watchTogether(b)).toHaveAccessibleName("Watch together: In admin's group", { timeout: 15_000 });
+  await expect(account(b)).toHaveAccessibleName("Account: In admin's group", { timeout: 15_000 });
 
   // A sees both members.
   await expect(async () => {
-    await watchTogether(a).click();
+    await watchTogether(a);
     await expect(a.getByRole('menu').getByText('admin, kid')).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 15_000 });
   await a.keyboard.press('Escape');
 
   // B leaves (the button goes back to normal), then rejoins.
-  await watchTogether(b).click();
+  await watchTogether(b);
   await b.getByRole('menuitem', { name: 'Leave group' }).click();
-  await expect(watchTogether(b)).toHaveAccessibleName('Watch together', { timeout: 15_000 });
-  await watchTogether(b).click();
+  await expect(account(b)).toHaveAccessibleName('Account', { timeout: 15_000 });
+  await watchTogether(b);
   await b.getByRole('menuitem', { name: /admin's group/ }).click();
-  await expect(watchTogether(b)).toHaveAccessibleName("Watch together: In admin's group", { timeout: 15_000 });
+  await expect(account(b)).toHaveAccessibleName("Account: In admin's group", { timeout: 15_000 });
 
   // Play in A starts for both, and A's player says who it's with. (While the group plays, leaving the player pulls
   // a member back in: that's jellyfin-web's SyncPlay, so the test ends here and cleanup leaves the group.)

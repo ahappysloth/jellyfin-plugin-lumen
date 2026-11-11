@@ -5,6 +5,8 @@ export interface UserData {
   Played?: boolean;
   IsFavorite?: boolean;
   UnplayedItemCount?: number;
+  /** When the user last played it (ISO); absent if never. */
+  LastPlayedDate?: string;
 }
 
 export interface MediaStream {

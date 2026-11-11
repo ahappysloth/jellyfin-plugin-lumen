@@ -93,7 +93,7 @@
     color 0.2s,
     background-color 0.2s;
 }
-/* Buttons in the pill (Watch together) look like its links: no browser button chrome. */
+/* Buttons in the pill (the account menu's) look like its links: no browser button chrome. */
 button.lmn-nav__item {
   border: 0;
   background: transparent;
@@ -250,7 +250,101 @@ button.lmn-nav__item {
   }
 }
 
-/* Watch together: lit while in a SyncPlay group */
-.lmn-nav__item.is-syncplay {
-  color: var(--lmn-accent);
+/* ---- Account menu (views/account/AccountMenu.tsx) -------------------------------------------------------------- */
+.lmn-account {
+  position: relative;
+  display: flex;
+}
+/* In a Watch together group: a dot on the account button (the group is in its menu). */
+.lmn-account__badge {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--lmn-surface);
+  border-radius: 50%;
+  background: var(--lmn-accent);
+}
+.lmn-account .lmn-nav__item--icon {
+  position: relative;
+}
+/* Hangs from the button, right edges lined up with the pill's. The context menu's look, not its fixed position. */
+.lmn-menu.lmn-account__panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: -6px;
+  width: 260px;
+  max-height: calc(100vh - var(--lmn-nav-h) - 16px);
+  overflow-y: auto;
+  transform-origin: top right;
+}
+/* Fills the gap above the menu, so the pointer crossing from the button never leaves the hover area. */
+.lmn-account__panel::before {
+  content: '';
+  position: absolute;
+  top: -12px;
+  right: 0;
+  left: 0;
+  height: 12px;
+}
+.lmn-account__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--lmn-line-subtle);
+  color: #fff;
+}
+.lmn-account__avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--lmn-fill-3);
+  color: var(--lmn-text-2);
+  font-size: 15px;
+  font-weight: 700;
+}
+.lmn-account__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lmn-account__menu {
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+.lmn-account__menu .lmn-menu__item {
+  flex: none;
+  color: var(--lmn-text-2);
+  text-decoration: none;
+}
+/* The pointer's item lights up as the keyboard's does; links keep the menu's look. */
+.lmn-account__menu .lmn-menu__item:hover {
+  background: var(--lmn-fill-3);
+  color: #fff;
+}
+.lmn-account__menu .lmn-menu__item .lmn-menu__text {
+  padding: 4px 0;
+}
+.lmn-account__menu .lmn-menu__item--tall {
+  height: auto;
+  min-height: 38px;
+}
+.lmn-menu__separator {
+  flex: none;
+  height: 1px;
+  margin: 5px 6px;
+  background: var(--lmn-line-subtle);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lmn-menu.lmn-account__panel {
+    animation: none;
+  }
 }

@@ -253,6 +253,25 @@ export class LumenApi {
     return this.get(`Users/${this.userId()}`);
   }
 
+  /** Whether the server has Quick Connect switched on (jellyfin-web hides its link when it's off). */
+  async getQuickConnectEnabled(): Promise<boolean> {
+    return (await this.get<unknown>('QuickConnect/Enabled')) === true;
+  }
+
+  /**
+   * Movies and episodes the user has played, most recent first. Jellyfin has no filter for "ever played" (Played
+   * misses what was only started), so this sorts by last played and the caller stops at the first title never
+   * played: those sort last.
+   */
+  getHistory(page: Pick<BrowseQuery, 'startIndex' | 'limit'>): Promise<ItemsResult> {
+    return this.getBrowseItems({
+      includeItemTypes: 'Movie,Episode',
+      sortBy: 'DatePlayed',
+      sortOrder: 'Descending',
+      ...page,
+    });
+  }
+
   /** Genres that have titles of the given types in a library, A to Z. */
   getStudios(parentId: string, includeItemTypes: string): Promise<ItemsResult> {
     return this.get('Studios', () => ({

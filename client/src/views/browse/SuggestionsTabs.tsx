@@ -128,8 +128,8 @@ export function SuggestionsTab({
   );
 }
 
-/** The local calendar day of an ISO date, as YYYY-MM-DD (for grouping). */
-const dayKey = (date: Date): string =>
+/** The local calendar day of a date, as YYYY-MM-DD (for grouping). */
+export const dayKey = (date: Date): string =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 /** Upcoming episodes grouped by local air day, soonest first: "Today", "Tomorrow", then "Fri, Nov 13". */

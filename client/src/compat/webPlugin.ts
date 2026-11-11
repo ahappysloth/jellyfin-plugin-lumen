@@ -29,6 +29,8 @@ export interface WebPluginDeps {
   globalize?: unknown;
   ServerConnections?: unknown;
   events?: unknown;
+  /** components/apphost.js: compat/jellyfin.ts asks its `supports()` what the app offers (Select server, Exit…). */
+  appHost?: unknown;
 }
 
 export interface WebPluginSlot {

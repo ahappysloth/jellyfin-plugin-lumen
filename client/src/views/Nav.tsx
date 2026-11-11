@@ -15,7 +15,7 @@ import { LumenMark } from '../components/LumenMark';
 import { strings } from '../strings';
 import { rememberVeilName } from '../veil/veil';
 import { useSyncPlayState } from './syncplay/syncPlayState';
-import { WatchTogetherButton } from './syncplay/WatchTogether';
+import { AccountMenu } from './account/AccountMenu';
 import type { ViewContext } from './context';
 
 const MAX_LIBRARIES = 4;
@@ -53,7 +53,10 @@ async function loadNavData(ctx: ViewContext): Promise<NavData> {
 
 /**
  * Lumen's floating header on its own pages: the server name on the left, and centred, a pill with Home, the user's
- * libraries, Favorites, search and settings. jellyfin-web's app bar is hidden while it shows (see lumen.css).
+ * libraries, Favorites, search and the account menu. jellyfin-web's app bar is hidden while it shows (see lumen.css).
+ *
+ * Phones get a tab bar instead, whose Me tab opens the profile page: it lists everything the account menu does, as a
+ * full page that suits a touch screen better than a menu hanging from the top corner.
  */
 export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavActive }) {
   const [data, setData] = useState<NavData | null>(() => cache.get(ctx.userId) ?? null);
@@ -121,15 +124,7 @@ export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavAc
         >
           <Icon name="search" size={18} />
         </a>
-        <WatchTogetherButton ctx={ctx} state={syncPlay} class="lmn-nav__item lmn-nav__item--icon" />
-        <a
-          class={`lmn-nav__item lmn-nav__item--icon${active === 'profile' ? ' is-active' : ''}`}
-          href={PREFERENCES_HASH}
-          aria-label={strings.profile}
-          aria-current={active === 'profile' ? 'page' : undefined}
-        >
-          <Icon name="user" size={18} />
-        </a>
+        <AccountMenu ctx={ctx} syncPlay={syncPlay} current={active === 'profile'} />
       </nav>
       {/* Phones: search sits alone at the top right; the destinations move to the tab bar below. */}
       <a

@@ -50,6 +50,7 @@ const ROUTE_KINDS: TakeoverRoute['kind'][] = [
   'genre',
   'search',
   'profile',
+  'history',
   'title',
   'settings',
   'player',
