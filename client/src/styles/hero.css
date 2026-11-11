@@ -137,8 +137,9 @@
   display: flex;
   align-items: center;
 }
-/* Each dash is a 24px-high button, 10px wider than the bar it draws (::before): a target big enough to hit
-   (WCAG 2.5.8), with the bars 10px apart. */
+/* Each dash is a 24px-high button around the pill it draws: a target big enough to hit (WCAG 2.5.8), 24px wide for a
+   slide that isn't showing (an 8px dot) and wider for the current one, whose empty pill fills from the left over the
+   slide's interval (Hero.tsx sets the duration and pauses it with the timer). */
 .lmn-hero__dash {
   position: relative;
   width: 24px;
@@ -149,29 +150,72 @@
   cursor: pointer;
   transition: width 0.35s var(--lmn-ease);
 }
-.lmn-hero__dash::before {
-  content: '';
+.lmn-hero__pill {
   position: absolute;
-  top: 11px;
-  right: 5px;
-  left: 5px;
-  height: 3px;
-  border-radius: 2px;
+  top: 8px;
+  right: 8px;
+  left: 8px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 4px;
   background: var(--lmn-text-faint);
+  /* Over a bright backdrop the dots and the pill's empty part would vanish without an edge. */
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
   transition: background-color 0.35s;
+}
+.lmn-hero__dash:hover .lmn-hero__pill {
+  background: var(--lmn-text-dim);
+}
+.lmn-hero__dash.is-active {
+  width: 56px;
+}
+.lmn-hero__dash.is-active .lmn-hero__pill {
+  right: 6px;
+  left: 6px;
+  background: var(--lmn-text-faint);
+}
+.lmn-hero__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: #fff;
+  transform-origin: left center;
+  /* The duration is the slide's interval, set inline. `both` holds it empty until it runs and full once done. */
+  animation: lmn-hero-fill 8s linear both;
+}
+.lmn-hero__pager.is-paused .lmn-hero__fill {
+  animation-play-state: paused;
+}
+@keyframes lmn-hero-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
 }
 .lmn-hero__dash:focus-visible {
   outline: none;
 }
-.lmn-hero__dash:focus-visible::before {
+.lmn-hero__dash:focus-visible .lmn-hero__pill {
   outline: 2px solid var(--lmn-focus);
   outline-offset: 3px;
 }
-.lmn-hero__dash.is-active {
-  width: 38px;
+/* Read from across the room: a longer, thicker pill. */
+.layout-tv .lmn-hero__dash.is-active {
+  width: 72px;
 }
-.lmn-hero__dash.is-active::before {
-  background: #fff;
+.layout-tv .lmn-hero__pill {
+  top: 7px;
+  height: 10px;
+  border-radius: 5px;
+}
+/* TV browsers (Chromium 68) have no :focus-visible, and the D-pad's focus must always show (tv.css). */
+.layout-tv .lmn-hero__dash:focus .lmn-hero__pill {
+  outline: 3px solid var(--lmn-focus);
+  outline-offset: 4px;
 }
 
 /* Small screens (official mobile apps). */
@@ -183,10 +227,10 @@
   .lmn-hero__content {
     bottom: 56px;
   }
+  /* Bottom right, under the slide's buttons (--lmn-gutter clears a notch in landscape). */
   .lmn-hero__controls {
-    right: 50%;
-    bottom: 22px;
-    transform: translateX(50%);
+    bottom: 18px;
+    gap: 8px;
   }
   .lmn-hero__controls .lmn-icon-button {
     width: 30px;
@@ -199,7 +243,8 @@
   .lmn-hero__video,
   .lmn-hero__content,
   .lmn-hero__dash,
-  .lmn-hero__dash::before {
+  .lmn-hero__pill,
+  .lmn-hero__fill {
     transition: none;
     animation: none;
   }

@@ -202,6 +202,119 @@ describe('Hero', () => {
     expect(screen.getByRole('img', { name: 'Alpha' })).toBeInTheDocument();
   });
 
+  describe('pager', () => {
+    const tabs = () => screen.getAllByRole('tab');
+    const fills = (container: Element) => [...container.querySelectorAll<HTMLElement>('.lmn-hero__fill')];
+    const pager = (container: Element) => container.querySelector('.lmn-hero__pager')!;
+
+    it("widens the current slide's pill and fills it over the slide's interval", () => {
+      const { container } = renderHero();
+
+      expect(tabs()[0]).toHaveClass('is-active');
+      expect(tabs()[0]).toHaveAttribute('aria-selected', 'true');
+      expect(tabs()[1]).not.toHaveClass('is-active');
+      expect(tabs()[1]).toHaveAttribute('aria-selected', 'false');
+      // One fill, in the current pill, running for as long as the timer.
+      expect(fills(container)).toHaveLength(1);
+      expect(tabs()[0]).toContainElement(fills(container)[0]!);
+      expect(fills(container)[0]!.style.animationDuration).toBe('8s');
+      expect(pager(container)).not.toHaveClass('is-paused');
+
+      advance(8000 + SLIDE);
+      expect(tabs()[1]).toHaveClass('is-active');
+      expect(fills(container)).toHaveLength(1);
+      expect(tabs()[1]).toContainElement(fills(container)[0]!);
+    });
+
+    it('holds the fill still while the next slide slides in', () => {
+      const { container } = renderHero();
+
+      advance(8000);
+      expect(tabs()[1]).toHaveClass('is-active'); // the pill moves on as the slide starts to
+      expect(pager(container)).toHaveClass('is-paused');
+      advance(SLIDE);
+      expect(pager(container)).not.toHaveClass('is-paused');
+    });
+
+    it('pauses the fill and the timer together, and resumes both where they were', () => {
+      const { container } = renderHero();
+
+      advance(5000);
+      fireEvent.click(screen.getByRole('button', { name: 'Pause slideshow' }));
+      expect(pager(container)).toHaveClass('is-paused');
+      advance(30000);
+      expect(screen.getByRole('img', { name: 'Alpha' })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Play slideshow' }));
+      expect(pager(container)).not.toHaveClass('is-paused');
+      advance(2900);
+      expect(screen.getByRole('img', { name: 'Alpha' })).toBeInTheDocument();
+      advance(100 + SLIDE); // the 3 s the fill had left, not a fresh 8
+      expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument();
+    });
+
+    it('pauses while the user navigates inside the hero with the keyboard', () => {
+      const { container } = renderHero();
+      fireEvent.keyDown(container.querySelector('.lmn-hero')!, { key: 'Tab' });
+      expect(pager(container)).toHaveClass('is-paused');
+    });
+
+    it('pauses while the page is in the background', () => {
+      const { container } = renderHero();
+      const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(pager(container)).toHaveClass('is-paused');
+      advance(20000);
+      expect(screen.getByRole('img', { name: 'Alpha' })).toBeInTheDocument();
+
+      hidden.mockReturnValue(false);
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(pager(container)).not.toHaveClass('is-paused');
+      advance(8000 + SLIDE);
+      expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument();
+      hidden.mockRestore();
+    });
+
+    it('goes to the slide whose pill is clicked, and starts its fill and timer over', () => {
+      const { container } = renderHero();
+
+      advance(6000);
+      fireEvent.click(tabs()[1]!);
+      expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument();
+      expect(tabs()[1]).toHaveClass('is-active');
+      expect(tabs()[1]).toContainElement(fills(container)[0]!);
+
+      advance(6000); // the old timer would have flipped at 8 s
+      expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument();
+      advance(2000 + SLIDE);
+      expect(screen.getByRole('img', { name: 'Alpha' })).toBeInTheDocument();
+    });
+
+    it('restarts the fill on a slide that comes round again', () => {
+      const { container } = renderHero();
+      const first = fills(container)[0];
+
+      advance(8000 + SLIDE);
+      advance(8000 + SLIDE);
+      expect(tabs()[0]).toHaveClass('is-active');
+      expect(fills(container)[0]).not.toBe(first); // a new element: its animation runs from empty
+    });
+
+    it('names each pill after its title and follows the arrow keys', () => {
+      renderHero();
+      expect(tabs().map((tab) => tab.getAttribute('aria-label'))).toEqual(['Show Alpha', 'Show Beta']);
+
+      fireEvent.keyDown(tabs()[0]!, { key: 'ArrowRight' });
+      expect(tabs()[1]).toHaveAttribute('aria-selected', 'true');
+      expect(tabs()[1]).toHaveAttribute('tabindex', '0');
+      expect(tabs()[0]).toHaveAttribute('tabindex', '-1');
+    });
+  });
+
   const swipe = (el: Element, dx: number) => {
     fireEvent.pointerDown(el, { pointerId: 1, pointerType: 'touch', clientX: 300, clientY: 100 });
     fireEvent.pointerMove(el, { pointerId: 1, pointerType: 'touch', clientX: 300 + dx / 2, clientY: 102 });
