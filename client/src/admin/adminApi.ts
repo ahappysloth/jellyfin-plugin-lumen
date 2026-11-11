@@ -46,6 +46,7 @@ export interface LumenConfig {
   HeroIntervalSeconds: number;
   TrailerPreview: boolean;
   TrailerDelaySeconds: number;
+  HeroWaitForTrailer: boolean;
   Sections: SectionDef[];
   RequestsEnabled?: boolean;
   SeerrUrl?: string | null;

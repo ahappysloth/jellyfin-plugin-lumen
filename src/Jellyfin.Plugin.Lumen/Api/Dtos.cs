@@ -28,6 +28,8 @@ public sealed class ClientConfigDto
 
     public int TrailerDelaySeconds { get; init; }
 
+    public bool HeroWaitForTrailer { get; init; }
+
     public string BuildHash { get; init; } = string.Empty;
 
     public static ClientConfigDto From(PluginConfiguration config, string buildHash) => new()
@@ -42,6 +44,7 @@ public sealed class ClientConfigDto
         HeroIntervalSeconds = config.HeroIntervalSeconds,
         TrailerPreview = config.TrailerPreview,
         TrailerDelaySeconds = config.TrailerDelaySeconds,
+        HeroWaitForTrailer = config.HeroWaitForTrailer,
         BuildHash = buildHash,
     };
 }

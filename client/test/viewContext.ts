@@ -15,6 +15,7 @@ export const testConfig: ClientConfig = {
   HeroIntervalSeconds: 8,
   TrailerPreview: false,
   TrailerDelaySeconds: 4,
+  HeroWaitForTrailer: false,
   BuildHash: 'h',
 };
 

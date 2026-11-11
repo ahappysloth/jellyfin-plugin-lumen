@@ -14,6 +14,7 @@ const config: ClientConfig = {
   HeroIntervalSeconds: 8,
   TrailerPreview: true,
   TrailerDelaySeconds: 4,
+  HeroWaitForTrailer: false,
   BuildHash: 'h',
 };
 

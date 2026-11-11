@@ -77,6 +77,21 @@ public class ConfigMigratorTests
         Assert.Equal(8, config.HeroIntervalSeconds);
         Assert.True(config.TrailerPreview);
         Assert.Equal(4, config.TrailerDelaySeconds);
+        Assert.False(config.HeroWaitForTrailer);
+    }
+
+    [Fact]
+    public void ConfigSavedBeforeHeroWaitForTrailer_ReadsItAsOff()
+    {
+        // Jellyfin stores the configuration as XML; one written by an older Lumen has no element for the setting.
+        var xml = new System.Xml.Serialization.XmlSerializer(typeof(PluginConfiguration));
+        using var text = new StringReader("<PluginConfiguration><HeroIntervalSeconds>12</HeroIntervalSeconds><TrailerPreview>true</TrailerPreview></PluginConfiguration>");
+        using var reader = System.Xml.XmlReader.Create(text, new System.Xml.XmlReaderSettings { DtdProcessing = System.Xml.DtdProcessing.Prohibit, XmlResolver = null });
+
+        var config = (PluginConfiguration)xml.Deserialize(reader)!;
+
+        Assert.Equal(12, config.HeroIntervalSeconds);
+        Assert.False(config.HeroWaitForTrailer);
     }
 
     [Fact]

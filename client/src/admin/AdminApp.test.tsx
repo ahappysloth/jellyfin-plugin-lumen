@@ -40,6 +40,7 @@ function config(): LumenConfig {
     HeroIntervalSeconds: 8,
     TrailerPreview: true,
     TrailerDelaySeconds: 4,
+    HeroWaitForTrailer: false,
     Sections: [
       { Id: 's1', Type: 'ContinueWatching', Enabled: true, Title: null, Params: [] },
       { Id: 's2', Type: 'Genre', Enabled: true, Title: null, Params: [{ Name: 'genreCount', Value: '3' }] },
@@ -163,6 +164,23 @@ describe('AdminApp', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(api.saveConfig).toHaveBeenCalledTimes(2));
     expect(vi.mocked(api.saveConfig).mock.calls[1]![0].SeerrApiKey).toBe('new-key');
+  });
+
+  it('saves letting hero trailers finish, offered only while trailer previews are on', async () => {
+    const api = fakeApi();
+    render(<AdminApp api={api} />);
+
+    const toggle = await screen.findByRole('switch', { name: /Let trailers finish before the next slide/ });
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole('switch', { name: /Play muted trailer previews/ }));
+    expect(screen.queryByRole('switch', { name: /Let trailers finish/ })).toBeNull();
+    fireEvent.click(screen.getByRole('switch', { name: /Play muted trailer previews/ }));
+    expect(screen.getByRole('switch', { name: /Let trailers finish/ })).toBeChecked();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(api.saveConfig).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(api.saveConfig).mock.calls[0]![0].HeroWaitForTrailer).toBe(true);
   });
 
   it("saves the web app speed-up, on when the server doesn't say", async () => {
