@@ -139,19 +139,20 @@ export function ConfirmHost() {
 }
 
 /**
- * Keeps the page behind from scrolling (a wheel or a swipe over the backdrop) and gives back exactly the inline styles
- * <body> had. Where a classic scrollbar goes away, <body> keeps its width so the page doesn't shift sideways.
- * jellyfin-web's own pages override <body>'s overflow with !important (stock-skin.css), and win there.
+ * Keeps the page behind from scrolling (a wheel or a swipe over the backdrop) and gives back exactly the inline styles it
+ * changed. Where a classic scrollbar goes away, the root keeps its gutter, so Lumen's pages (positioned against the
+ * viewport, not <body>) don't widen. jellyfin-web's own pages override <body>'s overflow with !important
+ * (stock-skin.css), and win there.
  */
 function lockScroll(): () => void {
   const { body, documentElement } = document;
-  const { overflow, paddingRight } = body.style;
-  const scrollbar = window.innerWidth - documentElement.clientWidth;
+  const { overflow } = body.style;
+  const gutter = documentElement.style.getPropertyValue('scrollbar-gutter');
+  if (window.innerWidth > documentElement.clientWidth)
+    documentElement.style.setProperty('scrollbar-gutter', 'stable');
   body.style.overflow = 'hidden';
-  if (scrollbar > 0)
-    body.style.paddingRight = `${parseFloat(getComputedStyle(body).paddingRight) + scrollbar}px`;
   return () => {
     body.style.overflow = overflow;
-    body.style.paddingRight = paddingRight;
+    documentElement.style.setProperty('scrollbar-gutter', gutter);
   };
 }
