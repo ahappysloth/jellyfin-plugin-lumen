@@ -39,6 +39,14 @@ describe('safe-area insets', () => {
     expect(gutter).toMatch(RIGHT);
   });
 
+  it("lift jellyfin-web's footer, not the now-playing bar inside it, onto the phone tab bar and its inset", () => {
+    // 12.x positions .appfooter (fixed, padded for the home indicator); .nowPlayingBar inside it isn't positioned.
+    const footer = rule(navCss, '  html.lmn-has-tabbar .appfooter', '@media (max-width: 909.98px)');
+    expect(footer).toMatch(/bottom: calc\(64px \+ env\(safe-area-inset-bottom\)\) !important/);
+    expect(footer).toMatch(/padding-bottom: 0 !important/);
+    expect(navCss).not.toContain('.nowPlayingBar');
+  });
+
   it('pad the phone tab bar on both sides', () => {
     const tabbar = rule(navCss, '  .lmn-tabbar', '@media (max-width: 909.98px)');
     expect(tabbar).toMatch(LEFT);

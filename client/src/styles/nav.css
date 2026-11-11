@@ -206,12 +206,21 @@ button.lmn-nav__item {
     padding-bottom: calc(96px + 64px + env(safe-area-inset-bottom));
   }
   html.lmn-has-tabbar.lmn-skin-settings .page {
-    padding-bottom: 96px !important;
-    padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important;
+    padding-bottom: 160px !important;
+    padding-bottom: calc(96px + 64px + env(safe-area-inset-bottom)) !important;
   }
-  html.lmn-has-tabbar .nowPlayingBar {
+  /* jellyfin-web's now-playing bar isn't fixed itself: it sits in the fixed .appfooter (12.x), which pads itself for
+     the home indicator. Lift the footer onto the tab bar (64px tall plus that same inset, which the tab bar pads for)
+     and drop its own padding. */
+  html.lmn-has-tabbar .appfooter {
     bottom: 64px !important;
     bottom: calc(64px + env(safe-area-inset-bottom)) !important;
+    padding-bottom: 0 !important;
+  }
+  /* Lumen's own toasts float over both. */
+  html.lmn-has-tabbar .lmn-toast-host {
+    bottom: 140px;
+    bottom: calc(140px + env(safe-area-inset-bottom));
   }
 }
 
