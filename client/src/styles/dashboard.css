@@ -770,6 +770,8 @@ html.lmn-skin-dashboard .lmn-restart {
   right: var(--lmn-restart-right, 0px);
   left: var(--lmn-restart-left, 0px);
   padding: 8px 16px 0;
+  /* Opaque from the app bar down, so the page scrolling under it doesn't show in the gap above the card. */
+  background: var(--lmn-bg);
   opacity: 0;
   transform: translateY(-100%);
   transition:

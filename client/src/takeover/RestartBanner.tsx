@@ -25,6 +25,11 @@ const SLIDE_MS = 250;
 /** The gap under the app bar, and so the room the page makes beyond the banner's height. */
 const GAP_PX = 8;
 const DETAILS_TIMEOUT_MS = 5000;
+/**
+ * "Restart now" takes the place of "Restart Jellyfin", so the second click of a double-click, a repeated Enter or a
+ * remote's OK pressed twice would land on it: clicks this soon after the question appears are ignored.
+ */
+const CONFIRM_GUARD_MS = 500;
 
 export interface PluginChange {
   name: string;
@@ -50,7 +55,8 @@ export function pluginChanges(plugins: PluginInfo[], removed: string[]): PluginC
   };
   for (const p of plugins) {
     if (p.Status === 'Restart') {
-      add(p.Name, plugins.some((o) => o !== p && o.Id === p.Id) ? 'update' : 'install');
+      // Another version of it listed too (12.4 may list the new one twice, so a different version, not just another entry).
+      add(p.Name, plugins.some((o) => o.Id === p.Id && o.Version !== p.Version) ? 'update' : 'install');
     } else if (p.Status === 'Deleted') {
       add(p.Name, 'remove');
     }
@@ -166,7 +172,24 @@ export function RestartBanner({
     if (hadFocus.current || root.current?.contains(document.activeElement)) primary.current?.focus();
   }, [step.kind]);
 
+  // Unmounted (the page left the admin pages, or the banner was dismissed): a restart in progress doesn't reload
+  // whatever page is showing by then.
+  const alive = useRef(true);
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    [],
+  );
+  const askedAt = useRef(0);
+  // Focus was in the banner when Restart now was pressed: if the restart fails, it goes back to the main button.
+  const restartFocus = useRef(false);
+  useEffect(() => {
+    if (step.kind === 'failed' && restartFocus.current) primary.current?.focus();
+  }, [step.kind]);
+
   const ask = (): void => {
+    askedAt.current = Date.now();
     setStep({ kind: 'confirm', playing: null });
     void playingCount(client).then((playing) =>
       setStep((s) => (s.kind === 'confirm' ? { kind: 'confirm', playing } : s)),
@@ -174,6 +197,8 @@ export function RestartBanner({
   };
   const cancel = (): void => setStep({ kind: 'pending' });
   const restart = async (): Promise<void> => {
+    if (Date.now() - askedAt.current < CONFIRM_GUARD_MS) return;
+    restartFocus.current = !!root.current?.contains(document.activeElement);
     setStep({ kind: 'restarting', back: false });
     onRestarting(true);
     try {
@@ -183,7 +208,12 @@ export function RestartBanner({
       setStep({ kind: 'failed', message: "Couldn't restart Jellyfin. Try again in a moment." });
       return;
     }
-    if (await waitForRestart({ serverState: () => serverState(client) }, pollMs, timeoutMs)) {
+    // Gone: answer "down" without asking, so the wait stops polling Jellyfin and ends with false at its deadline.
+    const state = (): ReturnType<typeof serverState> =>
+      alive.current ? serverState(client) : Promise.resolve({ up: false as const });
+    const back = await waitForRestart({ serverState: state }, pollMs, timeoutMs);
+    if (!alive.current) return;
+    if (back) {
       setStep({ kind: 'restarting', back: true });
       reload();
     } else {
@@ -206,9 +236,11 @@ export function RestartBanner({
       <p class="lmn-restart__text">{text}</p>
       {!busy && (
         <div class="lmn-restart__actions">
+          {/* Keyed apart, so the confirm step gets new buttons rather than the same ones with new handlers. */}
           {step.kind === 'confirm' ? (
             <>
               <button
+                key="restart-now"
                 ref={primary}
                 type="button"
                 class="lmn-restart__btn lmn-restart__btn--primary"
@@ -216,13 +248,14 @@ export function RestartBanner({
               >
                 Restart now
               </button>
-              <button type="button" class="lmn-restart__btn" onClick={cancel}>
+              <button key="cancel" type="button" class="lmn-restart__btn" onClick={cancel}>
                 Cancel
               </button>
             </>
           ) : (
             <>
               <button
+                key="restart"
                 ref={primary}
                 type="button"
                 class="lmn-restart__btn lmn-restart__btn--primary"
@@ -231,6 +264,7 @@ export function RestartBanner({
                 Restart Jellyfin
               </button>
               <button
+                key="dismiss"
                 type="button"
                 class="lmn-restart__close"
                 aria-label="Dismiss"
@@ -290,6 +324,15 @@ function liveRegion(doc: Document): HTMLElement {
   return live;
 }
 
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])';
+
+function firstFocusable(doc: Document, outside: Element): HTMLElement | undefined {
+  return Array.from(doc.querySelectorAll<HTMLElement>(FOCUSABLE)).find(
+    (e) => !outside.contains(e) && e.getClientRects().length > 0,
+  );
+}
+
 export interface ShowOptions {
   doc: Document;
   win: Window;
@@ -337,8 +380,11 @@ export async function showRestartBanner({
       client={client}
       message={message}
       onDismiss={() => {
+        const focused = banner.contains(doc.activeElement);
         onDismiss();
         hideRestartBanner(doc);
+        // Keyboard and remote users keep their place: the page's first control rather than <body>.
+        if (focused) firstFocusable(doc, banner)?.focus();
       }}
       onLayout={relayout}
       onRestarting={(on) => {
@@ -383,6 +429,8 @@ export function hideRestartBanner(doc: Document, force = false): void {
     el.remove();
   };
   clearTimeout(removeTimer);
-  if (win && !reducedMotion(win)) removeTimer = setTimeout(remove, SLIDE_MS);
+  // Leaving the admin pages takes the page's admin look (and so the banner's styles) away at once: no slide-out, or
+  // the unstyled banner would push the next page down for a moment.
+  if (win && !force && !reducedMotion(win)) removeTimer = setTimeout(remove, SLIDE_MS);
   else remove();
 }

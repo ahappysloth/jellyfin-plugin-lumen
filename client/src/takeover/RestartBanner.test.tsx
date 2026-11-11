@@ -29,6 +29,13 @@ function fakeClient(routes: Record<string, (request: { type: string }) => unknow
   return { client, ajax };
 }
 
+const realNow = Date.now.bind(Date);
+/** Moves the clock past the guard that stops a double-click from confirming the restart. */
+function pastGuard(): void {
+  vi.spyOn(Date, 'now').mockImplementation(() => realNow() + 1000);
+}
+afterEach(() => vi.restoreAllMocks());
+
 describe('what the banner says', () => {
   it('names the plugins a restart finishes installing, updating and removing', () => {
     const plugins = [
@@ -117,6 +124,7 @@ describe('the restart banner', () => {
     expect(now).toHaveFocus();
     expect(ajax).not.toHaveBeenCalledWith(expect.objectContaining({ url: 'System/Restart' }));
 
+    pastGuard();
     fireEvent.click(now);
     expect(
       await screen.findByText("Restarting Jellyfin… this page reloads when it's back."),
@@ -149,10 +157,47 @@ describe('the restart banner', () => {
     render(<RestartBanner {...p} />);
     fireEvent.click(screen.getByRole('button', { name: 'Restart Jellyfin' }));
     expect(await screen.findByText(confirmText(null))).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Restart now' }));
+    const now = screen.getByRole('button', { name: 'Restart now' });
+    now.focus();
+    pastGuard();
+    fireEvent.click(now);
     expect(await screen.findByText("Couldn't restart Jellyfin. Try again in a moment.")).toBeInTheDocument();
     expect(p.onRestarting).toHaveBeenLastCalledWith(false);
-    expect(screen.getByRole('button', { name: 'Restart Jellyfin' })).toBeInTheDocument();
+    // Focus goes back to the main button, not to the page.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Restart Jellyfin' })).toHaveFocus());
+    expect(p.reload).not.toHaveBeenCalled();
+  });
+
+  it('ignores a double-click: the second click lands on Restart now and must not restart Jellyfin', async () => {
+    const { client, ajax } = fakeClient({ Sessions: () => [], 'System/Restart': () => undefined });
+    render(<RestartBanner {...props(client)} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Restart Jellyfin' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Restart now' }));
+    expect(await screen.findByText(confirmText(0))).toBeInTheDocument();
+    expect(ajax).not.toHaveBeenCalledWith(expect.objectContaining({ url: 'System/Restart' }));
+    expect(screen.getByRole('button', { name: 'Restart now' })).toBeInTheDocument();
+  });
+
+  it("doesn't reload the page when it's taken away during a restart", async () => {
+    let calls = 0;
+    const { client } = fakeClient({
+      Sessions: () => [],
+      'System/Restart': () => undefined,
+      'System/Info': () => {
+        calls++;
+        throw new Error('down');
+      },
+    });
+    const p = props(client);
+    const { unmount } = render(<RestartBanner {...p} pollMs={5} timeoutMs={60} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Restart Jellyfin' }));
+    pastGuard();
+    fireEvent.click(await screen.findByRole('button', { name: 'Restart now' }));
+    await screen.findByText(/Restarting Jellyfin/);
+    unmount();
+    const before = calls;
+    await new Promise((r) => setTimeout(r, 120));
+    expect(calls - before).toBeLessThanOrEqual(1); // at most the check already under way
     expect(p.reload).not.toHaveBeenCalled();
   });
 
@@ -234,12 +279,16 @@ describe('showing and hiding the banner', () => {
     });
     await show(client);
     fireEvent.click(screen.getByRole('button', { name: 'Restart Jellyfin' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Restart now' }));
+    const now = await screen.findByRole('button', { name: 'Restart now' });
+    pastGuard();
+    fireEvent.click(now);
     await screen.findByText(/Restarting Jellyfin/);
     hideRestartBanner(document);
     expect(document.documentElement).toHaveClass(SHOWN_CLASS);
     hideRestartBanner(document, true);
     expect(document.documentElement).not.toHaveClass(SHOWN_CLASS);
+    // Gone at once, not after the slide: the page's admin look (and so the banner's styles) has already gone.
+    expect(document.getElementById(BANNER_ID)).toBeNull();
   });
 
   it('dismisses: tells the watch, and slides away', async () => {
