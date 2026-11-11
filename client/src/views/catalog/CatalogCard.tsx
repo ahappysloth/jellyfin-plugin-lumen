@@ -15,11 +15,14 @@ interface Props {
 
 /**
  * A title from Seerr's catalog in Lumen's card style, with a tab for its request state: an outlined "Request", or a
- * filled "Requested" / "Downloading" / "Partly available".
+ * filled "Requested" / "Downloading" / "Partial" (partly available).
  */
 export function CatalogCard({ item, client, imageToken, variant, onSelect }: Props) {
   const state = useCatalogState(item);
   const label = item.JellyfinItemId ? null : stateLabel(state);
+  // The tab has a phone poster's width at most: one short line ("Partly available" wrapped to two). The card's name
+  // keeps the full label.
+  const tab = state === 'PartlyAvailable' ? strings.partlyAvailableShort : label;
   const file = variant === 'poster' ? (item.Poster ?? item.Backdrop) : (item.Backdrop ?? item.Poster);
   const meta = [item.Year?.toString(), item.MediaType === 'movie' ? strings.movie : strings.show].filter(
     (p): p is string => !!p,
@@ -45,7 +48,7 @@ export function CatalogCard({ item, client, imageToken, variant, onSelect }: Pro
         )}
         {label && (
           <span class={`lmn-card__state${state === 'None' ? '' : ' is-filled'}`} aria-hidden="true">
-            {label}
+            {tab}
           </span>
         )}
       </span>
