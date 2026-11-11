@@ -108,8 +108,18 @@ test('jellyfin-web’s toasts, menus and dialogs wear Lumen’s look on the page
   await page.locator('.manualLoginForm button[type="submit"]').click();
   await expect(page.locator('.toastContainer .toast').first()).toHaveCSS('border-top-left-radius', '999px');
 
-  // A library's stock item list: its header menu and the legacy Sort dialog (styles/stock-components.css).
+  // A library folder's ⋯ menu: jellyfin-web's action sheet, on Lumen's raised surface (styles/stock-components.css).
   await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${loadState().libraries.movies}`);
+  await page.locator('#itemDetailPage:not(.hide) .btnMoreCommands').first().click();
+  const sheet = page.locator('.actionSheet');
+  await expect(sheet).toHaveCSS('background-color', 'rgba(28, 28, 28, 0.97)');
+  await expect(sheet).toHaveCSS('border-top-left-radius', '14px');
+  // A click beside it closes it (jellyfin-web's legacy dialogs ignore Escape outside the TV layout).
+  await page.locator('.dialogContainer').click({ position: { x: 5, y: 5 } });
+  await expect(sheet).toHaveCount(0);
+
+  // A library's stock item list: its header menu and the legacy Sort dialog.
   await page.goto(`/web/#/list?parentId=${loadState().libraries.movies}`);
   await page.getByRole('button', { name: 'User Menu' }).click();
   const menu = page.locator('.MuiMenu-paper', { hasText: 'Sign Out' });

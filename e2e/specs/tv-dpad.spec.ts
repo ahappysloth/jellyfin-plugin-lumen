@@ -91,3 +91,15 @@ test('TV layout: every control on a series page is reachable with the D-pad', as
   expect(controls.filter((c) => c.classes.split(' ').includes('lmn-episodes__details'))).toHaveLength(3);
   expect(unreachable.map((c) => c.name)).toEqual([]);
 });
+
+test("TV layout: the focused item of jellyfin-web's ⋯ menu shows its ring inside the sheet", async ({ page }) => {
+  await signInOnTv(page);
+  // A library folder: Lumen has no details page for it, so its ⋯ opens jellyfin-web's action sheet.
+  await page.goto(`/web/#/details?id=${loadState().libraries.movies}`);
+  await page.locator('#itemDetailPage:not(.hide) .btnMoreCommands').first().click();
+  const first = page.locator('.actionSheet .actionSheetMenuItem').first();
+  await expect(first).toBeFocused();
+  // Drawn inside the item: one outside it would be clipped by the sheet's scroller (styles/stock-components.css).
+  await expect(first).toHaveCSS('outline-style', 'solid');
+  await expect(first).toHaveCSS('outline-offset', '-3px');
+});
