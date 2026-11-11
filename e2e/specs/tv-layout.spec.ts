@@ -1,8 +1,29 @@
 import { expect, test } from '@playwright/test';
-import { ADMIN, loadState } from '../support/api';
+import { ADMIN, api, loadState } from '../support/api';
 import { login } from '../support/login';
 
+/** Titles a test started: put back to never played afterwards (marking played, then unplayed, clears the date too). */
+let played: string[] = [];
+test.afterEach(async () => {
+  const { admin } = loadState();
+  for (const id of played)
+    for (const method of ['POST', 'DELETE'] as const)
+      await api(`/UserPlayedItems/${id}`, { method, token: admin.token, query: { userId: admin.userId } });
+  played = [];
+});
+
 test('TV layout: focus starts on the hero and arrow keys move through rows', async ({ page }) => {
+  // The row below the hero is otherwise whatever earlier specs left (or a library's Recently Added, which may hold a
+  // single show): Continue Watching with two movies gives Right somewhere to go.
+  const { admin, items } = loadState();
+  played = [items['Lumen Alpha']!, items['Lumen Beta']!];
+  for (const [i, id] of played.entries())
+    await api(`/UserItems/${id}/UserData`, {
+      method: 'POST',
+      token: admin.token,
+      query: { userId: admin.userId },
+      body: { PlaybackPositionTicks: 50_000_000, LastPlayedDate: new Date(Date.now() - i * 60_000).toISOString() },
+    });
   await page.addInitScript(() => localStorage.setItem('layout', 'tv'));
   await login(page, ADMIN);
 
@@ -10,7 +31,7 @@ test('TV layout: focus starts on the hero and arrow keys move through rows', asy
   await expect(page.locator('#lmn-root .lmn-hero__slide.is-current .lmn-button--primary')).toBeInViewport();
 
   await page.keyboard.press('ArrowDown');
-  await expect(page.locator('#lmn-root .lmn-card:focus')).toHaveCount(1);
+  await expect(page.getByRole('region', { name: 'Continue Watching' }).locator('.lmn-card:focus')).toHaveCount(1);
   const first = await page.locator('#lmn-root .lmn-card:focus').getAttribute('data-item-id');
 
   await page.keyboard.press('ArrowRight');

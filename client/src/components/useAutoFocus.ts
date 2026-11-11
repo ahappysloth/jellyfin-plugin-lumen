@@ -4,6 +4,8 @@ import type { Layout } from '../compat/jellyfin';
 
 const SAFE_ID = /^[\w-]+$/;
 const PRIMARY = '.lmn-autofocus';
+/** Open menus, lists and dialogs: focus in one of them is left there. */
+const POPUP = '[role="menu"], [role="listbox"], [role="dialog"]';
 
 /**
  * TV layout: D-pad users need a focused element, pointer users don't. Focus goes to the previously selected item
@@ -41,6 +43,9 @@ export function useAutoFocus(
       ? ((row ?? root).querySelector<HTMLElement>(card) ?? root.querySelector<HTMLElement>(card))
       : null;
     if (layout !== 'tv') return preferred?.focus({ preventScroll: true });
+    // The user is in a menu or dialog (the account menu, opened from the nav while home was loading): taking focus
+    // would close it under them.
+    if (document.activeElement?.closest(POPUP)) return;
     const primary = root.querySelector<HTMLElement>(PRIMARY);
     const target = preferred ?? primary ?? root.querySelector<HTMLElement>('button, .lmn-card');
     target?.focus();
