@@ -68,6 +68,17 @@ describe('App', () => {
     await waitFor(() => expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull());
   });
 
+  it("keeps Lumen's nav on a catalog title Seerr won't give the user, beside Back", async () => {
+    const ctx = context({
+      'Lumen/Requests/Title/movie/603': () => Promise.reject(new Response(null, { status: 403 })),
+    });
+    render(<App route={{ kind: 'title', mediaType: 'movie', tmdbId: 603 }} ctx={ctx} />);
+
+    expect(await screen.findByText("Couldn't load this title from Seerr.")).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
+    expect(await screen.findByRole('navigation', { name: 'Main' })).toBeInTheDocument();
+  });
+
   it("moves focus to the next page's heading", () => {
     const ctx = context();
     const { rerender } = render(<App route={{ kind: 'favorites' }} ctx={ctx} />);
