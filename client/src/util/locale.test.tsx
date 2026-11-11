@@ -138,6 +138,21 @@ describe("the user's Jellyfin locale", () => {
       '4. März',
     );
   });
+
+  it('formats a time as toLocaleTimeString does, in whichever locale is current at the time', () => {
+    const date = new Date(Date.UTC(2010, 2, 4, 21, 42));
+    const options = { timeZone: 'UTC', hour: 'numeric', minute: '2-digit' } as const;
+    const german = fakeWindow({ storage: { 'u1-datetimelocale': 'de-de' } });
+    const english = fakeWindow({ storage: { 'u1-datetimelocale': 'en-us' } });
+    // Twice each: the second comes from the kept formatter.
+    for (let i = 0; i < 2; i++) {
+      expect(formatTime(date, options, german)).toBe(date.toLocaleTimeString('de-de', options));
+      expect(formatTime(date, options, english)).toBe(date.toLocaleTimeString('en-us', options));
+    }
+    expect(formatTime(date, options, english)).toBe('9:42 PM');
+    // Without an hour or a minute toLocaleTimeString adds them both, and seconds: left to it.
+    expect(formatTime(date, { timeZone: 'UTC' }, english)).toBe('9:42:00 PM');
+  });
 });
 
 describe("Lumen's dates and numbers", () => {

@@ -95,9 +95,20 @@ export function formatDate(date: Date, options: Intl.DateTimeFormatOptions, win:
   return date.toLocaleDateString(dateTimeLocale(win), options);
 }
 
-/** A time of day in the user's date/time locale. */
+const timeFormats = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * A time of day in the user's date/time locale. The formatter is kept: building one is the slow part, and the player
+ * asks for its "Ends at" time several times a second. With an hour or a minute in `options` it formats exactly as
+ * toLocaleTimeString does (which adds those only when neither is asked for).
+ */
 export function formatTime(date: Date, options: Intl.DateTimeFormatOptions, win: Window = window): string {
-  return date.toLocaleTimeString(dateTimeLocale(win), options);
+  const locale = dateTimeLocale(win);
+  if (!options.hour && !options.minute) return date.toLocaleTimeString(locale, options);
+  const key = `${locale ?? ''}|${JSON.stringify(options)}`;
+  let format = timeFormats.get(key);
+  if (!format) timeFormats.set(key, (format = new Intl.DateTimeFormat(locale, options)));
+  return format.format(date);
 }
 
 /** A date and time in the user's date/time locale. */

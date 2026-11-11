@@ -10,6 +10,7 @@ import { useEffect, useId, useRef } from 'preact/hooks';
 import type { PlaybackManager, Stream } from '../../compat/playbackManager';
 import type { PlayerSnapshot } from './playerState';
 import { playerStrings } from './playerStrings';
+import { outsidePress } from './touch';
 
 /**
  * Quality presets, highest first. A preset shows when the source is at least `minHeight` tall (no "4K" for a 1080p
@@ -53,8 +54,9 @@ const SEEK_KEYS = ['Home', 'End', 'PageUp', 'PageDown'];
 const ARROW_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
 
 /**
- * A panel's behaviour as a non-modal dialog under its pill: it closes on a click outside the panel and its pill (the
- * pills row contains both), and takes focus as it opens, to the current choice (else its first control). Escape and a
+ * A panel's behaviour as a non-modal dialog under its pill: it closes on a click or tap outside the panel and its pill
+ * (the pills row contains both; a finger that scrolls or drags doesn't count: touch.ts outsidePress), and takes focus as
+ * it opens, to the current choice (else its first control). Escape and a
  * remote's Back close it and give focus back to the pill (PlayerView). Keys in it stay from jellyfin-web's shortcuts,
  * which would seek or change the volume: Home, End, Page Up and Down, and the arrows outside the TV layout (where
  * they are jellyfin-web's D-pad navigation).
@@ -66,17 +68,21 @@ export function usePanel(ref: { current: HTMLElement | null }, onClose: () => vo
       panel?.querySelector<HTMLElement>('[aria-checked="true"], [aria-pressed="true"]') ??
       panel?.querySelector<HTMLElement>('button')
     )?.focus();
-    const onDown = (e: PointerEvent): void => {
+    const press = outsidePress((target) => {
       const pills = ref.current?.parentElement;
-      if (pills && !pills.contains(e.target as Node)) onClose();
-    };
+      return !pills || pills.contains(target as Node);
+    }, onClose);
     const onKey = (e: KeyboardEvent): void => {
       if (SEEK_KEYS.includes(e.key) || (!tv && ARROW_KEYS.includes(e.key))) e.stopPropagation();
     };
-    document.addEventListener('pointerdown', onDown, true);
+    document.addEventListener('pointerdown', press.down, true);
+    document.addEventListener('pointerup', press.up, true);
+    document.addEventListener('pointercancel', press.cancel, true);
     panel?.addEventListener('keydown', onKey);
     return () => {
-      document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('pointerdown', press.down, true);
+      document.removeEventListener('pointerup', press.up, true);
+      document.removeEventListener('pointercancel', press.cancel, true);
       panel?.removeEventListener('keydown', onKey);
     };
   }, []);

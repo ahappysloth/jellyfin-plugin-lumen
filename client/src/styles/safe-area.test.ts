@@ -28,9 +28,13 @@ describe('safe-area insets', () => {
 
   it('keep the playback info card and the phone panel clear of the notch', () => {
     expect(rule(playerCss, '.lmn-player-info')).toMatch(/left:[^;]*env\(safe-area-inset-left\)/);
-    const panel = rule(playerCss, '  .lmn-panel', '@media (max-width: 640px)');
-    expect(panel).toMatch(/right:[^;]*env\(safe-area-inset-right\)/);
-    expect(panel).toMatch(/left:[^;]*env\(safe-area-inset-left\)/);
+    // Portrait and landscape: under the top bar, clear of the side insets and the home indicator.
+    const phones = rule(playerCss, '  .lmn-panel', '@media (max-width: 640px), (max-height: 500px)');
+    expect(phones).toMatch(/top:[^;]*env\(safe-area-inset-top\)/);
+    expect(phones).toMatch(/right:[^;]*env\(safe-area-inset-right\)/);
+    expect(phones).toMatch(/max-height:[^;]*env\(safe-area-inset-bottom\)/);
+    const portrait = rule(playerCss, '  .lmn-panel', '@media (max-width: 640px) {');
+    expect(portrait).toMatch(/left:[^;]*env\(safe-area-inset-left\)/);
   });
 
   it('widen the page gutter (nav, hero, rows, details) to the larger side inset', () => {
