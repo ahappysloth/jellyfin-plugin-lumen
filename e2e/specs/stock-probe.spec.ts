@@ -117,8 +117,28 @@ test('stock selectors on the Dashboard and the metadata manager', async ({ page 
   await expectSelectorsOn(page, 'metadata');
 });
 
+test("stock selectors on jellyfin-web's 404 page", async ({ page }) => {
+  await login(page, ADMIN);
+  // Its exact content too: Lumen shows its own "Page not found" only while the page holds nothing else.
+  await openFresh(page, '#/lumen-probe-no-such-page');
+  await expectSelectorsOn(page, 'notFound');
+  await expect(page.locator(`${STOCK_SELECTORS.notFoundPage.selector} > *`)).toHaveCount(1);
+  await expect(page.locator(`${STOCK_SELECTORS.notFoundContent.selector} > *`)).toHaveCount(3);
+  await expect(page.getByRole('region', { name: 'Page not found' })).toBeVisible();
+});
+
 test('every probed selector belongs to a page this spec opens', () => {
-  const probed = new Set<ProbePage>(['login', 'home', 'settings', 'display', 'player', 'dashboard', 'metadata', 'plugins']);
+  const probed = new Set<ProbePage>([
+    'login',
+    'home',
+    'settings',
+    'display',
+    'player',
+    'dashboard',
+    'metadata',
+    'plugins',
+    'notFound',
+  ]);
   for (const [name, entry] of Object.entries(STOCK_SELECTORS)) {
     if (entry.probe !== null) expect(probed.has(entry.probe), name).toBe(true);
   }

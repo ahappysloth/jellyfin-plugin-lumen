@@ -16,6 +16,16 @@ const clientConfig = {
   BuildHash: 'h',
 };
 
+/** jellyfin-web's 404 page as it renders it (routes/fallbackRoute). */
+function stockNotFoundPage(): HTMLElement {
+  const page = document.createElement('div');
+  page.id = 'fallbackPage';
+  page.innerHTML =
+    '<div class="padded-left padded-right"><h1>Page not found</h1><p>Not here.</p>' +
+    '<a class="button-link" href="#/home">Go Home</a></div>';
+  return page;
+}
+
 describe('startLumen', () => {
   let client: FakeClient;
   let stop: () => void = () => undefined;
@@ -96,8 +106,7 @@ describe('startLumen', () => {
     // An unknown path is jellyfin-web's to judge (plugins add routes): nothing until it renders its 404 page.
     expect(mount).not.toHaveBeenCalled();
 
-    const stock404 = document.createElement('div');
-    stock404.id = 'fallbackPage';
+    const stock404 = stockNotFoundPage();
     document.querySelector('.skinBody')!.appendChild(stock404);
     await vi.waitFor(() => expect(mount).toHaveBeenCalledTimes(1));
     expect(mount.mock.calls[0]![0]).toEqual({ kind: 'notFound' });
@@ -106,6 +115,23 @@ describe('startLumen', () => {
     // A stock page: jellyfin-web replaces its 404 page, and Lumen lets go.
     history.pushState(null, '', '#/music?topParentId=0123456789abcdef0123456789abcdef');
     stock404.remove();
+    await vi.waitFor(() => expect(unmount).toHaveBeenCalled());
+    expect(document.documentElement.classList.contains('lmn-active')).toBe(false);
+  });
+
+  it('lets go of the 404 page when a plugin draws its own page into it', async () => {
+    history.replaceState(null, '', '#/my-plugin-page');
+    const { mount, unmount } = start();
+    const stock404 = stockNotFoundPage();
+    document.querySelector('.skinBody')!.appendChild(stock404);
+    await vi.waitFor(() =>
+      expect(mount).toHaveBeenCalledWith({ kind: 'notFound' }, expect.anything(), expect.anything()),
+    );
+
+    // Same URL: the plugin found its route and drew its page into jellyfin-web's 404.
+    const pluginPage = document.createElement('div');
+    pluginPage.className = 'myPluginPage';
+    stock404.appendChild(pluginPage);
     await vi.waitFor(() => expect(unmount).toHaveBeenCalled());
     expect(document.documentElement.classList.contains('lmn-active')).toBe(false);
   });

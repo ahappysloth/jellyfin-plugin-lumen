@@ -165,6 +165,29 @@ export function selfTest(win: Window = window, doc: Document = document): Compat
 }
 
 /** jellyfin-web's hash router follows a manual hash assignment (it fires popstate and hashchange). */
+/**
+ * jellyfin-web's 404 page is up showing only its own content: one block of heading, message and Go Home link. A plugin
+ * may draw its own page into it for a route jellyfin-web doesn't know (e.g. a custom hash), and then it isn't a 404.
+ */
+export function isStockNotFound(doc: Document = document): boolean {
+  const page = doc.querySelector(STOCK_SELECTORS.notFoundPage.selector);
+  const content = page?.firstElementChild;
+  if (
+    !page ||
+    !content ||
+    page.children.length !== 1 ||
+    !content.matches(STOCK_SELECTORS.notFoundContent.selector)
+  )
+    return false;
+  const [heading, message, home] = Array.from(content.children);
+  return (
+    content.children.length === 3 &&
+    heading!.tagName === 'H1' &&
+    message!.tagName === 'P' &&
+    home!.matches(STOCK_SELECTORS.notFoundHomeLink.selector)
+  );
+}
+
 export function navigateTo(hash: string, win: Window = window): void {
   win.location.hash = hash;
 }

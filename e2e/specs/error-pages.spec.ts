@@ -49,6 +49,23 @@ test("an unknown address shows Lumen's page not found, with Home", { tag: '@smok
   await expect(page.locator('#lmn-root .lmn-home')).toBeVisible();
 });
 
+test("a plugin's page drawn into jellyfin-web's 404 page isn't covered by Lumen's", async ({ page }) => {
+  await login(page, ADMIN);
+  await page.goto('/web/#/my-plugin-page');
+  await expect(page.getByRole('region', { name: 'Page not found' })).toBeVisible();
+
+  // A plugin that owns this hash draws its page into jellyfin-web's 404 page.
+  await page.locator('#fallbackPage').evaluate((stock) => {
+    const mine = document.createElement('section');
+    mine.setAttribute('aria-label', 'My plugin');
+    mine.textContent = "My plugin's page";
+    stock.appendChild(mine);
+  });
+
+  await expect(page.getByRole('region', { name: 'Page not found' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'My plugin' })).toBeVisible();
+});
+
 test.describe(() => {
   // jellyfin-web's service worker answers some of the page's requests itself, out of page.route's reach (WebKit).
   test.use({ serviceWorkers: 'block' });
