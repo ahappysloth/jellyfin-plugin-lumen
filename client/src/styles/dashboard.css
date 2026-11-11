@@ -133,12 +133,113 @@ html.lmn-skin-dashboard .MuiTypography-h6 {
 }
 /* Links are MUI's primary colour; keep them readable instead of accent-red (red reads as an error here). */
 html.lmn-skin-dashboard .MuiLink-root,
+html.lmn-skin-dashboard .skinBody .emby-button.button-link,
 html.lmn-skin-dashboard .skinBody a:not(.emby-button, .MuiButtonBase-root, .MuiLink-button) {
   color: var(--lmn-text);
   text-decoration-color: var(--lmn-line-strong);
 }
 html.lmn-skin-dashboard .MuiLink-root:hover {
   text-decoration-color: currentColor;
+}
+
+/* ---- Layout: one centred column per page ------------------------------------------------------------------------- */
+/*
+ * jellyfin-web pins each page to the left of the space beside the drawer and caps forms at 54em, so on a wide screen
+ * the settings sit in a strip down the left with nothing on the right. Every admin page gets one column instead,
+ * centred in that space: as wide as Lumen's own settings pages for forms, wider for tables and card grids. Titles,
+ * tabs and fields all line up on its edge. Plain selector lists (no :is()), so older browsers get the layout too.
+ */
+html.lmn-skin-dashboard {
+  --lmn-dash-col: 880px;
+  --lmn-dash-gutter: 32px;
+}
+html.lmn-skin-dashboard .page.type-interior .content-primary {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: calc(var(--lmn-dash-col) + 2 * var(--lmn-dash-gutter));
+  margin-right: auto;
+  margin-left: auto;
+  padding: 28px var(--lmn-dash-gutter) 96px;
+}
+/* Tables, card grids, a plugin's page and the log viewer (MUI containers) take the wide column. */
+html.lmn-skin-dashboard #dashboardPage .content-primary,
+html.lmn-skin-dashboard #userProfilesPage .content-primary,
+html.lmn-skin-dashboard #mediaLibraryPage .content-primary,
+html.lmn-skin-dashboard #devicesPage .content-primary,
+html.lmn-skin-dashboard #serverActivityPage .content-primary,
+html.lmn-skin-dashboard #apiKeysPage .content-primary,
+html.lmn-skin-dashboard #pluginsPage .content-primary,
+html.lmn-skin-dashboard .page.type-interior .content-primary.MuiContainer-root {
+  --lmn-dash-col: 1280px;
+}
+/* Forms and lists fill the column rather than jellyfin-web's 54em. */
+html.lmn-skin-dashboard .content-primary form,
+html.lmn-skin-dashboard .content-primary .readOnlyContent {
+  max-width: none;
+}
+@media (max-width: 600px) {
+  html.lmn-skin-dashboard {
+    --lmn-dash-gutter: 16px;
+  }
+  html.lmn-skin-dashboard .page.type-interior .content-primary {
+    padding-top: 16px;
+  }
+}
+
+/* Page titles: the legacy pages' (Users, Add user, tuner setup, plugin settings) at the same size as the MUI ones. */
+html.lmn-skin-dashboard .content-primary > h1,
+html.lmn-skin-dashboard .page h1.sectionTitle,
+html.lmn-skin-dashboard #userProfilesPage .sectionTitle,
+html.lmn-skin-dashboard #newUserPage .sectionTitleContainer .sectionTitle {
+  margin: 0 0 24px;
+  font-size: 34px;
+  font-size: clamp(26px, 2.6vw, 34px);
+  line-height: 1.15;
+}
+html.lmn-skin-dashboard .sectionTitleContainer .sectionTitle {
+  margin: 0;
+}
+html.lmn-skin-dashboard .content-primary form .sectionTitleContainer .sectionTitle {
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+html.lmn-skin-dashboard .MuiTypography-h1 {
+  line-height: 1.15;
+}
+/* Section headings in a settings form: the size of Lumen's card titles, with a rule above that groups the fields
+   under each one. */
+html.lmn-skin-dashboard .content-primary form .MuiTypography-h2:not(:first-child),
+html.lmn-skin-dashboard .content-primary .verticalSection > h2:not(.checkboxListLabel),
+html.lmn-skin-dashboard .content-primary form .sectionTitleContainer,
+html.lmn-skin-dashboard .folderAccessContainer > h2 {
+  margin: 20px 0 0;
+  padding-top: 28px;
+  border-top: 1px solid var(--lmn-line);
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+html.lmn-skin-dashboard .content-primary .verticalSection > h2:not(.checkboxListLabel),
+html.lmn-skin-dashboard .folderAccessContainer > h2 {
+  margin-bottom: 16px;
+}
+
+/* Save and Cancel at the end of a form: buttons sized to their label, side by side, rather than bars across the whole
+   column. Phones keep jellyfin-web's full-width ones, easier to tap. */
+@media (min-width: 601px) {
+  html.lmn-skin-dashboard .content-primary form .MuiButton-root[type='submit'],
+  html.lmn-skin-dashboard .content-primary form .emby-button.raised.button-submit,
+  html.lmn-skin-dashboard .content-primary form .emby-button.raised.button-cancel {
+    display: inline-flex;
+    align-self: flex-start;
+    width: auto;
+    min-width: 160px;
+    min-height: 46px;
+    margin-right: 8px;
+    padding-right: 28px;
+    padding-left: 28px;
+  }
 }
 
 /* ---- App bar and drawer ------------------------------------------------------------------------------------------ */
@@ -275,19 +376,73 @@ html.lmn-skin-dashboard :is(.MuiButtonBase-root, .emby-button):focus-visible {
 }
 
 /* ---- Tabs, chips, progress --------------------------------------------------------------------------------------- */
-html.lmn-skin-dashboard .MuiTab-root {
-  min-height: 44px;
-  color: var(--lmn-text-2);
-  font-weight: 600;
-  text-transform: none;
+/*
+ * Tab strips (a user's Profile / Access / Parental control / Password) and the Activity page's All / User / System
+ * toggle: Lumen's segmented control, like the library tabs (browse.css .lmn-chip): a framed strip as wide as its tabs,
+ * the current one filled. The strip scrolls sideways on phones instead of clipping its last tab.
+ */
+html.lmn-skin-dashboard .MuiTabs-root,
+html.lmn-skin-dashboard .MuiToggleButtonGroup-root {
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 0;
+  padding: 3px;
+  border: 1px solid var(--lmn-line);
+  border-radius: 12px;
+  background: var(--lmn-surface);
 }
-html.lmn-skin-dashboard .MuiTab-root.Mui-selected {
-  color: #fff;
+html.lmn-skin-dashboard .MuiTabs-scroller {
+  overflow-x: auto !important;
+  scrollbar-width: none;
+}
+html.lmn-skin-dashboard .MuiTabs-scroller::-webkit-scrollbar {
+  display: none;
 }
 html.lmn-skin-dashboard .MuiTabs-indicator {
-  height: 3px;
-  border-radius: 3px 3px 0 0;
-  background-color: var(--lmn-accent);
+  display: none;
+}
+html.lmn-skin-dashboard .MuiTabs-flexContainer {
+  gap: 2px;
+}
+html.lmn-skin-dashboard .MuiTab-root,
+html.lmn-skin-dashboard .MuiToggleButton-root {
+  min-width: 0;
+  min-height: 34px;
+  height: 34px;
+  padding: 0 16px;
+  border: 0 !important;
+  border-radius: 9px !important;
+  color: var(--lmn-text-2);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+html.lmn-skin-dashboard .MuiToggleButton-root {
+  height: 30px;
+  min-height: 30px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+@media (max-width: 600px) {
+  html.lmn-skin-dashboard .MuiTab-root {
+    padding: 0 12px;
+  }
+}
+html.lmn-skin-dashboard .MuiTab-root:hover,
+html.lmn-skin-dashboard .MuiToggleButton-root:hover {
+  background-color: transparent;
+  color: #fff;
+}
+html.lmn-skin-dashboard .MuiTab-root.Mui-selected,
+html.lmn-skin-dashboard .MuiToggleButton-root.Mui-selected {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+  color: #fff;
+  font-weight: 600;
 }
 html.lmn-skin-dashboard .MuiChip-root {
   border-radius: 999px;
@@ -541,10 +696,6 @@ html.lmn-skin-dashboard ::selection {
 }
 
 /* ---- Page polish: the pages admins use most (Dashboard, Users, Plugins, General, Branding, Playback) ------------- */
-/* Room between the app bar and each page's title. */
-html.lmn-skin-dashboard .page.type-interior > .content-primary {
-  padding-top: 20px;
-}
 /* The Dashboard's Activity and Paths widgets (and other list panels): cards like the rest. */
 html.lmn-skin-dashboard .page .MuiList-root.MuiList-padding {
   overflow: hidden;

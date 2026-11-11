@@ -97,3 +97,29 @@ test('Check for Lumen updates on the Plugins page opens Lumen’s settings and c
   await expect(updates.getByRole('alert')).toHaveCount(0);
   await expect(updates.getByRole('button', { name: 'Check for updates' })).toBeEnabled();
 });
+
+test('admin pages sit in one centred column, with Lumen’s tab strip', { tag: '@smoke' }, async ({ page, isMobile }) => {
+  await login(page, ADMIN);
+  await page.goto('/web/#/dashboard/settings');
+  const form = page.locator('#dashboardGeneralPage .content-primary form');
+  await expect(form).toBeVisible();
+  const area = (await page.locator('#dashboardGeneralPage').boundingBox())!;
+  const box = (await form.boundingBox())!;
+  if (isMobile) {
+    // Phones: the column is the screen, less a 16px gutter each side.
+    expect(Math.round(box.x - area.x)).toBe(16);
+  } else {
+    // As wide as Lumen's settings page and centred in the space beside the drawer, not pinned to its left edge.
+    expect(Math.round(box.width)).toBe(880);
+    expect(Math.abs(box.x - area.x - (area.x + area.width - box.x - box.width))).toBeLessThanOrEqual(2);
+  }
+
+  // A user's tabs: a framed strip as wide as its tabs, the current tab filled; no underline.
+  await page.goto('/web/#/dashboard/users');
+  await page.locator('a[href*="/profile"]').first().click();
+  const tabs = page.locator('#usersEditPage .MuiTabs-root');
+  await expect(tabs).toHaveCSS('border-top-left-radius', '12px');
+  await expect(tabs.locator('.MuiTab-root.Mui-selected')).toHaveCSS('background-color', 'rgba(255, 255, 255, 0.12)');
+  await expect(tabs.locator('.MuiTabs-indicator')).toBeHidden();
+  expect((await tabs.boundingBox())!.width).toBeLessThan(isMobile ? 390 : 600);
+});

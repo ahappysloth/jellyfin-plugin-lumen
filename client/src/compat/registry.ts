@@ -77,6 +77,14 @@ export const STOCK_SELECTORS = {
   dashboardButton: { selector: '.MuiButton-containedPrimary', probe: 'dashboard', css: 'dashboard.css' },
   /** Restart and Shutdown: outlined so they never look like the (red by default) accent. */
   dashboardDangerButton: { selector: '.MuiButton-colorError', probe: 'dashboard', css: 'dashboard.css' },
+  /** Each admin page's content: dashboard.css centres it as one column, wider on the pages listed by id. */
+  dashboardContent: {
+    selector: '.page.type-interior .content-primary',
+    probe: 'dashboard',
+    css: 'dashboard.css',
+  },
+  dashboardHomePage: { selector: '#dashboardPage', probe: 'dashboard', css: 'dashboard.css' },
+  pluginsPage: { selector: '#pluginsPage', probe: 'plugins', css: 'dashboard.css' },
   /** Device cards without artwork. */
   cardBackground: { selector: '.defaultCardBackground', probe: 'dashboard', css: 'dashboard.css' },
   /** The metadata manager: its library tree, and the editor form (emby-* controls, stock-skin.css). */
