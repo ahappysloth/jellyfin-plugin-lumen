@@ -1,4 +1,3 @@
 {
-  "$comment": "Jellyfin releases (major.minor) Lumen's E2E suite has passed on. The nightly job (.github/workflows/e2e.yml) warns when it passes on a release missing here; add it. Diagnostics mark other versions \"untested\".",
   "versions": ["12.1", "12.4"]
 }

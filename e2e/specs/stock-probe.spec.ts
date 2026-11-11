@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { DASHBOARD_THEME_VARIABLE, STOCK_SELECTORS, type ProbePage } from '../../client/src/compat/registry';
+import { DASHBOARD_THEME_VARIABLE, STOCK_SELECTORS } from '../../client/src/compat/registry';
+import { STOCK_SELECTOR_META, type ProbePage } from '../../client/src/compat/registry.meta';
 import { WEB_PLUGIN_KEY, WEB_PLUGIN_NAME, type WebPluginSlot } from '../../client/src/compat/webPlugin';
 import { ADMIN, KID, loadState } from '../support/api';
 import { CANNOT_PLAY, cannotPlay } from '../support/browsers';
@@ -7,12 +8,15 @@ import { login } from '../support/login';
 import { openFresh } from '../support/stock-pages';
 
 /**
- * Probe: every jellyfin-web selector Lumen depends on (client/src/compat/registry.ts) still matches on its page. A miss
- * means part of Lumen silently stops working after a Jellyfin update: stock controls showing through Lumen's, a
- * header that won't hide, or settings that look stock again. The nightly job runs this against new Jellyfin builds.
+ * Probe: every jellyfin-web selector Lumen depends on (client/src/compat/registry.ts) still matches on its page (in
+ * registry.meta.ts). A miss means part of Lumen silently stops working after a Jellyfin update: stock controls showing
+ * through Lumen's, a header that won't hide, or settings that look stock again. The nightly job runs this against new
+ * Jellyfin builds.
  */
 const byPage = (probe: ProbePage) =>
-  Object.entries(STOCK_SELECTORS).filter(([, entry]) => entry.probe === probe);
+  Object.entries(STOCK_SELECTORS).filter(
+    ([name]) => STOCK_SELECTOR_META[name as keyof typeof STOCK_SELECTORS].probe === probe,
+  );
 
 async function expectSelectorsOn(page: Page, probe: ProbePage): Promise<void> {
   for (const [name, { selector }] of byPage(probe)) {
@@ -174,7 +178,7 @@ test('every probed selector belongs to a page this spec opens', () => {
     'userMenu',
     'apiKeyDialog',
   ]);
-  for (const [name, entry] of Object.entries(STOCK_SELECTORS)) {
-    if (entry.probe !== null) expect(probed.has(entry.probe), name).toBe(true);
+  for (const [name, { probe }] of Object.entries(STOCK_SELECTOR_META)) {
+    if (probe !== null) expect(probed.has(probe), name).toBe(true);
   }
 });

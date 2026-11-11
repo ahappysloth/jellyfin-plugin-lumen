@@ -5,165 +5,121 @@
  * Lumen links to is jellyfin-web's 404 page). When jellyfin-web changes, fix it here.
  *
  * The CSS (styles/base.css, player.css, stock-skin.css, dashboard.css, nav.css, stock-components.css) can't import this
- * module, so it repeats the selectors it needs; `css` names the stylesheet that does, and registry.test.ts checks the
- * selector text really occurs there.
+ * module, so it repeats the selectors it needs. Which page the probe finds each selector on, and which stylesheet
+ * repeats it, is in registry.meta.ts: only the tests read that, so it stays out of the bundle.
  * Evidence for each entry: docs/reference/jellyfin-web-12.1-notes.md.
  *
  * Pure data: no DOM access and no imports, so the inline guard and the e2e suite can import it cheaply.
  */
 
-/**
- * A page the e2e probe opens to look for a selector, or a dialog or menu it opens there (Dashboard > Users: a user's ⋯
- * menu and its Delete confirmation; the header's user menu; API Keys > New API Key). Null means it can't be probed
- * reliably (transient UI).
- */
-export type ProbePage =
-  | 'login'
-  | 'home'
-  | 'settings'
-  | 'display'
-  | 'player'
-  | 'dashboard'
-  | 'dashboard-settings'
-  | 'metadata'
-  | 'plugins'
-  | 'notFound'
-  | 'actionSheet'
-  | 'confirmDialog'
-  | 'userMenu'
-  | 'apiKeyDialog';
-
 export interface StockSelector {
   selector: string;
-  probe: ProbePage | null;
-  /** The stylesheet that repeats this selector, if any. */
-  css?: 'base.css' | 'player.css' | 'stock-skin.css' | 'dashboard.css' | 'nav.css' | 'stock-components.css';
 }
 
 export const STOCK_SELECTORS = {
   /** React's mount point (index.html). */
-  reactRoot: { selector: '#reactRoot', probe: 'home', css: 'base.css' },
+  reactRoot: { selector: '#reactRoot' },
   /** Routed page content in both the Modern and Legacy layouts. Hidden via CSS only. */
-  stockPage: { selector: '#reactRoot .skinBody', probe: 'home', css: 'base.css' },
+  stockPage: { selector: '#reactRoot .skinBody' },
   /** The Modern layout's (empty) main landmark; Lumen's pages bring their own. The Legacy (TV) layout has none. */
-  stockMain: { selector: '#reactRoot main', probe: 'home', css: 'base.css' },
-  backdrop: { selector: '.backdropContainer', probe: 'home', css: 'base.css' },
-  background: { selector: '.backgroundContainer', probe: 'home', css: 'stock-skin.css' },
+  stockMain: { selector: '#reactRoot main' },
+  backdrop: { selector: '.backdropContainer' },
+  background: { selector: '.backgroundContainer' },
   /** The Modern layout's app bar. */
-  modernAppBar: { selector: '.MuiAppBar-root', probe: 'home', css: 'base.css' },
+  modernAppBar: { selector: '.MuiAppBar-root' },
   /** The Legacy layout's header (also in the Modern DOM, inside a hidden wrapper). */
-  legacyHeader: { selector: '.skinHeader', probe: 'home', css: 'base.css' },
+  legacyHeader: { selector: '.skinHeader' },
   /** jellyfin-web's cold-load splash and spinner (gone by the time a probe could look). */
-  splashLogo: { selector: '.splashLogo', probe: null, css: 'base.css' },
-  spinner: { selector: '.docspinner', probe: null, css: 'base.css' },
+  splashLogo: { selector: '.splashLogo' },
+  spinner: { selector: '.docspinner' },
   /**
    * jellyfin-web's fixed footer (components/appFooter): the music now-playing bar renders inside it, so it's what
    * nav.css lifts above Lumen's phone tab bar. Always in the DOM, empty until something plays.
    */
-  appFooter: { selector: '.appfooter', probe: 'home', css: 'nav.css' },
+  appFooter: { selector: '.appfooter' },
   /** The player's own controls, hidden under Lumen's. */
-  videoOsd: { selector: '.videoOsdBottom', probe: 'player', css: 'player.css' },
+  videoOsd: { selector: '.videoOsdBottom' },
   /** jellyfin-web's volume card (components/playback/volumeosd.js); Lumen's controls show the volume instead. */
-  volumeOsd: { selector: '.volumeOsd', probe: null, css: 'player.css' },
+  volumeOsd: { selector: '.volumeOsd' },
   /** Prompts that stay clickable above Lumen's player (only shown with intro segments / near the end). */
-  skipIntro: { selector: '.skip-button-container', probe: null, css: 'player.css' },
-  upNext: { selector: '.upNextContainer', probe: null, css: 'player.css' },
+  skipIntro: { selector: '.skip-button-container' },
+  upNext: { selector: '.upNextContainer' },
   /** The sign-in form (stock-skin.css restyles it). */
-  loginForm: { selector: '.manualLoginForm', probe: 'login', css: 'stock-skin.css' },
-  submitButton: { selector: '.button-submit', probe: 'login', css: 'stock-skin.css' },
-  embyInput: { selector: '.emby-input', probe: 'login', css: 'stock-skin.css' },
+  loginForm: { selector: '.manualLoginForm' },
+  submitButton: { selector: '.button-submit' },
+  embyInput: { selector: '.emby-input' },
   /** Settings pages' selects (views/profile/stockSelects.tsx puts Lumen's dropdown over them). */
-  embySelect: { selector: 'select.emby-select, select[is="emby-select"]', probe: 'settings' },
-  selectContainer: { selector: '.selectContainer', probe: 'settings', css: 'stock-skin.css' },
-  embyCheckbox: { selector: '.emby-checkbox', probe: 'settings', css: 'stock-skin.css' },
-  sectionTitle: { selector: '.sectionTitle', probe: 'settings', css: 'stock-skin.css' },
+  embySelect: { selector: 'select.emby-select, select[is="emby-select"]' },
+  selectContainer: { selector: '.selectContainer' },
+  embyCheckbox: { selector: '.emby-checkbox' },
+  sectionTitle: { selector: '.sectionTitle' },
   /** The Display page's MUI inputs. */
-  muiInput: { selector: '.MuiFilledInput-root', probe: 'display', css: 'stock-skin.css' },
+  muiInput: { selector: '.MuiFilledInput-root' },
   /** jellyfin-web's toasts (components/toast/toast.ts), e.g. SyncPlay's "joined the group" notices. */
-  toastContainer: { selector: '.toastContainer', probe: null, css: 'stock-skin.css' },
-  toast: { selector: '.toastContainer .toast', probe: null, css: 'stock-skin.css' },
+  toastContainer: { selector: '.toastContainer' },
+  toast: { selector: '.toastContainer .toast' },
   /** jellyfin-web's toast animation states (Lumen's pill drops in and fades out on them). */
-  toastShown: { selector: '.toast.toastVisible', probe: null, css: 'stock-skin.css' },
-  toastHiding: { selector: '.toast.toastHide', probe: null, css: 'stock-skin.css' },
+  toastShown: { selector: '.toast.toastVisible' },
+  toastHiding: { selector: '.toast.toastHide' },
   /**
    * jellyfin-web's shared components, on every page while the stock pages are restyled (stock-components.css): legacy
    * dialogs and the ones that float from 80em × 45em up, action sheets (⋯ menus), and MUI's menus, dialogs and drawers.
    */
-  dialogContainer: { selector: '.dialogContainer', probe: 'actionSheet', css: 'stock-components.css' },
-  formDialogHeader: { selector: '.formDialogHeader', probe: 'confirmDialog', css: 'stock-components.css' },
-  floatingDialog: {
-    selector: '.dialog-fullscreen-lowres',
-    probe: 'confirmDialog',
-    css: 'stock-components.css',
-  },
-  actionSheet: { selector: '.actionSheet', probe: 'actionSheet', css: 'stock-components.css' },
-  actionSheetItem: { selector: '.actionSheetMenuItem', probe: 'actionSheet', css: 'stock-components.css' },
-  muiMenu: { selector: '.MuiMenu-paper', probe: 'userMenu', css: 'stock-components.css' },
-  muiModal: { selector: '.MuiModal-root', probe: 'userMenu', css: 'stock-components.css' },
-  muiDialog: { selector: '.MuiDialog-paper', probe: 'apiKeyDialog', css: 'stock-components.css' },
+  dialogContainer: { selector: '.dialogContainer' },
+  formDialogHeader: { selector: '.formDialogHeader' },
+  floatingDialog: { selector: '.dialog-fullscreen-lowres' },
+  actionSheet: { selector: '.actionSheet' },
+  actionSheetItem: { selector: '.actionSheetMenuItem' },
+  muiMenu: { selector: '.MuiMenu-paper' },
+  muiModal: { selector: '.MuiModal-root' },
+  muiDialog: { selector: '.MuiDialog-paper' },
   /** The admin pages (dashboard.css): the Dashboard's MUI frame, drawer and controls. */
-  dashboardDrawer: { selector: '.MuiDrawer-paper', probe: 'dashboard', css: 'dashboard.css' },
-  dashboardNavItem: { selector: '.MuiListItemButton-root', probe: 'dashboard', css: 'dashboard.css' },
-  dashboardNavHeading: { selector: '.MuiListSubheader-root', probe: 'dashboard', css: 'dashboard.css' },
-  dashboardLogo: { selector: "img[src*='icon-transparent']", probe: 'dashboard', css: 'dashboard.css' },
-  dashboardCard: { selector: '.MuiCard-root', probe: 'dashboard', css: 'dashboard.css' },
-  dashboardButton: { selector: '.MuiButton-containedPrimary', probe: 'dashboard', css: 'dashboard.css' },
+  dashboardDrawer: { selector: '.MuiDrawer-paper' },
+  dashboardNavItem: { selector: '.MuiListItemButton-root' },
+  dashboardNavHeading: { selector: '.MuiListSubheader-root' },
+  dashboardLogo: { selector: "img[src*='icon-transparent']" },
+  dashboardCard: { selector: '.MuiCard-root' },
+  dashboardButton: { selector: '.MuiButton-containedPrimary' },
   /** Restart and Shutdown: outlined so they never look like the (red by default) accent. */
-  dashboardDangerButton: { selector: '.MuiButton-colorError', probe: 'dashboard', css: 'dashboard.css' },
+  dashboardDangerButton: { selector: '.MuiButton-colorError' },
   /** Each admin page's content: dashboard.css centres it as one column, wider on the pages listed by id. */
-  dashboardContent: {
-    selector: '.page.type-interior .content-primary',
-    probe: 'dashboard',
-    css: 'dashboard.css',
-  },
-  dashboardHomePage: { selector: '#dashboardPage', probe: 'dashboard', css: 'dashboard.css' },
-  pluginsPage: { selector: '#pluginsPage', probe: 'plugins', css: 'dashboard.css' },
+  dashboardContent: { selector: '.page.type-interior .content-primary' },
+  dashboardHomePage: { selector: '#dashboardPage' },
+  pluginsPage: { selector: '#pluginsPage' },
   /** The plugin catalog's filter chips' row: dashboard.css makes it a segmented strip like the tabs. */
-  pluginFilters: {
-    selector: '#pluginsPage .MuiStack-root > .MuiBox-root > .MuiStack-root',
-    probe: 'plugins',
-    css: 'dashboard.css',
-  },
+  pluginFilters: { selector: '#pluginsPage .MuiStack-root > .MuiBox-root > .MuiStack-root' },
   /** An MUI settings form's one flat stack (General here): dashboard.css draws a card behind each of its sections. */
-  dashboardFormStack: {
-    selector: '.content-primary form > .MuiStack-root',
-    probe: 'dashboard-settings',
-    css: 'dashboard.css',
-  },
+  dashboardFormStack: { selector: '.content-primary form > .MuiStack-root' },
   /** Device cards without artwork. */
-  cardBackground: { selector: '.defaultCardBackground', probe: 'dashboard', css: 'dashboard.css' },
+  cardBackground: { selector: '.defaultCardBackground' },
   /** The metadata manager: its library tree, and the editor form (emby-* controls, stock-skin.css). */
-  metadataSidebar: { selector: '.editPageSidebar', probe: 'metadata', css: 'dashboard.css' },
-  metadataTree: { selector: '.libraryTree', probe: 'metadata', css: 'dashboard.css' },
-  metadataTreeIcon: { selector: '.metadataSidebarIcon', probe: 'metadata', css: 'dashboard.css' },
+  metadataSidebar: { selector: '.editPageSidebar' },
+  metadataTree: { selector: '.libraryTree' },
+  metadataTreeIcon: { selector: '.metadataSidebarIcon' },
   /**
    * The routed page itself (absolutely positioned in `main`, on every admin page); dashboard.css pushes it down while the
    * restart banner (takeover/RestartBanner.tsx) sits over its top.
    */
-  routedPage: { selector: '#reactRoot .skinBody > .page', probe: 'dashboard', css: 'dashboard.css' },
+  routedPage: { selector: '#reactRoot .skinBody > .page' },
   /**
    * A plugin's page after installing it: "The plugin has been successfully installed. The server will need to be
    * restarted…" (MessagePluginInstalled, routes/plugins/plugin.tsx; the page's only success alert). Hidden while the
    * restart banner says the same. Only there just after an install, so not probed.
    */
-  pluginInstalledAlert: {
-    selector: '#addPluginPage .MuiAlert-standardSuccess',
-    probe: null,
-    css: 'dashboard.css',
-  },
+  pluginInstalledAlert: { selector: '#addPluginPage .MuiAlert-standardSuccess' },
   /** The Plugins page's Manage Repositories button; "Check for Lumen updates" goes beside it (takeover/pluginsButton.ts). */
-  manageRepositories: { selector: 'a[href$="/dashboard/plugins/repositories"]', probe: 'plugins' },
+  manageRepositories: { selector: 'a[href$="/dashboard/plugins/repositories"]' },
   /**
    * jellyfin-web's "Page not found" page (react-router's catch-all, routes/fallbackRoute). While it holds only its own
    * content Lumen shows its "Page not found" in its place (takeover/bootstrap.ts); e2e uses it as a marker.
    */
-  notFoundPage: { selector: '#fallbackPage', probe: 'notFound' },
+  notFoundPage: { selector: '#fallbackPage' },
   /**
    * That page's content: one block with a heading, a message and a Go Home link, nothing else. Anything more (a plugin
    * drawing its own page for a route jellyfin-web doesn't know) and Lumen leaves the page alone (compat/jellyfin.ts).
    */
-  notFoundContent: { selector: '#fallbackPage > .padded-left.padded-right', probe: 'notFound' },
-  notFoundHomeLink: { selector: '#fallbackPage a.button-link[href="#/home"]', probe: 'notFound' },
+  notFoundContent: { selector: '#fallbackPage > .padded-left.padded-right' },
+  notFoundHomeLink: { selector: '#fallbackPage a.button-link[href="#/home"]' },
 } as const satisfies Record<string, StockSelector>;
 
 /** The <html> classes jellyfin-web's layoutManager sets. */
