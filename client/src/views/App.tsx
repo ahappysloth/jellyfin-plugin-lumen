@@ -26,7 +26,9 @@ function navActive(route: TakeoverRoute): NavActive {
   if (route.kind === 'library') return route.id;
   if (route.kind === 'genre') return route.parentId ?? 'home';
   if (route.kind === 'settings') return 'profile';
-  return route.kind === 'details' || route.kind === 'title' ? 'home' : route.kind;
+  // A title's own page isn't one of the nav's places (the nav shows there only when the page couldn't load).
+  if (route.kind === 'details' || route.kind === 'title') return null;
+  return route.kind;
 }
 
 function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
