@@ -38,6 +38,11 @@ export interface JellyfinApiClient {
   getPublicSystemInfo?(): Promise<{ Version?: string; ServerName?: string }>;
   /** The connected server's id (jellyfin-web's ApiClient has it; absent in older or test clients). */
   serverId?(): string | null;
+  /** The server's websocket messages of these types (compat/registry.ts RESTART_MESSAGES); returns an unsubscribe. */
+  subscribe?(
+    types: string[],
+    onMessage: (message: { MessageType?: string; Data?: unknown }) => void,
+  ): unknown;
 }
 
 export const SELECTORS = {

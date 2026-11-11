@@ -1,5 +1,5 @@
-// Fails when what every page loads (lumen.js, the chunks it loads at startup, lumen.css), the player's own chunk or the
-// trailer preview's exceeds its gzipped budget.
+// Fails when what every page loads (lumen.js, the chunks it loads at startup, lumen.css), the player's own chunk, the
+// trailer preview's or the restart banner's exceeds its gzipped budget.
 import { readdirSync, readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 
@@ -16,12 +16,13 @@ const oneChunk = (name) => {
   return found[0];
 };
 const coreChunk = oneChunk('main');
-// Loaded when they're needed: views/player/lazyPlayer.tsx, views/home/lazyTrailer.tsx.
+// Loaded when they're needed: views/player/lazyPlayer.tsx, views/home/lazyTrailer.tsx, takeover/restartWatch.ts.
 const playerChunk = oneChunk('PlayerView');
 const trailerChunk = oneChunk('TrailerPreview');
+const restartChunk = oneChunk('RestartBanner');
 // Startup is lumen.js and the core it imports, which the server preloads with it. Another chunk would be a download
 // the core waits for (vite.config.ts keeps it to one).
-const others = chunks.filter((f) => ![coreChunk, playerChunk, trailerChunk].includes(f));
+const others = chunks.filter((f) => ![coreChunk, playerChunk, trailerChunk, restartChunk].includes(f));
 if (others.length) {
   console.error(`unexpected chunks: ${others.join(', ')}`);
   process.exit(1);
@@ -42,6 +43,10 @@ console.log(`lumen player: ${kb(player)} gzipped (budget ${PLAYER_BUDGET / 1024}
 const TRAILER_BUDGET = 8 * 1024;
 const trailer = gz(`dist/${trailerChunk}`);
 console.log(`lumen trailer preview: ${kb(trailer)} gzipped (budget ${TRAILER_BUDGET / 1024} KB)`);
+// Loads on an admin page when Jellyfin has a restart pending (takeover/restartWatch.ts); the check itself is in the core.
+const RESTART_BUDGET = 4 * 1024;
+const restart = gz(`dist/${restartChunk}`);
+console.log(`lumen restart banner: ${kb(restart)} gzipped (budget ${RESTART_BUDGET / 1024} KB)`);
 // The guard and the web plugin's definer are inlined into every index.html, so they share a small budget.
 const GUARD_BUDGET = 4 * 1024;
 const guard = gz('dist/lumen-guard.js') + gz('dist/lumen-web-plugin.js');
@@ -56,6 +61,7 @@ if (
   total > BUDGET ||
   player > PLAYER_BUDGET ||
   trailer > TRAILER_BUDGET ||
+  restart > RESTART_BUDGET ||
   guard > GUARD_BUDGET ||
   dashboard > DASHBOARD_BUDGET
 ) {

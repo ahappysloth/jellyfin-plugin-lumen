@@ -1,4 +1,5 @@
 import type { JellyfinApiClient } from '../compat/jellyfin';
+import { restartServer, serverState, type ServerState } from './restart';
 
 export interface SectionParamDef {
   Name: string;
@@ -117,7 +118,7 @@ export interface AdminApi {
    * Where a restart has got to: 'down' while Jellyfin doesn't answer; 'up' when it answers, with whether it still has
    * a restart pending (it does until it has actually restarted).
    */
-  serverState(): Promise<{ up: false } | { up: true; restartPending: boolean }>;
+  serverState(): Promise<ServerState>;
 }
 
 const isResponse = (value: unknown): value is Response =>
@@ -187,16 +188,7 @@ export function createAdminApi(client: JellyfinApiClient): AdminApi {
         contentType: 'application/json',
         dataType: 'json',
       })) as UpdateStatus,
-    async restartServer() {
-      await client.ajax({ type: 'POST', url: client.getUrl('System/Restart') });
-    },
-    async serverState() {
-      try {
-        const info = await getJson<{ HasPendingRestart?: boolean }>('System/Info');
-        return { up: true, restartPending: !!info.HasPendingRestart };
-      } catch {
-        return { up: false };
-      }
-    },
+    restartServer: () => restartServer(client),
+    serverState: () => serverState(client),
   };
 }

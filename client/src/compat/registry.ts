@@ -77,6 +77,21 @@ export const STOCK_SELECTORS = {
   metadataSidebar: { selector: '.editPageSidebar', probe: 'metadata', css: 'dashboard.css' },
   metadataTree: { selector: '.libraryTree', probe: 'metadata', css: 'dashboard.css' },
   metadataTreeIcon: { selector: '.metadataSidebarIcon', probe: 'metadata', css: 'dashboard.css' },
+  /**
+   * The routed page itself (absolutely positioned in `main`, on every admin page); dashboard.css pushes it down while the
+   * restart banner (takeover/RestartBanner.tsx) sits over its top.
+   */
+  routedPage: { selector: '#reactRoot .skinBody > .page', probe: 'dashboard', css: 'dashboard.css' },
+  /**
+   * A plugin's page after installing it: "The plugin has been successfully installed. The server will need to be
+   * restarted…" (MessagePluginInstalled, routes/plugins/plugin.tsx; the page's only success alert). Hidden while the
+   * restart banner says the same. Only there just after an install, so not probed.
+   */
+  pluginInstalledAlert: {
+    selector: '#addPluginPage .MuiAlert-standardSuccess',
+    probe: null,
+    css: 'dashboard.css',
+  },
   /** The Plugins page's Manage Repositories button; "Check for Lumen updates" goes beside it (takeover/pluginsButton.ts). */
   manageRepositories: { selector: 'a[href$="/dashboard/plugins/repositories"]', probe: 'plugins' },
   /** jellyfin-web's "Page not found" page (react-router's catch-all). Lumen never shows it; e2e uses it as a marker. */
@@ -202,6 +217,22 @@ export const ADMIN_ROUTES = ['/dashboard', '/metadata', '/configurationpage'];
 
 /** The MUI theme variable dashboard.css overrides first; the e2e probe checks jellyfin-web still defines it. */
 export const DASHBOARD_THEME_VARIABLE = '--jf-palette-primary-main';
+
+/**
+ * The server's websocket messages the restart banner listens for (takeover/restartWatch.ts), through
+ * `ApiClient.subscribe(types, handler)`: jellyfin-web sets it to its @jellyfin/sdk Api's subscribe when it creates the
+ * ApiClient (lib/jellyfin-apiclient/ServerConnections.js, 12.1 and 12.4), and its notifications use it the same way.
+ * Jellyfin 12.4 sends the Package* ones after a plugin is installed or uninstalled (both leave a restart pending) but
+ * never RestartRequired; it's listened for in case a later server does. Without `subscribe`, the banner still checks on
+ * every admin page Lumen sees open.
+ */
+export const RESTART_MESSAGES = {
+  installed: 'PackageInstallationCompleted',
+  uninstalled: 'PackageUninstalled',
+  restartRequired: 'RestartRequired',
+  restarting: 'ServerRestarting',
+  shuttingDown: 'ServerShuttingDown',
+} as const;
 
 /** jellyfin-web's signed-out pages, which Lumen restyles (CSS only; see veil/skin.ts). */
 export const SIGN_IN_ROUTES = [

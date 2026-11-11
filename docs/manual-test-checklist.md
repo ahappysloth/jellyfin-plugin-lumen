@@ -42,3 +42,7 @@ Run against the release build on the latest stable Jellyfin.
 - [ ] Reorder, add, and remove sections; save; the result is reflected on home.
 - [ ] An invalid setting (collection hero source with no collection) shows an error and saves nothing.
 - [ ] The Diagnostics section lists any reported compatibility failures.
+- [ ] Install a plugin from Dashboard → Plugins → Catalog: a banner slides down under the app bar ("Restart Jellyfin to
+      finish installing …") and stays at the top while scrolling, on a phone too. Restart Jellyfin → Restart now
+      restarts the server and reloads the page, which then shows no banner. With "Restyle Jellyfin's sign-in, settings
+      and Dashboard pages" off, there's no banner.
