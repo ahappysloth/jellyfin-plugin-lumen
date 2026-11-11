@@ -10,10 +10,11 @@ export const PENDING_CLASS = 'lmn-pending';
 const NAME_KEY = 'lmn-server-name';
 const LIFT_MS = 900;
 /**
- * How long the veil waits before saying it's slow and offering Try again (the server may be down). The same as the
- * guard's SAFETY_MS (runGuard.ts): a page that loads in the time the guard allows never sees the message.
+ * How long the veil waits before saying it's slow and offering Try again (the server may be down). Just past the
+ * guard's SAFETY_MS (runGuard.ts): if lumen.js never loads, the guard lifts the veil first and the message never
+ * flashes (or takes focus) on the way out; once lumen.js runs, it clears that timer and the message can show.
  */
-export const SLOW_MS = 8000;
+export const SLOW_MS = 8500;
 /**
  * The veil ships in the inline guard, before Lumen's strings (and any network) are there, so these two are inline.
  * Keep them in step with strings.ts's tone.

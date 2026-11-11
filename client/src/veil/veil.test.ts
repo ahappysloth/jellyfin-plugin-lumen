@@ -93,8 +93,8 @@ describe('veil', () => {
     vi.restoreAllMocks();
   });
 
-  it("waits as long as the guard's safety timer before saying it's slow", () => {
-    expect(SLOW_MS).toBe(SAFETY_MS);
+  it("waits past the guard's safety timer, so a veil the guard lifts never flashes the message", () => {
+    expect(SLOW_MS).toBeGreaterThan(SAFETY_MS);
   });
 
   it('stays quiet when the page is ready in time', () => {
