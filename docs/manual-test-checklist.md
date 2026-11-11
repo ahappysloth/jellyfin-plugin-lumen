@@ -35,6 +35,9 @@ real phone shows what the installer and the launch do.
 - [ ] iPhone: Share → Add to Home Screen proposes "Lumen" with the red J on a dark tile. The app opens full screen,
       the launch screen is dark (no white flash), and the clock and battery sit over Lumen's nav, which starts below
       them. The Dashboard's app bar and a settings page clear the status bar too; rotating to landscape works.
+- [ ] iPhone app: a library editor (Dashboard → Libraries → Add Media Library, or Edit metadata) has its back arrow
+      below the clock.
+- [ ] iPhone app: open a photo, swipe through, close the slideshow; Lumen's nav still starts below the clock (no reload).
 - [ ] Android: ⋮ → Install app (or Add to Home screen) proposes "Lumen" with the J; the splash is dark with the icon,
       and the status bar is Lumen's near-black.
 - [ ] With Lumen switched off, a fresh install proposes Jellyfin's name and icon.

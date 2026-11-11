@@ -1,5 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
-import { api, loadState, resetLumen } from '../support/api';
+import { ADMIN, api, loadState, resetLumen } from '../support/api';
+import { login } from '../support/login';
+import { lumenNav } from '../support/nav';
 
 /**
  * "Add to Home Screen" (iPhone) and "Install app" (Android) read the page's manifest link and app tags, then fetch the
@@ -121,4 +123,44 @@ test('with Lumen off, a home-screen install is Jellyfin’s again', async ({ pag
   await expect(meta(page, 'application-name')).toHaveAttribute('content', 'Jellyfin');
   await expect(meta(page, 'apple-mobile-web-app-title')).toHaveCount(0);
   await expect(meta(page, 'apple-mobile-web-app-status-bar-style')).toHaveCount(0);
+});
+
+// The home-screen app runs the page under the status bar (black-translucent); Chromium can emulate its inset.
+test('jellyfin-web’s full-screen dialogs keep their header below a home-screen app’s status bar', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium', 'emulating the safe-area inset needs Chromium');
+  await page.setViewportSize({ width: 390, height: 844 });
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 59 } });
+  await login(page, ADMIN);
+
+  // With jellyfin-web's own look too: the padding is in base.css, not the stock pages' restyle.
+  for (const restyle of [true, false]) {
+    await setConfig({ StyleStockPages: restyle });
+    await page.goto('/web/#/dashboard/libraries');
+    await page.reload();
+    if (restyle) await expect(page.locator('html')).toHaveAttribute('data-lmn-skin');
+    else await expect(page.locator('html')).not.toHaveAttribute('data-lmn-skin');
+    await page.getByRole('button', { name: 'Add Media Library' }).click();
+    // On a phone the library editor fills the screen (once it has slid in), its header at the top.
+    const header = page.locator('.dlg-librarycreator .formDialogHeader');
+    await expect.poll(async () => (await header.boundingBox())?.y).toBe(0);
+    const back = header.locator('button').first();
+    expect((await back.boundingBox())?.y).toBeGreaterThanOrEqual(59);
+    await back.click();
+    await expect(header).toHaveCount(0);
+  }
+});
+
+test('the viewport keeps viewport-fit=cover when jellyfin-web rewrites it', async ({ page }) => {
+  await login(page, ADMIN);
+  await expect(lumenNav(page)).toBeVisible();
+
+  // What jellyfin-web's appHost.setUserScalable() does as the photo slideshow opens and closes.
+  await page
+    .locator('meta[name="viewport"]')
+    .evaluate((m) => m.setAttribute('content', 'width=device-width, initial-scale=1, user-scalable=yes'));
+  await expect(meta(page, 'viewport')).toHaveAttribute('content', /user-scalable=yes, viewport-fit=cover$/);
 });

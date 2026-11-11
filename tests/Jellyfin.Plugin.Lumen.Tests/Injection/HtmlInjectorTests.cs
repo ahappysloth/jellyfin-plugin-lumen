@@ -120,12 +120,24 @@ public class HtmlInjectorTests
         Assert.Single(Regex.Matches(result, "id=\"themeColor\""));
     }
 
+    // Only a viewport meta whose content asks for viewport-fit=cover (that value), whatever the order, quoting and case
+    // of its attributes.
     [Theory]
-    [InlineData("width=device-width,initial-scale=1,viewport-fit=cover", "black-translucent")]
-    [InlineData("width=device-width,initial-scale=1", "black")]
+    [InlineData("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">", "black-translucent")]
+    [InlineData("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">", "black")]
+    [InlineData("<meta content=\"viewport-fit=cover, width=device-width\" name=\"viewport\">", "black-translucent")]
+    [InlineData("<META CONTENT='width=device-width; Viewport-Fit = Cover' NAME=viewport>", "black-translucent")]
+    [InlineData("<meta name=viewport content=viewport-fit=cover>", "black-translucent")]
+    [InlineData("<meta id=\"vp\" content=\"viewport-fit=cover\" data-x=\"1\" name='viewport' />", "black-translucent")]
+    [InlineData("<meta name=\"viewport\" content=\"width=device-width,viewport-fit=covered\">", "black")]
+    [InlineData("<meta name=\"viewport\" content=\"width=device-width,viewport-fit=contain\">", "black")]
+    [InlineData("<meta name=\"viewport\" content=\"width=device-width,x-viewport-fit=cover\">", "black")]
+    [InlineData("<meta name=\"viewport\" data-viewport-fit=cover content=\"width=device-width\">", "black")]
+    [InlineData("<meta name=\"viewport-x\" content=\"viewport-fit=cover\">", "black")]
+    [InlineData("<meta name=\"description\" content=\"viewport-fit=cover\"><meta name=\"viewport\" content=\"width=device-width\">", "black")]
     public void InstallsAsLumen_UnderATranslucentStatusBar_OnlyWhereThePageCanClearIt(string viewport, string style)
     {
-        var page = $"<html><head><meta name=\"viewport\" content=\"{viewport}\"></head><body></body></html>";
+        var page = $"<html><head>{viewport}</head><body></body></html>";
 
         var result = HtmlInjector.Inject(page, "h", installAsLumen: true);
 
