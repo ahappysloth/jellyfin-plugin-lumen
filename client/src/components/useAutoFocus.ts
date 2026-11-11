@@ -5,7 +5,7 @@ import type { Layout } from '../compat/jellyfin';
 const SAFE_ID = /^[\w-]+$/;
 const PRIMARY = '.lmn-autofocus';
 /** Open menus, lists and dialogs: focus in one of them is left there. */
-const POPUP = '[role="menu"], [role="listbox"], [role="dialog"]';
+const POPUP = '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
 
 /**
  * TV layout: D-pad users need a focused element, pointer users don't. Focus goes to the previously selected item

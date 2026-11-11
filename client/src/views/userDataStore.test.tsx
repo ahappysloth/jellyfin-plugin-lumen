@@ -1,12 +1,16 @@
+import { cleanup, fireEvent, render, screen } from '@testing-library/preact';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient } from '../../test/fakeClient';
 import { makeContext } from '../../test/viewContext';
 import type { BaseItem } from '../api/types';
+import { ConfirmHost } from '../components/ConfirmDialog';
 import { clearBrowseState, saveSnapshot, takeSnapshot } from './browse/browseStore';
 import {
   clearUserData,
+  markedUnwatched,
   reconcileUserData,
   setUserData,
+  togglePlayed,
   toggleUserData,
   userDataValue,
 } from './userDataStore';
@@ -145,5 +149,59 @@ describe('userDataStore', () => {
       expect(takeSnapshot('u|library|unwatched')?.scrollY).toBe(400); // filters on Played, not favorites
       expect(takeSnapshot('u|library|all')?.items[0]?.UserData?.IsFavorite).toBe(true);
     });
+  });
+
+  describe('togglePlayed', () => {
+    afterEach(cleanup);
+    const watched: BaseItem = { ...item, UserData: { Played: true } };
+
+    it('marks watched at once, without asking', async () => {
+      render(<ConfirmHost />);
+      const requests: string[] = [];
+      const ctx = makeContext(createFakeClient((r) => (requests.push(r.type), {})));
+      togglePlayed(ctx, item, true, vi.fn());
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+      expect(userDataValue(item, 'Played')).toBe(true);
+      await vi.waitFor(() => expect(requests).toEqual(['POST']));
+    });
+
+    it('asks before marking unwatched: Cancel changes nothing, confirming sends it', async () => {
+      render(<ConfirmHost />);
+      const requests: string[] = [];
+      const ctx = makeContext(createFakeClient((r) => (requests.push(r.type), {})));
+
+      togglePlayed(ctx, watched, false, vi.fn());
+      fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
+      await new Promise((r) => setTimeout(r, 0));
+      expect(userDataValue(watched, 'Played')).toBe(true);
+      expect(markedUnwatched(watched.Id)).toBe(false);
+      expect(requests).toEqual([]);
+
+      togglePlayed(ctx, watched, false, vi.fn());
+      expect(await screen.findByRole('alertdialog', { name: 'Mark as unwatched?' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Mark unwatched' }));
+      await vi.waitFor(() => expect(requests).toEqual(['DELETE']));
+      expect(userDataValue(watched, 'Played')).toBe(false);
+      expect(markedUnwatched(watched.Id)).toBe(true);
+    });
+  });
+
+  it('remembers titles marked unwatched (History leaves them out) until a refusal or marking watched again', async () => {
+    const { ctx, calls, tick } = controlledServer();
+    const off = setUserData(ctx, item, 'Played', false);
+    expect(markedUnwatched(item.Id)).toBe(true); // at once, like the value
+    await tick();
+    calls[0]!.reject();
+    expect(await off).toBe(false);
+    expect(markedUnwatched(item.Id)).toBe(false);
+
+    void setUserData(ctx, item, 'Played', false);
+    expect(markedUnwatched(item.Id)).toBe(true);
+    void setUserData(ctx, item, 'Played', true);
+    expect(markedUnwatched(item.Id)).toBe(false);
+    clearUserData();
+    void setUserData(ctx, item, 'Played', false);
+    clearUserData();
+    expect(markedUnwatched(item.Id)).toBe(false);
   });
 });

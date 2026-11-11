@@ -6,11 +6,11 @@ import { clearStarting, showStarting, startingFor, useStartingButton } from '../
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { showToast } from '../../components/Toast';
-import { reconcileUserData, toggleUserData, useUserData } from '../userDataStore';
+import { reconcileUserData, togglePlayed, toggleUserData, useUserData } from '../userDataStore';
 
 /**
- * Watched/favorite toggles (a refused change rolls back with a toast) and playback with an inline error. Toggles go through the shared user-data store, so the
- * card menus and the player agree with this page.
+ * Watched/favorite toggles (a refused change rolls back with a toast; Mark as unwatched asks first) and playback with an
+ * inline error. Toggles go through the shared user-data store, so the card menus and the player agree with this page.
  */
 export function useItemActions(item: BaseItem, ctx: ViewContext) {
   // This item was just fetched: its values are authoritative over older changes made elsewhere this session.
@@ -30,7 +30,8 @@ export function useItemActions(item: BaseItem, ctx: ViewContext) {
     [],
   );
 
-  const toggleWatched = (): void => toggleUserData(ctx, item, 'Played', !played, showToast);
+  /** Marking unwatched asks first; focus comes back to `from` (the button: Safari doesn't focus a clicked one). */
+  const toggleWatched = (from?: HTMLElement): void => togglePlayed(ctx, item, !played, showToast, from);
   const toggleFavorite = (): void => toggleUserData(ctx, item, 'IsFavorite', !favorite, showToast);
   /** Plays an item (handed to the player as is when it's fully loaded, as this page's own item is) or an id. */
   const play = (target: BaseItem | string, startTicks?: number): void => {

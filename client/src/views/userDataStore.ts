@@ -1,5 +1,6 @@
 import { useLayoutEffect, useState } from 'preact/hooks';
 import type { BaseItem } from '../api/types';
+import { confirmDialog } from '../components/ConfirmDialog';
 import { registerSessionCache } from '../util/sessionCaches';
 import { strings } from '../strings';
 import { updateSnapshots } from './browse/browseStore';
@@ -19,6 +20,11 @@ const confirmed = new Map<string, boolean>();
 const queues = new Map<string, Promise<unknown>>();
 const versions = new Map<string, number>();
 const pending = new Map<string, number>();
+/**
+ * Titles marked unwatched this session (optimistically, until a refusal rolls it back): Jellyfin forgets when they were
+ * played, so History leaves them out at once rather than on the next visit.
+ */
+const unwatched = new Set<string>();
 const listeners = new Set<() => void>();
 
 const keyOf = (itemId: string, field: UserDataField): string => `${itemId}:${field}`;
@@ -29,8 +35,8 @@ export function userDataValue(item: BaseItem, field: UserDataField): boolean {
   return overrides.get(keyOf(item.Id, field)) ?? !!item.UserData?.[field];
 }
 
-/** Re-renders when any value changes; returns the item's value. */
-export function useUserData(item: BaseItem, field: UserDataField): boolean {
+/** Re-renders when any value changes. */
+export function useUserDataChanges(): void {
   const [, bump] = useState(0);
   // Layout effect: subscribed before the user can click, unlike useEffect (which Preact runs after paint).
   useLayoutEffect(() => {
@@ -40,7 +46,17 @@ export function useUserData(item: BaseItem, field: UserDataField): boolean {
       listeners.delete(listener);
     };
   }, []);
+}
+
+/** Re-renders when any value changes; returns the item's value. */
+export function useUserData(item: BaseItem, field: UserDataField): boolean {
+  useUserDataChanges();
   return userDataValue(item, field);
+}
+
+/** The title was marked unwatched this session (see `unwatched`). */
+export function markedUnwatched(itemId: string): boolean {
+  return unwatched.has(itemId);
 }
 
 /**
@@ -59,6 +75,7 @@ export function setUserData(
   const version = (versions.get(key) ?? 0) + 1;
   versions.set(key, version);
   pending.set(key, (pending.get(key) ?? 0) + 1);
+  if (field === 'Played') markUnwatched(item.Id, !value);
   apply(item.Id, key, field, value);
 
   const send = (): Promise<void> =>
@@ -73,6 +90,7 @@ export function setUserData(
       },
       () => {
         if (versions.get(key) !== version) return true;
+        if (field === 'Played' && !value) markUnwatched(item.Id, false);
         apply(item.Id, key, field, confirmed.get(key) ?? !value);
         return false;
       },
@@ -93,6 +111,37 @@ export function toggleUserData(
   void setUserData(ctx, item, field, value).then(
     (ok) => ok || onError(field === 'IsFavorite' ? strings.favoriteFailed : strings.watchedFailed),
   );
+}
+
+/**
+ * Marking a title unwatched makes Jellyfin forget how far the user got and when they watched it, so it also leaves
+ * History: Lumen asks first, in its own dialog (focus starts on Cancel and returns to `returnFocus`, by default the
+ * control that had it). Resolves true to go ahead. For any surface that offers Mark as unwatched.
+ */
+export function confirmUnwatched(returnFocus?: HTMLElement | null): Promise<boolean> {
+  return confirmDialog({
+    title: strings.markUnwatchedTitle,
+    body: strings.markUnwatchedBody,
+    confirmLabel: strings.markUnwatchedShort,
+    returnFocus,
+  });
+}
+
+/** toggleUserData for Played: marking watched happens at once, marking unwatched asks first (confirmUnwatched). */
+export function togglePlayed(
+  ctx: ViewContext,
+  item: BaseItem,
+  played: boolean,
+  onError: (message: string) => void,
+  returnFocus?: HTMLElement | null,
+): void {
+  if (played) return toggleUserData(ctx, item, 'Played', true, onError);
+  void confirmUnwatched(returnFocus).then((ok) => ok && toggleUserData(ctx, item, 'Played', false, onError));
+}
+
+function markUnwatched(itemId: string, on: boolean): void {
+  if (on) unwatched.add(itemId);
+  else unwatched.delete(itemId);
 }
 
 function apply(itemId: string, key: string, field: UserDataField, value: boolean): void {
@@ -122,6 +171,7 @@ export function clearUserData(): void {
   queues.clear();
   versions.clear();
   pending.clear();
+  unwatched.clear();
 }
 
 registerSessionCache(clearUserData);

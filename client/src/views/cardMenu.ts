@@ -5,7 +5,7 @@ import { showToast } from '../components/Toast';
 import { strings } from '../strings';
 import { startPlayback } from '../playback/startPlayback';
 import type { ViewContext } from './context';
-import { toggleUserData, userDataValue } from './userDataStore';
+import { togglePlayed, toggleUserData, userDataValue } from './userDataStore';
 
 export { infoHash };
 
@@ -66,7 +66,8 @@ export function cardMenuEntries(
     {
       label: played ? strings.markUnwatched : strings.markWatched,
       icon: played ? 'eye' : 'check',
-      onSelect: () => toggleUserData(ctx, item, 'Played', !played, onError),
+      // Unwatched asks first; focus is back on the card by then (the menu returned it), and comes back there after.
+      onSelect: () => togglePlayed(ctx, item, !played, onError),
     },
   ];
 }

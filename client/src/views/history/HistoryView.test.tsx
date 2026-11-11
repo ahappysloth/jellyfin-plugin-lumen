@@ -1,10 +1,12 @@
-import { render, screen, within } from '@testing-library/preact';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { setJellyfinLocale } from '../../../test/locale';
 import { makeContext } from '../../../test/viewContext';
 import type { BaseItem } from '../../api/types';
 import type { AjaxRequest } from '../../compat/jellyfin';
+import { ConfirmHost } from '../../components/ConfirmDialog';
+import { ContextMenuHost } from '../../components/ContextMenu';
 import { clearBrowseState } from '../browse/browseStore';
 import { clearUserData } from '../userDataStore';
 import { HistoryView, historyCells, playedDay, playedOnly } from './HistoryView';
@@ -183,5 +185,76 @@ describe('HistoryView', () => {
     );
     render(<HistoryView ctx={ctx} />);
     expect(await screen.findByText('Nothing watched yet')).toBeInTheDocument();
+  });
+});
+
+describe('HistoryView, Mark as unwatched', () => {
+  afterEach(() => {
+    clearUserData();
+    clearBrowseState();
+    document.documentElement.classList.remove('layout-tv');
+  });
+
+  function setup(layout: 'desktop' | 'tv') {
+    const watched = (Id: string, Name: string, hour: number): BaseItem =>
+      ({
+        Id,
+        Name,
+        Type: 'Movie',
+        UserData: { Played: true, LastPlayedDate: at(new Date(), hour) },
+      }) as BaseItem;
+    const requests: string[] = [];
+    const ctx = makeContext(
+      createFakeClient(
+        routes({
+          Items: {
+            Items: [watched('m1', 'Lumen Alpha', 21), watched('m2', 'Lumen Beta', 20)],
+            TotalRecordCount: 2,
+          },
+          'UserPlayedItems/m1': (r: AjaxRequest) => (requests.push(`${r.type} m1`), {}),
+        }),
+      ),
+      { layout },
+    );
+    render(
+      <>
+        <HistoryView ctx={ctx} />
+        <ContextMenuHost />
+        <ConfirmHost />
+      </>,
+    );
+    return requests;
+  }
+
+  async function unwatchAlpha(answer: 'Cancel' | 'Mark unwatched') {
+    const card = await screen.findByRole('link', { name: 'Lumen Alpha' });
+    card.focus();
+    fireEvent.contextMenu(card);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Mark as unwatched' }));
+    expect(screen.getByRole('alertdialog', { name: 'Mark as unwatched?' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: answer }));
+    return card;
+  }
+
+  it('takes the title off at once once confirmed (Jellyfin forgets when it was played); Cancel keeps it', async () => {
+    const requests = setup('desktop');
+    const card = await unwatchAlpha('Cancel');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(card).toBeInTheDocument();
+    expect(card).toHaveFocus();
+    expect(requests).toEqual([]);
+
+    await unwatchAlpha('Mark unwatched');
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Lumen Alpha' })).toBeNull());
+    expect(screen.getByRole('link', { name: 'Lumen Beta' })).toBeInTheDocument();
+    await waitFor(() => expect(requests).toEqual(['DELETE m1']));
+  });
+
+  it('on a TV, focus goes on to a card when the focused one is taken off', async () => {
+    document.documentElement.classList.add('layout-tv');
+    setup('tv');
+    await unwatchAlpha('Mark unwatched');
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Lumen Alpha' })).toBeNull());
+    expect(screen.getByRole('link', { name: 'Lumen Beta' })).toHaveFocus();
   });
 });

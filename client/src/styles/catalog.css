@@ -138,6 +138,26 @@ a.lmn-button {
   justify-content: flex-end;
   gap: 10px;
 }
+.lmn-dialog__panel--confirm {
+  max-width: 420px;
+}
+/* No close button to keep clear of. */
+.lmn-dialog__panel--confirm .lmn-dialog__title {
+  margin-right: 0;
+}
+.lmn-dialog__panel--confirm .lmn-dialog__text {
+  margin-bottom: 24px;
+}
+/* Phones: the two answers share the row, each easy to hit. */
+@media (max-width: 480px) {
+  .lmn-dialog__panel--confirm {
+    padding: 24px 20px 20px;
+  }
+  .lmn-dialog__panel--confirm .lmn-button {
+    flex: 1;
+    justify-content: center;
+  }
+}
 .lmn-dialog__actions .lmn-button[disabled] {
   opacity: 0.5;
   cursor: default;

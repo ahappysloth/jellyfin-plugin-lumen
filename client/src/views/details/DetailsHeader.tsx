@@ -46,7 +46,8 @@ interface Props {
   played: boolean;
   favorite: boolean;
   error: string | null;
-  toggleWatched: () => void;
+  /** Gets the button, for focus to come back to after Mark as unwatched asks. */
+  toggleWatched: (from: HTMLElement) => void;
   toggleFavorite: () => void;
 }
 
@@ -237,7 +238,7 @@ export function DetailsHeader(props: Props) {
             type="button"
             class="lmn-button lmn-button--secondary"
             aria-label={watched}
-            onClick={props.toggleWatched}
+            onClick={(e) => props.toggleWatched(e.currentTarget)}
           >
             <Icon name={props.played ? 'check' : 'eye'} />
             <span class="lmn-button__label">{watched}</span>
