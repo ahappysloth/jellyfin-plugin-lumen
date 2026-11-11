@@ -146,6 +146,21 @@ test.describe('hero pager', () => {
     expect(filled).toBeGreaterThan(0.4);
     expect(filled).toBeLessThan(1);
 
+    // A swipe that springs back takes the trailer off while the track moves: it comes back where it was (not from the
+    // start), on the same title.
+    const left = await video.evaluate((v: HTMLVideoElement) => v.currentTime);
+    const box = (await page.locator('#lmn-root .lmn-hero').boundingBox())!;
+    const y = box.y + box.height / 3;
+    await page.mouse.move(box.x + box.width / 2, y);
+    await page.mouse.down();
+    // 25 px, slowly: short of a swipe even on a phone (15 % of the width, or a flick past 30 px).
+    for (let i = 1; i <= 5; i++) await page.mouse.move(box.x + box.width / 2 + i * 5, y);
+    await expect(video).toHaveCount(0);
+    await page.mouse.up();
+    await expect(current.locator('video.is-shown')).toHaveCount(1, { timeout: 10_000 });
+    expect(await video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(left - 0.5);
+    expect(await title()).toBe(showing);
+
     // It ends, and the next title follows a beat later.
     await expect(video).toHaveCount(0, { timeout: 10_000 });
     await expect.poll(title, { timeout: 5_000 }).not.toBe(showing);

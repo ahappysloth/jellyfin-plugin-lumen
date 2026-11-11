@@ -74,14 +74,24 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
   // With HeroWaitForTrailer a slide stays up while its trailer plays. Pause then stops the trailer where it is, to go on
   // with the slideshow; otherwise Pause removes it (a trailer the timer would cut short anyway).
   const waitForTrailer = config.HeroWaitForTrailer && !!trailerId;
-  const showTrailer = !!trailerId && sliding === 0 && !dragging && (waitForTrailer || !stopped);
   /**
-   * Set once the current slide's trailer is under way (HeroWaitForTrailer only): from then on the pager's fill follows
-   * the trailer as well as the clock. `playing` until it ends, fails, stalls or is taken off.
+   * The current slide's trailer, once it's under way (HeroWaitForTrailer only), for the rest of this visit to the slide.
+   * It holds the slide until it's `over`, which happens once: when it ends, fails or stalls. Taken off meanwhile (a
+   * swipe that springs back, a tab in the background, the hero scrolled away) it holds on, and is put back where it was.
    */
-  const [trailerRun, setTrailerRun] = useState<{ index: number; playing: boolean } | null>(null);
-  const trailerFill = trailerRun?.index === index && sliding === 0;
-  const holding = waitForTrailer && showTrailer && trailerFill && trailerRun.playing;
+  const [trailer, setTrailer] = useState<TrailerState | null>(null);
+  const started = trailer?.index === index ? trailer : null;
+  const holding = waitForTrailer && !!started && !started.over;
+  const canShowTrailer = !!trailerId && sliding === 0 && !dragging && (waitForTrailer || !stopped);
+  // Once it's over the slide is on its way out: a trailer taken off then isn't put back to play again.
+  const showTrailer = canShowTrailer && !started?.gone;
+  useLayoutEffect(() => {
+    if (started?.over && !started.gone && (!canShowTrailer || pageHidden))
+      setTrailer((t) => t && { ...t, gone: true });
+  }, [started?.over, canShowTrailer, pageHidden]);
+  // A new slide, a new visit: a title shown again later starts its trailer over.
+  useLayoutEffect(() => setTrailer(null), [index]);
+  const trailerFill = !!started && sliding === 0;
 
   const track = useRef<HTMLDivElement>(null);
   /** The button (by position) focused on the slide that's leaving, to focus on the one arriving. */
@@ -127,51 +137,67 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
   // slide stay together.
   //
   // A trailer the slide waits for holds it: the clock keeps running, but the slide changes only once the trailer is over,
-  // a beat after it ends (or when the interval does, if that's later).
-  const run = useRef<SlideRun>({ index, ms: 0, since: null, held: false });
+  // a beat after that (or when the interval does, if that's later).
+  const run = useRef<SlideRun>(newRun(index));
   const intervalMs = config.HeroIntervalSeconds * 1000;
   // A layout effect: its cleanup runs as the pager's is-paused class lands, so the time counted stops with the fill. (A
   // plain effect's cleanup waits for the next frame, which a background tab may not draw for seconds.)
   useLayoutEffect(() => {
-    if (run.current.index !== index) run.current = { index, ms: 0, since: null, held: false };
-    if (count < 2 || paused) return;
+    if (run.current.index !== index) run.current = newRun(index);
     const slide = run.current;
+    if (started?.over && !slide.over) {
+      // The fill eases from where the trailer left it to full by the time the slide changes.
+      slide.over = {
+        ms: slide.ms,
+        fill: slide.shown,
+        until: Math.max(slide.ms + TRAILER_BEAT_MS, intervalMs),
+      };
+    }
+    if (count < 2 || paused) return;
     slide.since = performance.now();
-    if (holding) slide.held = true;
-    const timer = holding
-      ? undefined
-      : setTimeout(() => go(1), Math.max(slide.held ? TRAILER_BEAT_MS : 0, intervalMs - slide.ms));
+    const timer = holding ? undefined : setTimeout(() => go(1), (slide.over?.until ?? intervalMs) - slide.ms);
     return () => {
       clearTimeout(timer);
       slide.ms += performance.now() - (slide.since ?? performance.now());
       slide.since = null;
     };
-  }, [index, count, paused, holding, intervalMs]);
+  }, [index, count, paused, holding, started?.over, intervalMs]);
 
-  // The fill, while a trailer the slide waits for has a say: it grows with the clock, or with the trailer when that
+  // The fill, once a trailer the slide waits for is under way: it grows with the clock, or with the trailer when that
   // will end later (whichever is behind), from where it was when the trailer got going, so it's full as the slide ends.
-  // Drawn per frame from the clock and the video's own time: it stops when either does (Pause stops both).
+  // Drawn per frame from the clock and the video's own time: it stops when either does (Pause stops both), and holds
+  // where it was while the trailer is off. Once the trailer is over it eases to full over what's left.
   const fill = useRef<HTMLSpanElement>(null);
-  const trailerFrom = useRef<TrailerFrom>({ video: null, fill: 0, time: 0, shown: 0 });
   const lastProgress = useRef(0);
-  const clockFill = (): number => {
-    const slide = run.current;
-    const ms = slide.ms + (slide.since === null ? 0 : performance.now() - slide.since);
-    return Math.min(1, ms / intervalMs);
-  };
+  const clockMs = (slide: SlideRun): number =>
+    slide.ms + (slide.since === null ? 0 : performance.now() - slide.since);
   const drawFill = (): void => {
-    const from = trailerFrom.current;
-    let shown = clockFill();
-    const video = from.video;
-    if (video && video.duration > from.time && video.duration < Infinity) {
-      const played = Math.min(1, Math.max(0, (video.currentTime - from.time) / (video.duration - from.time)));
-      shown = Math.min(shown, from.fill + (1 - from.fill) * played);
+    const slide = run.current;
+    const ms = clockMs(slide);
+    let shown = Math.min(1, ms / intervalMs);
+    const video = slide.video;
+    if (slide.over) {
+      const { ms: from, fill: at, until } = slide.over;
+      shown = at + (1 - at) * Math.min(1, Math.max(0, (ms - from) / (until - from)));
+    } else if (video) {
+      // A video that's been taken off has been reset: the trailer is where it was last heard of.
+      if (video.isConnected) {
+        slide.position = video.currentTime;
+        if (video.duration < Infinity) slide.duration = video.duration;
+      }
+      if (slide.duration > slide.time) {
+        const played = Math.min(
+          1,
+          Math.max(0, (slide.position - slide.time) / (slide.duration - slide.time)),
+        );
+        shown = Math.min(shown, slide.fill + (1 - slide.fill) * played);
+      }
     }
-    from.shown = shown;
+    slide.shown = shown;
     if (fill.current) fill.current.style.transform = `scaleX(${shown})`;
   };
   useEffect(() => {
-    if (!trailerFill || paused) return;
+    if (!trailerFill || paused || count < 2) return; // with one slide there's no pager to fill
     let frame = 0;
     const draw = (): void => {
       drawFill();
@@ -179,34 +205,43 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
     };
     draw();
     return () => cancelAnimationFrame(frame);
-  }, [trailerFill, paused]);
+  }, [trailerFill, paused, count]);
   const onTrailerProgress = (video: HTMLVideoElement): void => {
+    const slide = run.current;
+    if (slide.index !== index || started?.over) return;
     lastProgress.current = performance.now();
-    const from = trailerFrom.current;
-    if (from.video === video) return;
-    // Under way (a retry or a restart is a new <video>): the trailer's share of the fill starts from what it shows now.
-    trailerFrom.current = {
-      video,
-      fill: trailerFill ? from.shown : clockFill(),
-      time: video.currentTime,
-      shown: from.shown,
-    };
+    if (slide.video !== video) {
+      if (!slide.video) {
+        // Under way: the trailer's share of the fill starts from what the clock shows now.
+        slide.fill = Math.min(1, clockMs(slide) / intervalMs);
+        slide.time = video.currentTime;
+      } else if (video.currentTime + 1 < slide.position) {
+        // Put back, but from the start (it couldn't seek): its share starts over from what the fill shows now.
+        slide.fill = slide.shown;
+        slide.time = video.currentTime;
+      } // else put back where it was: it carries on as before
+      slide.video = video;
+    }
+    slide.position = video.currentTime;
+    if (video.duration < Infinity) slide.duration = video.duration;
     drawFill(); // before the fill's own animation gives way to it (is-trailer)
-    setTrailerRun({ index, playing: true });
+    if (!started) setTrailer({ index, over: false, on: true, gone: false });
   };
-  const endTrailer = (): void => {
-    trailerFrom.current.video = null;
-    setTrailerRun((r) => (r?.playing ? { ...r, playing: false } : r));
-  };
-  // A trailer that stopped getting anywhere without an error or an end would hold the slide for good.
+  const endTrailer = (): void =>
+    setTrailer((t) => (t && t.index === run.current.index && !t.over ? { ...t, over: true } : t));
+  // Where a trailer that's put back starts: where it was, on this visit.
+  const trailerStart = (): number =>
+    run.current.index === index && run.current.video ? run.current.position : 0;
+  // A trailer that stopped getting anywhere without an error or an end would hold the slide for good. Only while it's
+  // on: one being put back has TrailerPreview's own start watchdog, and one out of view waits to be seen.
   useEffect(() => {
-    if (!holding || paused) return;
+    if (!holding || paused || !started?.on) return;
     lastProgress.current = performance.now();
     const check = setInterval(() => {
       if (performance.now() - lastProgress.current > TRAILER_STALL_MS) endTrailer();
     }, 1000);
     return () => clearInterval(check);
-  }, [holding, paused]);
+  }, [holding, paused, started?.on]);
 
   const onPointerDown = (e: HeroPointerEvent): void => {
     if (count < 2 || sliding !== 0 || (e.pointerType === 'mouse' && e.button !== 0)) return;
@@ -315,11 +350,19 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
                 <LazyTrailer
                   key={trailerId}
                   trailerId={trailerId}
-                  delaySeconds={config.TrailerDelaySeconds}
+                  // Put back after it got going, it carries on at once.
+                  delaySeconds={started ? 0 : config.TrailerDelaySeconds}
                   client={client}
                   paused={stopped}
                   onProgress={waitForTrailer ? onTrailerProgress : undefined}
-                  onPlayingChange={waitForTrailer ? (playing) => playing || endTrailer() : undefined}
+                  // A trailer that's just been put back says it isn't playing yet: that doesn't end anything.
+                  onPlayingChange={
+                    waitForTrailer
+                      ? (on) => setTrailer((t) => (t && t.on !== on ? { ...t, on } : t))
+                      : undefined
+                  }
+                  onFinish={waitForTrailer ? endTrailer : undefined}
+                  startAt={waitForTrailer ? trailerStart : undefined}
                 />
               )}
             </Slide>
@@ -403,22 +446,48 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
   );
 }
 
-/** The current slide's clock: time counted while not paused, and since when it's been counting (null while paused). */
+/** The current slide's trailer (see `trailer` in Hero). */
+interface TrailerState {
+  index: number;
+  /** Ended, failed or stalled: it no longer holds the slide. */
+  over: boolean;
+  /** TrailerPreview says it's playing (not off, out of view, or being put back). */
+  on: boolean;
+  /** Taken off after it was over: not put back. */
+  gone: boolean;
+}
+
+/**
+ * The current slide's clock: time counted while not paused, and since when it's been counting (null while paused).
+ * With a trailer the slide waits for, also the trailer as the fill follows it: its <video>, the fill and the video's
+ * time when it got going, where it's got to, and the fill shown.
+ */
 interface SlideRun {
   index: number;
   ms: number;
   since: number | null;
-  /** A trailer has held the slide: the next one comes no sooner than a beat after it's over. */
-  held: boolean;
-}
-
-/** The trailer the fill follows: its <video>, the fill and the video's time when it got going, and the fill shown. */
-interface TrailerFrom {
   video: HTMLVideoElement | null;
   fill: number;
   time: number;
+  position: number;
+  duration: number;
   shown: number;
+  /** Once the trailer is over: the clock and the fill then, and when (on the clock) the slide changes. */
+  over: { ms: number; fill: number; until: number } | null;
 }
+
+const newRun = (index: number): SlideRun => ({
+  index,
+  ms: 0,
+  since: null,
+  video: null,
+  fill: 0,
+  time: 0,
+  position: 0,
+  duration: 0,
+  shown: 0,
+  over: null,
+});
 
 /** True while the page is in the background: no slide changes there, and the fill's clock stops with the timer's. */
 function usePageHidden(): boolean {

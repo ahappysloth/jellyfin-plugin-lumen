@@ -32,6 +32,16 @@ interface Props {
   /** Called as the video plays, once it's under way (TRAILER_STARTED_SECONDS): the hero's pager follows it. */
   onProgress?: (video: HTMLVideoElement) => void;
   /**
+   * Called once the preview is over for good: it ended (as it starts fading back to the backdrop), or no way to play it
+   * worked. Not when it merely stops because it's out of view (it plays again when it's back).
+   */
+  onFinish?: () => void;
+  /**
+   * Asked as each video loads: where to start it, in seconds. The hero puts a trailer it took off (a swipe that sprang
+   * back, a tab in the background) back where it was. The file seeks with range requests, as an HLS stream does.
+   */
+  startAt?: () => number;
+  /**
    * May the server remux or transcode the trailer when the browser can't play the file? The details page says yes.
    * The hero's slides show a preview for a few seconds each, not worth a server stream: the file or nothing.
    */
@@ -71,6 +81,8 @@ export function TrailerPreview({
   class: className,
   onPlayingChange,
   onProgress,
+  onFinish,
+  startAt,
   allowTranscode = false,
 }: Props) {
   const wrapper = useRef<HTMLDivElement>(null);
@@ -202,6 +214,19 @@ export function TrailerPreview({
     onPlayingChange?.(playing);
   }, [playing]);
 
+  // Once, as it ends (the fade starts) or every way to play it has failed.
+  const finished = ending || state === 'done';
+  useEffect(() => {
+    if (finished) onFinish?.();
+  }, [finished]);
+
+  const seekToStart = (e: { currentTarget: HTMLVideoElement }): void => {
+    const at = startAt?.() ?? 0;
+    const element = e.currentTarget;
+    // Not past the end: a video put back that close to it would just end again.
+    if (at > 0 && !(element.duration - at < 1)) element.currentTime = at;
+  };
+
   const markStarted = (e: { currentTarget: HTMLVideoElement }): void => {
     if (e.currentTarget.currentTime < TRAILER_STARTED_SECONDS) return;
     started.current = true;
@@ -229,6 +254,7 @@ export function TrailerPreview({
           muted={muted}
           playsInline
           preload="none"
+          onLoadedMetadata={startAt ? seekToStart : undefined}
           onPlaying={markStarted}
           onTimeUpdate={markStarted}
           onError={onError}

@@ -533,4 +533,82 @@ describe('TrailerPreview', () => {
 
     expect(container.querySelector('video')).toBeNull();
   });
+
+  it('says it is over once it ends or fails for good, not when it stops out of sight (the hero waits for it)', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(1);
+    const onFinish = vi.fn();
+    const { container } = render(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={createFakeClient()} onFinish={onFinish} />,
+    );
+    await startAfter(0);
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await startAfter(0);
+    expect(onFinish).not.toHaveBeenCalled();
+
+    act(() => {
+      container.querySelector('video')!.dispatchEvent(new Event('ended'));
+    });
+    await startAfter(0);
+    expect(onFinish).toHaveBeenCalledTimes(1); // as it starts fading out
+    await startAfter(TRAILER_FADE_MS);
+    expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+
+  it('says it is over when no way to play it works', async () => {
+    const onFinish = vi.fn();
+    const { container } = render(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={createFakeClient()} onFinish={onFinish} />,
+    );
+    await startAfter(0);
+    act(() => {
+      container.querySelector('video')!.dispatchEvent(new Event('error'));
+    });
+    await startAfter(0);
+    expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts each video where it is asked to (the hero puts a trailer back where it was)', async () => {
+    const duration = vi.spyOn(HTMLMediaElement.prototype, 'duration', 'get').mockReturnValue(100);
+    const seek = vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'set');
+    let at = 0;
+    const { container } = render(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={createFakeClient()} startAt={() => at} />,
+    );
+    await startAfter(0);
+    act(() => {
+      container.querySelector('video')!.dispatchEvent(new Event('loadedmetadata'));
+    });
+    expect(seek).not.toHaveBeenCalled(); // from the start
+
+    // Out of sight and back: the new video starts where the last got to.
+    at = 42;
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await startAfter(0);
+    act(() => {
+      container.querySelector('video')!.dispatchEvent(new Event('loadedmetadata'));
+    });
+    expect(seek).toHaveBeenCalledWith(42);
+
+    // Not within a second of the end: it would only end again.
+    seek.mockClear();
+    duration.mockReturnValue(42.5);
+    act(() => {
+      container.querySelector('video')!.dispatchEvent(new Event('loadedmetadata'));
+    });
+    expect(seek).not.toHaveBeenCalled();
+  });
 });
