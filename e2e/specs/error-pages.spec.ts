@@ -49,3 +49,29 @@ test("an unknown address shows Lumen's page not found, with Home", { tag: '@smok
   await notFound.getByRole('link', { name: 'Home' }).click();
   await expect(page.locator('#lmn-root .lmn-home')).toBeVisible();
 });
+
+test('a reload that the server never answers says so on the loading screen, with Try again', async ({ page }) => {
+  await login(page, ADMIN);
+  // The page and Lumen's files load (from a cache, say), but nothing else reaches the server.
+  await page.route(
+    (url) => !url.pathname.startsWith('/web/') && !url.pathname.startsWith('/Lumen/Assets/'),
+    (route) => route.abort(),
+  );
+
+  await page.reload();
+
+  const veil = page.locator('#lmn-veil');
+  await expect(veil.getByRole('alert')).toHaveText(/taking longer than usual/, { timeout: 10_000 });
+  await expect(veil.getByRole('button', { name: 'Try again' })).toBeFocused();
+});
+
+test("the loading screen's mark keeps its size when Lumen's stylesheet doesn't load", async ({ page }) => {
+  await login(page, ADMIN);
+  await page.route(/\/Lumen\/Assets\/lumen\.css/, (route) => route.abort());
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+
+  const mark = (await page.locator('#lmn-veil svg').boundingBox())!;
+  expect(mark.width).toBeLessThanOrEqual(56);
+  expect(mark.height).toBeLessThanOrEqual(56);
+});

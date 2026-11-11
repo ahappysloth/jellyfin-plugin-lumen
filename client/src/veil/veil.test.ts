@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { liftVeil, rememberVeilName, shouldVeil, showVeil, VEIL_ID } from './veil';
+import { liftVeil, rememberVeilName, shouldVeil, showVeil, SLOW_MS, VEIL_ID } from './veil';
 
 describe('veil', () => {
   afterEach(() => {
@@ -42,6 +42,44 @@ describe('veil', () => {
     expect(document.documentElement.classList.contains('lmn-pending')).toBe(false);
     vi.advanceTimersByTime(1200);
     expect(document.getElementById(VEIL_ID)).toBeNull();
+  });
+
+  it("sizes and centres the mark inline, so it isn't drawn full screen when lumen.css doesn't load", () => {
+    const veil = showVeil(document, '<svg viewBox="0 0 64 64"></svg>');
+    const svg = veil.querySelector('svg')!;
+    expect(svg.getAttribute('width')).toBe('56');
+    expect(svg.getAttribute('height')).toBe('56');
+    expect(veil.style.display).toBe('grid');
+    expect(veil.style.placeItems).toBe('center');
+  });
+
+  it('says it is slow after a while and offers Try again, which reloads the page', () => {
+    vi.useFakeTimers();
+    const reload = vi.fn();
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, reload });
+    const veil = showVeil(document, '<svg></svg>');
+    vi.advanceTimersByTime(SLOW_MS - 1);
+    expect(veil.querySelector('.lmn-veil__slow')).toBeNull();
+
+    vi.advanceTimersByTime(1);
+    const slow = veil.querySelector('.lmn-veil__slow')!;
+    expect(slow).toHaveAttribute('role', 'alert');
+    expect(slow.textContent).toContain('This is taking longer than usual.');
+    expect(veil).not.toHaveAttribute('aria-hidden');
+    const retry = slow.querySelector('button')!;
+    expect(retry).toHaveTextContent('Try again');
+    expect(retry).toHaveFocus();
+    retry.click();
+    expect(reload).toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  it('stays quiet when the page is ready in time', () => {
+    vi.useFakeTimers();
+    const veil = showVeil(document, '<svg></svg>');
+    liftVeil(document);
+    vi.advanceTimersByTime(SLOW_MS);
+    expect(veil.querySelector('.lmn-veil__slow')).toBeNull();
   });
 
   it('falls back to "Jellyfin" when no name is stored', () => {
