@@ -59,9 +59,11 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
   const suppressClick = useRef(false);
   const slideTimer = useRef<number | undefined>(undefined);
   const reducedMotion = usePrefersReducedMotion();
+  const pageHidden = usePageHidden();
   const count = items.length;
   const dragging = drag.current?.swiping ?? false;
-  const paused = stopped || keyboardInside || dragging || sliding !== 0;
+  // The pager's fill (hero.css) pauses on the same flag, so it always shows how far the slide's timer has run.
+  const paused = stopped || keyboardInside || dragging || sliding !== 0 || pageHidden;
 
   const track = useRef<HTMLDivElement>(null);
   /** The button (by position) focused on the slide that's leaving, to focus on the one arriving. */
@@ -102,11 +104,22 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
   };
   useEffect(() => () => clearTimeout(slideTimer.current), []);
 
-  // A fresh timer per slide, so a manual swipe or dot click gets a full interval before the next auto-advance.
-  useEffect(() => {
+  // A fresh interval per slide, so a manual swipe or dot click gets all of it before the next auto-advance. A pause
+  // keeps what has run (as the pager's fill does) and resuming waits only for the rest, so the fill and the change of
+  // slide stay together.
+  const run = useRef({ index, ms: 0 });
+  // A layout effect: its cleanup runs as the pager's is-paused class lands, so the time counted stops with the fill. (A
+  // plain effect's cleanup waits for the next frame, which a background tab may not draw for seconds.)
+  useLayoutEffect(() => {
+    if (run.current.index !== index) run.current = { index, ms: 0 };
     if (count < 2 || paused) return;
-    const timer = setTimeout(() => go(1), config.HeroIntervalSeconds * 1000);
-    return () => clearTimeout(timer);
+    const slide = run.current;
+    const started = performance.now();
+    const timer = setTimeout(() => go(1), Math.max(0, config.HeroIntervalSeconds * 1000 - slide.ms));
+    return () => {
+      clearTimeout(timer);
+      slide.ms += performance.now() - started;
+    };
   }, [index, count, paused, config.HeroIntervalSeconds]);
 
   const onPointerDown = (e: HeroPointerEvent): void => {
@@ -230,7 +243,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
           {/* Tabs with roving focus: Tab reaches the current one, arrows pick another (and pause rotation). */}
           {count > 1 && (
             <div
-              class="lmn-hero__pager"
+              class={`lmn-hero__pager${paused ? ' is-paused' : ''}`}
               role="tablist"
               aria-label={strings.featuredTitles}
               onKeyDown={(e) => {
@@ -255,7 +268,20 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
                     aria-label={strings.showFeatured(h.Item.Name)}
                     class={`lmn-hero__dash${active ? ' is-active' : ''}`}
                     onClick={() => sliding === 0 && setIndex(i)}
-                  />
+                  >
+                    <span class="lmn-hero__pill">
+                      {/* Grows across the pill over the slide's interval; keyed by slide so each one starts it
+                          over. It sits still while the track slides in: the new slide's interval starts once it's
+                          there. */}
+                      {active && (
+                        <span
+                          key={index}
+                          class="lmn-hero__fill"
+                          style={{ animationDuration: `${config.HeroIntervalSeconds}s` }}
+                        />
+                      )}
+                    </span>
+                  </button>
                 );
               })}
             </div>
@@ -280,6 +306,17 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
       )}
     </section>
   );
+}
+
+/** True while the page is in the background: no slide changes there, and the fill's clock stops with the timer's. */
+function usePageHidden(): boolean {
+  const [hidden, setHidden] = useState(() => document.hidden);
+  useEffect(() => {
+    const onChange = (): void => setHidden(document.hidden);
+    document.addEventListener('visibilitychange', onChange);
+    return () => document.removeEventListener('visibilitychange', onChange);
+  }, []);
+  return hidden;
 }
 
 function Slide({
