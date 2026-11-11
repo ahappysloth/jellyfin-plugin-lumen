@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { ADMIN, KID, SEERR_URL, STUB_SEERR, api, loadState, resetLumen } from '../support/api';
 import { login } from '../support/login';
-import { navLink } from '../support/nav';
+import { lumenNav, navLink } from '../support/nav';
 
 // Seerr permission bits (server/lib/permissions.ts): REQUEST = 32. Without ADMIN/AUTO_APPROVE the stub answers
 // "pending approval", like real Seerr.
@@ -101,7 +101,7 @@ test("a user without a Seerr account who opens a catalog title keeps Lumen's nav
 
   await expect(page.getByText("Couldn't load this title from Seerr.")).toBeVisible();
   await expect(page.getByRole('button', { name: 'Back' })).toBeVisible();
-  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+  await expect(lumenNav(page)).toBeVisible();
 });
 
 test('on a phone, a partly available title keeps its card tab to one line', async ({ page }) => {
