@@ -103,3 +103,16 @@ test("a user without a Seerr account who opens a catalog title keeps Lumen's nav
   await expect(page.getByRole('button', { name: 'Back' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
 });
+
+test('on a phone, a partly available title keeps its card tab to one line', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page, ADMIN);
+  await page.goto('/web/#/search?query=matrix');
+
+  const card = page
+    .getByRole('list', { name: 'More to request' })
+    .getByRole('button', { name: 'Lumen Saga, Partly available' });
+  const tab = card.locator('.lmn-card__state');
+  await expect(tab).toHaveText('Partial');
+  expect((await tab.boundingBox())!.height).toBeLessThan(28);
+});

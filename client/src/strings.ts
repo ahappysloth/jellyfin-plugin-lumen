@@ -189,6 +189,8 @@ export const strings = {
   requested: 'Requested',
   downloading: 'Downloading',
   partlyAvailable: 'Partly available',
+  /** A catalog card's state tab: a phone poster has no room for the long one. */
+  partlyAvailableShort: 'Partial',
   available: 'Available',
   requestMore: 'Request more seasons',
   moreToRequest: 'More to request',
