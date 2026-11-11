@@ -430,7 +430,8 @@ html.lmn-skin-dashboard .MuiToggleButton-root {
 }
 @media (max-width: 600px) {
   html.lmn-skin-dashboard .MuiTab-root {
-    padding: 0 12px;
+    padding: 0 10px;
+    font-size: 13px;
   }
 }
 html.lmn-skin-dashboard .MuiTab-root:hover,
