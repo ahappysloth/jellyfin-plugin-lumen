@@ -148,3 +148,12 @@ test('admin pages sit in one centred column, with Lumen’s cards and tab strip'
     await expect(focused).toHaveCSS('outline-offset', '-2px');
   }
 });
+
+test('a form’s “Settings saved.” alert stays outside the section cards', async ({ page }) => {
+  // Networking puts the alert first in the form's stack, above the title: it must not take a slice of card.
+  await page.goto('/web/#/dashboard/networking');
+  await page.getByRole('button', { name: /^save$/i }).last().click();
+  const alert = page.locator('.content-primary form > .MuiStack-root > .MuiAlert-root');
+  await expect(alert).toBeVisible();
+  expect(await alert.evaluate((el) => getComputedStyle(el, '::before').content)).toBe('none');
+});
