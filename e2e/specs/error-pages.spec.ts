@@ -4,6 +4,9 @@ import { login } from '../support/login';
 import { expectPresentButHidden } from '../support/stock';
 
 const mainNav = (page: import('@playwright/test').Page) => page.getByRole('navigation', { name: 'Main' });
+/** Lumen's nav in either layout: the top pill, or on a phone the tab bar. */
+const lumenNav = (page: import('@playwright/test').Page) =>
+  page.getByRole('navigation', { name: /^(Main|Tabs)$/ }).filter({ visible: true });
 
 test("a title the user can't see says it isn't found, with Lumen's nav and Back", async ({ page }) => {
   // kid can't see the Movies library: the server answers 404, as for an item that's gone.
@@ -42,7 +45,7 @@ test("an unknown address shows Lumen's page not found, with Home", { tag: '@smok
 
   const notFound = page.getByRole('region', { name: 'Page not found' });
   await expect(notFound.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
-  await expect(mainNav(page)).toBeVisible();
+  await expect(lumenNav(page).first()).toBeVisible();
   // jellyfin-web decided it's a 404 (Lumen never guesses): its page is there, under Lumen's.
   await expectPresentButHidden(page.locator('#fallbackPage'));
 
