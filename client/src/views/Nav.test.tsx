@@ -5,6 +5,8 @@ import { makeContext } from '../../test/viewContext';
 import { Nav } from './Nav';
 import { resetSessionCaches } from '../util/sessionCaches';
 
+const tabs = () => screen.getByRole('navigation', { name: 'Tabs' });
+
 describe('Nav', () => {
   afterEach(resetSessionCaches);
 
@@ -101,20 +103,18 @@ describe('Nav', () => {
       '#/list?parentId=lx&serverId=s',
     );
     expect(within(main).getByRole('link', { name: 'Search' })).toHaveAttribute('href', '#/search');
-    expect(within(main).getByRole('link', { name: 'Settings and profile' })).toHaveAttribute(
-      'href',
-      '#/mypreferencesmenu',
-    );
+    // The account button opens a menu (views/account/AccountMenu.test.tsx); the Me tab opens the profile page.
+    expect(within(main).getByRole('button', { name: 'Account' })).toHaveAttribute('aria-haspopup', 'menu');
+    expect(within(tabs()).getByRole('link', { name: 'Me' })).toHaveAttribute('href', '#/mypreferencesmenu');
 
     // Phones: five tabs. With three libraries the second slot is "More", a menu of the other two.
-    const tabs = screen.getByRole('navigation', { name: 'Tabs' });
     expect(
-      within(tabs)
+      within(tabs())
         .getAllByRole('link')
         .map((l) => l.textContent),
     ).toEqual(['Home', 'Movies', 'Favorites', 'Me']);
-    expect(within(tabs).getByRole('button', { name: 'More' })).toHaveAttribute('aria-haspopup', 'menu');
-    expect(within(tabs).getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
+    expect(within(tabs()).getByRole('button', { name: 'More' })).toHaveAttribute('aria-haspopup', 'menu');
+    expect(within(tabs()).getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('still renders when the libraries cannot be loaded', async () => {

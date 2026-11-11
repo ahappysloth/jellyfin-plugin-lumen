@@ -80,6 +80,8 @@ describe('parseRoute', () => {
     ['#/search', { kind: 'search', query: '' }],
     ['#/search?query=star%20wars', { kind: 'search', query: 'star wars' }],
     ['#/mypreferencesmenu', { kind: 'profile' }],
+    ['#/home?lumen=history', { kind: 'history' }],
+    ['#/home?lumen=nope', { kind: 'home' }],
     ['#/mypreferencesdisplay?userId=x', { kind: 'settings', page: 'display' }],
     ['#/userprofile?userId=x', { kind: 'settings', page: 'profile' }],
     ['#/login', { kind: 'other' }],

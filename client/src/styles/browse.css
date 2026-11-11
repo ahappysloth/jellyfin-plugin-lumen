@@ -278,9 +278,11 @@
 .lmn-upcoming__day {
   margin: 0 calc(-1 * var(--lmn-gutter)) 8px;
 }
-.lmn-upcoming__day {
+.lmn-upcoming__day,
+.lmn-browse-section {
   margin: 0 0 32px;
 }
-.lmn-upcoming__day .lmn-row__title {
+.lmn-upcoming__day .lmn-row__title,
+.lmn-browse-section .lmn-row__title {
   margin-left: 0;
 }

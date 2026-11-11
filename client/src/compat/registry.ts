@@ -317,8 +317,28 @@ export const SIGN_IN_ROUTES = [
  * jellyfin-web shows its own page for the rest of the URL:
  * - `#/home?title=movie-<tmdbId>`: a Seerr catalog title. Stock shows home, without the title.
  * - `#/list?parentId=<id>&collectionType=boxsets`: the Collections library. Stock shows its own list of the library.
+ * - `#/home?lumen=history`: a page only Lumen has (watch history). Stock shows home.
  */
-export const PIGGY_BACKED_PARAMS = { catalogTitle: 'title', collectionType: 'collectionType' } as const;
+export const PIGGY_BACKED_PARAMS = {
+  catalogTitle: 'title',
+  collectionType: 'collectionType',
+  lumenPage: 'lumen',
+} as const;
+
+/**
+ * What the app around jellyfin-web can do (constants/appFeature.ts AppFeature in 12.4), as its user menu checks them
+ * (components/toolbar/AppUserMenu.tsx). In a browser only `multiserver` can be on, from the web config file
+ * (`config.json`'s `multiserver`, scripts/settings/webSettings.js); the official apps answer through
+ * `window.NativeShell.AppHost.supports()`, and provide the matching `NativeShell` functions (scripts/shell.js).
+ */
+export const APP_FEATURES = {
+  multiServer: 'multiserver',
+  exitMenu: 'exitmenu',
+  clientSettings: 'clientsettings',
+  downloadManagement: 'downloadmanagement',
+} as const;
+/** jellyfin-web's web config file, relative to the page, and its multi-server switch. */
+export const WEB_CONFIG = { file: 'config.json', multiServer: 'multiserver' } as const;
 
 /** The subset of `window.ApiClient` Lumen can't run without (the compatibility check requires all of them). */
 export const API_CLIENT_METHODS = ['getCurrentUserId', 'accessToken', 'deviceId', 'getUrl', 'ajax'] as const;

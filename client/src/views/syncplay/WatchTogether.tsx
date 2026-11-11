@@ -1,6 +1,5 @@
 import { findSyncPlay } from '../../compat/syncPlay';
 import { type MenuEntry, openContextMenu } from '../../components/ContextMenu';
-import { Icon } from '../../components/icons';
 import { showToast } from '../../components/Toast';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
@@ -73,35 +72,4 @@ export async function openWatchTogether(
     subtitle: groups.length === 0 ? `${strings.syncPlay} · ${strings.noGroups}` : strings.syncPlay,
     entries,
   });
-}
-
-/** The nav's Watch together button; lit while the user is in a group. Hidden when SyncPlay isn't available. */
-export function WatchTogetherButton({
-  ctx,
-  state,
-  class: className,
-  size = 18,
-}: {
-  ctx: ViewContext;
-  state: SyncPlayState;
-  class: string;
-  size?: number;
-}) {
-  if (!state.available) return null;
-  const inGroup = !!state.group;
-  return (
-    <button
-      type="button"
-      class={`${className}${inGroup ? ' is-active is-syncplay' : ''}`}
-      aria-haspopup="menu"
-      aria-label={
-        inGroup
-          ? `${strings.watchTogether}: ${strings.inGroup(state.group!.GroupName)}`
-          : strings.watchTogether
-      }
-      onClick={(e) => void openWatchTogether(ctx, state, e.currentTarget)}
-    >
-      <Icon name="watchTogether" size={size} />
-    </button>
-  );
 }

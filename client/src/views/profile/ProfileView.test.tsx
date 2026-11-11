@@ -2,10 +2,14 @@ import { render, screen, waitFor } from '@testing-library/preact';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { makeContext } from '../../../test/viewContext';
+import { resetSessionCaches } from '../../util/sessionCaches';
 import { ProfileView } from './ProfileView';
 
 describe('ProfileView', () => {
-  afterEach(() => Reflect.deleteProperty(window, 'Dashboard'));
+  afterEach(() => {
+    Reflect.deleteProperty(window, 'Dashboard');
+    resetSessionCaches();
+  });
 
   it('shows the user, the settings links and sign out; admin links only for admins', async () => {
     const logout = vi.fn();

@@ -110,7 +110,10 @@
 .lmn-profile__chevron {
   color: var(--lmn-text-3);
 }
-.lmn-profile__signout {
+.lmn-profile__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-top: 32px;
 }
 .layout-tv .lmn-profile__link:focus,

@@ -11,6 +11,7 @@ import { LibraryView } from './browse/LibraryView';
 import type { ViewContext } from './context';
 import { LazyTitleView } from './catalog/lazyTitle';
 import { DetailsView } from './details/DetailsView';
+import { HistoryView } from './history/HistoryView';
 import { HomeView } from './home/HomeView';
 import { LazyPlayer, loadPlayer } from './player/lazyPlayer';
 import { LoadingScreen } from './player/LoadingScreen';
@@ -24,7 +25,8 @@ import { usePageChange } from './usePageChange';
 function navActive(route: TakeoverRoute): NavActive {
   if (route.kind === 'library') return route.id;
   if (route.kind === 'genre') return route.parentId ?? 'home';
-  if (route.kind === 'settings') return 'profile';
+  // The account menu's pages light its button (the Me tab on phones).
+  if (route.kind === 'settings' || route.kind === 'history') return 'profile';
   // A title's own page isn't one of the nav's places (the nav shows there only when the page couldn't load).
   if (route.kind === 'details' || route.kind === 'title') return null;
   return route.kind;
@@ -60,6 +62,8 @@ function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
       return <SearchView initialQuery={route.query} ctx={ctx} />;
     case 'profile':
       return <LazyProfileView ctx={ctx} />;
+    case 'history':
+      return <HistoryView ctx={ctx} />;
     case 'settings':
       return <LazySettingsFrame page={route.page} />;
     case 'player':
@@ -86,7 +90,13 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
   // Home and details lift the veil when their data lands, a genre once it's known to be Lumen's; the library pages
   // draw their header at once.
   useEffect(() => {
-    if (route.kind === 'library' || route.kind === 'favorites' || route.kind === 'notFound') liftVeil();
+    if (
+      route.kind === 'library' ||
+      route.kind === 'favorites' ||
+      route.kind === 'notFound' ||
+      route.kind === 'history'
+    )
+      liftVeil();
   }, [route.kind]);
   // Lumen's own pages are the document's main content (jellyfin-web's, empty, is hidden: base.css). The player and
   // settings pages frame jellyfin-web's, which keep its main and its title.
