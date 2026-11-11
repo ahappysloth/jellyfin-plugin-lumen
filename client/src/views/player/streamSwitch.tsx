@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { strings } from '../../strings';
+import { playerStrings } from './playerStrings';
 
 /** A switch only shows the overlay if the stream actually restarts within this long. */
 const ARM_MS = 2000;
@@ -90,7 +90,7 @@ export function SwitchOverlay({ state }: { state: Switching | null }) {
       {state.frame && <img class="lmn-switching__frame" src={state.frame} alt="" />}
       <p class="lmn-switching__note">
         <span class="lmn-spinner" aria-hidden="true" />
-        {strings.player.switching(state.label)}
+        {playerStrings.switching(state.label)}
       </p>
     </div>
   );

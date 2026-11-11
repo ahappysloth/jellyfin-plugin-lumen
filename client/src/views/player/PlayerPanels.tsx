@@ -8,8 +8,8 @@ import {
 } from 'preact';
 import { useEffect, useId, useRef } from 'preact/hooks';
 import type { PlaybackManager, Stream } from '../../compat/playbackManager';
-import { strings } from '../../strings';
 import type { PlayerSnapshot } from './playerState';
+import { playerStrings } from './playerStrings';
 
 /**
  * Quality presets, highest first. A preset shows when the source is at least `minHeight` tall (no "4K" for a 1080p
@@ -44,7 +44,7 @@ function presetFor(bitrate: number) {
 /** What the Quality pill says: the playing resolution on Auto, else the chosen preset. */
 export function qualityLabel(snap: PlayerSnapshot): string {
   return snap.autoQuality
-    ? heightLabel(snap.videoHeight) || strings.player.auto
+    ? heightLabel(snap.videoHeight) || playerStrings.auto
     : presetFor(snap.maxBitrate).label;
 }
 
@@ -198,14 +198,14 @@ export function QualityPanel({
   const speeds = SPEEDS.filter((s) => snap.rates.length === 0 || snap.rates.includes(s));
 
   return (
-    <div ref={ref} class="lmn-panel lmn-panel--quality" role="dialog" aria-label={strings.player.quality}>
+    <div ref={ref} class="lmn-panel lmn-panel--quality" role="dialog" aria-label={playerStrings.quality}>
       <div class="lmn-panel__columns">
-        <Choices heading={strings.player.quality} tv={tv}>
+        <Choices heading={playerStrings.quality} tv={tv}>
           <Option
             selected={current === null}
-            label={strings.player.auto}
+            label={playerStrings.auto}
             detail={heightLabel(snap.videoHeight)}
-            onSelect={() => setQuality(null, strings.player.auto)}
+            onSelect={() => setQuality(null, playerStrings.auto)}
           />
           {presets.map((p) => (
             <Option
@@ -218,7 +218,7 @@ export function QualityPanel({
           ))}
         </Choices>
         {snap.aspectRatios.length > 1 && (
-          <Choices heading={strings.player.aspectRatio} tv={tv}>
+          <Choices heading={playerStrings.aspectRatio} tv={tv}>
             {snap.aspectRatios.map((a) => (
               <Option
                 key={a.id}
@@ -232,8 +232,8 @@ export function QualityPanel({
       </div>
       {speeds.length > 1 && (
         <div class="lmn-panel__footer">
-          <span class="lmn-panel__heading">{strings.player.speed}</span>
-          <div class="lmn-panel__speeds" role="group" aria-label={strings.player.speed}>
+          <span class="lmn-panel__heading">{playerStrings.speed}</span>
+          <div class="lmn-panel__speeds" role="group" aria-label={playerStrings.speed}>
             {speeds.map((s) => (
               <button
                 key={s}
@@ -305,13 +305,13 @@ export function AudioSubtitlesPanel({
       ref={ref}
       class="lmn-panel lmn-panel--tracks"
       role="dialog"
-      aria-label={strings.player.audioSubtitles}
+      aria-label={playerStrings.audioSubtitles}
     >
       <div class="lmn-panel__columns">
         <Choices
-          heading={strings.player.audio}
+          heading={playerStrings.audio}
           tv={tv}
-          empty={snap.audioTracks.length === 0 && strings.player.noAudio}
+          empty={snap.audioTracks.length === 0 && playerStrings.noAudio}
         >
           {snap.audioTracks.map((t) => (
             <Option
@@ -323,14 +323,14 @@ export function AudioSubtitlesPanel({
           ))}
         </Choices>
         <Choices
-          heading={strings.player.subtitles}
+          heading={playerStrings.subtitles}
           tv={tv}
-          empty={snap.subtitleTracks.length === 0 && strings.player.noSubtitles}
+          empty={snap.subtitleTracks.length === 0 && playerStrings.noSubtitles}
         >
           <Option
             selected={snap.subtitleIndex === -1}
-            label={strings.player.off}
-            onSelect={() => setSubtitles(-1, strings.player.subtitlesOff)}
+            label={playerStrings.off}
+            onSelect={() => setSubtitles(-1, playerStrings.subtitlesOff)}
           />
           {snap.subtitleTracks.map((t) => (
             <Option
@@ -344,12 +344,12 @@ export function AudioSubtitlesPanel({
       </div>
       {offset !== null && snap.subtitleIndex !== -1 && (
         <div class="lmn-panel__footer">
-          <span class="lmn-panel__heading">{strings.player.subtitleTiming}</span>
-          <div class="lmn-panel__stepper" role="group" aria-label={strings.player.subtitleTiming}>
+          <span class="lmn-panel__heading">{playerStrings.subtitleTiming}</span>
+          <div class="lmn-panel__stepper" role="group" aria-label={playerStrings.subtitleTiming}>
             <button
               type="button"
               class="lmn-panel__speed"
-              aria-label={strings.player.earlier}
+              aria-label={playerStrings.earlier}
               onClick={() => nudge(-0.1)}
             >
               −0.1s
@@ -361,7 +361,7 @@ export function AudioSubtitlesPanel({
             <button
               type="button"
               class="lmn-panel__speed"
-              aria-label={strings.player.later}
+              aria-label={playerStrings.later}
               onClick={() => nudge(0.1)}
             >
               +0.1s

@@ -22,6 +22,7 @@ import {
 } from './catalog';
 import { CatalogCard } from './CatalogCard';
 import { RequestDialog } from './RequestDialog';
+import { titleStrings } from './titleStrings';
 
 /**
  * A catalog title's page (requests spec §5.3): the details-page header with Request (or the request's state) in place
@@ -68,7 +69,7 @@ export function TitleView({
         <FailedPageMark />
         <LoadError
           class="lmn-title__failed"
-          message={strings.titleFailed}
+          message={titleStrings.titleFailed}
           onRetry={() => setAttempt((n) => n + 1)}
         >
           <button type="button" class="lmn-button lmn-button--secondary" onClick={() => goBack(ctx)}>
@@ -167,16 +168,16 @@ function TitleHeader({
   const meta = [
     title.Rating ? title.Rating.toFixed(1) : undefined,
     title.Year?.toString(),
-    title.Runtime ? strings.runtimeMinutes(title.Runtime) : undefined,
+    title.Runtime ? titleStrings.runtimeMinutes(title.Runtime) : undefined,
     title.MediaType === 'movie' ? strings.movie : strings.show,
   ].filter((p): p is string => !!p);
   const owned = title.JellyfinItemId;
   const label = stateLabel(state);
   const note =
     state === 'Blocklisted'
-      ? strings.blocklisted
+      ? titleStrings.blocklisted
       : !title.CanRequest && state === 'None' && !owned
-        ? strings.cannotRequest
+        ? titleStrings.cannotRequest
         : null;
 
   return (
@@ -200,7 +201,7 @@ function TitleHeader({
         </button>
       </div>
       <div class="lmn-details__info">
-        {!owned && <p class="lmn-title__kicker">{strings.notInLibrary}</p>}
+        {!owned && <p class="lmn-title__kicker">{titleStrings.notInLibrary}</p>}
         <h1 class="lmn-details__title">{title.Title}</h1>
         <p class="lmn-meta lmn-details__meta">
           {meta.map((part, i) => (
@@ -226,12 +227,14 @@ function TitleHeader({
               onClick={() => ctx.navigate(detailsHash(owned))}
             >
               <Icon name="play" />
-              {strings.openInLibrary}
+              {titleStrings.openInLibrary}
             </button>
           ) : title.CanRequest ? (
             <button type="button" class="lmn-button lmn-button--primary lmn-autofocus" onClick={onRequest}>
               <Icon name="plus" />
-              {state === 'PartlyAvailable' || state === 'Requested' ? strings.requestMore : strings.request}
+              {state === 'PartlyAvailable' || state === 'Requested'
+                ? titleStrings.requestMore
+                : strings.request}
             </button>
           ) : null}
           {!owned && label && state !== 'None' && (
@@ -246,10 +249,10 @@ function TitleHeader({
               href={title.TrailerUrl}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={strings.watchTrailer}
+              aria-label={titleStrings.watchTrailer}
             >
               <Icon name="film" />
-              <span class="lmn-button__label">{strings.watchTrailer}</span>
+              <span class="lmn-button__label">{titleStrings.watchTrailer}</span>
             </a>
           )}
         </div>

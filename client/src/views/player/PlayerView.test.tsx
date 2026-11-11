@@ -7,10 +7,10 @@ import * as compat from '../../compat/playbackManager';
 import { qualityLabel, trackParts } from './PlayerPanels';
 import { formatClock, PlayerView } from './PlayerView';
 import type { PlayerSnapshot } from './playerState';
-import { strings } from '../../strings';
 import { ContextMenuHost } from '../../components/ContextMenu';
 import { NO_SYNCPLAY } from '../syncplay/syncPlayState';
 import { openWatchTogether } from '../syncplay/WatchTogether';
+import { playerStrings } from './playerStrings';
 
 const watchTogether = {
   ...NO_SYNCPLAY,
@@ -200,7 +200,7 @@ describe('PlayerView', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(300);
     });
-    const slider = screen.getByRole('slider', { name: strings.player.seek });
+    const slider = screen.getByRole('slider', { name: playerStrings.seek });
     slider.focus();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(4000); // controls hide; the seek bar keeps focus
@@ -247,7 +247,7 @@ describe('PlayerView', () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(300);
       });
-      return screen.getByRole('slider', { name: strings.player.volume });
+      return screen.getByRole('slider', { name: playerStrings.volume });
     };
     const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'];
 
@@ -326,7 +326,7 @@ describe('PlayerView', () => {
         expect(playPause.targets).toEqual([]);
         expect(reachedJellyfin).toContain(' '); // as a key it ignores: it still learns where the keyboard is
         // Elsewhere it is still jellyfin-web's.
-        const seek = screen.getByRole('slider', { name: strings.player.seek });
+        const seek = screen.getByRole('slider', { name: playerStrings.seek });
         keyboardFocus(seek);
         space(seek);
         expect(playPause.targets).toEqual([seek]);
@@ -412,7 +412,7 @@ describe('PlayerView', () => {
 
     it('hides the controls after a pause in the TV layout, focus or not, and brings them back on a key', async () => {
       const { osd } = await open('tv');
-      const volume = screen.getByRole('slider', { name: strings.player.volume });
+      const volume = screen.getByRole('slider', { name: playerStrings.volume });
       keyboardFocus(volume);
       reachedJellyfin = [];
       await idle();

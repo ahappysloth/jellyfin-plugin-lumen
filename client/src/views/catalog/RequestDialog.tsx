@@ -6,6 +6,7 @@ import { Icon } from '../../components/icons';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { stateLabel } from './catalog';
+import { titleStrings } from './titleStrings';
 
 interface Props {
   title: CatalogTitle;
@@ -65,7 +66,7 @@ export function RequestDialog({ title, ctx, onClose, onRequested }: Props) {
       .catch((error: unknown) =>
         setPhase({
           kind: 'error',
-          message: (error instanceof RequestError && error.message) || strings.requestFailed,
+          message: (error instanceof RequestError && error.message) || titleStrings.requestFailed,
         }),
       );
   };
@@ -115,14 +116,14 @@ export function RequestDialog({ title, ctx, onClose, onRequested }: Props) {
         <button
           type="button"
           class="lmn-dialog__close"
-          aria-label={strings.close}
+          aria-label={titleStrings.close}
           disabled={phase.kind === 'sending'}
           onClick={onClose}
         >
           <Icon name="close" size={18} />
         </button>
         <h2 id={headingId} class="lmn-dialog__title">
-          {strings.requestTitle(title.Title)}
+          {titleStrings.requestTitle(title.Title)}
         </h2>
 
         {phase.kind === 'done' || phase.kind === 'error' ? (
@@ -132,8 +133,8 @@ export function RequestDialog({ title, ctx, onClose, onRequested }: Props) {
               {phase.kind === 'error'
                 ? phase.message
                 : phase.pending
-                  ? strings.requestPending
-                  : strings.requestDone}
+                  ? titleStrings.requestPending
+                  : titleStrings.requestDone}
             </p>
             <div class="lmn-dialog__actions">
               {phase.kind === 'error' && (
@@ -146,13 +147,15 @@ export function RequestDialog({ title, ctx, onClose, onRequested }: Props) {
                 </button>
               )}
               <button type="button" class="lmn-button lmn-button--primary" data-autofocus onClick={onClose}>
-                {strings.done}
+                {titleStrings.done}
               </button>
             </div>
           </>
         ) : (
           <>
-            <p class="lmn-dialog__text">{isTv ? strings.chooseSeasons : strings.requestMovieConfirm}</p>
+            <p class="lmn-dialog__text">
+              {isTv ? titleStrings.chooseSeasons : titleStrings.requestMovieConfirm}
+            </p>
             {isTv && (
               <div class="lmn-seasons" role="group" aria-label={strings.season}>
                 {requestable.length > 1 && (
@@ -162,7 +165,7 @@ export function RequestDialog({ title, ctx, onClose, onRequested }: Props) {
                       checked={allSelected}
                       onChange={() => setSelected(allSelected ? new Set() : new Set(requestable))}
                     />
-                    <span class="lmn-seasons__name">{strings.allSeasons}</span>
+                    <span class="lmn-seasons__name">{titleStrings.allSeasons}</span>
                   </label>
                 )}
                 {title.Seasons.map((season) => {
@@ -178,8 +181,8 @@ export function RequestDialog({ title, ctx, onClose, onRequested }: Props) {
                       <span class="lmn-seasons__name">{season.Name}</span>
                       <span class="lmn-seasons__meta">
                         {locked
-                          ? (stateLabel(season.State) ?? strings.available)
-                          : strings.seasonEpisodes(season.EpisodeCount)}
+                          ? (stateLabel(season.State) ?? titleStrings.available)
+                          : titleStrings.seasonEpisodes(season.EpisodeCount)}
                       </span>
                     </label>
                   );
@@ -193,7 +196,7 @@ export function RequestDialog({ title, ctx, onClose, onRequested }: Props) {
                 disabled={phase.kind === 'sending'}
                 onClick={onClose}
               >
-                {strings.cancel}
+                {titleStrings.cancel}
               </button>
               <button
                 type="button"
@@ -202,7 +205,7 @@ export function RequestDialog({ title, ctx, onClose, onRequested }: Props) {
                 disabled={phase.kind === 'sending' || (isTv && selected.size === 0)}
                 onClick={send}
               >
-                {phase.kind === 'sending' ? strings.sending : strings.sendRequest}
+                {phase.kind === 'sending' ? titleStrings.sending : titleStrings.sendRequest}
               </button>
             </div>
           </>

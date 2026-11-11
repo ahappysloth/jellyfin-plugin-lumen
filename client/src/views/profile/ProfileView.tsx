@@ -8,7 +8,7 @@ import {
   SETTINGS_HASHES,
   signOut,
 } from '../../compat/jellyfin';
-import { Icon, type IconName } from '../../components/icons';
+import { Icon, type IconRef } from '../../components/icons';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { strings } from '../../strings';
 import { liftVeil } from '../../veil/veil';
@@ -17,6 +17,8 @@ import type { ViewContext } from '../context';
 import { initials } from '../details/CastRow';
 import { useSyncPlayState } from '../syncplay/syncPlayState';
 import { openWatchTogether } from '../syncplay/WatchTogether';
+import { PROFILE_ICONS } from './profileIcons';
+import { profileStrings } from './profileStrings';
 
 /** The avatar's CSS size. */
 const AVATAR_PX = 88;
@@ -25,14 +27,14 @@ type SettingKey = keyof typeof strings.settings;
 
 interface Entry {
   key: SettingKey;
-  icon: IconName;
+  icon: IconRef;
 }
 
 const PREFERENCES: readonly Entry[] = [
   { key: 'display', icon: 'display' },
   { key: 'home', icon: 'home' },
   { key: 'playback', icon: 'play' },
-  { key: 'subtitles', icon: 'subtitles' },
+  { key: 'subtitles', icon: PROFILE_ICONS.subtitles },
 ];
 const ADMIN: readonly Entry[] = [
   { key: 'dashboard', icon: 'shield' },
@@ -67,7 +69,7 @@ export function ProfileView({ ctx }: { ctx: ViewContext }) {
   const { user } = account;
   const access = accountAccess(account);
   const avatar = avatarUrl(ctx, user, AVATAR_PX);
-  const setting = (key: SettingKey, icon: IconName, autofocus = false) => (
+  const setting = (key: SettingKey, icon: IconRef, autofocus = false) => (
     <Row
       key={key}
       icon={icon}
@@ -98,11 +100,11 @@ export function ProfileView({ ctx }: { ctx: ViewContext }) {
       </header>
 
       <div class="lmn-profile__groups">
-        <Group label={strings.activity}>
+        <Group label={profileStrings.activity}>
           <Row
             icon="history"
             label={strings.history}
-            hint={strings.historyHint}
+            hint={profileStrings.historyHint}
             href={HISTORY_HASH}
             autofocus
           />
@@ -120,15 +122,15 @@ export function ProfileView({ ctx }: { ctx: ViewContext }) {
           {setting('profile', 'user')}
           {access.quickConnect && setting('quickConnect', 'key')}
         </Group>
-        <Group title={strings.preferences}>
+        <Group title={profileStrings.preferences}>
           {PREFERENCES.map(({ key, icon }) => setting(key, icon))}
           {/* Controls (remote/D-pad settings) only matter on TVs, as in jellyfin-web. */}
-          {ctx.layout === 'tv' && setting('controls', 'gamepad')}
+          {ctx.layout === 'tv' && setting('controls', PROFILE_ICONS.gamepad)}
           {access.clientSettings && (
             <Row
               icon="display"
               label={strings.clientSettings}
-              hint={strings.clientSettingsHint}
+              hint={profileStrings.clientSettingsHint}
               onClick={() => appActions.clientSettings()}
             />
           )}
@@ -136,13 +138,15 @@ export function ProfileView({ ctx }: { ctx: ViewContext }) {
             <Row
               icon="download"
               label={strings.downloadManager}
-              hint={strings.downloadManagerHint}
+              hint={profileStrings.downloadManagerHint}
               onClick={() => appActions.downloadManager()}
             />
           )}
         </Group>
         {access.admin && (
-          <Group title={strings.administration}>{ADMIN.map(({ key, icon }) => setting(key, icon))}</Group>
+          <Group title={profileStrings.administration}>
+            {ADMIN.map(({ key, icon }) => setting(key, icon))}
+          </Group>
         )}
       </div>
 
@@ -203,7 +207,7 @@ function Row({
   popup = false,
   autofocus = false,
 }: {
-  icon: IconName;
+  icon: IconRef;
   label: string;
   hint: string;
   href?: string;

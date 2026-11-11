@@ -1,4 +1,10 @@
-/** Small inline SVG icons (24×24 grid, currentColor). Decorative: always aria-hidden; label the control instead. */
+/**
+ * Small inline SVG icons (24×24 grid, currentColor). Decorative: always aria-hidden; label the control instead.
+ *
+ * PATHS downloads at startup whole, so an icon only a lazily loaded view shows lives in that view's own set, made with
+ * defineIcons in a module only its chunk imports (views/player/playerIcons.ts, views/profile/profileIcons.ts), and is
+ * passed as `name={PLAYER_ICONS.cast}`. An icon the core needs too belongs here.
+ */
 import type { JSX } from 'preact';
 
 const PATHS = {
@@ -19,8 +25,6 @@ const PATHS = {
   server:
     'M4 3h16a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm1 2v4h14V5Zm2 1h2v2H7Zm-3 7h16a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1Zm1 2v4h14v-4Zm2 1h2v2H7Z',
   check: 'M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z',
-  cast: 'M1 18v3h3a3 3 0 0 0-3-3Zm0-4v2a5 5 0 0 1 5 5h2a7 7 0 0 0-7-7Zm0-4v2a9 9 0 0 1 9 9h2A11 11 0 0 0 1 10Zm20-7H3a2 2 0 0 0-2 2v3h2V5h18v14h-7v2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Z',
-  repeat: 'M7 7h10v3l4-4-4-4v3H5v6h2V7Zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4Z',
   eye: 'M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7S3 14.5 2 12c1-2.5 5-7 10-7Zm0 2c-3.6 0-6.6 3-7.8 5 1.2 2 4.2 5 7.8 5s6.6-3 7.8-5c-1.2-2-4.2-5-7.8-5Zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z',
   film: 'M4 4h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm1 2v2h2V6Zm12 0v2h2V6ZM5 10v4h2v-4Zm12 0v4h2v-4ZM5 16v2h2v-2Zm12 0v2h2v-2ZM9 6v12h6V6Z',
   tv: 'M4 5h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-7v1h3v2H8v-2h3v-1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm1 2v9h14V7Z',
@@ -43,27 +47,12 @@ const PATHS = {
     'M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L14.9 3h-4l-.4 2.7a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.4 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.7h4l.4-2.7a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5ZM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z',
   display:
     'M3 4h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-7v2h3v2H7v-2h3v-2H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm1 2v10h16V6Z',
-  subtitles:
-    'M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm1 2v10h16V7ZM6 11h5v2H6Zm7 0h5v2h-5Zm-7 3h8v2H6Zm10 0h2v2h-2Z',
   key: 'M7 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm5.6-4H22v4h-2v3h-3v-3h-4.4a6 6 0 1 1 0-4Z',
   shield:
     'M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5Zm0 2.2 6 2.2V11c0 3.9-2.5 7.6-6 8.9-3.5-1.3-6-5-6-8.9V6.4Z',
   edit: 'M4 17.2V20h2.8l8.3-8.3-2.8-2.8ZM19.7 7.1a1 1 0 0 0 0-1.4L18.3 4.3a1 1 0 0 0-1.4 0l-1.4 1.4 2.8 2.8Z',
   logout:
     'M10 4H4v16h6v2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h6Zm6.6 3.6L21 12l-4.4 4.4-1.4-1.4 2-2H9v-2h8.2l-2-2Z',
-  gamepad:
-    'M7 7h10a5 5 0 0 1 0 10c-1.5 0-2.4-.8-3.2-1.6-.5-.5-1.1-.4-1.8-.4s-1.3-.1-1.8.4C9.4 16.2 8.5 17 7 17A5 5 0 0 1 7 7Zm-1 3v1.5H4.5v2H6V15h2v-1.5h1.5v-2H8V10Zm9.5 1a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm2.5-2a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z',
-  closedCaption:
-    'M19 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Zm0 14H5V6h14ZM7 15h3a1 1 0 0 0 1-1v-1H9.5v.5h-2v-3h2v.5H11v-1a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1Zm7 0h3a1 1 0 0 0 1-1v-1h-1.5v.5h-2v-3h2v.5H18v-1a1 1 0 0 0-1-1h-3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1Z',
-  quality:
-    'M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v10h16V7Zm6 2.2 5 2.8-5 2.8Z',
-  fullscreen: 'M4 4h6v2H6v4H4Zm10 0h6v6h-2V6h-4ZM4 14h2v4h4v2H4Zm14 0h2v6h-6v-2h4Z',
-  fullscreenExit: 'M8 4h2v6H4V8h4Zm6 0h2v4h4v2h-6ZM4 14h6v6H8v-4H4Zm10 0h6v2h-4v4h-2Z',
-  pip: 'M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm1 2v10h16V7Zm8 4h7v5h-7Z',
-  airplay:
-    'M5 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2.2l-1.7-2H19V6H5v9h3.9l-1.7 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm7 9 6 7H6Z',
-  skipNext: 'M6 6.5v11a1 1 0 0 0 1.5.86L15 13.4V17h2V7h-2v3.6L7.5 5.64A1 1 0 0 0 6 6.5Z',
-  arrowLeft: 'M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20Z',
   chevronDown: 'm4.6 8.6 7.4 7.4 7.4-7.4 1.4 1.4-8.8 8.8L3.2 10Z',
   more: 'M5 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z',
   star: 'm12 2.5 2.9 6.1 6.6.8-4.9 4.6 1.3 6.5L12 17.3l-5.9 3.2 1.3-6.5-4.9-4.6 6.6-.8Z',
@@ -78,12 +67,23 @@ const PATHS = {
 
 export type IconName = keyof typeof PATHS;
 
+declare const iconPath: unique symbol;
+/** An icon from a lazily loaded view's own set: its path data, branded so any other string is still a type error. */
+export type IconPath = string & { readonly [iconPath]: true };
+/** Either kind of icon: one named here, or one from a view's own set. */
+export type IconRef = IconName | IconPath;
+
+/** A lazily loaded view's own icons, by name, for `<Icon name={…}>`. */
+export function defineIcons<K extends string>(paths: Record<K, string>): Readonly<Record<K, IconPath>> {
+  return paths as Record<K, IconPath>;
+}
+
 export function Icon({
   name,
   size = 18,
   class: className,
 }: {
-  name: IconName;
+  name: IconRef;
   size?: number;
   class?: string;
 }): JSX.Element {
@@ -97,7 +97,7 @@ export function Icon({
       aria-hidden="true"
       focusable="false"
     >
-      <path d={PATHS[name]} fill-rule="evenodd" />
+      <path d={name in PATHS ? PATHS[name as IconName] : name} fill-rule="evenodd" />
     </svg>
   );
 }

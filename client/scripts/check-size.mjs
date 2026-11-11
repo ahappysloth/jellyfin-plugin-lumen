@@ -38,7 +38,8 @@ if (others.length) {
 // (player: Watch together, Cast, Ends at, settings with Repeat and Playback info, loading screen). The player has
 // loaded on its own since 0.3.7, and the trailer preview too, which freed about 2.5 KB; the catalog title page and the
 // profile pages followed, about 3 KB more. Raised to 72 KB in 0.3.7 anyway, at the owner's call: headroom for upcoming
-// features.
+// features. Then dropping the build's comments and moving the strings and icons only lazy files use into those files
+// freed about 2.7 KB (strings.ts, components/icons.tsx).
 const BUDGET = 72 * 1024;
 const startup = ['lumen.js', 'lumen.css', coreChunk];
 const total = startup.reduce((sum, f) => sum + gz(`dist/${f}`), 0);
