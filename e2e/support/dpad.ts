@@ -9,6 +9,8 @@ const FOCUSABLE =
   'input:not([type="range"]):not([type="file"]):not([tabindex="-1"]):not(:disabled), ' +
   'select:not([tabindex="-1"]):not(:disabled), textarea:not(:disabled), [tabindex="0"], .focusable:not([tabindex="-1"])';
 const KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'] as const;
+/** Rounds of exploring at most (see walkDpad): a page whose controls keep changing under the walk stops somewhere. */
+const MAX_ROUNDS = 4;
 
 export interface Control {
   id: number;
@@ -42,7 +44,8 @@ const focusedId = (page: Page) =>
 
 /**
  * Walks jellyfin-web's TV-layout D-pad navigation from `start`: from every control reached so far, presses each arrow
- * key and records where focus lands, until nothing new turns up. Then lists Lumen's controls it never landed on.
+ * key and records where focus lands, until nothing new turns up (going round again while that finds more). Then lists
+ * Lumen's controls it never landed on.
  */
 export async function walkDpad(page: Page, start: Locator): Promise<DpadWalk> {
   await start.focus();
@@ -52,25 +55,33 @@ export async function walkDpad(page: Page, start: Locator): Promise<DpadWalk> {
   const url = page.url();
 
   const seen = new Set([first]);
-  const queue = [first];
-  while (queue.length) {
-    const from = queue.shift()!;
-    for (const key of KEYS) {
-      const focused = await page.evaluate((id) => {
-        const el = document.querySelector<HTMLElement>(`[data-dpad="${id}"]`);
-        el?.focus();
-        return !!el && document.activeElement === el;
-      }, from);
-      if (!focused) break; // gone, hidden or inert since it was reached
-      await page.keyboard.press(key);
-      // focusManager moves focus on keydown; give anything Lumen renders in response a couple of frames.
-      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-      if (page.url() !== url) throw new Error(`${key} from control ${from} navigated to ${page.url()}`);
-      await tagFocusables(page); // controls rendered since (lazy rows, an opened menu)
-      const to = await focusedId(page);
-      if (to != null && !seen.has(to)) {
-        seen.add(to);
-        queue.push(to);
+  // A press can change what's on the page after the controls leading to the new ones were explored: the hero's pager
+  // changes the slide, whose buttons are new elements. So go round again from every control reached so far, until a
+  // round finds nothing new.
+  let found = true;
+  for (let round = 0; found && round < MAX_ROUNDS; round++) {
+    found = false;
+    const queue = round === 0 ? [first] : [...seen];
+    while (queue.length) {
+      const from = queue.shift()!;
+      for (const key of KEYS) {
+        const focused = await page.evaluate((id) => {
+          const el = document.querySelector<HTMLElement>(`[data-dpad="${id}"]`);
+          el?.focus();
+          return !!el && document.activeElement === el;
+        }, from);
+        if (!focused) break; // gone, hidden or inert since it was reached
+        await page.keyboard.press(key);
+        // focusManager moves focus on keydown; give anything Lumen renders in response a couple of frames.
+        await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+        if (page.url() !== url) throw new Error(`${key} from control ${from} navigated to ${page.url()}`);
+        await tagFocusables(page); // controls rendered since (lazy rows, an opened menu)
+        const to = await focusedId(page);
+        if (to != null && !seen.has(to)) {
+          seen.add(to);
+          queue.push(to);
+          found = true;
+        }
       }
     }
   }

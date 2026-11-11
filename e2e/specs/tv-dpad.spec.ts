@@ -34,6 +34,43 @@ test('TV layout: every control on home is reachable with the D-pad', async ({ pa
   expect(unreachable.map((c) => c.name)).toEqual([]);
 });
 
+test("TV layout: the hero's Pause is reachable with no card below it", async ({ page }) => {
+  // One card per row, at the left under the slide's buttons: nothing under the hero's controls for Up to come from, so
+  // they must be reachable along the hero itself. (The walk above starts on the first slide with full rows: a card
+  // below Pause hid that it wasn't.)
+  await page.route(/\/Lumen\/Home\b/, async (route) => {
+    const response = await route.fetch();
+    const home = await response.json();
+    for (const row of home.Rows) {
+      row.Items = row.Items.slice(0, 1);
+      if (row.Entries) row.Entries = row.Entries.slice(0, 1);
+    }
+    await route.fulfill({ response, json: home });
+  });
+  await signInOnTv(page);
+  const hero = page.locator('#lmn-root .lmn-hero');
+  const start = hero.locator('.lmn-hero__slide.is-current .lmn-button--primary');
+  await expect(start).toBeFocused();
+  await expect(page.locator('#lmn-root .lmn-row').first()).toBeVisible();
+
+  // Along the hero as along a row: Play, More info, Pause, then the current title's pill.
+  const pause = hero.getByRole('button', { name: 'Pause slideshow' });
+  const pill = hero.getByRole('tab', { selected: true });
+  await page.keyboard.press('ArrowRight');
+  await expect(hero.getByRole('button', { name: 'More info' })).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(pause).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(pill).toBeFocused();
+  await expect(pill).toHaveAttribute('aria-label', /^Show /);
+  // The first title's pill: Left leaves the pills (no wrapping round to the last) and comes back to Pause.
+  await page.keyboard.press('ArrowLeft');
+  await expect(pause).toBeFocused();
+
+  const { unreachable } = await walkDpad(page, start);
+  expect(unreachable.map((c) => c.name)).toEqual([]);
+});
+
 test('TV layout: every control on a series page is reachable with the D-pad', async ({ page }) => {
   const { items } = loadState();
   await signInOnTv(page);
