@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { SAFETY_MS } from './runGuard';
 import { liftVeil, rememberVeilName, shouldVeil, showVeil, SLOW_MS, VEIL_ID } from './veil';
 
 describe('veil', () => {
@@ -72,6 +73,28 @@ describe('veil', () => {
     retry.click();
     expect(reload).toHaveBeenCalled();
     vi.restoreAllMocks();
+  });
+
+  it("lets go of Try again as it lifts, so a remote's OK during the lift doesn't reload", () => {
+    vi.useFakeTimers();
+    const reload = vi.fn();
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, reload });
+    const veil = showVeil(document, '<svg></svg>');
+    vi.advanceTimersByTime(SLOW_MS);
+    const retry = veil.querySelector('button')!;
+    expect(retry).toHaveFocus();
+
+    liftVeil(document);
+    expect(retry).not.toHaveFocus();
+    expect(retry).toBeDisabled();
+    expect(veil).toHaveAttribute('aria-hidden', 'true');
+    retry.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(reload).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  it("waits as long as the guard's safety timer before saying it's slow", () => {
+    expect(SLOW_MS).toBe(SAFETY_MS);
   });
 
   it('stays quiet when the page is ready in time', () => {
