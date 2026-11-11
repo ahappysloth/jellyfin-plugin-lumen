@@ -70,6 +70,22 @@ describe('Dropdown', () => {
     },
   );
 
+  it("leaves Up and Down to a TV's D-pad: OK opens it there", () => {
+    document.documentElement.classList.add('layout-tv');
+    try {
+      render(<Dropdown label="Fruit" value="a" options={options} onChange={vi.fn()} />);
+      const button = screen.getByRole('button');
+      const down = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+      button.dispatchEvent(down);
+      expect(down.defaultPrevented).toBe(false);
+      expect(screen.queryByRole('listbox')).toBeNull();
+      fireEvent.click(button);
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+    } finally {
+      document.documentElement.classList.remove('layout-tv');
+    }
+  });
+
   it('closes on an outside press without changing the value', () => {
     const onChange = vi.fn();
     render(<Dropdown label="Fruit" value="a" options={options} onChange={onChange} />);
