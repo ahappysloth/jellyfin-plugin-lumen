@@ -27,7 +27,7 @@ export function SimilarRow({ itemId, ctx }: { itemId: string; ctx: ViewContext }
   return (
     <section class="lmn-row lmn-similar" aria-label={strings.moreLikeThis}>
       <h2 class="lmn-row__title">{strings.moreLikeThis}</h2>
-      <div class="lmn-grid focuscontainer">
+      <div class="lmn-grid focuscontainer-x">
         {items.map((item) => (
           <Card
             key={item.Id}

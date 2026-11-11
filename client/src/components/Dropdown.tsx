@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { isBackKey } from '../compat/jellyfin';
+import { getLayout, isBackKey } from '../compat/jellyfin';
 import { Icon } from './icons';
 
 /** Space kept between an open list and the edge of the screen. */
@@ -150,7 +150,8 @@ export function Dropdown<T extends string>({
         disabled={disabled}
         onClick={() => (open ? close(false) : openList())}
         onKeyDown={(e) => {
-          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          // On a TV, Up and Down move between controls (OK opens the list): opening on them would trap the D-pad here.
+          if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && getLayout(document) !== 'tv') {
             e.preventDefault();
             openList();
           }
