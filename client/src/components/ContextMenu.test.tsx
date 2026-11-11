@@ -111,7 +111,7 @@ describe('ContextMenu', () => {
         label: 'm',
         entries: [
           { label: 'A', icon: 'play', onSelect: vi.fn() },
-          { label: 'B', icon: 'trash', onSelect: vi.fn(), separated: true },
+          { label: 'B', icon: 'close', onSelect: vi.fn(), separated: true },
         ],
       }),
     );

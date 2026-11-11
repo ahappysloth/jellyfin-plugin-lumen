@@ -17,13 +17,15 @@ import {
 } from '../../compat/itemMenu';
 import { metadataHash } from '../../compat/jellyfin';
 import { type MenuEntry, openContextMenu } from '../../components/ContextMenu';
-import type { IconName } from '../../components/icons';
+import type { IconRef } from '../../components/icons';
 import { showToast } from '../../components/Toast';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { downloadUrl, nativeDownload } from '../details/download';
 import { forgetItem, rememberEdit } from '../itemChanges';
 import { COMMAND_GROUPS, type ItemCommand, itemCommands, type MenuItem } from './itemCommands';
+import { ITEM_MENU_ICONS } from './itemMenuIcons';
+import { itemMenuStrings } from './itemMenuStrings';
 
 export interface ItemMenuOptions {
   /** `item` came from `GET /Items/{id}` (a details page's own): no need to fetch it again. */
@@ -80,32 +82,32 @@ const isDialog = (command: ItemCommand): boolean => command !== 'download' && co
 const IN_METADATA_MANAGER: readonly ItemCommand[] = ['edit', 'editimages', 'identify', 'refresh'];
 
 const LABELS: Record<ItemCommand, (item: MenuItem) => string> = {
-  addtoplaylist: () => strings.addToPlaylist,
-  addtocollection: () => strings.addToCollection,
+  addtoplaylist: () => itemMenuStrings.addToPlaylist,
+  addtocollection: () => itemMenuStrings.addToCollection,
   download: () => strings.download,
-  downloadall: () => strings.downloadAll,
-  'copy-stream': () => strings.copyStreamUrl,
-  moremediainfo: () => strings.mediaInfo,
-  edit: () => strings.editMetadata,
-  editimages: () => strings.editImages,
-  editsubtitles: () => strings.editSubtitles,
-  identify: () => strings.identify,
-  refresh: () => strings.refreshMetadata,
-  delete: (item) => strings.deleteItem(item.Type),
+  downloadall: () => itemMenuStrings.downloadAll,
+  'copy-stream': () => itemMenuStrings.copyStreamUrl,
+  moremediainfo: () => itemMenuStrings.mediaInfo,
+  edit: () => itemMenuStrings.editMetadata,
+  editimages: () => itemMenuStrings.editImages,
+  editsubtitles: () => itemMenuStrings.editSubtitles,
+  identify: () => itemMenuStrings.identify,
+  refresh: () => itemMenuStrings.refreshMetadata,
+  delete: (item) => itemMenuStrings.deleteItem(item.Type),
 };
-const ICONS: Record<ItemCommand, IconName> = {
-  addtoplaylist: 'playlistAdd',
-  addtocollection: 'collection',
+const ICONS: Record<ItemCommand, IconRef> = {
+  addtoplaylist: ITEM_MENU_ICONS.playlistAdd,
+  addtocollection: ITEM_MENU_ICONS.collection,
   download: 'download',
   downloadall: 'download',
-  'copy-stream': 'copy',
+  'copy-stream': ITEM_MENU_ICONS.copy,
   moremediainfo: 'info',
   edit: 'edit',
-  editimages: 'image',
-  editsubtitles: 'closedCaption',
+  editimages: ITEM_MENU_ICONS.image,
+  editsubtitles: ITEM_MENU_ICONS.closedCaption,
   identify: 'search',
-  refresh: 'refresh',
-  delete: 'trash',
+  refresh: ITEM_MENU_ICONS.refresh,
+  delete: ITEM_MENU_ICONS.trash,
 };
 
 /**
@@ -206,8 +208,8 @@ async function run(
   if (command === 'download') return download(ctx, item);
   if (command === 'copy-stream')
     return copyText(downloadUrl(ctx.client, item.Id)).then(
-      () => showToast(strings.streamUrlCopied),
-      () => showToast(strings.copyFailed),
+      () => showToast(itemMenuStrings.streamUrlCopied),
+      () => showToast(itemMenuStrings.copyFailed),
     );
   try {
     // What had focus as the menu closed (its button or card), for when the dialog closes: jellyfin-web puts focus back
@@ -292,7 +294,7 @@ export async function prepareItemMenu(
         return void prepareItemMenu(ctx, full, { ...options, complete: true }).then((fresh) => {
           if (fresh.commands.length) fresh.open(at);
           else {
-            showToast(strings.noMoreActions);
+            showToast(itemMenuStrings.noMoreActions);
             at.onClose?.();
           }
         }, at.onClose);
@@ -353,7 +355,7 @@ export async function openItemMenuAt(
         () => undefined,
       ),
   });
-  if (menu.commands.length === 0) showToast(strings.noMoreActions);
+  if (menu.commands.length === 0) showToast(itemMenuStrings.noMoreActions);
   else menu.open({ ...at, title: menu.item.Name });
 }
 
