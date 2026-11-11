@@ -834,18 +834,23 @@ html.lmn-skin-player .volumeOsd {
 }
 
 /* Short windows (a phone in landscape): the card sits higher, under the title, with tighter rows, and stops above the
-   time and the seek bar (97px of the bottom bar, past its bottom padding, and a gap), scrolling inside if need be. */
+   time and the seek bar (97px of the bottom bar, past its bottom padding, and a gap), scrolling inside if need be.
+   --lmn-titles is the title block's height and a gap: two lines, or three with Watch together's. */
 @media (max-height: 500px) {
   .lmn-player-info {
     top: 72px;
-    top: calc(max(20px, env(safe-area-inset-top)) + 52px);
+    top: calc(max(20px, env(safe-area-inset-top)) + var(--lmn-titles, 52px));
     max-height: calc(100% - 191px);
     max-height: calc(
-      100% - max(20px, env(safe-area-inset-top)) - 52px - 105px - max(14px, env(safe-area-inset-bottom))
+      100% - max(20px, env(safe-area-inset-top)) - var(--lmn-titles, 52px) - 105px -
+        max(14px, env(safe-area-inset-bottom))
     );
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+  }
+  .lmn-osd.has-syncplay .lmn-player-info {
+    --lmn-titles: 84px;
   }
   .lmn-player-info__row {
     padding: 2px 0;

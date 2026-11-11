@@ -1,5 +1,5 @@
 import { devices, expect, test, type Page } from '@playwright/test';
-import { ADMIN, loadState } from '../support/api';
+import { ADMIN, api, loadState } from '../support/api';
 import { login } from '../support/login';
 
 // A phone, by touch: real taps in Chromium and WebKit, and (through Chromium's CDP) real touch drags. Firefox has no
@@ -22,8 +22,10 @@ async function play(page: Page): Promise<void> {
   const video = page.locator('video.htmlvideoplayer');
   const time = () => video.evaluate((v: HTMLVideoElement) => v.currentTime);
   // Playwright's WebKit now and then leaves the clock at the start (0.1 s) with the video playing and buffered to the
-  // end, before any input; a seek gets it going.
-  await expect.poll(time, { timeout: 8000 }).toBeGreaterThan(0.3).catch(async () => {
+  // end, before any input; a seek gets it going. Only there, and said in the report: elsewhere a stall is a failure.
+  await expect.poll(time, { timeout: 8000 }).toBeGreaterThan(0.3).catch(async (error: unknown) => {
+    if (page.context().browser()?.browserType().name() !== 'webkit') throw error;
+    test.info().annotations.push({ type: 'workaround', description: 'WebKit stalled at the start: seeked to 0.2 s' });
     await video.evaluate((v: HTMLVideoElement) => void (v.currentTime = 0.2));
     await expect.poll(time).toBeGreaterThan(0.3);
   });
@@ -150,3 +152,28 @@ for (const [way, viewport, short] of [
     });
   });
 }
+
+test.describe('a short phone in landscape, watching together', () => {
+  test.use({ viewport: { width: 667, height: 375 } });
+  test.afterEach(async () => {
+    await api('/SyncPlay/Leave', { method: 'POST', token: loadState().admin.token }).catch(() => undefined);
+  });
+
+  test("Playback info sits below the group's line under the title, and above the seek bar", async ({ page }) => {
+    await play(page);
+    await showControls(page);
+    await tapOn(page, page.getByRole('button', { name: 'Settings' }));
+    await tapOn(page, page.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: /Watch together/ }));
+    await tapOn(page, page.getByRole('menuitem', { name: 'New group' }));
+    const group = page.locator('.lmn-player__syncplay');
+    await expect(group).toBeVisible();
+
+    await showControls(page);
+    await tapOn(page, page.getByRole('button', { name: 'Settings' }));
+    await tapOn(page, page.getByRole('button', { name: 'Playback info' }));
+    const card = (await page.getByRole('complementary', { name: 'Playback info' }).boundingBox())!;
+    const line = (await group.boundingBox())!;
+    expect(card.y).toBeGreaterThanOrEqual(line.y + line.height);
+    expect(card.y + card.height).toBeLessThanOrEqual((await page.locator('.lmn-seek').boundingBox())!.y);
+  });
+});
