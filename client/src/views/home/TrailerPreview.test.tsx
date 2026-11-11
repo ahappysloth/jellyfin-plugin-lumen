@@ -365,6 +365,30 @@ describe('TrailerPreview', () => {
     expect(onPlayingChange).toHaveBeenLastCalledWith(true);
   });
 
+  it('keeps its controls when such a video is played and has not shown yet (focus stays on them)', async () => {
+    const onPlayingChange = vi.fn();
+    const client = createFakeClient();
+    const { container, rerender } = render(
+      <TrailerPreview
+        trailerId="t1"
+        delaySeconds={0}
+        client={client}
+        paused
+        onPlayingChange={onPlayingChange}
+      />,
+    );
+    await startAfter(0);
+    expect(onPlayingChange).toHaveBeenLastCalledWith(true);
+
+    rerender(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={client} onPlayingChange={onPlayingChange} />,
+    );
+    await act(async () => undefined);
+    expect(container.querySelector('video')).not.toHaveClass('is-shown');
+    // Off before it started, then on, and never off again in between.
+    expect(onPlayingChange.mock.calls.map(([on]) => on)).toEqual([false, true]);
+  });
+
   it('starts the video itself, and keeps the backdrop when the browser refuses (iOS Low Power Mode)', async () => {
     runAs(SAFARI);
     const play = vi

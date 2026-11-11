@@ -44,6 +44,25 @@ describe('download', () => {
     expect(downloadTitle({ ...movie, MediaSources: [{ Size: 962_304 }] })).toBe('Download (1 MB)');
     expect(downloadTitle({ ...movie, MediaSources: [{ Size: 734_000_000 }] })).toBe('Download (734 MB)');
     expect(downloadTitle({ ...movie, MediaSources: undefined })).toBe('Download');
+    // Several versions: the item's own file, which is what the endpoint sends.
+    expect(
+      downloadTitle({
+        ...movie,
+        MediaSources: [
+          { Id: 'other', Size: 9e9 },
+          { Id: 'm1', Size: 2e9 },
+        ],
+      }),
+    ).toBe('Download (2 GB)');
+  });
+
+  it("asks an official app whether it can save files, as jellyfin-web's appHost does", () => {
+    const supports = vi.fn(() => false);
+    Object.assign(window, { NativeShell: { AppHost: { supports } } });
+    expect(canDownload(movie, 'desktop')).toBe(false);
+    expect(supports).toHaveBeenCalledWith('filedownload');
+    supports.mockReturnValue(true);
+    expect(canDownload(movie, 'desktop')).toBe(true);
   });
 
   it("hands the file to the official apps' shell, as jellyfin-web's appHost does", () => {

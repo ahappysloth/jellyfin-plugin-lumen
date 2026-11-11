@@ -188,8 +188,13 @@ export function TrailerPreview({
   }, [paused]);
 
   // A video that (re)started while paused (the page scrolled back into view) waits hidden for Play, so the controls stay:
-  // it can only be paused once it has shown.
-  const playing = shown || (!!option && paused && !ending);
+  // it can only be paused once it has shown. Once they're up they stay until the preview stops or ends, through Play on
+  // such a video (not shown again until it's under way) and a retry's new stream: the control with keyboard or remote
+  // focus mustn't vanish from under it.
+  const controlled = useRef(false);
+  if (!option || ending) controlled.current = false;
+  const playing = !!option && !ending && (shown || paused || controlled.current);
+  if (playing) controlled.current = true;
   useEffect(() => {
     onPlayingChange?.(playing);
   }, [playing]);

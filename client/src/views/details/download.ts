@@ -14,8 +14,12 @@ const DOWNLOADABLE = ['Movie', 'Episode', 'Video', 'MusicVideo'];
  * (EnableContentDownloading) as well as whether the item is a file; like jellyfin-web, TVs get no Download (it hides
  * it on TV browsers and consoles: nowhere to save to).
  */
-export function canDownload(item: BaseItem, layout: Layout): boolean {
-  return layout !== 'tv' && !!item.CanDownload && DOWNLOADABLE.includes(item.Type);
+export function canDownload(item: BaseItem, layout: Layout, win: Window = window): boolean {
+  if (layout === 'tv' || !item.CanDownload || !DOWNLOADABLE.includes(item.Type)) return false;
+  // An official app says whether it can save files, as jellyfin-web asks it (appHost.supports('filedownload')).
+  const host = (win as Window & { NativeShell?: { AppHost?: { supports?: (feature: string) => boolean } } })
+    .NativeShell?.AppHost;
+  return typeof host?.supports === 'function' ? host.supports('filedownload') : true;
 }
 
 /**
@@ -31,7 +35,9 @@ export function downloadUrl(
 
 /** "Download (4.2 GB)": the button's tooltip, so a big file isn't a surprise. */
 export function downloadTitle(item: BaseItem, win: Window = window): string {
-  const bytes = item.MediaSources?.[0]?.Size;
+  // The item's own file (what the endpoint sends), not another version's.
+  const sources = item.MediaSources ?? [];
+  const bytes = (sources.find((s) => s.Id === item.Id) ?? sources[0])?.Size;
   if (!bytes) return strings.download;
   const gb = bytes / 1e9;
   const size =
