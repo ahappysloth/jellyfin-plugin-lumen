@@ -108,6 +108,10 @@ test('stock selectors on the Dashboard and the metadata manager', async ({ page 
   }, DASHBOARD_THEME_VARIABLE);
   expect(defined, `jellyfin-web's theme should define ${DASHBOARD_THEME_VARIABLE}`).toBe(true);
 
+  await openFresh(page, '#/dashboard/settings');
+  await expect(page.locator('#dashboardGeneralPage form')).toBeVisible();
+  await expectSelectorsOn(page, 'dashboard-settings');
+
   await openFresh(page, '#/dashboard/plugins');
   await expect(page.locator(STOCK_SELECTORS.manageRepositories.selector)).toBeVisible();
   await expectSelectorsOn(page, 'plugins');
@@ -135,6 +139,7 @@ test('every probed selector belongs to a page this spec opens', () => {
     'display',
     'player',
     'dashboard',
+    'dashboard-settings',
     'metadata',
     'plugins',
     'notFound',

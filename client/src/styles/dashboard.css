@@ -131,14 +131,20 @@ html.lmn-skin-dashboard .MuiTypography-h6 {
   font-weight: 600;
   letter-spacing: -0.01em;
 }
-/* Links are MUI's primary colour; keep them readable instead of accent-red (red reads as an error here). */
+/* Links are MUI's primary colour; keep them readable instead of accent-red (red reads as an error here), and
+   underlined so they still read as links. Separate rules: a :not() list drops its whole rule in Chromium < 88. */
 html.lmn-skin-dashboard .MuiLink-root,
-html.lmn-skin-dashboard .skinBody .emby-button.button-link,
+html.lmn-skin-dashboard .skinBody .emby-button.button-link {
+  color: var(--lmn-text);
+  text-decoration: underline;
+  text-decoration-color: var(--lmn-line-strong);
+}
 html.lmn-skin-dashboard .skinBody a:not(.emby-button, .MuiButtonBase-root, .MuiLink-button) {
   color: var(--lmn-text);
   text-decoration-color: var(--lmn-line-strong);
 }
-html.lmn-skin-dashboard .MuiLink-root:hover {
+html.lmn-skin-dashboard .MuiLink-root:hover,
+html.lmn-skin-dashboard .skinBody .emby-button.button-link:hover {
   text-decoration-color: currentColor;
 }
 
@@ -146,12 +152,13 @@ html.lmn-skin-dashboard .MuiLink-root:hover {
 /*
  * jellyfin-web pins each page to the left of the space beside the drawer and caps forms at 54em, so on a wide screen
  * the settings sit in a strip down the left with nothing on the right. Every admin page gets one column instead,
- * centred in that space: as wide as Lumen's own settings pages for forms, wider for tables and card grids. Titles,
- * tabs and fields all line up on its edge. Plain selector lists (no :is()), so older browsers get the layout too.
+ * centred in that space: as wide as Lumen's own settings page (920px) for forms, wider for tables. Titles, tabs and
+ * fields all line up on its edge. Plain selector lists (no :is()), so older browsers get the layout too.
  */
 html.lmn-skin-dashboard {
-  --lmn-dash-col: 880px;
+  --lmn-dash-col: 920px;
   --lmn-dash-gutter: 32px;
+  --lmn-card-pad: 24px;
 }
 html.lmn-skin-dashboard .page.type-interior .content-primary {
   box-sizing: border-box;
@@ -161,16 +168,24 @@ html.lmn-skin-dashboard .page.type-interior .content-primary {
   margin-left: auto;
   padding: 28px var(--lmn-dash-gutter) 96px;
 }
-/* Tables, card grids, a plugin's page and the log viewer (MUI containers) take the wide column. */
-html.lmn-skin-dashboard #dashboardPage .content-primary,
-html.lmn-skin-dashboard #userProfilesPage .content-primary,
-html.lmn-skin-dashboard #mediaLibraryPage .content-primary,
+/* Tables, a plugin's page and the log viewer (MUI containers) take a wider column. */
 html.lmn-skin-dashboard #devicesPage .content-primary,
 html.lmn-skin-dashboard #serverActivityPage .content-primary,
 html.lmn-skin-dashboard #apiKeysPage .content-primary,
-html.lmn-skin-dashboard #pluginsPage .content-primary,
 html.lmn-skin-dashboard .page.type-interior .content-primary.MuiContainer-root {
   --lmn-dash-col: 1280px;
+}
+/* Card grids (Dashboard, Users, Libraries, Plugins) use the whole width beside the drawer: jellyfin-web picks how many
+   cards go in a row from the window's width, so a narrower column would only squeeze each card. */
+html.lmn-skin-dashboard #dashboardPage .content-primary,
+html.lmn-skin-dashboard #userProfilesPage .content-primary,
+html.lmn-skin-dashboard #mediaLibraryPage .content-primary,
+html.lmn-skin-dashboard #pluginsPage .content-primary {
+  max-width: none;
+}
+/* Lumen's own settings page sizes and spaces itself (admin.css): only centre it, as before. */
+html.lmn-skin-dashboard #LumenConfigPage .content-primary {
+  padding-top: 0;
 }
 /* Forms and lists fill the column rather than jellyfin-web's 54em. */
 html.lmn-skin-dashboard .content-primary form,
@@ -180,6 +195,7 @@ html.lmn-skin-dashboard .content-primary .readOnlyContent {
 @media (max-width: 600px) {
   html.lmn-skin-dashboard {
     --lmn-dash-gutter: 16px;
+    --lmn-card-pad: 16px;
   }
   html.lmn-skin-dashboard .page.type-interior .content-primary {
     padding-top: 16px;
@@ -199,30 +215,166 @@ html.lmn-skin-dashboard #newUserPage .sectionTitleContainer .sectionTitle {
 html.lmn-skin-dashboard .sectionTitleContainer .sectionTitle {
   margin: 0;
 }
-html.lmn-skin-dashboard .content-primary form .sectionTitleContainer .sectionTitle {
-  font-size: 18px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-}
 html.lmn-skin-dashboard .MuiTypography-h1 {
   line-height: 1.15;
 }
-/* Section headings in a settings form: the size of Lumen's card titles, with a rule above that groups the fields
-   under each one. */
-html.lmn-skin-dashboard .content-primary form .MuiTypography-h2:not(:first-child),
+/* Section headings in a settings form: the size of Lumen's card titles. h2 only: the tuner page's title is an h1 in
+   the same container. */
+html.lmn-skin-dashboard .content-primary form .MuiTypography-h2,
+html.lmn-skin-dashboard .content-primary form .sectionTitleContainer h2.sectionTitle,
 html.lmn-skin-dashboard .content-primary .verticalSection > h2:not(.checkboxListLabel),
-html.lmn-skin-dashboard .content-primary form .sectionTitleContainer,
-html.lmn-skin-dashboard .folderAccessContainer > h2 {
-  margin: 20px 0 0;
-  padding-top: 28px;
-  border-top: 1px solid var(--lmn-line);
+html.lmn-skin-dashboard .folderAccessContainer > h2,
+html.lmn-skin-dashboard .channelAccessContainer > h2,
+html.lmn-skin-dashboard .deviceAccessContainer > h2 {
   font-size: 18px;
   font-weight: 650;
   letter-spacing: -0.01em;
 }
-html.lmn-skin-dashboard .content-primary .verticalSection > h2:not(.checkboxListLabel),
-html.lmn-skin-dashboard .folderAccessContainer > h2 {
-  margin-bottom: 16px;
+
+/* ---- Section cards ----------------------------------------------------------------------------------------------- */
+/*
+ * Each section of a settings form sits in a card like the ones on Lumen's settings page (surface, hairline, 12px
+ * corners) rather than under a rule. Neither kind of form wraps its sections in an element of their own, so the cards
+ * are drawn behind the fields by pseudo-elements, and the markup and its behaviour stay jellyfin-web's.
+ *
+ * MUI pages: the form is one flat stack (title, fields, a heading, more fields, Save). Each child gets a slice of card
+ * behind it (z-index -1 in the stacking context it makes) reaching up over the gap above it, so the slices join up.
+ * A heading opens a card, and draws the bottom of the one before it; the first child after the title opens one too,
+ * and the last one before Save closes it. Insets are margins, not padding, which would leave MUI's floating labels
+ * behind. Stacks in the stack (Networking's sections) each make a card of their own.
+ */
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > * {
+  position: relative;
+  z-index: 0;
+  /* Not fullWidth's 100%, which would push past the inset. */
+  width: auto;
+  margin: 24px var(--lmn-card-pad) 0;
+}
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > *::before,
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h2::after,
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > .MuiStack-root + .MuiStack-root::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: -24px;
+  right: calc(-1 * var(--lmn-card-pad));
+  bottom: 0;
+  left: calc(-1 * var(--lmn-card-pad));
+  border: 0 solid var(--lmn-line);
+  border-width: 0 1px;
+  background: var(--lmn-surface);
+  pointer-events: none;
+}
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h1,
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > .MuiButton-root {
+  margin-right: 0;
+  margin-left: 0;
+}
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h1 {
+  margin-top: 0;
+}
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h1::before,
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > .MuiButton-root::before,
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h1 + h2::after,
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h2:first-child::after {
+  content: none;
+}
+/* A card's top: after the title, at a heading, or a stack after a stack. */
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h2,
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > .MuiStack-root + .MuiStack-root {
+  margin-top: 64px;
+}
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h1 + *,
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h1 + h2 {
+  margin-top: 48px;
+}
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h2:first-child {
+  margin-top: 24px;
+}
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h1 + *::before,
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h2::before,
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > .MuiStack-root + .MuiStack-root::before {
+  border-top-width: 1px;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+}
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h2 + * {
+  margin-top: 16px;
+}
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h2 + *::before {
+  top: -16px;
+}
+/* A card's bottom: drawn by the next card's top (in the gap above it), or by the last field before Save. */
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h2::after,
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > .MuiStack-root + .MuiStack-root::after {
+  top: -64px;
+  bottom: auto;
+  height: 24px;
+  border-width: 0 1px 1px;
+  border-radius: 0 0 12px 12px;
+}
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > :nth-last-child(2)::before {
+  bottom: -24px;
+  border-bottom-width: 1px;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > .MuiButton-root:last-child {
+  margin-top: 48px;
+}
+
+/*
+ * Legacy pages (a user's tabs, Add user, plugin settings): a section with a heading first (Feature access, Library
+ * access, TMDb's Libraries…) is the card. The heading paints it behind the whole section, which is its stacking
+ * context, and the heading and what follows it are inset by margins; the card reaches 20px below the section, into
+ * its margin. Sections without a heading stay as they are.
+ */
+html.lmn-skin-dashboard .content-primary form .verticalSection,
+html.lmn-skin-dashboard .folderAccessContainer,
+html.lmn-skin-dashboard .channelAccessContainer,
+html.lmn-skin-dashboard .deviceAccessContainer {
+  position: relative;
+  z-index: 0;
+  margin-bottom: 36px;
+}
+html.lmn-skin-dashboard .content-primary form .verticalSection > h2:first-child,
+html.lmn-skin-dashboard .content-primary form .verticalSection > .detailSectionHeader:first-child,
+html.lmn-skin-dashboard .accessScheduleSection > :first-child,
+html.lmn-skin-dashboard .folderAccessContainer > h2:first-child,
+html.lmn-skin-dashboard .channelAccessContainer > h2:first-child,
+html.lmn-skin-dashboard .deviceAccessContainer > h2:first-child {
+  margin: 0 var(--lmn-card-pad) 16px;
+  padding: 20px 0 0;
+}
+html.lmn-skin-dashboard .content-primary form .verticalSection > h2:first-child::before,
+html.lmn-skin-dashboard .content-primary form .verticalSection > .detailSectionHeader:first-child::before,
+html.lmn-skin-dashboard .accessScheduleSection > :first-child::before,
+html.lmn-skin-dashboard .folderAccessContainer > h2:first-child::before,
+html.lmn-skin-dashboard .channelAccessContainer > h2:first-child::before,
+html.lmn-skin-dashboard .deviceAccessContainer > h2:first-child::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  right: 0;
+  bottom: -20px;
+  left: 0;
+  border: 1px solid var(--lmn-line);
+  border-radius: 12px;
+  background: var(--lmn-surface);
+  pointer-events: none;
+}
+html.lmn-skin-dashboard .content-primary form .verticalSection > h2:first-child ~ *,
+html.lmn-skin-dashboard .content-primary form .verticalSection > .detailSectionHeader:first-child ~ *,
+html.lmn-skin-dashboard .accessScheduleSection > :first-child ~ *,
+html.lmn-skin-dashboard .folderAccessContainer > h2:first-child ~ *,
+html.lmn-skin-dashboard .channelAccessContainer > h2:first-child ~ *,
+html.lmn-skin-dashboard .deviceAccessContainer > h2:first-child ~ * {
+  margin-right: var(--lmn-card-pad);
+  margin-left: var(--lmn-card-pad);
+}
+html.lmn-skin-dashboard .detailSectionHeader h2 {
+  font-size: 18px;
 }
 
 /* Save and Cancel at the end of a form: buttons sized to their label, side by side, rather than bars across the whole
@@ -382,7 +534,8 @@ html.lmn-skin-dashboard :is(.MuiButtonBase-root, .emby-button):focus-visible {
  * the current one filled. The strip scrolls sideways on phones instead of clipping its last tab.
  */
 html.lmn-skin-dashboard .MuiTabs-root,
-html.lmn-skin-dashboard .MuiToggleButtonGroup-root {
+html.lmn-skin-dashboard .MuiToggleButtonGroup-root,
+html.lmn-skin-dashboard #pluginsPage .MuiStack-root > .MuiBox-root > .MuiStack-root {
   align-self: flex-start;
   width: fit-content;
   max-width: 100%;
@@ -406,7 +559,8 @@ html.lmn-skin-dashboard .MuiTabs-flexContainer {
   gap: 2px;
 }
 html.lmn-skin-dashboard .MuiTab-root,
-html.lmn-skin-dashboard .MuiToggleButton-root {
+html.lmn-skin-dashboard .MuiToggleButton-root,
+html.lmn-skin-dashboard #pluginsPage .MuiChip-root {
   min-width: 0;
   min-height: 34px;
   height: 34px;
@@ -428,22 +582,70 @@ html.lmn-skin-dashboard .MuiToggleButton-root {
   padding: 0 14px;
   font-size: 13px;
 }
+/* Phones: tighter tabs (all four of a user's fit at 390px), wrapping onto a second row on narrower screens rather
+   than hiding the last one off the edge. */
 @media (max-width: 600px) {
   html.lmn-skin-dashboard .MuiTab-root {
     padding: 0 10px;
     font-size: 13px;
   }
+  html.lmn-skin-dashboard .MuiTabs-flexContainer {
+    flex-wrap: wrap;
+  }
 }
 html.lmn-skin-dashboard .MuiTab-root:hover,
-html.lmn-skin-dashboard .MuiToggleButton-root:hover {
+html.lmn-skin-dashboard .MuiToggleButton-root:hover,
+html.lmn-skin-dashboard #pluginsPage .MuiChip-root:hover {
   background-color: transparent;
   color: #fff;
 }
 html.lmn-skin-dashboard .MuiTab-root.Mui-selected,
-html.lmn-skin-dashboard .MuiToggleButton-root.Mui-selected {
+html.lmn-skin-dashboard .MuiToggleButton-root.Mui-selected,
+html.lmn-skin-dashboard #pluginsPage .MuiChip-filledPrimary {
   background-color: rgba(255, 255, 255, 0.12) !important;
   color: #fff;
   font-weight: 600;
+}
+/* Keyboard and D-pad focus: a ring inside the tab, since the strip scrolls (and so clips anything outside it).
+   MUI's class rather than :focus-visible, which TV browsers before Chromium 86 don't have. */
+html.lmn-skin-dashboard .MuiTab-root.Mui-focusVisible,
+html.lmn-skin-dashboard .MuiToggleButton-root.Mui-focusVisible,
+html.lmn-skin-dashboard #pluginsPage .MuiChip-root.Mui-focusVisible {
+  outline: 2px solid var(--lmn-focus);
+  outline-offset: -2px;
+}
+html.lmn-skin-dashboard .MuiTab-root .MuiTouchRipple-root,
+html.lmn-skin-dashboard .MuiToggleButton-root .MuiTouchRipple-root {
+  border-radius: inherit;
+}
+/* The plugin catalog's filters (status, then category): the same strip, its divider a hairline between the groups.
+   jellyfin-web's own rule under them goes; the strip is framed already. */
+html.lmn-skin-dashboard #pluginsPage .MuiStack-root > .MuiBox-root > .MuiStack-root {
+  margin: 0 0 8px;
+  scrollbar-width: none;
+}
+html.lmn-skin-dashboard #pluginsPage .MuiStack-root > .MuiBox-root > .MuiStack-root::-webkit-scrollbar {
+  display: none;
+}
+html.lmn-skin-dashboard #pluginsPage .MuiChip-root {
+  flex: none;
+  height: 30px;
+  background-color: transparent;
+  margin: 0 0 0 2px;
+  font-size: 13px;
+}
+html.lmn-skin-dashboard #pluginsPage .MuiChip-root:first-child {
+  margin-left: 0;
+}
+html.lmn-skin-dashboard #pluginsPage .MuiChip-label {
+  padding: 0;
+}
+html.lmn-skin-dashboard #pluginsPage .MuiStack-root > .MuiBox-root > .MuiStack-root > .MuiDivider-root {
+  height: 18px;
+  margin: 6px 6px 0 4px;
+}
+html.lmn-skin-dashboard #pluginsPage .MuiStack-root > .MuiBox-root > .MuiStack-root + .MuiDivider-root {
+  display: none;
 }
 html.lmn-skin-dashboard .MuiChip-root {
   border-radius: 999px;

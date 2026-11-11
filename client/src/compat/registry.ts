@@ -14,7 +14,16 @@
 
 /** A page the e2e probe opens to look for a selector; null means it can't be probed reliably (transient UI). */
 export type ProbePage =
-  'login' | 'home' | 'settings' | 'display' | 'player' | 'dashboard' | 'metadata' | 'plugins' | 'notFound';
+  | 'login'
+  | 'home'
+  | 'settings'
+  | 'display'
+  | 'player'
+  | 'dashboard'
+  | 'dashboard-settings'
+  | 'metadata'
+  | 'plugins'
+  | 'notFound';
 
 export interface StockSelector {
   selector: string;
@@ -85,6 +94,18 @@ export const STOCK_SELECTORS = {
   },
   dashboardHomePage: { selector: '#dashboardPage', probe: 'dashboard', css: 'dashboard.css' },
   pluginsPage: { selector: '#pluginsPage', probe: 'plugins', css: 'dashboard.css' },
+  /** The plugin catalog's filter chips' row: dashboard.css makes it a segmented strip like the tabs. */
+  pluginFilters: {
+    selector: '#pluginsPage .MuiStack-root > .MuiBox-root > .MuiStack-root',
+    probe: 'plugins',
+    css: 'dashboard.css',
+  },
+  /** An MUI settings form's one flat stack (General here): dashboard.css draws a card behind each of its sections. */
+  dashboardFormStack: {
+    selector: '.content-primary form > .MuiStack-root',
+    probe: 'dashboard-settings',
+    css: 'dashboard.css',
+  },
   /** Device cards without artwork. */
   cardBackground: { selector: '.defaultCardBackground', probe: 'dashboard', css: 'dashboard.css' },
   /** The metadata manager: its library tree, and the editor form (emby-* controls, stock-skin.css). */
