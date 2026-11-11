@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { ADMIN } from '../support/api';
+import { ADMIN, resetLumen } from '../support/api';
 import { login } from '../support/login';
 
 test('the Lumen dashboard page loads its settings', async ({ page }) => {
@@ -9,6 +9,39 @@ test('the Lumen dashboard page loads its settings', async ({ page }) => {
 
   await expect(page.getByRole('group', { name: 'Home sections' })).toBeVisible();
   await expect(page.getByRole('button', { name: /Move Continue Watching down/ })).toBeVisible();
+});
+
+test('the save bar comes up with a change, wherever the page is scrolled, and goes after saving', { tag: '@smoke' }, async ({
+  page,
+}) => {
+  await login(page, ADMIN);
+  await page.goto('/web/#/configurationpage?name=Lumen');
+  const root = page.locator('[id="lmn-admin-root"]:visible');
+  const bar = root.locator('.lmna-savebar');
+  await expect(root.getByRole('group', { name: 'Home sections' })).toBeVisible();
+  // Nothing to save: the bar is in the page but down, and Reset to defaults is still there.
+  await expect(bar).toHaveCount(1);
+  await expect(bar).toBeHidden();
+  await expect(root.getByRole('button', { name: 'Reset to defaults' })).toBeVisible();
+
+  try {
+    await root.getByRole('button', { name: /Move Continue Watching down/ }).click();
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const save = bar.getByRole('button', { name: 'Save' });
+    await expect(bar).toContainText('Unsaved changes');
+    await expect(save).toBeInViewport();
+    // Lined up with the settings column, not over the dashboard's drawer.
+    const form = (await root.locator('form').boundingBox())!;
+    const box = (await bar.boundingBox())!;
+    expect(Math.abs(box.x - form.x)).toBeLessThan(1);
+    expect(Math.abs(box.width - form.width)).toBeLessThan(1);
+
+    await save.click();
+    await expect(bar.getByText('Settings saved.')).toBeVisible();
+    await expect(bar).toBeHidden();
+  } finally {
+    await resetLumen();
+  }
 });
 
 test('the Dashboard wears Lumen’s look, and only on admin pages', async ({ page, isMobile }) => {

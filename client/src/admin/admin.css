@@ -451,43 +451,98 @@
   color: var(--a-dim);
 }
 
-/* Sticky save bar */
-.lmn-admin .lmna-savebar {
-  position: sticky;
-  z-index: 2;
-  bottom: 12px;
+/* Reset to defaults: the last thing in the form, always there (the save bar isn't). */
+.lmn-admin .lmna-reset {
   display: flex;
-  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+/* Focus lands on the heading when the save bar slides away with focus in it (AdminApp.tsx). */
+.lmn-admin__header h1:focus {
+  outline: none;
+}
+/* While the save bar is up, the form ends far enough below it that it never covers the last controls. */
+.lmn-admin.has-savebar {
+  padding-bottom: 136px;
+  padding-bottom: calc(136px + env(safe-area-inset-bottom));
+}
+
+/* Save bar: fixed to the bottom of the window, lined up with the settings column (AdminApp.tsx measures it; until
+   then it spans the window less a gutter). Hidden, it waits below the window, invisible and out of the tab order;
+   visibility switches after the slide out and before the slide in. */
+.lmn-admin .lmna-savebar {
+  position: fixed;
+  z-index: 10;
+  right: 16px;
+  bottom: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  left: 16px;
+  display: flex;
   align-items: center;
   gap: 12px;
-  margin-top: 8px;
-  padding: 12px 14px;
+  margin: 0;
+  padding: 12px 12px 12px 16px;
   border: 1px solid var(--a-line-strong);
   border-radius: var(--a-radius);
-  background: color-mix(in srgb, var(--a-bg, #181818) 90%, transparent);
-  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.55);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  /* Opaque: it floats over the form, and WebKit let text show through a translucent one with a backdrop blur. */
+  background: var(--a-bg, #181818);
+  box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.6);
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(calc(100% + 64px));
+  transition:
+    transform 0.18s ease-in,
+    opacity 0.18s ease-in,
+    visibility 0s linear 0.18s;
+}
+.lmn-admin .lmna-savebar.is-shown {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  transition:
+    transform 0.22s ease-out,
+    opacity 0.22s ease-out,
+    visibility 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lmn-admin .lmna-savebar,
+  .lmn-admin .lmna-savebar.is-shown {
+    transform: none;
+    transition: none;
+  }
 }
 .lmn-admin .lmna-savebar__status {
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
   margin: 0;
   color: var(--a-dim);
   font-size: 13px;
 }
-.lmn-admin .lmna-savebar__status--dirty::before {
+.lmn-admin .lmna-savebar__status--dirty::before,
+.lmn-admin .lmna-savebar__status--error::before {
   content: '';
+  flex: none;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: #f5a524;
 }
+.lmn-admin .lmna-savebar__status--error {
+  color: inherit;
+}
+.lmn-admin .lmna-savebar__status--error::before {
+  background: #ef5350;
+}
 .lmn-admin .lmna-savebar__status--ok {
   color: #43a047;
   font-weight: 600;
+}
+.lmn-admin .lmna-savebar .lmna-btn {
+  flex: none;
+  min-width: 96px;
 }
 
 /* Shared Dropdown component (styles/dropdown.css) inside admin fields: full width, admin accent. */
