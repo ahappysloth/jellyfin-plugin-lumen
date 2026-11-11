@@ -61,6 +61,8 @@ test('a pending restart shows the banner on the admin pages, and Restart Jellyfi
   await expect(banner).toContainText('Restart Jellyfin now?');
   expect(server.restarts()).toBe(0);
   await page.evaluate(() => ((window as unknown as { beforeRestart?: boolean }).beforeRestart = true));
+  // Clicks in the question's first half second are ignored, so a double-click on Restart Jellyfin can't confirm it.
+  await page.waitForTimeout(600);
   await banner.getByRole('button', { name: 'Restart now' }).click();
   await expect(banner).toContainText('Restarting Jellyfin');
   expect(server.restarts()).toBe(1);
