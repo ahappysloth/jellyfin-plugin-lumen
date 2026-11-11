@@ -4,6 +4,8 @@ import { Dropdown } from '../../components/Dropdown';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { useAutoFocus } from '../../components/useAutoFocus';
+import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
+import { liftVeil } from '../../veil/veil';
 import { BrowseGrid } from './BrowseGrid';
 import { getChoice, saveChoice } from './browseStore';
 import { sortParams, type SortKey } from './LibraryView';
@@ -63,23 +65,41 @@ export function GenreView({
     saveChoice(choiceKey, next);
     setChoiceState(next);
   };
-  const [name, setName] = useState<string | null>(null);
+  // Until the genre is known to be Lumen's, nothing of Lumen's page shows (and the veil stays up on a cold load): a
+  // music genre goes back to jellyfin-web, and a flash of an empty grid first would look broken.
+  // Once known, it's remembered for the session (with the page's choices), so Back to it draws the grid at once.
+  const knownKey = `${ctx.userId}|lumen-facet|${id}|${parentId ?? ''}`;
+  const known = getChoice<string | undefined>(knownKey, undefined);
+  const [name, setName] = useState<string | null>(known ?? null);
+  const [decided, setDecided] = useState(known !== undefined);
 
   useEffect(() => {
     let cancelled = false;
     // A library that may not be there (or not this user's) shouldn't cost the page: only a known type counts.
     const parent = parentId ? ctx.api.getItem(parentId).catch(() => null) : Promise.resolve(null);
-    Promise.all([ctx.api.getItem(id), parent])
+    withTimeout(Promise.all([ctx.api.getItem(id), parent]), VIEW_TIMEOUT_MS)
       .then(([genre, library]) => {
         if (cancelled) return;
-        if (isVideoFacet(genre, library)) setName(genre.Name);
-        else ctx.onFallback();
+        if (isVideoFacet(genre, library)) {
+          saveChoice(knownKey, genre.Name);
+          setName(genre.Name);
+          setDecided(true);
+        } else {
+          ctx.onFallback();
+        }
       })
-      .catch(() => undefined);
+      // Couldn't look it up: Lumen's grid, under a generic title (its own errors show there).
+      .catch(() => {
+        if (!cancelled) setDecided(true);
+      });
     return () => {
       cancelled = true;
     };
   }, [id, parentId, ctx.userId]);
+
+  useEffect(() => {
+    if (decided) liftVeil();
+  }, [decided]);
 
   const queryKey = `${ctx.userId}|${facet}|${id}|${parentId ?? ''}|${choice.kind}|${choice.sort}`;
   const { state, select, onMenu } = useGridPage(ctx, queryKey, (page) =>
@@ -93,9 +113,10 @@ export function GenreView({
   );
 
   const rootRef = useRef<HTMLDivElement>(null);
-  useAutoFocus(rootRef, true, ctx.layout, state.restoredSelectedId ?? undefined);
+  useAutoFocus(rootRef, decided, ctx.layout, state.restoredSelectedId ?? undefined);
   const title = name ?? (facet === 'studio' ? strings.studioPage : strings.genrePage);
 
+  if (!decided) return <div ref={rootRef} class="lmn-browse lmn-genre-page" aria-busy="true" />;
   return (
     <div ref={rootRef} class="lmn-browse lmn-genre-page">
       <PageHeader title={title} meta={state.total !== null ? strings.titleCount(state.total) : undefined}>

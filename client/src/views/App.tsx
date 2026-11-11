@@ -82,15 +82,10 @@ function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
 export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
   // Lumen giving the page back (e.g. its player controls are off) ends a loading screen still up from a Play click.
   useEffect(() => clearStarting, []);
-  // Home and details lift the veil when their data lands; the library pages draw their header at once.
+  // Home and details lift the veil when their data lands, a genre once it's known to be Lumen's; the library pages
+  // draw their header at once.
   useEffect(() => {
-    if (
-      route.kind === 'library' ||
-      route.kind === 'favorites' ||
-      route.kind === 'genre' ||
-      route.kind === 'notFound'
-    )
-      liftVeil();
+    if (route.kind === 'library' || route.kind === 'favorites' || route.kind === 'notFound') liftVeil();
   }, [route.kind]);
   // Lumen's own pages are the document's main content (jellyfin-web's, empty, is hidden: base.css). The player and
   // settings pages frame jellyfin-web's, which keep its main and its title.
