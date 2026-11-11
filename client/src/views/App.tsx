@@ -19,6 +19,7 @@ import { ProfileView } from './profile/ProfileView';
 import { SettingsFrame } from './profile/SettingsFrame';
 import { SearchView } from './search/SearchView';
 import { Nav, type NavActive } from './Nav';
+import { useFailedPage } from './pageError';
 import { usePageChange } from './usePageChange';
 
 function navActive(route: TakeoverRoute): NavActive {
@@ -88,9 +89,12 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
   const framed = route.kind === 'player' || route.kind === 'settings';
   const main = useRef<HTMLElement>(null);
   usePageChange(main, routeKey(route), route.kind === 'search' ? strings.search : '', ctx);
+  // Details and catalog titles draw their own header instead, unless they couldn't load (pageError.tsx).
+  const failed = useFailedPage();
+  const ownHeader = route.kind === 'details' || route.kind === 'title';
   return (
     <ErrorBoundary fallback={null} onError={ctx.onFallback}>
-      {route.kind !== 'details' && route.kind !== 'title' && route.kind !== 'player' && (
+      {route.kind !== 'player' && (!ownHeader || failed) && (
         <ErrorBoundary fallback={null}>
           <Nav ctx={ctx} active={navActive(route)} />
         </ErrorBoundary>

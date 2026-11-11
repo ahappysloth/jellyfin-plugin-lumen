@@ -6,7 +6,7 @@ import { makeContext, testConfig } from '../../../test/viewContext';
 import type { BaseItem } from '../../api/types';
 import * as compat from '../../compat/playbackManager';
 import { PAGE_SIZE } from '../browse/useBrowseItems';
-import { DetailsView } from './DetailsView';
+import { DetailsView, isNotFound } from './DetailsView';
 
 const movie: BaseItem = {
   Id: 'm1',
@@ -374,25 +374,60 @@ describe('DetailsView', () => {
     await waitFor(() => expect(ctx.onFallback).toHaveBeenCalled());
   });
 
-  it('falls back when the item cannot be loaded', async () => {
-    const ctx = makeContext(createFakeClient(() => Promise.reject(new Error('404'))));
+  it("says an item isn't there (gone, or not the user's to see) instead of handing the page back", async () => {
+    // jellyfin-web's ajax rejects with the Response.
+    const ctx = makeContext(createFakeClient(() => Promise.reject(new Response(null, { status: 404 }))));
     render(<DetailsView id="m1" ctx={ctx} />);
 
-    await waitFor(() => expect(ctx.onFallback).toHaveBeenCalled());
+    expect(await screen.findByRole('heading', { level: 1, name: 'Not found' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(/may have been removed/);
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
+    expect(ctx.onFallback).not.toHaveBeenCalled();
+  });
+
+  it("says it couldn't load when the server fails, and tries again", async () => {
+    let fail = true;
+    const ok = routes({ 'Items/m1': movie, 'Items/m1/LocalTrailers': [], 'Items/m1/Similar': { Items: [] } });
+    const ctx = makeContext(
+      createFakeClient((request) =>
+        fail ? Promise.reject(new Response(null, { status: 503 })) : ok(request),
+      ),
+    );
+    render(<DetailsView id="m1" ctx={ctx} />);
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: "Couldn't load this page" }),
+    ).toBeInTheDocument();
+    fail = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('heading', { name: 'Lumen Alpha' })).toBeInTheDocument();
+    expect(ctx.onFallback).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ status: 404 }, true],
+    [{ status: 400 }, true],
+    [{ status: 500 }, false],
+    [new Error('offline'), false],
+    [null, false],
+  ])('isNotFound(%o) = %s', (error, expected) => {
+    expect(isNotFound(error)).toBe(expected);
   });
 
   describe('with a request that never answers', () => {
     afterEach(() => vi.useRealTimers());
 
-    it('falls back to stock after 10 seconds', async () => {
+    it("says it couldn't load after 10 seconds", async () => {
       vi.useFakeTimers();
       const ctx = makeContext(createFakeClient(() => new Promise(() => undefined)));
       render(<DetailsView id="m1" ctx={ctx} />);
 
       await vi.advanceTimersByTimeAsync(9_999);
-      expect(ctx.onFallback).not.toHaveBeenCalled();
+      expect(screen.queryByRole('alert')).toBeNull();
       await vi.advanceTimersByTimeAsync(1);
-      expect(ctx.onFallback).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('alert')).toHaveTextContent(/didn't answer/);
+      expect(ctx.onFallback).not.toHaveBeenCalled();
     });
   });
 });
