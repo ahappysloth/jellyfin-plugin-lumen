@@ -81,6 +81,37 @@ describe('GenreView', () => {
     expect(itemRequests()).toHaveLength(before);
   });
 
+  it("shows nothing of its page, and keeps the veil, until it knows the genre is Lumen's", async () => {
+    document.documentElement.classList.add('lmn-pending');
+    let answer: (genre: BaseItem) => void = () => undefined;
+    const ctx = makeContext(
+      createFakeClient(
+        routes({
+          [`Items/${GENRE}`]: () => new Promise((resolve) => (answer = resolve)),
+          [`Items/${LIB}`]: { Id: LIB, Name: 'Music', Type: 'CollectionFolder', CollectionType: 'music' },
+          Items: { Items: titles, TotalRecordCount: 2 },
+        }),
+      ),
+    );
+    const { container } = render(<GenreView id={GENRE} parentId={LIB} ctx={ctx} />);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(screen.queryByRole('heading')).toBeNull();
+    expect(screen.queryByRole('list')).toBeNull();
+    expect(document.documentElement.classList.contains('lmn-pending')).toBe(true);
+
+    answer({ Id: GENRE, Name: 'Synthpop', Type: 'MusicGenre' });
+    await waitFor(() => expect(ctx.onFallback).toHaveBeenCalled());
+    expect(screen.queryByRole('list')).toBeNull();
+  });
+
+  it("lifts the veil once the genre is Lumen's", async () => {
+    document.documentElement.classList.add('lmn-pending');
+    setup();
+    expect(await screen.findByRole('heading', { name: 'Science Fiction' })).toBeInTheDocument();
+    await waitFor(() => expect(document.documentElement.classList.contains('lmn-pending')).toBe(false));
+  });
+
   it('hands a music genre back to the stock page', async () => {
     const ctx = makeContext(
       createFakeClient(
