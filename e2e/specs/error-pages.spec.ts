@@ -34,3 +34,18 @@ test("a details page the server doesn't answer for offers Try again", async ({ p
   await expect(page.getByRole('heading', { level: 1, name: 'Lumen Alpha' })).toBeVisible();
   await expect(mainNav(page)).toHaveCount(0);
 });
+
+test("an unknown address shows Lumen's page not found, with Home", { tag: '@smoke' }, async ({ page }) => {
+  await login(page, ADMIN);
+
+  await page.goto('/web/#/no-such-page');
+
+  const notFound = page.getByRole('region', { name: 'Page not found' });
+  await expect(notFound.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
+  await expect(mainNav(page)).toBeVisible();
+  // jellyfin-web decided it's a 404 (Lumen never guesses): its page is there, under Lumen's.
+  await expectPresentButHidden(page.locator('#fallbackPage'));
+
+  await notFound.getByRole('link', { name: 'Home' }).click();
+  await expect(page.locator('#lmn-root .lmn-home')).toBeVisible();
+});

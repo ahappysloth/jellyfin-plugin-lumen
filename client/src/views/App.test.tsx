@@ -79,6 +79,15 @@ describe('App', () => {
     expect(await screen.findByRole('navigation', { name: 'Main' })).toBeInTheDocument();
   });
 
+  it('says a page is not found, with Home and the nav', async () => {
+    render(<App route={{ kind: 'notFound' }} ctx={context()} />);
+
+    const page = screen.getByRole('region', { name: 'Page not found' });
+    expect(within(page).getByRole('heading', { level: 1, name: 'Page not found' })).toBeInTheDocument();
+    expect(within(page).getByRole('link', { name: 'Home' })).toHaveAttribute('href', '#/home');
+    expect(await screen.findByRole('navigation', { name: 'Main' })).toBeInTheDocument();
+  });
+
   it("moves focus to the next page's heading", () => {
     const ctx = context();
     const { rerender } = render(<App route={{ kind: 'favorites' }} ctx={ctx} />);

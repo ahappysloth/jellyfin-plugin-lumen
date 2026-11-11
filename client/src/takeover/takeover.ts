@@ -53,6 +53,7 @@ const ROUTE_KINDS: TakeoverRoute['kind'][] = [
   'title',
   'settings',
   'player',
+  'notFound',
 ];
 const ROUTE_CLASSES = [
   'lmn-active',
@@ -153,6 +154,9 @@ export class Takeover {
         return config.StyleStockPages;
       case 'player':
         return config.StyleVideoPlayer;
+      // Its way out is Lumen's home.
+      case 'notFound':
+        return config.HomeTakeover;
       default:
         return config.LibraryTakeover;
     }

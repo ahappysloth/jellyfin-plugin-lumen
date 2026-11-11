@@ -7,11 +7,13 @@ import {
   getServerName,
   getServerVersion,
   navigateTo,
+  SELECTORS,
   selfTest,
   setFavicon,
   type JellyfinApiClient,
 } from '../compat/jellyfin';
 import { findPlaybackManager } from '../compat/playbackManager';
+import { STOCK_SELECTORS } from '../compat/registry';
 import { describeServerVersion } from '../compat/testedVersions';
 import type { ViewContext } from '../views/context';
 import { VIEW_TIMEOUT_MS, withTimeout } from '../util/withTimeout';
@@ -214,7 +216,7 @@ export function startLumen(options: BootstrapOptions): () => void {
         session = created;
       }
     }
-    const route = forThisServer(parseRoute(win.location.hash), session?.client ?? null);
+    const route = notFound(forThisServer(parseRoute(win.location.hash), session?.client ?? null));
     if (!session && route.kind !== 'other') {
       // No user yet on a page Lumen could own: at startup waitForUser is on it; just after sign-in jellyfin-web may
       // navigate here before it sets the user, so wait for one briefly (with the stock page hidden) and sync again.
@@ -247,6 +249,27 @@ export function startLumen(options: BootstrapOptions): () => void {
       });
   };
 
+  /**
+   * jellyfin-web's own 404 page is up: Lumen shows its "Page not found" in its place. Lumen never decides itself that a
+   * URL is unknown, because only jellyfin-web knows all its routes (plugins add more). A 404 page left from the URL
+   * before is gone as soon as jellyfin-web renders the new one; the watcher below syncs again then.
+   */
+  const notFound = (route: Route): Route =>
+    route.kind === 'other' && doc.querySelector(STOCK_SELECTORS.notFoundPage.selector)
+      ? { kind: 'notFound' }
+      : route;
+  let stockNotFound = false;
+  const notFoundWatcher = new MutationObserver(() => {
+    const shown = doc.querySelector(STOCK_SELECTORS.notFoundPage.selector) !== null;
+    if (shown === stockNotFound) return;
+    stockNotFound = shown;
+    void sync();
+  });
+  notFoundWatcher.observe(doc.querySelector(SELECTORS.reactRoot) ?? doc.body ?? doc.documentElement, {
+    childList: true,
+    subtree: true,
+  });
+
   const stopNavigation = onNavigate(() => void sync(), win);
   void waitForUser(win, pollMs, options.timeoutMs ?? 60_000)
     .then(() => {
@@ -260,6 +283,7 @@ export function startLumen(options: BootstrapOptions): () => void {
   return () => {
     stopped = true;
     win.clearTimeout(safety);
+    notFoundWatcher.disconnect();
     stopNavigation();
     pluginsButton.stop();
     restartWatch.stop();
