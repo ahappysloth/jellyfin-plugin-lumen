@@ -62,6 +62,28 @@ describe('useAutoFocus', () => {
     expect(document.activeElement).toBe(getByText('card'));
   });
 
+  it('leaves focus in a menu the user opened while the view loaded (the account menu, from the nav)', () => {
+    let setReady: (ready: boolean) => void = () => undefined;
+    function Late() {
+      const ref = useRef<HTMLDivElement>(null);
+      const [ready, set] = useState(false);
+      setReady = set;
+      useAutoFocus(ref, ready, 'tv');
+      return <div ref={ref}>{ready && <button class="lmn-autofocus">primary</button>}</div>;
+    }
+    const nav = document.createElement('div');
+    nav.innerHTML = '<div role="menu"><button role="menuitem">History</button></div>';
+    document.body.appendChild(nav);
+    const item = nav.querySelector('button')!;
+    render(<Late />);
+    item.focus();
+
+    act(() => setReady(true));
+
+    expect(document.activeElement).toBe(item);
+    nav.remove();
+  });
+
   it('does not move focus on desktop or mobile', () => {
     (document.activeElement as HTMLElement | null)?.blur();
     render(<Harness layout="desktop" />);

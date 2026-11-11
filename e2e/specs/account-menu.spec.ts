@@ -74,7 +74,10 @@ test.describe('wide screens', () => {
 
     await expect(accountMenu(page).getByRole('menuitem', { name: 'History' })).toBeFocused();
     await page.keyboard.press('ArrowDown');
-    await expect(accountMenu(page).getByRole('menuitem').nth(1)).toBeFocused();
+    // On to the next item (not by nth(): Watch together joins the items once SyncPlay's state has loaded).
+    const focused = accountMenu(page).locator('[role="menuitem"]:focus');
+    await expect(focused).toHaveCount(1);
+    await expect(focused).not.toHaveAccessibleName('History');
     await expect(accountMenu(page).getByRole('menuitem', { name: 'Dashboard' })).toHaveCount(0);
     await expect(page.locator('.lmn-account__header')).not.toContainText('Administrator');
 
@@ -129,12 +132,20 @@ test.describe('wide screens', () => {
   test('TV layout: OK on the account button opens the menu, and Back closes it', async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem('layout', 'tv'));
     await login(page, ADMIN);
+    // Home focuses its hero once it has loaded (a remote needs something focused); the user goes on from there.
+    await expect(page.locator('#lmn-root .lmn-hero__slide.is-current .lmn-button--primary')).toBeFocused();
     const button = accountButton(page);
     await button.focus();
     await page.keyboard.press('Enter');
     await expect(accountMenu(page).getByRole('menuitem', { name: 'History' })).toBeFocused();
     await page.keyboard.press('ArrowDown');
-    const second = accountMenu(page).getByRole('menuitem').nth(1);
+    // Down moved on from History. Pinned by name, not nth(): Watch together joins the items once SyncPlay's state has
+    // loaded, which would shift the others.
+    const focused = accountMenu(page).locator('[role="menuitem"]:focus');
+    await expect(focused).toHaveCount(1);
+    await expect(focused).not.toHaveAccessibleName('History');
+    const name = /menuitem "([^"]+)"/.exec(await focused.ariaSnapshot())![1]!;
+    const second = accountMenu(page).getByRole('menuitem', { name, exact: true });
     await expect(second).toBeFocused();
     // Nothing is beside the items: Left and Right don't take focus out to the nav's links behind the open menu.
     await page.keyboard.press('ArrowRight');
