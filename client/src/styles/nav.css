@@ -278,7 +278,7 @@ button.lmn-nav__item {
   top: calc(100% + 10px);
   right: -6px;
   width: 260px;
-  max-height: calc(100vh - var(--lmn-nav-h) - 16px);
+  max-height: calc(100vh - var(--lmn-nav-h) - var(--lmn-safe-top) - 16px);
   overflow-y: auto;
   transform-origin: top right;
 }
