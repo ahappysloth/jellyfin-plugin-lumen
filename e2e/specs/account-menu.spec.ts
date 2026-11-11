@@ -25,8 +25,13 @@ test.describe('wide screens', () => {
     const button = accountButton(page);
     await expect(button).toHaveAttribute('aria-expanded', 'false');
 
-    await button.hover();
-    await expect(accountMenu(page)).toBeVisible();
+    // Hover once Lumen's page is up: a nav mounted afresh under a still mouse gets no pointerenter.
+    await expect(page.locator('#lmn-root .lmn-home')).toBeVisible();
+    await expect(async () => {
+      await page.mouse.move(20, 600);
+      await button.hover();
+      await expect(accountMenu(page)).toBeVisible({ timeout: 1000 });
+    }).toPass({ timeout: 10_000 });
     await expect(button).toHaveAttribute('aria-expanded', 'true');
     await expect(page.locator('.lmn-account__header')).toContainText('admin');
     await expect(page.locator('.lmn-account__header')).toContainText('Administrator');
