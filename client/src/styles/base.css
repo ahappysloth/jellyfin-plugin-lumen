@@ -64,9 +64,29 @@ html.lmn-active #reactRoot main {
    by it; the page follows, as jellyfin-web sizes the spacer under the bar to the bar's height. With Lumen off there's
    no such status bar, and in a browser tab the inset is 0, so these do nothing there. */
 #reactRoot .MuiAppBar-root,
-.MuiDrawer-paper {
+.MuiDrawer-paper:not(.MuiDrawer-paperAnchorBottom) {
   padding-top: 0;
   padding-top: env(safe-area-inset-top);
+}
+/* The same for jellyfin-web's dialogs that fill the screen (Add Media Library, Edit metadata, Identify, Add to
+   playlist, subtitle search): .dialog-fullscreen always, and the editors and dialog-fullscreen-lowres ones below
+   80em × 45em, as jellyfin-web lays them out. Their header's top padding grows by the inset, so its background runs
+   under the clock and the back arrow sits below it. Not the readers and the slideshow, which place their own buttons,
+   nor action sheets (stock-components.css leaves out the same ones). Here rather than there, so it holds with the
+   stock pages' restyle off; the restyle only sets the header's side padding. */
+.dialog-fullscreen:not(.slideshowDialog):not(#bookPlayer):not(#pdfPlayer):not(.actionSheet)
+  .formDialogHeader {
+  padding-top: 1em;
+  padding-top: calc(1em + env(safe-area-inset-top));
+}
+@media (max-width: 80em), (max-height: 45em) {
+  .dialog-fixedSize:not(.slideshowDialog):not(#bookPlayer):not(#pdfPlayer):not(.actionSheet)
+    .formDialogHeader,
+  .dialog-fullscreen-lowres:not(.slideshowDialog):not(#bookPlayer):not(#pdfPlayer):not(.actionSheet)
+    .formDialogHeader {
+    padding-top: 1em;
+    padding-top: calc(1em + env(safe-area-inset-top));
+  }
 }
 /* jellyfin-web's splash logo and loading spinner never show on Lumen's pages; the veil covers the cold load. */
 html.lmn-pending .splashLogo,

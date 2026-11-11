@@ -53,15 +53,29 @@ describe('safe-area insets', () => {
     const nav = rule(navCss, '.lmn-nav');
     expect(nav).toMatch(/height: calc\(var\(--lmn-nav-h\) \+ var\(--lmn-safe-top\)\);/);
     expect(nav).toMatch(/padding-top: var\(--lmn-safe-top\);/);
-    const appBar = rule(baseCss, '#reactRoot .MuiAppBar-root,\n.MuiDrawer-paper');
+    // Not a bottom sheet: its top is mid-screen.
+    const appBar = rule(
+      baseCss,
+      '#reactRoot .MuiAppBar-root,\n.MuiDrawer-paper:not(.MuiDrawer-paperAnchorBottom)',
+    );
     expect(appBar).toMatch(/padding-top: env\(safe-area-inset-top\);/);
-    // Everything that clears the nav clears the status bar too.
+    // Everything that clears the nav clears the status bar too: an offset below it, or a height that leaves room for it.
     const sheets = import.meta.glob<string>('./*.css', { query: '?raw', import: 'default', eager: true });
     for (const [file, css] of Object.entries(sheets)) {
-      for (const offset of css.match(/calc\(var\(--lmn-nav-h\)[^;]*/g) ?? []) {
+      for (const offset of css.match(/calc\([^;]*var\(--lmn-nav-h\)[^;]*/g) ?? []) {
         expect(`${file}: ${offset}`).toMatch(/var\(--lmn-safe-top\)|env\(safe-area-inset-top\)/);
       }
     }
+  });
+
+  it("keep the header of jellyfin-web's full-screen dialogs below a home-screen app's status bar", () => {
+    const notReaders = ':not(.slideshowDialog):not(#bookPlayer):not(#pdfPlayer):not(.actionSheet)';
+    const pad = /padding-top: 1em;\s*padding-top: calc\(1em \+ env\(safe-area-inset-top\)\);/;
+    expect(rule(baseCss, `.dialog-fullscreen${notReaders}\n  .formDialogHeader`)).toMatch(pad);
+    // The editors and dialog-fullscreen-lowres fill the screen only below 80em × 45em, as in jellyfin-web.
+    const small = '@media (max-width: 80em), (max-height: 45em)';
+    const editors = `  .dialog-fixedSize${notReaders}\n    .formDialogHeader,\n  .dialog-fullscreen-lowres${notReaders}\n    .formDialogHeader`;
+    expect(rule(baseCss, editors, small)).toMatch(pad);
   });
 
   it('pad the phone tab bar on both sides', () => {

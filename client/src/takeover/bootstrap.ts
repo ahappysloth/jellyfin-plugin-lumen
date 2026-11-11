@@ -14,6 +14,7 @@ import {
   type JellyfinApiClient,
 } from '../compat/jellyfin';
 import { findPlaybackManager } from '../compat/playbackManager';
+import { keepViewportCover } from '../compat/viewportFit';
 import { describeServerVersion } from '../compat/testedVersions';
 import type { ViewContext } from '../views/context';
 import { VIEW_TIMEOUT_MS, withTimeout } from '../util/withTimeout';
@@ -271,6 +272,7 @@ export function startLumen(options: BootstrapOptions): () => void {
   });
 
   const stopNavigation = onNavigate(() => void sync(), win);
+  const stopViewportCover = keepViewportCover(doc);
   void waitForUser(win, pollMs, options.timeoutMs ?? 60_000)
     .then(() => {
       waitingForUser = false;
@@ -285,6 +287,7 @@ export function startLumen(options: BootstrapOptions): () => void {
     win.clearTimeout(safety);
     notFoundWatcher.disconnect();
     stopNavigation();
+    stopViewportCover();
     pluginsButton.stop();
     restartWatch.stop();
     session?.takeover?.dispose();

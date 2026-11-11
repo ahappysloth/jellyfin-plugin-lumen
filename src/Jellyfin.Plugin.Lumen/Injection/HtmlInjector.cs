@@ -142,8 +142,11 @@ public static partial class HtmlInjector
         return result;
     }
 
-    /// <summary>The viewport meta asking for <c>viewport-fit=cover</c> (jellyfin-web's always has).</summary>
-    [GeneratedRegex("<meta\\b[^>]*?\\sname\\s*=\\s*[\"']?viewport[\"']?[^>]*?viewport-fit\\s*=\\s*cover[^>]*>", RegexOptions.IgnoreCase)]
+    /// <summary>
+    /// The viewport meta asking for <c>viewport-fit=cover</c> (jellyfin-web's always has), whatever the order, quoting and
+    /// case of its attributes. Only in its content, and only that value: not <c>viewport-fit=covered</c>.
+    /// </summary>
+    [GeneratedRegex("<meta\\b(?=[^>]*?\\sname\\s*=\\s*(?:\"viewport\"|'viewport'|viewport(?=[\\s/>])))(?=[^>]*?\\scontent\\s*=\\s*(?:\"[^\"]*?(?<![\\w-])viewport-fit\\s*=\\s*cover(?![\\w-])|'[^']*?(?<![\\w-])viewport-fit\\s*=\\s*cover(?![\\w-])|[^\\s\"'>]*?(?<![\\w-])viewport-fit\\s*=\\s*cover(?![\\w-])))[^>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex CoverViewport();
 
     /// <summary>The home-screen app tags Lumen sets itself: removed from jellyfin-web's page first, so each appears once.</summary>

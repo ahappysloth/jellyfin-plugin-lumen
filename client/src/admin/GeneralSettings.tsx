@@ -51,7 +51,7 @@ export function GeneralSettings({
       />
       <Switch
         label="Name the home-screen app after this server"
-        hint="Off, it's called Lumen. An icon already on a phone's home screen keeps its name until it's removed and added again."
+        hint="When off, the app is called Lumen. An icon already on a phone's home screen keeps its name until it's removed and added again."
         checked={config.AppNameFromServer ?? false}
         onChange={(v) => update({ AppNameFromServer: v })}
       />
