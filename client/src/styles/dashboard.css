@@ -223,6 +223,7 @@ html.lmn-skin-dashboard .MuiTypography-h1 {
 html.lmn-skin-dashboard .content-primary form .MuiTypography-h2,
 html.lmn-skin-dashboard .content-primary form .sectionTitleContainer h2.sectionTitle,
 html.lmn-skin-dashboard .content-primary .verticalSection > h2:not(.checkboxListLabel),
+html.lmn-skin-dashboard .content-primary form .verticalSection > h2.checkboxListLabel:first-child,
 html.lmn-skin-dashboard .folderAccessContainer > h2,
 html.lmn-skin-dashboard .channelAccessContainer > h2,
 html.lmn-skin-dashboard .deviceAccessContainer > h2 {
@@ -321,6 +322,26 @@ html.lmn-skin-dashboard .content-primary form > .MuiStack-root > :nth-last-child
 }
 html.lmn-skin-dashboard .content-primary form > .MuiStack-root > .MuiButton-root:last-child {
   margin-top: 48px;
+}
+/* jellyfin-web's "Settings saved." / error alert lands in the stack (first, or after the title): it stays outside the
+   cards, at full width, and the field after it opens the card in its place. */
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > .MuiAlert-root {
+  margin: 24px 0 0;
+}
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > .MuiAlert-root:first-child {
+  margin-top: 0;
+}
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > .MuiAlert-root::before,
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h1 + .MuiAlert-root + h2::after {
+  content: none;
+}
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h1 + .MuiAlert-root + * {
+  margin-top: 48px;
+}
+html.lmn-skin-dashboard .content-primary form > .MuiStack-root > h1 + .MuiAlert-root + *::before {
+  border-top-width: 1px;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
 }
 
 /*
@@ -555,8 +576,9 @@ html.lmn-skin-dashboard .MuiTabs-scroller::-webkit-scrollbar {
 html.lmn-skin-dashboard .MuiTabs-indicator {
   display: none;
 }
-html.lmn-skin-dashboard .MuiTabs-flexContainer {
-  gap: 2px;
+/* Margins, not flex gap: Chromium 68 (webOS 5) has no gap on flex containers. */
+html.lmn-skin-dashboard .MuiTab-root + .MuiTab-root {
+  margin-left: 2px;
 }
 html.lmn-skin-dashboard .MuiTab-root,
 html.lmn-skin-dashboard .MuiToggleButton-root,
@@ -1164,7 +1186,8 @@ html.lmn-skin-dashboard .lmn-restart__card {
   align-items: center;
   gap: 10px 14px;
   box-sizing: border-box;
-  max-width: 1200px;
+  /* The width of a settings form's column (--lmn-dash-col, set on html), so it lines up over the page. */
+  max-width: var(--lmn-dash-col);
   /* The button row's height, so the page doesn't shift when the buttons give way to "Restarting…". */
   min-height: 58px;
   margin: 0 auto;
