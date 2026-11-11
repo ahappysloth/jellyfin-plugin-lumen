@@ -54,6 +54,12 @@ test('two viewers watch together: create, join, leave and rejoin, play for both'
   await expect(a.getByRole('menu', { name: 'Watch together' })).toBeVisible();
   await a.getByRole('menuitem', { name: 'New group' }).click();
   await expect(watchTogether(a)).toHaveAccessibleName("Watch together: In admin's group", { timeout: 15_000 });
+  // jellyfin-web's "SyncPlay enabled" toast drops in below the nav, never over its tabs.
+  const toast = a.locator('.toastContainer .toast.toastVisible').first();
+  await expect(toast).toBeVisible();
+  await a.waitForTimeout(400); // its drop-in transition
+  const pill = (await a.locator('#lmn-root .lmn-nav__pill').boundingBox())!;
+  expect((await toast.boundingBox())!.y).toBeGreaterThanOrEqual(pill.y + pill.height);
 
   // B sees A's group, with who's in it, and joins.
   await watchTogether(b).click();
