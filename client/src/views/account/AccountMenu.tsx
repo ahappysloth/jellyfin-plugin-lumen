@@ -10,6 +10,7 @@ import {
   signOut,
 } from '../../compat/jellyfin';
 import { Icon, type IconName } from '../../components/icons';
+import { onNavigate } from '../../takeover/navigation';
 import { routeEnabled } from '../../takeover/takeover';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
@@ -229,13 +230,14 @@ export function AccountMenu({
     const onLeave = (): void => close(false);
     document.addEventListener('keydown', onKey, true);
     document.addEventListener('pointerdown', onPointer, true);
-    window.addEventListener('hashchange', onLeave);
     window.addEventListener('blur', onLeave);
+    // jellyfin-web's pushState as well as a hash change (a remote's Home key, a "go home" from another device).
+    const stopNavigation = onNavigate(onLeave);
     return () => {
       document.removeEventListener('keydown', onKey, true);
       document.removeEventListener('pointerdown', onPointer, true);
-      window.removeEventListener('hashchange', onLeave);
       window.removeEventListener('blur', onLeave);
+      stopNavigation();
     };
   }, [open]);
 
@@ -254,7 +256,7 @@ export function AccountMenu({
   };
 
   const choose = (index: number): void => {
-    // A link navigates (the hashchange closes the menu); click() follows it like a real click would.
+    // A link navigates (leaving the page closes the menu); click() follows it like a real click would.
     itemEls()[index]?.click();
   };
 

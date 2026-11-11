@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { setJellyfinLocale } from '../../../test/locale';
@@ -190,30 +190,31 @@ describe('HistoryView', () => {
 
 describe('HistoryView, Mark as unwatched', () => {
   afterEach(() => {
+    cleanup();
     clearUserData();
     clearBrowseState();
     document.documentElement.classList.remove('layout-tv');
   });
 
-  function setup(layout: 'desktop' | 'tv') {
-    const watched = (Id: string, Name: string, hour: number): BaseItem =>
-      ({
-        Id,
-        Name,
-        Type: 'Movie',
-        UserData: { Played: true, LastPlayedDate: at(new Date(), hour) },
-      }) as BaseItem;
+  const watched = (Id: string, Name: string, hour: number): BaseItem =>
+    ({
+      Id,
+      Name,
+      Type: 'Movie',
+      UserData: { Played: true, LastPlayedDate: at(new Date(), hour) },
+    }) as BaseItem;
+  const ALPHA = watched('m1', 'Lumen Alpha', 21);
+  const BETA = watched('m2', 'Lumen Beta', 20);
+  const GAMMA = watched('m3', 'Lumen Gamma', 19);
+
+  function setup(layout: 'desktop' | 'tv', items: BaseItem[] = [ALPHA, BETA]) {
     const requests: string[] = [];
     const ctx = makeContext(
-      createFakeClient(
-        routes({
-          Items: {
-            Items: [watched('m1', 'Lumen Alpha', 21), watched('m2', 'Lumen Beta', 20)],
-            TotalRecordCount: 2,
-          },
-          'UserPlayedItems/m1': (r: AjaxRequest) => (requests.push(`${r.type} m1`), {}),
-        }),
-      ),
+      createFakeClient((r: AjaxRequest) => {
+        const played = /UserPlayedItems\/(\w+)/.exec(r.url);
+        if (played) return (requests.push(`${r.type} ${played[1]}`), {});
+        return routes({ Items: { Items: items, TotalRecordCount: items.length } })(r);
+      }),
       { layout },
     );
     render(
@@ -226,35 +227,73 @@ describe('HistoryView, Mark as unwatched', () => {
     return requests;
   }
 
-  async function unwatchAlpha(answer: 'Cancel' | 'Mark unwatched') {
-    const card = await screen.findByRole('link', { name: 'Lumen Alpha' });
+  async function unwatch(name: string, answer: 'Cancel' | 'Mark unwatched' = 'Mark unwatched') {
+    const card = await screen.findByRole('link', { name });
     card.focus();
     fireEvent.contextMenu(card);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Mark as unwatched' }));
     expect(screen.getByRole('alertdialog', { name: 'Mark as unwatched?' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: answer }));
+    if (answer === 'Mark unwatched')
+      await waitFor(() => expect(screen.queryByRole('link', { name })).toBeNull());
     return card;
   }
 
   it('takes the title off at once once confirmed (Jellyfin forgets when it was played); Cancel keeps it', async () => {
     const requests = setup('desktop');
-    const card = await unwatchAlpha('Cancel');
+    const card = await unwatch('Lumen Alpha', 'Cancel');
     await new Promise((r) => setTimeout(r, 0));
     expect(card).toBeInTheDocument();
     expect(card).toHaveFocus();
     expect(requests).toEqual([]);
 
-    await unwatchAlpha('Mark unwatched');
-    await waitFor(() => expect(screen.queryByRole('link', { name: 'Lumen Alpha' })).toBeNull());
+    await unwatch('Lumen Alpha');
     expect(screen.getByRole('link', { name: 'Lumen Beta' })).toBeInTheDocument();
     await waitFor(() => expect(requests).toEqual(['DELETE m1']));
   });
 
-  it('on a TV, focus goes on to a card when the focused one is taken off', async () => {
+  // Focus stays where the user was: the card now in the removed one's place, else the one before, else the heading
+  // (desktop) or the account menu's button (TV, where a remote needs a control to start from).
+  it.each(['desktop', 'tv'] as const)(
+    '%s: focus goes on to the next card, or the one before the last',
+    async (layout) => {
+      if (layout === 'tv') document.documentElement.classList.add('layout-tv');
+      setup(layout, [ALPHA, BETA, GAMMA]);
+      await unwatch('Lumen Beta');
+      expect(screen.getByRole('link', { name: 'Lumen Gamma' })).toHaveFocus();
+      await unwatch('Lumen Gamma');
+      expect(screen.getByRole('link', { name: 'Lumen Alpha' })).toHaveFocus();
+    },
+  );
+
+  it('focuses the heading on desktop once the last title is taken off', async () => {
+    setup('desktop', [ALPHA]);
+    await unwatch('Lumen Alpha');
+    expect(await screen.findByText('Nothing watched yet')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'History' })).toHaveFocus();
+  });
+
+  it("on a TV, focuses the nav's highlighted button (the account menu) once the last title is taken off", async () => {
     document.documentElement.classList.add('layout-tv');
-    setup('tv');
-    await unwatchAlpha('Mark unwatched');
-    await waitFor(() => expect(screen.queryByRole('link', { name: 'Lumen Alpha' })).toBeNull());
-    expect(screen.getByRole('link', { name: 'Lumen Beta' })).toHaveFocus();
+    const nav = document.createElement('header');
+    nav.className = 'lmn-nav';
+    nav.innerHTML = '<button class="lmn-nav__item is-active">Account</button>';
+    document.body.appendChild(nav);
+    setup('tv', [ALPHA]);
+    await unwatch('Lumen Alpha');
+    expect(nav.querySelector('button')).toHaveFocus();
+    nav.remove();
+  });
+
+  it('lists a title again once it was played after it was marked unwatched (on another device, say)', async () => {
+    setup('desktop');
+    await unwatch('Lumen Alpha');
+    cleanup();
+    clearBrowseState();
+    const later = new Date(
+      Math.max(Date.now(), Date.parse(ALPHA.UserData!.LastPlayedDate!)) + 60_000,
+    ).toISOString();
+    setup('desktop', [{ ...ALPHA, UserData: { Played: true, LastPlayedDate: later } }, BETA]);
+    expect(await screen.findByRole('link', { name: 'Lumen Alpha' })).toBeInTheDocument();
   });
 });

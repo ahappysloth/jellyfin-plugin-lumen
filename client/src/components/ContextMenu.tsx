@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { isBackKey } from '../compat/jellyfin';
+import { onNavigate } from '../takeover/navigation';
 import { Icon, type IconRef } from './icons';
 
 export interface MenuEntry {
@@ -37,7 +38,7 @@ export function closeContextMenu(): void {
 
 const MARGIN = 8;
 
-/** Renders the open context menu. Closes on Escape or Back, an outside press, scroll, resize, or blur. */
+/** Renders the open context menu. Closes on Escape or Back, an outside press, scroll, resize, blur, or a page change. */
 export function ContextMenuHost() {
   const [menu, setMenu] = useState<OpenMenu | null>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
@@ -83,13 +84,15 @@ export function ContextMenuHost() {
     window.addEventListener('scroll', onDismiss, { passive: true, capture: true });
     window.addEventListener('resize', onDismiss);
     window.addEventListener('blur', onDismiss);
-    window.addEventListener('hashchange', onDismiss);
+    // jellyfin-web's pushState as well as a hash change: an entry chosen after the page changed would act on a title
+    // that is gone.
+    const stopNavigation = onNavigate(onDismiss);
     return () => {
       document.removeEventListener('pointerdown', onPointer, true);
       window.removeEventListener('scroll', onDismiss, { capture: true });
       window.removeEventListener('resize', onDismiss);
       window.removeEventListener('blur', onDismiss);
-      window.removeEventListener('hashchange', onDismiss);
+      stopNavigation();
     };
   }, [menu]);
 

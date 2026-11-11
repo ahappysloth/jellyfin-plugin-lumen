@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/preact';
 import { describe, expect, it, vi } from 'vitest';
+import { changePage } from '../../test/navigation';
 import { pressRemoteBack, REMOTE_BACK_KEY_CODES } from '../../test/remoteBack';
 import { ContextMenuHost, openContextMenu } from './ContextMenu';
 
@@ -59,4 +60,15 @@ describe('ContextMenu', () => {
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole('menu')).toBeNull();
   });
+
+  it.each(['pushState', 'hash'] as const)(
+    "closes when the page changes (by %s: jellyfin-web's pushState, as a remote's Home key does, or a hash change)",
+    (how) => {
+      const onSelect = open();
+      const restore = changePage(how);
+      expect(screen.queryByRole('menu')).toBeNull();
+      expect(onSelect).not.toHaveBeenCalled();
+      restore();
+    },
+  );
 });

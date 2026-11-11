@@ -189,3 +189,47 @@ test('Watched asks before marking unwatched: Cancel keeps it watched, confirming
   await expect(confirm).toHaveCount(0);
   await expect.poll(isPlayed).toBe(true);
 });
+
+test('Mark as unwatched? goes away when jellyfin-web changes page, leaving the title watched', async ({
+  page,
+  isMobile,
+}) => {
+  const { admin, items } = loadState();
+  const id = items['Lumen Delta']!;
+  played = [id];
+  await api(`/UserPlayedItems/${id}`, { method: 'POST', token: admin.token, query: { userId: admin.userId } });
+  // A blue accent: the button that goes ahead stays Lumen's red.
+  await page.route(/\/Lumen\/ClientConfig/, async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...(await response.json()), AccentColor: '#3b82f6' } });
+  });
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${id}`);
+
+  const watched = page.locator('#lmn-root .lmn-details--movie').getByRole('button', { name: 'Watched', exact: true });
+  const confirm = page.getByRole('alertdialog', { name: 'Mark as unwatched?' });
+  await watched.click();
+  await expect(confirm).toBeVisible();
+  // The page behind doesn't scroll while it's open.
+  const goAhead = confirm.getByRole('button', { name: 'Mark unwatched' });
+  expect(await goAhead.evaluate((el) => getComputedStyle(el).getPropertyValue('--lmn-accent').trim())).toBe('#3b82f6');
+  await expect(goAhead).toHaveCSS('background-color', 'rgb(227, 11, 23)');
+  if (!isMobile) {
+    // Hovered, it's a darker red.
+    await goAhead.hover();
+    await expect(goAhead).toHaveCSS('background-color', 'rgb(227, 11, 23)');
+    await expect(goAhead).toHaveCSS('filter', 'brightness(0.85)');
+  }
+  expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).toBe('hidden');
+
+  // What a remote's Home key, or a "go home" sent from another device, does: jellyfin-web's pushState.
+  await page.evaluate(() => (window as unknown as { Emby: { Page: { goHome(): void } } }).Emby.Page.goHome());
+  await expect(page).toHaveURL(/#\/home$/);
+  await expect(confirm).toHaveCount(0);
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe('');
+  const data = await api<{ Played: boolean }>(`/UserItems/${id}/UserData`, {
+    token: admin.token,
+    query: { userId: admin.userId },
+  });
+  expect(data.Played).toBe(true);
+});

@@ -29,6 +29,7 @@ export const strings = {
   markUnwatched: 'Mark as unwatched',
   markUnwatchedTitle: 'Mark as unwatched?',
   markUnwatchedBody: 'This resets how far you got and removes it from your History.',
+  markUnwatchedEpisodesBody: "This resets every episode's progress and removes them from your History.",
   markUnwatchedShort: 'Mark unwatched',
   openNewTab: 'Open in new tab',
   open: 'Open',

@@ -12,6 +12,9 @@ import { useGridPage } from '../browse/useGridPage';
 import type { ViewContext } from '../context';
 import { markedUnwatched, useUserDataChanges } from '../userDataStore';
 
+const cardsIn = (root: HTMLElement | null): HTMLElement[] =>
+  Array.from(root?.querySelectorAll<HTMLElement>('.lmn-card') ?? []);
+
 /** The titles in a page up to the first one never played: sorted by last played, those come last. */
 export function playedOnly(page: ItemsResult): ItemsResult {
   const end = page.Items.findIndex((item) => !item.UserData?.LastPlayedDate);
@@ -79,20 +82,43 @@ export function HistoryView({ ctx }: { ctx: ViewContext }) {
   // TV: once the first page is in, focus the first card (or the card the user came back from).
   useAutoFocus(rootRef, state.total !== null, ctx.layout, state.restoredSelectedId ?? undefined);
   useUserDataChanges();
-  const items = state.items.filter((item) => !markedUnwatched(item.Id));
+  const items = state.items.filter((item) => !markedUnwatched(item));
   const shown =
     items.length === state.items.length
       ? state
       : { ...state, items, total: items.length === 0 && !state.hasMore ? 0 : state.total };
-  // TV: the focused card was the one taken off; a remote needs something focused, so the first card takes over.
+  // Where focus was among the cards, for when its card is taken off.
+  const focusedCard = useRef(-1);
+  const onFocusIn = (e: FocusEvent): void => {
+    const card = (e.target as Element).closest('.lmn-card');
+    if (card) focusedCard.current = cardsIn(rootRef.current).indexOf(card as HTMLElement);
+  };
+  // The focused card was the one taken off (focus fell to <body>): the card now in its place takes over, or the one
+  // before if it was the last, so the next Tab or D-pad press carries on from there rather than from the top. Nothing
+  // left: the TV's highlighted nav button (the account menu, where History is) or the page's heading.
+  const hidden = state.items.length - items.length;
+  const hiddenBefore = useRef(hidden);
   useLayoutEffect(() => {
-    if (ctx.layout !== 'tv' || items.length === state.items.length) return;
+    const removed = hidden > hiddenBefore.current;
+    hiddenBefore.current = hidden;
     const active = document.activeElement;
-    if (active && active !== document.body && document.contains(active)) return;
-    rootRef.current?.querySelector<HTMLElement>('.lmn-card')?.focus();
-  }, [items.length]);
+    if (
+      !removed ||
+      focusedCard.current < 0 ||
+      (active && active !== document.body && document.contains(active))
+    )
+      return;
+    const cards = cardsIn(rootRef.current);
+    const tv = ctx.layout === 'tv';
+    const card = cards[Math.min(focusedCard.current, cards.length - 1)];
+    if (card) return card.focus({ preventScroll: !tv });
+    const heading = rootRef.current?.querySelector<HTMLElement>('h1');
+    const target = (tv && document.querySelector<HTMLElement>('.lmn-nav .is-active')) || heading;
+    if (target === heading) heading?.setAttribute('tabindex', '-1');
+    target?.focus({ preventScroll: true });
+  }, [hidden]);
   return (
-    <div ref={rootRef} class="lmn-browse lmn-history">
+    <div ref={rootRef} class="lmn-browse lmn-history" onFocusIn={onFocusIn}>
       <PageHeader title={strings.history} />
       <BrowseGrid
         state={shown}

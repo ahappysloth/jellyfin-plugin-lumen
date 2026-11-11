@@ -62,7 +62,13 @@ describe('useAutoFocus', () => {
     expect(document.activeElement).toBe(getByText('card'));
   });
 
-  it('leaves focus in a menu the user opened while the view loaded (the account menu, from the nav)', () => {
+  // Each kind of popup: the account menu (from the nav), a list, a dialog, and the Mark as unwatched confirmation.
+  it.each([
+    ['a menu the user opened while the view loaded (the account menu, from the nav)', 'menu', 'menuitem'],
+    ['a list', 'listbox', 'option'],
+    ['a dialog', 'dialog', 'button'],
+    ['a confirmation (Mark as unwatched?)', 'alertdialog', 'button'],
+  ])('leaves focus in %s', (_, role, itemRole) => {
     let setReady: (ready: boolean) => void = () => undefined;
     function Late() {
       const ref = useRef<HTMLDivElement>(null);
@@ -72,7 +78,7 @@ describe('useAutoFocus', () => {
       return <div ref={ref}>{ready && <button class="lmn-autofocus">primary</button>}</div>;
     }
     const nav = document.createElement('div');
-    nav.innerHTML = '<div role="menu"><button role="menuitem">History</button></div>';
+    nav.innerHTML = `<div role="${role}"><button role="${itemRole}">History</button></div>`;
     document.body.appendChild(nav);
     const item = nav.querySelector('button')!;
     render(<Late />);

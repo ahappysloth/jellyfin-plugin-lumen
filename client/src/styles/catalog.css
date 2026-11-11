@@ -82,6 +82,8 @@ a.lmn-button {
   max-height: calc(100dvh - max(16px, env(safe-area-inset-top)) - max(16px, env(safe-area-inset-bottom)));
   padding: 28px;
   overflow-y: auto;
+  /* A swipe that reaches the end of a long dialog doesn't carry on to the page behind (ConfirmDialog also locks it). */
+  overscroll-behavior: contain;
   border: 1px solid var(--lmn-line-strong);
   border-radius: 20px;
   background: var(--lmn-surface);
