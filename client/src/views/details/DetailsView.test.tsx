@@ -91,6 +91,22 @@ describe('DetailsView', () => {
     expect(await screen.findByRole('link', { name: 'Lumen Beta' })).toBeInTheDocument();
   });
 
+  it('offers Download for a movie the user may download, except on a TV', async () => {
+    const c = createFakeClient(
+      routes({ 'Items/m1': { ...movie, CanDownload: true }, 'Items/m1/Similar': { Items: [] } }),
+    );
+    const { unmount } = render(<DetailsView id="m1" ctx={makeContext(c)} />);
+    expect(await screen.findByRole('link', { name: 'Download' })).toHaveAttribute(
+      'href',
+      'http://jf/Items/m1/Download?ApiKey=token1',
+    );
+    unmount();
+
+    render(<DetailsView id="m1" ctx={makeContext(c, { layout: 'tv' })} />);
+    expect(await screen.findByRole('heading', { name: 'Lumen Alpha' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Download' })).toBeNull();
+  });
+
   it('shows Starting… on the Resume button until the player has started', async () => {
     let started: (value: unknown) => void = () => {};
     const c = createFakeClient(

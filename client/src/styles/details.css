@@ -23,12 +23,14 @@
   margin-left: 8px;
 }
 .lmn-details__trailer .lmn-hero__video {
-  animation-duration: 1.2s;
+  transition-duration: 1.2s; /* TRAILER_FADE_MS */
 }
 .lmn-details__topbar {
   position: absolute;
   z-index: 2;
   top: 20px;
+  /* Clear of a phone's status bar where the page runs under it (jellyfin-web's viewport-fit=cover). */
+  top: max(20px, env(safe-area-inset-top));
   right: var(--lmn-gutter);
   left: var(--lmn-gutter);
   display: flex;
@@ -58,8 +60,18 @@
 .lmn-details__overview {
   font-size: 15px;
 }
+/* The buttons may run past the text's column (kept narrow for the overview's line length) rather than wrap a single
+   one onto a line of its own; they wrap only at the page's edge. */
+.lmn-details__info .lmn-actions {
+  width: max-content;
+  max-width: calc(100vw - 2 * var(--lmn-gutter));
+}
 .lmn-details .lmn-row {
   margin-top: 8px;
+}
+/* Download is a link styled as a button (DetailsHeader.tsx). */
+.lmn-actions a.lmn-button {
+  text-decoration: none;
 }
 .lmn-toast {
   margin: 16px 0 0;
@@ -162,8 +174,9 @@
   font-weight: 600;
 }
 .lmn-episode__runtime {
-  color: var(--lmn-text-3);
-  font-size: 12px;
+  color: var(--lmn-text-2);
+  font-size: 13px;
+  font-weight: 500;
 }
 .lmn-episode__overview {
   display: -webkit-box;
@@ -208,20 +221,23 @@
 }
 .lmn-person__name {
   display: block;
-  margin-top: 8px;
+  margin-top: 10px;
   overflow: hidden;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .lmn-person__role {
   display: block;
+  margin-top: 2px;
   overflow: hidden;
-  color: var(--lmn-text-3);
-  font-size: 11px;
-  line-height: 1.4;
+  /* Muted but legible: the page's secondary grey and weight (genres, overview), not a smaller, fainter step. */
+  color: var(--lmn-text-2);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -246,6 +262,15 @@
   }
   .lmn-details__header {
     min-height: 76vh;
+  }
+  /* Phones: Play on a line of its own, full width, and the icon-only actions beneath it, so up to six never crowd a
+     narrow screen (Resume, Start over, Download, Trailer, Favorite, Watched). */
+  html:not(.layout-tv) .lmn-details__info .lmn-actions {
+    width: auto;
+  }
+  html:not(.layout-tv) .lmn-details__info .lmn-button--primary {
+    flex: 1 0 100%;
+    justify-content: center;
   }
   .lmn-episode {
     grid-template-columns: 1fr;

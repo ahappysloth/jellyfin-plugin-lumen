@@ -36,6 +36,8 @@ export interface MediaSourceInfo {
   /** False when this user may not transcode: the server would then copy the video whatever was asked. */
   SupportsTranscoding?: boolean;
   MediaStreams?: MediaStream[];
+  /** The file's size in bytes. */
+  Size?: number;
 }
 
 export interface Person {
@@ -74,6 +76,10 @@ export interface BaseItem {
   IndexNumber?: number;
   ParentIndexNumber?: number;
   LocalTrailerCount?: number;
+  /** Single-item fetches: whether this user may download the item's file (their policy, and it being a file). */
+  CanDownload?: boolean;
+  /** The file's path on the server; single-item fetches. */
+  Path?: string;
   UserData?: UserData;
   MediaStreams?: MediaStream[];
   /**

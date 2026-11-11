@@ -10,6 +10,7 @@ import { strings } from '../../strings';
 import { formatDate } from '../../util/locale';
 import { LazyTrailer } from '../home/lazyTrailer';
 import { formatRuntime } from './badges';
+import { type DownloadLink, nativeDownload } from './download';
 
 /** The details trailer starts sooner than the home hero's: the user chose this title. */
 const DETAILS_TRAILER_DELAY_SECONDS = 1.5;
@@ -32,6 +33,8 @@ interface Props {
   /** Local trailer: plays muted behind the header and backs the Trailer button. */
   trailerId: string | null;
   onTrailer?: () => void;
+  /** The item's file, where the user may download it (download.ts). */
+  download?: DownloadLink | null;
   onBack: () => void;
   badges: string[];
   /** Lends its backdrop when the item has none (a collection without art borrows its first title's). */
@@ -189,6 +192,23 @@ export function DetailsHeader(props: Props) {
               <Icon name="replay" />
               <span class="lmn-button__label">{strings.startOver}</span>
             </button>
+          )}
+          {props.download && (
+            // A link, not a button: the browser downloads the file itself (the server names it, as an attachment), and
+            // it can be saved or copied like any link. The official apps' shell saves it instead (download.ts).
+            <a
+              class="lmn-button lmn-button--secondary"
+              href={props.download.url}
+              download=""
+              aria-label={strings.download}
+              title={props.download.title}
+              onClick={(e) => {
+                if (props.download && nativeDownload(item, props.download.url)) e.preventDefault();
+              }}
+            >
+              <Icon name="download" />
+              <span class="lmn-button__label">{strings.download}</span>
+            </a>
           )}
           {props.onTrailer && (
             <button

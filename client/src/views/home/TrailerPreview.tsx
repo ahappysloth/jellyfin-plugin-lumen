@@ -24,7 +24,10 @@ interface Props {
    */
   paused?: boolean;
   class?: string;
-  /** Called when the video starts or stops showing, so the page can reveal or hide its controls. */
+  /**
+   * Called when the video starts or stops showing (it shows once it's actually under way, not while it loads), so the
+   * page can reveal or hide its controls.
+   */
   onPlayingChange?: (playing: boolean) => void;
   /**
    * May the server remux or transcode the trailer when the browser can't play the file? The details page says yes.
@@ -39,8 +42,13 @@ interface Props {
  * data it wants, and its clock a few microseconds past zero.
  */
 export const TRAILER_START_TIMEOUT_MS = 12_000;
-/** How far a preview must have played to count as under way (see TRAILER_START_TIMEOUT_MS). */
+/** How far a preview must have played to count as under way (see TRAILER_START_TIMEOUT_MS), and to show. */
 export const TRAILER_STARTED_SECONDS = 0.25;
+/**
+ * How long an ended preview takes to fade back to the backdrop before it's removed: the longest of the CSS fades
+ * (.lmn-hero__video's transition, longer on the details page).
+ */
+export const TRAILER_FADE_MS = 1200;
 
 interface Plan {
   source: MediaSourceInfo | null;
@@ -73,6 +81,13 @@ export function TrailerPreview({
   const [state, setState] = useState<'waiting' | 'playing' | 'done'>('waiting');
   /** Whether this session's video has got going (played past TRAILER_STARTED_SECONDS). */
   const started = useRef(false);
+  /**
+   * The session whose video shows. It fades in over the backdrop only once it's under way: a video that's still
+   * loading (or being transcoded) would otherwise fade in as an empty, or black, box. Kept by session, so a retry's
+   * new video starts hidden on its first render.
+   */
+  const [shownSession, setShownSession] = useState('');
+  const [ending, setEnding] = useState(false);
 
   // Look the trailer's container and codecs up once it's in view (most hero slides never get that far).
   useEffect(() => {
@@ -100,6 +115,7 @@ export function TrailerPreview({
   }, [state, visible, plan, delaySeconds]);
 
   const option = state === 'playing' ? plan?.options[attempt] : undefined;
+  const shown = !!option && shownSession === session && !ending;
 
   // Removing a <video> from the DOM does not necessarily stop its download; release it explicitly. A transcode is
   // stopped on the server as well, including when the page itself goes (a reload, or the tab closing). The video is
@@ -141,6 +157,16 @@ export function TrailerPreview({
     if (!visible && state === 'playing') setState('waiting');
   }, [visible, state]);
 
+  // An ended preview fades back to the backdrop before it goes, rather than cutting to it.
+  useEffect(() => {
+    if (!ending) return;
+    const timer = setTimeout(() => {
+      setEnding(false);
+      setState('done');
+    }, TRAILER_FADE_MS);
+    return () => clearTimeout(timer);
+  }, [ending]);
+
   // Not under way by now, error or not (a stall, a silent decode failure): move on to the next stream. Paused, it
   // isn't expected to be; the wait starts over when it plays again.
   useEffect(() => {
@@ -161,12 +187,17 @@ export function TrailerPreview({
     else element?.play()?.catch(() => undefined);
   }, [paused]);
 
+  // A video that (re)started while paused (the page scrolled back into view) waits hidden for Play, so the controls stay:
+  // it can only be paused once it has shown.
+  const playing = shown || (!!option && paused && !ending);
   useEffect(() => {
-    onPlayingChange?.(state === 'playing');
-  }, [state === 'playing']);
+    onPlayingChange?.(playing);
+  }, [playing]);
 
   const markStarted = (e: { currentTarget: HTMLVideoElement }): void => {
-    if (e.currentTarget.currentTime >= TRAILER_STARTED_SECONDS) started.current = true;
+    if (e.currentTarget.currentTime < TRAILER_STARTED_SECONDS) return;
+    started.current = true;
+    if (shownSession !== session) setShownSession(session);
   };
 
   const onError = (): void => {
@@ -184,7 +215,7 @@ export function TrailerPreview({
         <video
           key={session}
           ref={video}
-          class="lmn-hero__video"
+          class={`lmn-hero__video${shown ? ' is-shown' : ''}`}
           src={trailerUrl(client, trailerId, plan.source, option, session)}
           muted={muted}
           playsInline
@@ -192,7 +223,7 @@ export function TrailerPreview({
           onPlaying={markStarted}
           onTimeUpdate={markStarted}
           onError={onError}
-          onEnded={() => setState('done')}
+          onEnded={() => setEnding(true)}
         />
       )}
     </div>
