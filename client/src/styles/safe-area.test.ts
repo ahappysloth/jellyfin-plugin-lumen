@@ -47,6 +47,23 @@ describe('safe-area insets', () => {
     expect(navCss).not.toContain('.nowPlayingBar');
   });
 
+  // Lumen's index.html asks iOS for a black-translucent status bar in a home-screen app, which runs the page under it.
+  it("keep the nav, the pages under it and jellyfin-web's app bar below a home-screen app's status bar", () => {
+    expect(/--lmn-safe-top:\s*env\(safe-area-inset-top\);/.test(baseCss)).toBe(true);
+    const nav = rule(navCss, '.lmn-nav');
+    expect(nav).toMatch(/height: calc\(var\(--lmn-nav-h\) \+ var\(--lmn-safe-top\)\);/);
+    expect(nav).toMatch(/padding-top: var\(--lmn-safe-top\);/);
+    const appBar = rule(baseCss, '#reactRoot .MuiAppBar-root,\n.MuiDrawer-paper');
+    expect(appBar).toMatch(/padding-top: env\(safe-area-inset-top\);/);
+    // Everything that clears the nav clears the status bar too.
+    const sheets = import.meta.glob<string>('./*.css', { query: '?raw', import: 'default', eager: true });
+    for (const [file, css] of Object.entries(sheets)) {
+      for (const offset of css.match(/calc\(var\(--lmn-nav-h\)[^;]*/g) ?? []) {
+        expect(`${file}: ${offset}`).toMatch(/var\(--lmn-safe-top\)|env\(safe-area-inset-top\)/);
+      }
+    }
+  });
+
   it('pad the phone tab bar on both sides', () => {
     const tabbar = rule(navCss, '  .lmn-tabbar', '@media (max-width: 909.98px)');
     expect(tabbar).toMatch(LEFT);

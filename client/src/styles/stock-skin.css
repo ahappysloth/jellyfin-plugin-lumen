@@ -334,7 +334,7 @@ html.lmn-skin-settings #lmn-root {
 }
 html.lmn-skin-settings .lmn-settings-frame {
   position: absolute;
-  top: calc(var(--lmn-nav-h) + 20px);
+  top: calc(var(--lmn-nav-h) + var(--lmn-safe-top) + 20px);
   left: 50%;
   width: calc(100% - 2 * var(--lmn-gutter));
   max-width: 880px;
@@ -374,7 +374,7 @@ html.lmn-skin-settings .lmn-settings-frame {
 }
 /* Room for the nav and title bar; the stock page's own content column, as wide as the settings menu (.lmn-profile). */
 html.lmn-skin-settings .page {
-  padding-top: calc(var(--lmn-nav-h) + 150px) !important;
+  padding-top: calc(var(--lmn-nav-h) + var(--lmn-safe-top) + 150px) !important;
 }
 html.lmn-skin-settings .page > .padded-left {
   box-sizing: border-box;

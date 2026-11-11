@@ -3,9 +3,11 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Jellyfin.Plugin.Lumen.Assets;
 using Jellyfin.Plugin.Lumen.Configuration;
 using Jellyfin.Plugin.Lumen.Injection;
+using MediaBrowser.Controller;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -178,6 +180,60 @@ public sealed class IndexHtmlMiddlewareTests : IDisposable
         Assert.DoesNotContain("data-lmn-skin", restyled, StringComparison.Ordinal);
         Assert.Contains("Jellyfin 12.2", upgraded, StringComparison.Ordinal);
         Assert.Contains(HtmlInjector.Marker, upgraded, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("/jellyfin")]
+    public async Task InstallsAsLumen_WhileLumenIsOn_AndAsJellyfinWhenItIsOff(string baseUrl)
+    {
+        UseRealPage();
+        var current = new PluginConfiguration { ConfigVersion = 1 };
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => current)));
+        var client = host.GetTestClient();
+        var pageUrl = new Uri($"http://lumen.test{baseUrl}/web/");
+
+        var on = await client.GetStringAsync(pageUrl);
+        current = new PluginConfiguration { ConfigVersion = 2, Enabled = false };
+        var off = await client.GetStringAsync(pageUrl);
+
+        // A home-screen install resolves the manifest against the page, so it lands under the base URL, where Jellyfin
+        // serves /Lumen/Manifest (anonymously: LumenControllerTests).
+        var manifest = Regex.Match(on, "<link rel=\"manifest\" href=\"([^\"]+)\">").Groups[1].Value;
+        Assert.Equal($"{baseUrl}/Lumen/Manifest", new Uri(pageUrl, manifest).AbsolutePath);
+        var touchIcon = Regex.Match(on, "<link rel=\"apple-touch-icon\" sizes=\"180x180\" href=\"([^\"]+)\">").Groups[1].Value;
+        Assert.Equal($"{baseUrl}/Lumen/Assets/lumen-icon-180.png", new Uri(pageUrl, touchIcon).AbsolutePath);
+        Assert.Contains("<meta name=\"apple-mobile-web-app-title\" content=\"Lumen\">", on, StringComparison.Ordinal);
+        Assert.Contains("<meta name=\"apple-mobile-web-app-status-bar-style\" content=\"black-translucent\">", on, StringComparison.Ordinal);
+        Assert.DoesNotContain("manifest.json", on, StringComparison.Ordinal);
+
+        Assert.Contains("<link rel=\"manifest\" href=\"manifest.json\">", off, StringComparison.Ordinal);
+        Assert.Contains("<meta name=\"application-name\" content=\"Jellyfin\">", off, StringComparison.Ordinal);
+        Assert.Contains("<meta id=\"themeColor\" name=\"theme-color\" content=\"#202020\">", off, StringComparison.Ordinal);
+        Assert.DoesNotContain("apple-mobile-web-app-title", off, StringComparison.Ordinal);
+        Assert.DoesNotContain("lumen-icon", off, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheHomeScreenName_IsLumens_OrFollowsTheServersName_WhenTheAdminAsks()
+    {
+        UseRealPage();
+        var current = new PluginConfiguration { ConfigVersion = 1 };
+        var server = Substitute.For<IServerApplicationHost>();
+        server.FriendlyName.Returns("Den");
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => current)).AddSingleton(server));
+        var client = host.GetTestClient();
+
+        var lumen = await client.GetStringAsync("/web/");
+        current = new PluginConfiguration { ConfigVersion = 2, AppNameFromServer = true };
+        var den = await client.GetStringAsync("/web/");
+        server.FriendlyName.Returns("Loft"); // renamed in Jellyfin's settings: Lumen's config doesn't change
+        var loft = await client.GetStringAsync("/web/");
+
+        Assert.Contains("<meta name=\"apple-mobile-web-app-title\" content=\"Lumen\">", lumen, StringComparison.Ordinal);
+        Assert.Contains("<meta name=\"apple-mobile-web-app-title\" content=\"Den\">", den, StringComparison.Ordinal);
+        Assert.Contains("<meta name=\"application-name\" content=\"Den\">", den, StringComparison.Ordinal);
+        Assert.Contains("<meta name=\"apple-mobile-web-app-title\" content=\"Loft\">", loft, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -431,6 +487,12 @@ public sealed class IndexHtmlMiddlewareTests : IDisposable
 
     private static string[] Plugins(string json) =>
         JsonNode.Parse(json)!["plugins"]!.AsArray().Select(p => p!.GetValue<string>()).ToArray();
+
+    /// <summary>Serves jellyfin-web 12.4's index.html (with the tags Lumen swaps) rather than the minimal page.</summary>
+    private void UseRealPage() => File.Copy(
+        Path.Combine(AppContext.BaseDirectory, "Injection", "Fixtures", "jellyfin-web-12.4.index.html"),
+        Path.Combine(_webRoot, "index.html"),
+        overwrite: true);
 
     private async Task<IHost> StartAsync(Action<IApplicationBuilder>? outer = null, Action<IApplicationBuilder>? inner = null, Action<IServiceCollection>? services = null, Dictionary<string, byte[]>? build = null, Func<AssetCatalog>? catalog = null)
     {

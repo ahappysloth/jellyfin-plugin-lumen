@@ -39,6 +39,8 @@ export interface LumenConfig {
   /** jellyfin-web's built files served precompressed, hash-checked ones cached for a week (absent from older servers: on). */
   OptimizeWebClientFiles?: boolean;
   AccentColor: string;
+  /** A home-screen install takes the server's name instead of "Lumen" (absent from older servers: off). */
+  AppNameFromServer?: boolean;
   /** Jellyfin may serialize the enum as a name or a number; normalizeConfig converts it to a name. */
   HeroSource: string | number;
   HeroCollectionId: string | null;

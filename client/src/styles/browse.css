@@ -1,7 +1,7 @@
 /* ---- Library and Favorites pages ------------------------------------------------------------------------------ */
 .lmn-browse {
   min-height: 100vh;
-  padding: calc(var(--lmn-nav-h) + 28px) var(--lmn-gutter) 48px;
+  padding: calc(var(--lmn-nav-h) + var(--lmn-safe-top) + 28px) var(--lmn-gutter) 48px;
   background:
     radial-gradient(
       1200px 420px at 15% -120px,
@@ -175,7 +175,7 @@
 /* Small screens (official mobile apps). */
 @media (max-width: 720px) {
   .lmn-browse {
-    padding-top: calc(var(--lmn-nav-h) + 16px);
+    padding-top: calc(var(--lmn-nav-h) + var(--lmn-safe-top) + 16px);
   }
   .lmn-browse__header {
     margin-bottom: 20px;

@@ -41,6 +41,17 @@ Lumen changes Jellyfin's *web* interface, so it appears wherever that interface 
 
 The oldest browsers Lumen is built for are Chromium 68 (LG webOS 5) and Safari 13. On webOS 6 (Chromium 79) and webOS 5 it should load, untested. webOS 4 (Chromium 53) and older can't run it: their browser predates the JavaScript Lumen is written in, so its scripts never start and Jellyfin's own interface shows instead.
 
+## Install as an app
+
+Added to a phone's home screen, Jellyfin opens as **Lumen**: its name and icon, full screen with no browser bars, on Lumen's dark background. While Lumen is on, the server's page offers Lumen's web app manifest, icons and app tags in place of Jellyfin's; switch Lumen off and Jellyfin's come back.
+
+- **iPhone and iPad (Safari):** open your server, tap Share, then **Add to Home Screen**. The app runs full screen, with the status bar over Lumen's dark page.
+- **Android (Chrome):** open your server, tap ⋮, then **Add to Home screen** or **Install app**.
+
+**Already have an icon on your home screen?** A home screen keeps the name and icon an app was added with. Remove the old one and add it again to get Lumen's. Your sign-in carries over on Android; on an iPhone, each home-screen app keeps its own sign-in, so sign in again in the new one.
+
+The app is called "Lumen". To name it after your server instead, turn on **Name the home-screen app after this server** in Lumen's settings (then re-add the icon). The official Jellyfin mobile apps aren't affected: they load the same page but don't install it.
+
 ## Running alongside other plugins
 
 Lumen injects its own script, lists itself as a jellyfin-web plugin in `/web/config.json` (this is how it gets Jellyfin's player), and hides only the stock pages it replaces (home, details, the Movies, Shows and Collections libraries, genre lists, Favorites, search and the settings menu) while it shows its own. It can run next to plugins that use the File Transformation plugin, but plugins that also redesign the home screen will be hidden while Lumen's home is showing. If you use one of those, turn off "Replace the home screen" in Lumen's settings.
@@ -50,6 +61,7 @@ Links Lumen shares carry a couple of extra URL parameters that Jellyfin's own pa
 ## Reverse proxies
 
 - **Content Security Policy.** Lumen adds two small inline scripts to Jellyfin's `index.html`: one registers Lumen's jellyfin-web plugin, the other makes its loading screen and sign-in look appear before the page paints. A proxy that sends a CSP with `script-src 'self'` blocks them: Lumen still loads, but without the loading veil and the sign-in look (and, rarely, jellyfin-web logs "failed loading plugins" when it reaches Lumen's plugin before Lumen's main script has registered it). Either allow `'unsafe-inline'` for scripts, or add both scripts' hashes. The browser console's CSP errors show the exact `'sha256-…'` values to add; they change with every Lumen release, and the second also with the "Restyle Jellyfin's sign-in, settings and Dashboard pages" setting (from a checkout, `cd client && npm run build && npm run guard-hash` prints all three). Lumen's tab icon and a few images are `data:` URLs, so `img-src` needs `data:` too.
+- **Installing to a home screen.** Phones fetch the app's manifest (`/Lumen/Manifest`) and icons (`/Lumen/Assets/lumen-icon-*.png`) without signing in, so a proxy that asks for its own login must let those through, as it does `/web/`. With a base URL they're under it (`/jellyfin/Lumen/Manifest`). Lumen adds no inline content for this: the manifest and icons come from the same server, so a CSP only needs `manifest-src` (or `default-src`) to allow `'self'`.
 - **jellyfin-web served by the proxy.** Lumen adds itself to the web client that Jellyfin serves (`/web/`). If your proxy serves its own copy of jellyfin-web (with Jellyfin's hosted web client turned off), nothing injects Lumen into it, and the stock UI is shown. Serve `index.html` and `config.json` from the same place: Lumen lists its plugin in `config.json` only alongside the `index.html` that defines it.
 
 ## Playback tips

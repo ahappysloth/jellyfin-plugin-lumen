@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.RegularExpressions;
 
 namespace Jellyfin.Plugin.Lumen.Injection;
@@ -30,7 +31,8 @@ public static partial class HtmlInjector
     /// and menus on every page).
     /// </param>
     /// <param name="installAsLumen">
-    /// Points the web app manifest, Apple touch icon and theme colour at Lumen's, so a home-screen install gets the J.
+    /// Makes a home-screen install Lumen's: points the web app manifest, Apple touch icon and theme colour at Lumen's, names
+    /// it <paramref name="appName"/>, and has iOS run it full screen under a translucent status bar.
     /// </param>
     /// <param name="notFound">
     /// With <paramref name="installAsLumen"/>, receives the names of jellyfin-web's tags that weren't there to replace
@@ -48,6 +50,7 @@ public static partial class HtmlInjector
     /// The definer of Lumen's jellyfin-web plugin (<see cref="WebConfigInjector"/>), inlined as a script of its own ahead
     /// of the guard: it's ES5, so it runs even in browsers that can't parse the guard. Null skips it.
     /// </param>
+    /// <param name="appName">With <paramref name="installAsLumen"/>, the name under the home-screen icon (<see cref="AppIdentity.Name"/>).</param>
     public static string Inject(
         string html,
         string buildHash,
@@ -57,7 +60,8 @@ public static partial class HtmlInjector
         ICollection<string>? notFound = null,
         string? accentColor = null,
         string? coreChunk = null,
-        string? webPluginScript = null)
+        string? webPluginScript = null,
+        string appName = AppIdentity.DefaultName)
     {
         if (html.Contains(Marker, StringComparison.Ordinal))
         {
@@ -85,22 +89,41 @@ public static partial class HtmlInjector
             + $"<script type=\"module\" src=\"{AssetBase}lumen.js?v={version}\"></script>";
 
         var page = string.Concat(html.AsSpan(0, headClose), tags, html.AsSpan(headClose));
-        return installAsLumen ? UseLumenAppIdentity(page, version, notFound) : page;
+        return installAsLumen ? UseLumenAppIdentity(page, version, appName, notFound) : page;
     }
 
     /// <summary>
-    /// Swaps jellyfin-web's manifest, touch icons and theme colour for Lumen's (only those tags). The tags are found
-    /// whatever the order, quoting and case of their attributes; Lumen's manifest and theme colour take the place of the
-    /// first match, and any further matches are removed.
+    /// Swaps jellyfin-web's manifest, touch icons and theme colour for Lumen's, and its home-screen app tags for Lumen's (only
+    /// those tags). The tags are found whatever the order, quoting and case of their attributes; Lumen's manifest and theme
+    /// colour take the place of the first match, and any further matches are removed.
     /// </summary>
-    internal static string UseLumenAppIdentity(string html, string version, ICollection<string>? notFound = null)
+    internal static string UseLumenAppIdentity(string html, string version, string appName, ICollection<string>? notFound = null)
     {
         html = ReplaceAll(html, ManifestLink(), "<link rel=\"manifest\" href=\"../Lumen/Manifest\">", "manifest link", notFound);
         html = ReplaceAll(html, TouchIconLink(), string.Empty, "apple-touch-icon link", notFound);
-        html = ReplaceAll(html, ThemeColorMeta(), $"<meta id=\"themeColor\" name=\"theme-color\" content=\"{Api.LumenController.PwaColor}\">", "theme-color meta", notFound);
-        var touchIcon = $"<link rel=\"apple-touch-icon\" sizes=\"180x180\" href=\"{AssetBase}lumen-icon-180.png?v={version}\">";
+
+        // jellyfin-web sets #themeColor to its own theme's colour once it loads (#202020 for Dark), so Lumen's comes first:
+        // browsers take the first theme-color. jellyfin-web's stays, for its script and anything else that reads it.
+        html = ReplaceAll(
+            html,
+            ThemeColorMeta(),
+            $"<meta name=\"theme-color\" content=\"{AppIdentity.Color}\"><meta id=\"themeColor\" name=\"theme-color\" content=\"{AppIdentity.Color}\">",
+            "theme-color meta",
+            notFound);
+
+        // jellyfin-web names the app "Jellyfin" (application-name) and leaves iOS to title it from the page and keep an
+        // opaque status bar. Black-translucent runs the page under the status bar, which only works where the page can
+        // keep clear of it: viewport-fit=cover gives it env(safe-area-inset-top). Without that, an opaque black bar.
+        var coverViewport = CoverViewport().IsMatch(html);
+        html = AppMeta().Replace(html, string.Empty);
+        var name = WebUtility.HtmlEncode(appName);
+        var tags = "<meta name=\"apple-mobile-web-app-capable\" content=\"yes\">"
+            + $"<meta name=\"apple-mobile-web-app-status-bar-style\" content=\"{(coverViewport ? "black-translucent" : "black")}\">"
+            + $"<meta name=\"apple-mobile-web-app-title\" content=\"{name}\">"
+            + $"<meta name=\"application-name\" content=\"{name}\">"
+            + $"<link rel=\"apple-touch-icon\" sizes=\"180x180\" href=\"{AssetBase}lumen-icon-180.png?v={version}\">";
         var marker = html.IndexOf(Marker, StringComparison.Ordinal);
-        return marker < 0 ? html : html.Insert(marker + Marker.Length, touchIcon);
+        return marker < 0 ? html : html.Insert(marker + Marker.Length, tags);
     }
 
     private static string InlineScript(string? script) => string.IsNullOrEmpty(script)
@@ -118,6 +141,14 @@ public static partial class HtmlInjector
 
         return result;
     }
+
+    /// <summary>The viewport meta asking for <c>viewport-fit=cover</c> (jellyfin-web's always has).</summary>
+    [GeneratedRegex("<meta\\b[^>]*?\\sname\\s*=\\s*[\"']?viewport[\"']?[^>]*?viewport-fit\\s*=\\s*cover[^>]*>", RegexOptions.IgnoreCase)]
+    private static partial Regex CoverViewport();
+
+    /// <summary>The home-screen app tags Lumen sets itself: removed from jellyfin-web's page first, so each appears once.</summary>
+    [GeneratedRegex("<meta\\b[^>]*?\\sname\\s*=\\s*(?:\"(?:apple-mobile-web-app-(?:capable|status-bar-style|title)|application-name)\"|'(?:apple-mobile-web-app-(?:capable|status-bar-style|title)|application-name)'|(?:apple-mobile-web-app-(?:capable|status-bar-style|title)|application-name)(?=[\\s/>]))[^>]*>", RegexOptions.IgnoreCase)]
+    private static partial Regex AppMeta();
 
     [GeneratedRegex("^#[0-9a-fA-F]{6}$")]
     private static partial Regex HexColor();

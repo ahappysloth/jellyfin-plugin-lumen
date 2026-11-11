@@ -1,6 +1,6 @@
 /* ---- Home rows ------------------------------------------------------------------------------------------------ */
 .lmn-home--no-hero {
-  padding-top: calc(var(--lmn-nav-h) + 16px);
+  padding-top: calc(var(--lmn-nav-h) + var(--lmn-safe-top) + 16px);
 }
 .lmn-home--loading,
 .lmn-details--loading {
