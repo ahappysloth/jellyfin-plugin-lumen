@@ -82,7 +82,7 @@ public class HtmlInjectorTests
     {
         var result = HtmlInjector.Inject(Page, "h", "guard()", styleStockPages: true, accentColor: accent);
 
-        Assert.Equal(expected, result.Contains("<style>html.lmn-skin-dashboard{--lmn-accent:#2266ff}</style>", StringComparison.Ordinal));
+        Assert.Equal(expected, result.Contains("<style>html[data-lmn-skin]{--lmn-accent:#2266ff}</style>", StringComparison.Ordinal));
         Assert.DoesNotContain("<style>", HtmlInjector.Inject(Page, "h", "guard()", accentColor: "#2266ff"), StringComparison.Ordinal);
         Assert.DoesNotContain("x()", result, StringComparison.Ordinal);
     }
