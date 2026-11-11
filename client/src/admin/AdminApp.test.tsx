@@ -485,15 +485,52 @@ describe('AdminApp save bar', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
   });
 
-  it('shows a failed reset in the bar, though nothing was changed', async () => {
+  it('shows a failed reset next to Reset, not in the bar, when nothing was changed', async () => {
     const api = fakeApi({ reset: vi.fn(() => Promise.reject(new Error('x'))) });
     const { container } = render(<AdminApp api={api} confirm={() => true} />);
     await screen.findByText('Genre rows');
     fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }));
 
     await screen.findByRole('alert');
-    expectShown(container);
+    expectHidden(container);
+    expect(container.querySelector('.lmna-reset')).toHaveTextContent(
+      "Couldn't reset the settings. Check the server log.",
+    );
+  });
+
+  it('shows a failed reset as a problem, not a success, right after a save', async () => {
+    const api = fakeApi({ reset: vi.fn(() => Promise.reject(new Error('x'))) });
+    const { container } = render(<AdminApp api={api} confirm={() => true} savedFor={10_000} />);
+    await screen.findByText('Genre rows');
+    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Settings saved.');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }));
+    await screen.findByRole('alert');
     expect(bar(container)).toHaveTextContent("Couldn't reset the settings. Check the server log.");
+    expect(bar(container).querySelector('.lmna-savebar__status--error')).not.toBeNull();
+    expect(bar(container).querySelector('.lmna-savebar__status--ok')).toBeNull();
+  });
+
+  it('keeps its live region in the page while the bar is down', async () => {
+    const { container } = render(<AdminApp api={fakeApi()} />);
+    await screen.findByText('Genre rows');
+    const status = screen.getByRole('status');
+    expect(bar(container).contains(status)).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    expect(screen.getByRole('status')).toBe(status);
+    expect(status).toHaveTextContent('Unsaved changes');
+  });
+
+  it('removes its Ctrl+S listener once jellyfin-web has dropped the page', async () => {
+    const remove = vi.spyOn(document, 'removeEventListener');
+    const { container } = render(<AdminApp api={fakeApi()} />);
+    await screen.findByText('Genre rows');
+    container.remove(); // jellyfin-web drops old pages without unmounting
+    fireEvent.keyDown(document, { key: 'x' });
+    expect(remove).toHaveBeenCalledWith('keydown', expect.any(Function));
+    remove.mockRestore();
   });
 
   it('puts focus on the heading when the bar goes down with focus in it', async () => {

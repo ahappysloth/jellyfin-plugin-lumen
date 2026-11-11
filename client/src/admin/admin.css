@@ -454,8 +454,25 @@
 /* Reset to defaults: the last thing in the form, always there (the save bar isn't). */
 .lmn-admin .lmna-reset {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
+  gap: 12px;
   margin-top: 8px;
+}
+.lmn-admin .lmna-reset__error {
+  order: -1;
+  margin: 0;
+  color: #ef5350;
+}
+/* Read by screen readers, not shown. */
+.lmn-admin .lmna-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 /* Focus lands on the heading when the save bar slides away with focus in it (AdminApp.tsx). */
 .lmn-admin__header h1:focus {

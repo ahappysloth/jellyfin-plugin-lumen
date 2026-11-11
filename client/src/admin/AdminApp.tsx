@@ -10,7 +10,7 @@ import { HomeSectionsSettings } from './HomeSectionsSettings';
 import { RequestsSettings } from './RequestsSettings';
 import { UpdatesSettings } from './UpdatesSettings';
 import { wantsCheck } from './updatesLink';
-import { isBusy, useAdminConfig } from './useAdminConfig';
+import { isBusy, RESET_FAILED, useAdminConfig } from './useAdminConfig';
 
 interface AdminAppProps {
   api: AdminApi;
@@ -54,9 +54,10 @@ export function AdminApp({
     const timer = setTimeout(() => setSavedOver(true), savedFor);
     return () => clearTimeout(timer);
   }, [status]);
-  // The bar is up while there's something to save, a save in flight, a problem to fix, or a save just done. Errors
-  // keep it up: they're listed at the top of the page, which may be far off-screen.
-  const shown = dirty || errors.length > 0 || status === 'saving' || (status === 'saved' && !savedOver);
+  // The bar is up while there's something to save (a failed save leaves the changes unsaved, so its problem stays in the
+  // bar too), a save in flight, or a save just done. A failed reset with nothing changed is shown next to Reset instead:
+  // the bar would only offer Save, which isn't the answer to it.
+  const shown = dirty || status === 'saving' || (status === 'saved' && !savedOver);
 
   // Jellyfin's dashboard scrolls the whole page, and an overflow: hidden wrapper stops position: sticky, so the bar is
   // fixed to the viewport. It lines up with the settings column (not over the dashboard's drawer) by measuring it.
@@ -64,7 +65,12 @@ export function AdminApp({
   useLayoutEffect(() => {
     if (!shown) return undefined;
     const measure = (): void => {
-      const rect = formRef.current?.getBoundingClientRect();
+      // jellyfin-web drops pages it has left without unmounting the app: stop listening once this copy is gone.
+      if (!formRef.current?.isConnected) {
+        window.removeEventListener('resize', measure);
+        return;
+      }
+      const rect = formRef.current.getBoundingClientRect();
       if (!rect || !rect.width) return;
       setColumn((c) =>
         c && c.left === rect.left && c.width === rect.width ? c : { left: rect.left, width: rect.width },
@@ -94,6 +100,11 @@ export function AdminApp({
   latest.current = { dirty, busy, save: admin.save };
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
+      // Pages jellyfin-web has dropped are never unmounted; a gone copy removes its own listener.
+      if (!formRef.current?.isConnected) {
+        document.removeEventListener('keydown', onKey);
+        return;
+      }
       if (!(e.ctrlKey || e.metaKey) || e.altKey || (e.key !== 's' && e.key !== 'S')) return;
       if (!formRef.current?.offsetParent) return;
       e.preventDefault();
@@ -122,7 +133,9 @@ export function AdminApp({
             : dirty
               ? 'Unsaved changes'
               : '';
-  const tone = status === 'saved' ? 'ok' : failed ? 'error' : dirty && !busy ? 'dirty' : '';
+  // A failed reset leaves the status as it was, which may still be 'saved': the failure comes first.
+  const tone = failed ? 'error' : status === 'saved' ? 'ok' : dirty && !busy ? 'dirty' : '';
+  const resetFailed = !shown && !busy && errors.includes(RESET_FAILED);
 
   const reset = (): void => {
     if (confirm('Reset all Lumen settings to their defaults?')) void admin.reset();
@@ -189,7 +202,15 @@ export function AdminApp({
         <button type="button" class="lmna-btn" disabled={busy} onClick={reset}>
           {status === 'resetting' ? 'Resetting…' : 'Reset to defaults'}
         </button>
+        {resetFailed && <p class="lmna-reset__error">{RESET_FAILED}</p>}
       </div>
+
+      {/* The save bar's polite live region, outside the bar: a live region that appears together with its text (the
+          bar is hidden from screen readers while down) usually isn't read. So "Unsaved changes" is read once (not on
+          every keystroke), then "Saving…" and "Settings saved.". Not errors: the list at the top is an alert. */}
+      <span role="status" class="lmna-sr-only">
+        {failed ? '' : statusText}
+      </span>
 
       {/* Slides up from the bottom of the window while there's something to say; status on the left, Save on the
           right. Hidden, it's out of the tab order and the accessibility tree (visibility: hidden in admin.css). */}
@@ -201,10 +222,8 @@ export function AdminApp({
       >
         <p class={`lmna-savebar__status${tone ? ` lmna-savebar__status--${tone}` : ''}`}>
           {tone === 'ok' && <Icon name="check" size={16} />}
-          {/* A polite live region that stays in the page, so its changes are read out: "Unsaved changes" once (not on
-              every keystroke), then "Saving…" and "Settings saved.". Not errors: the list at the top is an alert. */}
-          <span role="status">{failed ? '' : statusText}</span>
-          {failed && <span>{statusText}</span>}
+          {/* Read out by the live region above, except errors (the alert at the top reads those). */}
+          <span aria-hidden={failed ? undefined : 'true'}>{statusText}</span>
         </p>
         <button type="submit" class="lmna-btn lmna-btn--primary" disabled={busy}>
           Save
