@@ -58,13 +58,21 @@ export function HeroSettings({
           onChange={(v) => update({ TrailerPreview: v })}
         />
         {config.TrailerPreview && (
-          <NumberField
-            label="Seconds before the trailer starts"
-            value={config.TrailerDelaySeconds}
-            min={0}
-            max={30}
-            onChange={(v) => update({ TrailerDelaySeconds: v })}
-          />
+          <>
+            <NumberField
+              label="Seconds before the trailer starts"
+              value={config.TrailerDelaySeconds}
+              min={0}
+              max={30}
+              onChange={(v) => update({ TrailerDelaySeconds: v })}
+            />
+            <Switch
+              label="Let trailers finish before the next slide"
+              hint="Off, each slide stays for its seconds and cuts its trailer short. On, a slide whose trailer is playing stays until the trailer ends."
+              checked={config.HeroWaitForTrailer}
+              onChange={(v) => update({ HeroWaitForTrailer: v })}
+            />
+          </>
         )}
       </div>
     </Card>

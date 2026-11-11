@@ -66,6 +66,13 @@ public class PluginConfiguration : BasePluginConfiguration
 
     public int TrailerDelaySeconds { get; set; } = 4;
 
+    /// <summary>
+    /// Gets or sets a value indicating whether a hero slide whose trailer preview is playing stays up until the trailer ends,
+    /// rather than moving on after <see cref="HeroIntervalSeconds"/> and cutting it off. Off by default: a config saved
+    /// before it existed has no element for it and reads as off, so no migration is needed.
+    /// </summary>
+    public bool HeroWaitForTrailer { get; set; }
+
     [SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "XML serialization requires a setter.")]
     [SuppressMessage("Design", "CA1002:Do not expose generic lists", Justification = "XML serialization requires a concrete List.")]
     public List<SectionDefinition> Sections { get; set; } = [];

@@ -161,6 +161,8 @@ export interface ClientConfig {
   HeroIntervalSeconds: number;
   TrailerPreview: boolean;
   TrailerDelaySeconds: number;
+  /** A hero slide whose trailer is playing stays until it ends (Hero.tsx). */
+  HeroWaitForTrailer: boolean;
   BuildHash: string;
 }
 

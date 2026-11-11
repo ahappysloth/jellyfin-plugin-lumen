@@ -200,6 +200,10 @@
 .lmn-hero__pager.is-paused .lmn-hero__fill {
   animation-play-state: paused;
 }
+/* Once a trailer the slide waits for is under way, Hero.tsx draws the fill itself, following the trailer and the clock. */
+.lmn-hero__fill.is-trailer {
+  animation: none;
+}
 @keyframes lmn-hero-fill {
   from {
     transform: scaleX(0);

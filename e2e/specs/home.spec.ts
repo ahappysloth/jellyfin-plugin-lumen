@@ -121,6 +121,36 @@ test.describe('hero pager', () => {
     expect(await fillScale(page)).toBeCloseTo(0, 2);
   });
 
+  test('with trailers let finish, keeps a slide up until its trailer ends, the pill filling with it', async ({ page }) => {
+    // A 3 s interval, and previews from the start: the fixtures' trailers run 8 s, well past it.
+    await page.route(/\/Lumen\/ClientConfig/, async (route) => {
+      const response = await route.fetch();
+      await route.fulfill({
+        response,
+        json: { ...(await response.json()), HeroIntervalSeconds: 3, TrailerDelaySeconds: 0, HeroWaitForTrailer: true },
+      });
+    });
+    await login(page, ADMIN);
+    const current = page.locator('#lmn-root .lmn-hero__slide.is-current');
+    const video = current.locator('video');
+    const title = () => current.locator('h2').evaluate((h) => h.textContent || h.querySelector('img')?.alt);
+    // The slideshow moves on to a title with a trailer (not every one has one), whose preview starts at once.
+    await expect(video).toBeVisible({ timeout: 30_000 });
+    const showing = await title();
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(4);
+
+    // Past the 3 s interval: still this title, its pill following the trailer rather than the clock.
+    expect(await title()).toBe(showing);
+    await expect(page.locator('#lmn-root .lmn-hero__fill')).toHaveClass(/\bis-trailer\b/);
+    const filled = await fillScale(page);
+    expect(filled).toBeGreaterThan(0.4);
+    expect(filled).toBeLessThan(1);
+
+    // It ends, and the next title follows a beat later.
+    await expect(video).toHaveCount(0, { timeout: 10_000 });
+    await expect.poll(title, { timeout: 5_000 }).not.toBe(showing);
+  });
+
   test('shows the current pill full, without the growing fill, for reduced motion', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await login(page, ADMIN);

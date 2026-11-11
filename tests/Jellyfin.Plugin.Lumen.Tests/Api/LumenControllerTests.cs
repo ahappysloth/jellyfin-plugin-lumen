@@ -127,7 +127,7 @@ public class LumenControllerTests
     [Fact]
     public void ClientConfig_ReflectsSettings()
     {
-        _config.Current.Returns(new PluginConfiguration { HomeTakeover = false, AccentColor = "#123456", HeroIntervalSeconds = 9 });
+        _config.Current.Returns(new PluginConfiguration { HomeTakeover = false, AccentColor = "#123456", HeroIntervalSeconds = 9, HeroWaitForTrailer = true });
 
         var dto = Create().GetClientConfig().Value!;
 
@@ -135,6 +135,7 @@ public class LumenControllerTests
         Assert.False(dto.HomeTakeover);
         Assert.Equal("#123456", dto.AccentColor);
         Assert.Equal(9, dto.HeroIntervalSeconds);
+        Assert.True(dto.HeroWaitForTrailer);
         Assert.Equal(_assets.BuildHash, dto.BuildHash);
     }
 

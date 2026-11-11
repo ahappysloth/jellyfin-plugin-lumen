@@ -389,6 +389,27 @@ describe('TrailerPreview', () => {
     expect(onPlayingChange.mock.calls.map(([on]) => on)).toEqual([false, true]);
   });
 
+  it('reports its progress once under way, not before (the hero waits for it)', async () => {
+    runAs(CHROME);
+    const time = vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0.1);
+    const onProgress = vi.fn();
+    const { container } = render(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MP4_H264)} onProgress={onProgress} />,
+    );
+    await startAfter(0);
+    const video = container.querySelector('video')!;
+    act(() => {
+      video.dispatchEvent(new Event('timeupdate'));
+    });
+    expect(onProgress).not.toHaveBeenCalled();
+
+    time.mockReturnValue(0.5);
+    act(() => {
+      video.dispatchEvent(new Event('timeupdate'));
+    });
+    expect(onProgress).toHaveBeenCalledWith(video);
+  });
+
   it('starts the video itself, and keeps the backdrop when the browser refuses (iOS Low Power Mode)', async () => {
     runAs(SAFARI);
     const play = vi

@@ -29,6 +29,8 @@ interface Props {
    * page can reveal or hide its controls.
    */
   onPlayingChange?: (playing: boolean) => void;
+  /** Called as the video plays, once it's under way (TRAILER_STARTED_SECONDS): the hero's pager follows it. */
+  onProgress?: (video: HTMLVideoElement) => void;
   /**
    * May the server remux or transcode the trailer when the browser can't play the file? The details page says yes.
    * The hero's slides show a preview for a few seconds each, not worth a server stream: the file or nothing.
@@ -68,6 +70,7 @@ export function TrailerPreview({
   paused = false,
   class: className,
   onPlayingChange,
+  onProgress,
   allowTranscode = false,
 }: Props) {
   const wrapper = useRef<HTMLDivElement>(null);
@@ -203,6 +206,7 @@ export function TrailerPreview({
     if (e.currentTarget.currentTime < TRAILER_STARTED_SECONDS) return;
     started.current = true;
     if (shownSession !== session) setShownSession(session);
+    onProgress?.(e.currentTarget);
   };
 
   const onError = (): void => {
