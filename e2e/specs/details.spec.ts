@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { ADMIN, KID, api, loadState } from '../support/api';
+import { ADMIN, KID, api, loadState, resetLumen } from '../support/api';
 import { login } from '../support/login';
 
 /** Titles a test marked watched: put back to never played afterwards (marking played, then unplayed, clears the date). */
@@ -350,6 +350,65 @@ test.describe("a card's More actions… Delete", () => {
     await page.goBack();
     await expect(grid.getByRole('link', { name: 'Lumen Kept Set' })).toBeVisible();
     await expect(doomed).toHaveCount(0);
+  });
+});
+
+test.describe('two titles deleted in quick succession', () => {
+  const ids: string[] = [];
+  test.afterEach(async () => {
+    await resetLumen();
+    const left = ids.splice(0);
+    for (const id of left) await api('/Items', { method: 'DELETE', token: loadState().admin.token, query: { ids: id } }).catch(() => undefined);
+  });
+
+  test('both stay off Home, though the server takes up to 30 s to notice the second', async ({ page }) => {
+    const { admin, items } = loadState();
+    const collection = async (name: string, ...members: string[]) =>
+      (await api<{ Id: string }>('/Collections', { method: 'POST', token: admin.token, query: { name, ids: members.join(',') } })).Id;
+    const first = await collection('Lumen Doomed One', items['Lumen Alpha']);
+    const second = await collection('Lumen Doomed Two', items['Lumen Alpha']);
+    ids.push(first, second);
+    // A curated row of collections: titles Home shows that a test can delete without touching the media.
+    ids.push(await collection('Lumen Shelf', first, second, items['Lumen Gamma']));
+    const config = await api<{ Sections: unknown[] } & Record<string, unknown>>('/Lumen/Admin/Config', { token: admin.token });
+    await api('/Lumen/Admin/Config', {
+      method: 'POST',
+      token: admin.token,
+      body: {
+        ...config,
+        Sections: [
+          { Id: crypto.randomUUID(), Type: 'Curated', Enabled: true, Title: null, Params: [{ Name: 'collectionId', Value: ids[2] }] },
+          ...config.Sections,
+        ],
+      },
+    });
+    await login(page, ADMIN);
+    const row = page.getByRole('region', { name: 'Lumen Shelf' });
+    const card = (name: string) => row.getByRole('link', { name });
+    const confirm = () => page.locator('.dialogContainer .dialog').getByRole('button', { name: 'Delete' }).click();
+
+    // The first from its card on Home: focus moves on to the card after it. (Scrolled to first: the menu closes on a
+    // scroll, and the one a click makes to reach the card can land just after it opens.)
+    await card('Lumen Doomed One').scrollIntoViewIfNeeded();
+    await card('Lumen Doomed One').click({ button: 'right' });
+    await page.getByRole('menu', { name: 'Actions for Lumen Doomed One' }).getByRole('menuitem', { name: 'More actions…' }).click();
+    await page.getByRole('menu', { name: 'More actions for Lumen Doomed One' }).getByRole('menuitem', { name: 'Delete collection' }).click();
+    await confirm();
+    await expect(card('Lumen Doomed One')).toHaveCount(0);
+    await expect(card('Lumen Doomed Two')).toBeFocused();
+
+    // Seconds later, the second from its page. The server's home refreshes at most every 30 s after library changes
+    // (creating the collections was one), so the home Back fetches still lists both.
+    await card('Lumen Doomed Two').click();
+    await more(page).click();
+    await page.getByRole('menu', { name: 'More actions for Lumen Doomed Two' }).getByRole('menuitem', { name: 'Delete collection' }).click();
+    await confirm();
+
+    // Back on Home: neither is there, and the card after the second has focus.
+    await expect(card('Lumen Gamma')).toBeVisible();
+    await expect(card('Lumen Doomed Two')).toHaveCount(0);
+    await expect(card('Lumen Doomed One')).toHaveCount(0);
+    await expect(card('Lumen Gamma')).toBeFocused();
   });
 });
 

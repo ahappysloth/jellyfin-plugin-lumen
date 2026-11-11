@@ -8,7 +8,9 @@ import { ContextMenuHost } from '../../components/ContextMenu';
 import { ToastHost } from '../../components/Toast';
 import { hasSnapshot, saveSnapshot, takeSnapshot } from '../browse/browseStore';
 import { getCachedHome, setCachedHome } from '../home/homeStore';
-import { openItemMenuAt, prepareItemMenu, resetItemMenuUsers } from './itemMenu';
+import { useState } from 'preact/hooks';
+import { resetSessionCaches } from '../../util/sessionCaches';
+import { openItemMenuAt, prepareItemMenu, resetItemMenuUsers, whenItemDialogsLoad } from './itemMenu';
 
 const full = {
   Id: 'm1',
@@ -39,7 +41,10 @@ describe('the item menu', () => {
     resetItemMenuUsers();
     vi.spyOn(dialogs, 'canOpenItemDialogs').mockReturnValue(true);
   });
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetSessionCaches();
+  });
 
   it('fetches a card’s full item and the user’s policy, then lists what jellyfin-web would offer', async () => {
     const { client, ctx } = context();
@@ -124,7 +129,12 @@ describe('the item menu', () => {
       scrollY: 0,
       offset: 2,
     });
-    setCachedHome('user1', { ConfigVersion: 1, Hero: [], Rows: [] });
+    const beta = { Id: 'm2', Name: 'Beta', Type: 'Movie' };
+    setCachedHome('user1', {
+      ConfigVersion: 1,
+      Hero: [],
+      Rows: [{ Id: 'r1', Type: 'Latest', Title: 'Latest', Items: [card, beta] }],
+    });
     const onDeleted = vi.fn();
     render(<ContextMenuHost />);
     const menu = await prepareItemMenu(ctx, card, { onDeleted });
@@ -132,7 +142,7 @@ describe('the item menu', () => {
 
     choose('Delete movie');
     await waitFor(() => expect(onDeleted).toHaveBeenCalled());
-    expect(getCachedHome('user1')).toBeUndefined();
+    expect(getCachedHome('user1')!.Rows[0]!.Items).toEqual([beta]);
     expect(hasSnapshot('movies')).toBe(true);
     const grid = takeSnapshot('movies')!;
     expect(grid.items.map((i) => i.Id)).toEqual(['m2']);
@@ -150,6 +160,153 @@ describe('the item menu', () => {
 
     expect(labels()).toEqual(['Edit metadata', 'Refresh metadata', 'Delete movie']);
     expect(stock).toHaveBeenCalledWith(expect.objectContaining({ Id: 'm1', CanDelete: true }), admin);
+  });
+
+  it('asks jellyfin-web again as the menu opens, if its item menu loaded after the menu was prepared', async () => {
+    const loaded = vi.spyOn(dialogs, 'canOpenItemDialogs').mockReturnValue(false);
+    const stock = vi
+      .spyOn(dialogs, 'stockItemCommands')
+      .mockResolvedValue(['addtoplaylist', 'edit', 'delete']);
+    const { client, ctx } = context();
+    render(<ContextMenuHost />);
+    const menu = await prepareItemMenu(ctx, card);
+    // Lumen's own rules, without the dialogs only jellyfin-web can open.
+    expect(menu.dialogs).toBe(false);
+    expect(menu.commands).not.toContain('delete');
+    expect(stock).not.toHaveBeenCalled();
+
+    loaded.mockReturnValue(true);
+    act(() => menu.open({ x: 0, y: 0, returnFocus: null }));
+    await waitFor(() => expect(labels()).toEqual(['Add to playlist', 'Edit metadata', 'Delete movie']));
+    // The full item it already had: only the user is asked for, once.
+    expect(client.requests.map((r) => new URL(r.url).pathname)).toEqual(['/Items/m1', '/Users/user1']);
+  });
+
+  it("waits up to 30 s for jellyfin-web's item menu to load", () => {
+    vi.useFakeTimers();
+    const loaded = vi.spyOn(dialogs, 'canOpenItemDialogs').mockReturnValue(false);
+    const then = vi.fn();
+    whenItemDialogsLoad(then);
+    vi.advanceTimersByTime(5000);
+    expect(then).not.toHaveBeenCalled();
+    loaded.mockReturnValue(true);
+    vi.advanceTimersByTime(60_000);
+    expect(then).toHaveBeenCalledTimes(1);
+
+    loaded.mockReturnValue(false);
+    const late = vi.fn();
+    whenItemDialogsLoad(late);
+    vi.advanceTimersByTime(30_000);
+    loaded.mockReturnValue(true);
+    vi.advanceTimersByTime(60_000);
+    expect(late).not.toHaveBeenCalled();
+
+    const stopped = vi.fn();
+    whenItemDialogsLoad(stopped)();
+    vi.advanceTimersByTime(60_000);
+    expect(stopped).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  describe('focus after a delete from a card', () => {
+    const titles = ['a', 'b', 'c'].map((Id) => ({ ...full, Id, Name: Id.toUpperCase() }));
+    /** A list of cards, as Lumen's rows and grids render them, that drops a card when its title is deleted. */
+    let menuFor: (id: string, from: HTMLElement) => Promise<void>;
+    /** A row's cards (in the row itself), or with `grid` a grid's (each in a list item). */
+    function List({
+      ctx,
+      more,
+      grid,
+    }: {
+      ctx: ReturnType<typeof context>['ctx'];
+      more?: boolean;
+      grid?: boolean;
+    }) {
+      const [items, setItems] = useState(titles);
+      menuFor = (id, from) =>
+        openItemMenuAt(
+          ctx,
+          titles.find((t) => t.Id === id)!,
+          { x: 0, y: 0, returnFocus: from },
+          { onDeleted: () => setItems((list) => list.filter((i) => i.Id !== id)) },
+        );
+      const cell = (item: (typeof titles)[number]) => (
+        <div class="lmn-card-cell" key={item.Id}>
+          <a href="#" class="lmn-card" data-item-id={item.Id}>
+            {item.Name}
+          </a>
+          {more && (
+            <button type="button" class="lmn-card__more">
+              More for {item.Name}
+            </button>
+          )}
+        </div>
+      );
+      return (
+        <main class="lmn-main">
+          <button type="button">Sort</button>
+          <div role={grid ? 'list' : undefined}>
+            {items.map((item) =>
+              grid ? (
+                <div role="listitem" key={item.Id}>
+                  {cell(item)}
+                </div>
+              ) : (
+                cell(item)
+              ),
+            )}
+          </div>
+        </main>
+      );
+    }
+    async function deleteFrom(id: string, more = false) {
+      const card = document.querySelector<HTMLElement>(`[data-item-id="${id}"]`)!;
+      const from = more ? (card.nextElementSibling as HTMLElement) : card;
+      from.focus();
+      await act(() => menuFor(id, from));
+      choose('Delete movie');
+    }
+
+    beforeEach(() => {
+      vi.spyOn(dialogs, 'openItemDialog').mockResolvedValue({ updated: false, deleted: true });
+    });
+
+    it('moves to the card after it, or before it if it was the last, as its kind of control', async () => {
+      const { ctx } = context();
+      render(
+        <>
+          <List ctx={ctx} more />
+          <ContextMenuHost />
+        </>,
+      );
+      // A ⋯ button stays on ⋯ buttons.
+      await deleteFrom('c', true);
+      await waitFor(() => expect(document.querySelector('[data-item-id="c"]')).toBeNull());
+      await waitFor(() => expect(document.activeElement?.textContent).toBe('More for B'));
+      await deleteFrom('a', true);
+      await waitFor(() => expect(document.querySelector('[data-item-id="a"]')).toBeNull());
+      // Its refocus has run (the list may have reused the deleted card's element for the next one).
+      await act(() => new Promise((resolve) => setTimeout(resolve)));
+      expect(document.activeElement?.textContent).toBe('More for B');
+    });
+
+    it('does so for a TV layout’s cards in a grid, and goes to the page’s first control when none is left', async () => {
+      // The TV layout: no ⋯ buttons, the card itself had focus. A grid, where each card is in a list item.
+      const { ctx } = context(admin, 'tv');
+      render(
+        <>
+          <List ctx={ctx} grid />
+          <ContextMenuHost />
+        </>,
+      );
+      const focused = () => document.activeElement?.getAttribute('data-item-id');
+      await deleteFrom('c');
+      await waitFor(() => expect(focused()).toBe('b'));
+      await deleteFrom('b');
+      await waitFor(() => expect(focused()).toBe('a'));
+      await deleteFrom('a');
+      await waitFor(() => expect(document.activeElement?.textContent).toBe('Sort'));
+    });
   });
 
   it("doesn't watch for a refresh the user cancelled", async () => {

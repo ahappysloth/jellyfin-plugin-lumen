@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { LumenApi } from '../../api/lumenApi';
+import type { HomeRow } from '../../api/types';
 import {
   clearCachedHome,
   fetchHome,
@@ -7,7 +8,7 @@ import {
   isEmptyHome,
   setCachedHome,
   restoreScrollTop,
-  withoutItem,
+  mapHomeItems,
 } from './homeStore';
 
 const home = { ConfigVersion: 1, Hero: [], Rows: [] };
@@ -82,10 +83,37 @@ describe('restoreScrollTop', () => {
         },
       ],
     };
-    const left = withoutItem(full, 'a');
+    const left = mapHomeItems(full, (i) => (i.Id === 'a' ? null : i));
     expect(left.Hero.map((h) => h.Item.Id)).toEqual(['b']);
     expect(left.Rows.map((r) => r.Id)).toEqual(['r1', 'r3']);
     expect(left.Rows[0]!.Items.map((i) => i.Id)).toEqual(['b']);
     expect(left.Rows[1]!.Entries!.map((e) => e.Item!.Id)).toEqual(['c']);
+  });
+
+  it('changes titles in place, keeping a catalog row’s order and its titles the server doesn’t have', () => {
+    const item = (Id: string) => ({ Id, Name: Id, Type: 'Movie' });
+    const catalog = { Key: 'k', MediaType: 'movie', TmdbId: 1, Title: 'T', GenreNames: [], State: 'None' };
+    const full = {
+      ConfigVersion: 1,
+      Hero: [{ Item: item('a'), TrailerItemId: 't' }],
+      Rows: [
+        {
+          Id: 'r1',
+          Type: 'Trending',
+          Title: 'Trending',
+          Items: [],
+          Entries: [{ Item: item('a') }, { Catalog: catalog }, { Item: item('b') }],
+        },
+      ] as HomeRow[],
+    };
+    const renamed = mapHomeItems(full, (i) => (i.Id === 'a' ? { ...i, Name: 'A2' } : i));
+    expect(renamed.Hero).toEqual([{ Item: { ...item('a'), Name: 'A2' }, TrailerItemId: 't' }]);
+    expect(renamed.Rows[0]!.Entries).toEqual([
+      { Item: { ...item('a'), Name: 'A2' } },
+      { Catalog: catalog },
+      { Item: item('b') },
+    ]);
+    // Untouched entries are the same objects.
+    expect(renamed.Rows[0]!.Entries![2]).toBe(full.Rows[0]!.Entries![2]);
   });
 });

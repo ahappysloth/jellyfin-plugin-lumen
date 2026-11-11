@@ -8,8 +8,9 @@ import * as dialogs from '../../compat/itemMenu';
 import * as compat from '../../compat/playbackManager';
 import { ConfirmHost } from '../../components/ConfirmDialog';
 import { ContextMenuHost } from '../../components/ContextMenu';
-import { clearBrowseState, saveSnapshot, takeSnapshot } from '../browse/browseStore';
+import { saveSnapshot, takeSnapshot } from '../browse/browseStore';
 import { getCachedHome, setCachedHome } from '../home/homeStore';
+import { resetSessionCaches } from '../../util/sessionCaches';
 import { resetItemMenuUsers } from '../itemMenu/itemMenu';
 import { PAGE_SIZE } from '../browse/useBrowseItems';
 import { DetailsView, loadFailure } from './DetailsView';
@@ -519,7 +520,8 @@ describe('DetailsView after an action from its ⋯ menu', () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
-    clearBrowseState();
+    // Saved grids, and the deletes and edits home is shown with (views/itemChanges.ts).
+    resetSessionCaches();
   });
 
   /** The movie page, with the item as `itemNow` answers it (a fresh object each time, as the server's JSON is). */
@@ -555,13 +557,24 @@ describe('DetailsView after an action from its ⋯ menu', () => {
       total: 1,
       scrollY: 0,
     });
-    setCachedHome('user1', { ConfigVersion: 1, Hero: [], Rows: [] });
+    setCachedHome('user1', {
+      ConfigVersion: 1,
+      Hero: [],
+      Rows: [
+        {
+          Id: 'r1',
+          Type: 'Latest',
+          Title: 'Latest',
+          Items: [{ Id: 'm1', Name: 'Lumen Alpha', Type: 'Movie' }],
+        },
+      ],
+    });
 
     name = 'Lumen Alpha Redux';
     await choose('Edit metadata');
     expect(await screen.findByRole('heading', { name: 'Lumen Alpha Redux' })).toBeInTheDocument();
     expect(takeSnapshot('movies')!.items[0]!.Name).toBe('Lumen Alpha Redux');
-    expect(getCachedHome('user1')).toBeUndefined();
+    expect(getCachedHome('user1')!.Rows[0]!.Items[0]!.Name).toBe('Lumen Alpha Redux');
     expect(ctx.onFallback).not.toHaveBeenCalled();
   });
 

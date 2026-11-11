@@ -20,6 +20,8 @@ Run against the release build on the latest stable Jellyfin.
       policy allows. A card's right-click menu ends in "More actions…" with the same list.
 - [ ] Delete a collection from its card's "More actions…": the card leaves the grid, and stays gone after opening
       another title and coming Back. Delete one from its own page: Back lands on the grid without it.
+- [ ] Delete two titles on home within a few seconds (one from its card, one from its page): Home shows neither, even
+      though the server takes up to 30 s to notice. Rename one: Home shows the new name at once.
 - [ ] Switch seasons on a series page: the ⋯ beside the picker always opens the season shown (its title is in the menu).
 - [ ] Unticking "Replace the home screen" in the dashboard restores the stock home after a reload.
 
@@ -61,6 +63,8 @@ real phone shows what the installer and the launch do.
 - [ ] Returning home restores focus to the last selected card.
 - [ ] Details: More is reachable with the arrow keys, its menu opens with Enter, and Back closes a dialog it opened,
       with focus back on More.
+- [ ] Delete a card with the remote: focus moves to the card after it (the one before, if it was the last). Delete a
+      title from its page: Back focuses the card next to where it was.
 - [ ] On a real TV browser, a home card's "More actions…" opens the title's page (jellyfin-web hasn't loaded its item
       menu on home there); that page's More has the actions.
 

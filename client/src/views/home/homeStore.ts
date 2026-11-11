@@ -1,5 +1,5 @@
 import type { LumenApi } from '../../api/lumenApi';
-import type { HomeResponse } from '../../api/types';
+import type { BaseItem, HomeResponse } from '../../api/types';
 
 /** The last home response for the current user only. Gives instant back-navigation and is never shown to another user. */
 let cached: { userId: string; home: HomeResponse } | null = null;
@@ -25,15 +25,44 @@ export async function fetchHome(api: LumenApi, retryDelayMs = 500): Promise<Home
   }
 }
 
-/** Home without a title deleted from its card's menu: out of the hero and the rows (a row left empty goes too). */
-export function withoutItem(home: HomeResponse, itemId: string): HomeResponse {
+/**
+ * Home with each title as `change` has it: null takes it out of the hero and the rows (and a row it leaves empty).
+ * The catalog's titles the server doesn't have stay as they are.
+ */
+export function mapHomeItems(home: HomeResponse, change: (item: BaseItem) => BaseItem | null): HomeResponse {
+  const kept = <T>(
+    list: T[],
+    get: (t: T) => BaseItem | null | undefined,
+    put: (t: T, item: BaseItem) => T,
+  ): T[] =>
+    list
+      .map((t) => {
+        const was = get(t);
+        const now = was && change(was);
+        return !was ? t : now && (now === was ? t : put(t, now));
+      })
+      .filter((t): t is T => !!t);
   return {
     ...home,
-    Hero: home.Hero.filter((h) => h.Item.Id !== itemId),
+    Hero: kept(
+      home.Hero,
+      (h) => h.Item,
+      (h, Item) => ({ ...h, Item }),
+    ),
     Rows: home.Rows.map((row) => ({
       ...row,
-      Items: row.Items.filter((i) => i.Id !== itemId),
-      Entries: row.Entries?.filter((e) => e.Item?.Id !== itemId),
+      Items: kept(
+        row.Items,
+        (i) => i,
+        (_, i) => i,
+      ),
+      Entries:
+        row.Entries &&
+        kept(
+          row.Entries,
+          (e) => e.Item,
+          (e, Item) => ({ ...e, Item }),
+        ),
     })).filter((row) => row.Items.length > 0 || !!row.Entries?.length),
   };
 }
@@ -65,6 +94,18 @@ export function getSelection(userId: string): Selection | undefined {
   if (selection?.userId !== userId) return undefined;
   const { itemId, scrollY, rowId, top } = selection;
   return { itemId, scrollY, rowId, top };
+}
+
+/**
+ * A title was deleted: a selection on it moves to the card after it in its row (the one before, if it was the last), so
+ * Back focuses a card next to where it was rather than nothing. Before the cached home leaves it out.
+ */
+export function selectNextTo(userId: string, itemId: string): void {
+  const row = selection?.userId === userId && selection.itemId === itemId && getCachedHome(userId)?.Rows;
+  const items = row ? (row.find((r) => r.Id === selection!.rowId)?.Items ?? []) : [];
+  const i = items.findIndex((item) => item.Id === itemId);
+  const next = i < 0 ? undefined : (items[i + 1] ?? items[i - 1]);
+  if (next) selection!.itemId = next.Id;
 }
 
 const SAFE_ID = /^[\w-]+$/;

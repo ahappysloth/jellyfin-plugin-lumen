@@ -21,8 +21,8 @@ import {
   restoreScrollTop,
   setCachedHome,
   usableCachedHome,
-  withoutItem,
 } from './homeStore';
+import { withLocalChanges } from '../itemChanges';
 import { liftVeil } from '../../veil/veil';
 import { Row } from './Row';
 
@@ -54,12 +54,14 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
     withTimeout(fetchHome(ctx.api), VIEW_TIMEOUT_MS)
       .then((fresh) => {
         if (cancelled) return;
-        if (isEmptyHome(fresh)) {
+        // The server's home can lag a delete or an edit made here by up to 30 s (itemChanges.ts).
+        const shown = withLocalChanges(ctx.userId, fresh);
+        if (isEmptyHome(shown)) {
           clearCachedHome(ctx.userId);
           ctx.onFallback();
         } else {
-          setCachedHome(ctx.userId, fresh);
-          setHome(fresh);
+          setCachedHome(ctx.userId, shown);
+          setHome(shown);
         }
       })
       .catch(() => {
@@ -82,7 +84,7 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
     );
   };
   const onMenu = cardMenuHandler(ctx, {
-    onDeleted: (item) => setHome((current) => current && withoutItem(current, item.Id)),
+    onDeleted: () => setHome((current) => current && withLocalChanges(ctx.userId, current)),
     onChanged: () => setVersion((v) => v + 1),
   });
   const select = (item: BaseItem, row: HomeRow): void => {
