@@ -575,6 +575,11 @@ html.lmn-skin-settings .MuiSelect-icon {
   align-items: center;
   padding: 0 16px;
 }
+/* Below Lumen's nav, never over its tabs (the player has none: the pill sits at the top there). */
+:is(html.lmn-active, html.lmn-skin-settings) .toastContainer {
+  top: 88px;
+  top: calc(var(--lmn-nav-h) + 8px + env(safe-area-inset-top));
+}
 /* A glass pill that drops from the top centre, like the player's volume pill. */
 :is(html.lmn-active, html.lmn-skin-player, html.lmn-skin-settings) .toastContainer .toast {
   min-width: 0;
