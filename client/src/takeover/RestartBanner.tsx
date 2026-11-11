@@ -173,9 +173,10 @@ export function RestartBanner({
   }, [step.kind]);
 
   // Unmounted (the page left the admin pages, or the banner was dismissed): a restart in progress doesn't reload
-  // whatever page is showing by then.
+  // whatever page is showing by then. A layout effect: Preact runs useEffect cleanups after the next paint, which
+  // leaves a frame for one more check (or a reload) after the banner is gone.
   const alive = useRef(true);
-  useEffect(
+  useLayoutEffect(
     () => () => {
       alive.current = false;
     },

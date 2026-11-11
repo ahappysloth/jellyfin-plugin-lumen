@@ -197,7 +197,7 @@ describe('the restart banner', () => {
     unmount();
     const before = calls;
     await new Promise((r) => setTimeout(r, 120));
-    expect(calls - before).toBeLessThanOrEqual(1); // at most the check already under way
+    expect(calls).toBe(before); // the banner stops checking the moment it goes
     expect(p.reload).not.toHaveBeenCalled();
   });
 
