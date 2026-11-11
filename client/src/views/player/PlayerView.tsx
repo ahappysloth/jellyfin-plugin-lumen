@@ -162,23 +162,36 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   /** The picture: where Escape leaves focus as it puts the controls away. */
   const surfaceRef = useRef<HTMLDivElement>(null);
   /**
-   * Whether focus came to the player by keyboard (Tab, a D-pad, Enter on a pill), not by a click or tap. Tracked from
-   * the input that moved it, not :focus-visible: Chromium and WebKit count a clicked button as :focus-visible once any
-   * key is pressed (Space to play again, say).
+   * Whether focus came to the player by keyboard (Tab, a D-pad, Enter on a pill) or a screen reader, not by a click or
+   * tap. Tracked from the input that moved it, not :focus-visible: Chromium and WebKit count a clicked button as
+   * :focus-visible once any key is pressed (Space to play again, say). A screen reader (VoiceOver's swipes) moves focus
+   * with no key and no press: focus with no press just before it counts as the keyboard's.
    */
   const keyboardFocus = useRef(false);
   useEffect(() => {
     let keyboard = false;
+    let pointerAt = 0;
     const onKey = (): void => void (keyboard = true);
-    const onPointer = (): void => void (keyboard = keyboardFocus.current = false);
-    const onFocus = (e: FocusEvent): void =>
-      void (keyboardFocus.current = keyboard && !!osdRef.current?.contains(e.target as Node));
+    const onPointer = (e: PointerEvent): void => {
+      pointerAt = Date.now();
+      if (e.type === 'pointerdown') keyboard = keyboardFocus.current = false;
+    };
+    const onFocus = (e: FocusEvent): void => {
+      const target = e.target as Element;
+      keyboardFocus.current =
+        !!osdRef.current?.contains(target) && (keyboard || Date.now() - pointerAt >= PRESS_MS);
+      // Focus on a control brings the controls up: a screen reader can land on one while they're hidden, and its
+      // activation would otherwise only wake them (see the click canceller below). A key or a press already has.
+      if (target.closest?.('.lmn-player__top, .lmn-player__bottom')) wake();
+    };
     document.addEventListener('keydown', onKey, true);
     document.addEventListener('pointerdown', onPointer, true);
+    document.addEventListener('pointerup', onPointer, true);
     document.addEventListener('focusin', onFocus, true);
     return () => {
       document.removeEventListener('keydown', onKey, true);
       document.removeEventListener('pointerdown', onPointer, true);
+      document.removeEventListener('pointerup', onPointer, true);
       document.removeEventListener('focusin', onFocus, true);
     };
   }, []);
@@ -294,11 +307,14 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
     const onUp = (): void => {
       if (press.current) press.current.at = Date.now();
     };
+    // A swipe or a pinch: no click comes of it.
+    const onCancel = (): void => void (press.current = null);
     // A tap that brings the hidden controls back does only that. The press woke them, so its click would land on
-    // whatever control is now under the finger: Play, a pill, Back.
+    // whatever control is now under the finger: Play, a pill, Back. Not a click with no press in it (detail 0: Enter or
+    // Space on a button, a D-pad's OK, a screen reader's), which an earlier press may still be on record for.
     const onClick = (e: MouseEvent): void => {
       const p = press.current;
-      if (!p || p.shown || !isTouchLike(p.pointerType) || Date.now() - p.at >= PRESS_MS) return;
+      if (!p || p.shown || !e.detail || !isTouchLike(p.pointerType) || Date.now() - p.at >= PRESS_MS) return;
       if (!(e.target as Element).closest?.('.lmn-player__top, .lmn-player__bottom')) return;
       press.current = null;
       e.preventDefault();
@@ -306,10 +322,12 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
     };
     document.addEventListener('pointerdown', onDown, true);
     document.addEventListener('pointerup', onUp, true);
+    document.addEventListener('pointercancel', onCancel, true);
     document.addEventListener('click', onClick, true);
     return () => {
       document.removeEventListener('pointerdown', onDown, true);
       document.removeEventListener('pointerup', onUp, true);
+      document.removeEventListener('pointercancel', onCancel, true);
       document.removeEventListener('click', onClick, true);
     };
   }, []);
@@ -415,7 +433,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
         if (e.key === ' ' && keyboardFocus.current && (e.target as Element).closest('button'))
           Object.defineProperty(e, 'keyCode', { value: IGNORED_KEY_CODE });
       }}
-      class={`lmn-osd${shown ? '' : ' is-idle'}${tapHidden ? ' is-tapped' : ''}${panel ? ' has-panel' : ''}${progress.started ? '' : ' is-loading'}`}
+      class={`lmn-osd${shown ? '' : ' is-idle'}${tapHidden ? ' is-tapped' : ''}${panel ? ' has-panel' : ''}${progress.started ? '' : ' is-loading'}${syncPlay.group ? ' has-syncplay' : ''}`}
     >
       {!progress.started && <LoadingScreen ctx={ctx} snap={snap} starting={starting} />}
       {progress.started && progress.buffering && !switching.state?.shown && (

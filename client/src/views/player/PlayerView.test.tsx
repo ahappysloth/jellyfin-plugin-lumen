@@ -410,6 +410,33 @@ describe('PlayerView', () => {
       expect(osd).toHaveClass('is-idle');
     });
 
+    it('brings the controls back, and keeps them up, for focus a screen reader moves to a control', async () => {
+      const { osd } = await open();
+      await idle();
+      expect(osd).toHaveClass('is-idle');
+      // VoiceOver moves focus with no key and no press.
+      screen.getByRole('button', { name: 'Back 10 seconds' }).focus();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(osd).not.toHaveClass('is-idle');
+      await idle();
+      expect(osd).not.toHaveClass('is-idle');
+    });
+
+    it('brings the controls back for focus on a control in the TV layout too, and still hides them after a pause', async () => {
+      const { osd } = await open('tv');
+      await idle();
+      expect(osd).toHaveClass('is-idle');
+      screen.getByRole('button', { name: 'Back 10 seconds' }).focus();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(osd).not.toHaveClass('is-idle');
+      await idle();
+      expect(osd).toHaveClass('is-idle');
+    });
+
     it('hides the controls after a pause in the TV layout, focus or not, and brings them back on a key', async () => {
       const { osd } = await open('tv');
       const volume = screen.getByRole('slider', { name: playerStrings.volume });
@@ -444,7 +471,7 @@ describe('PlayerView', () => {
       const at = { pointerType, pointerId: 1, clientX, clientY: 250 };
       fireEvent.pointerDown(el, at);
       fireEvent.pointerUp(el, at);
-      fireEvent.click(el, { clientX, clientY: 250 });
+      fireEvent.click(el, { clientX, clientY: 250, detail: 1 });
     };
     const idle = async () =>
       act(async () => {
@@ -473,7 +500,7 @@ describe('PlayerView', () => {
         pointerType: 'touch',
         pointerId: 1,
       });
-      fireEvent.click(surface, { clientX: 450, clientY: 250 });
+      fireEvent.click(surface, { clientX: 450, clientY: 250, detail: 1 });
       expect(osd).toHaveClass('is-idle');
       expect(pm.playPause).not.toHaveBeenCalled();
     });
@@ -553,7 +580,7 @@ describe('PlayerView', () => {
         // Hidden, the bars let the press through to the picture; it wakes them, and its click comes to the control.
         fireEvent.pointerDown(surface, { pointerType: 'touch', pointerId: 1 });
         fireEvent.pointerUp(surface, { pointerType: 'touch', pointerId: 1 });
-        fireEvent.click(screen.getByRole('button', { name }));
+        fireEvent.click(screen.getByRole('button', { name }), { detail: 1 });
         expect(osd).not.toHaveClass('is-idle');
       }
       expect(pm.playPause).not.toHaveBeenCalled();
@@ -564,19 +591,41 @@ describe('PlayerView', () => {
       expect(pm.playPause).toHaveBeenCalledTimes(1);
     });
 
+    it("doesn't take a key's click for a waking tap's, even straight after one", async () => {
+      const { pm, surface } = await open();
+      await idle();
+      // A press while they're hidden whose click lands off the picture and the bars stays on record for a moment.
+      fireEvent.pointerDown(surface, { pointerType: 'touch', pointerId: 1 });
+      fireEvent.pointerUp(surface, { pointerType: 'touch', pointerId: 1 });
+      fireEvent.click(document.body, { detail: 1 });
+      // Enter on Pause: a click with no press in it (detail 0), as a D-pad's OK and a screen reader's are too.
+      fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+      expect(pm.playPause).toHaveBeenCalledTimes(1);
+    });
+
+    it('forgets a press that a swipe or a pinch cancelled', async () => {
+      const { pm, surface } = await open();
+      await idle();
+      fireEvent.pointerDown(surface, { pointerType: 'touch', pointerId: 1 });
+      fireEvent.pointerCancel(surface, { pointerType: 'touch', pointerId: 1 });
+      // A click that brings no press of its own comes after it.
+      fireEvent.click(screen.getByRole('button', { name: 'Pause' }), { detail: 1 });
+      expect(pm.playPause).toHaveBeenCalledTimes(1);
+    });
+
     it('takes a long press on the picture as a tap, not a click', async () => {
       const { pm, osd, surface } = await open();
       await idle();
       fireEvent.pointerDown(surface, { pointerType: 'touch', pointerId: 1, clientX: 450 });
       vi.advanceTimersByTime(1500);
       fireEvent.pointerUp(surface, { pointerType: 'touch', pointerId: 1, clientX: 450 });
-      fireEvent.click(surface, { clientX: 450, clientY: 250 });
+      fireEvent.click(surface, { clientX: 450, clientY: 250, detail: 1 });
       expect(pm.playPause).not.toHaveBeenCalled();
       expect(osd).not.toHaveClass('is-idle');
       // A click long after its press counts as the last pointer's.
       fireEvent.pointerDown(surface, { pointerType: 'touch', pointerId: 1, clientX: 450 });
       vi.advanceTimersByTime(1500);
-      fireEvent.click(surface, { clientX: 450, clientY: 250 });
+      fireEvent.click(surface, { clientX: 450, clientY: 250, detail: 1 });
       expect(pm.playPause).not.toHaveBeenCalled();
     });
 
