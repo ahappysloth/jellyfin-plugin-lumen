@@ -101,6 +101,33 @@ describe('ContextMenu', () => {
     button.remove();
   });
 
+  it("flips up when it wouldn't fit below its point, going by its size rather than its scaled-down opening frame", () => {
+    // jsdom has no layout: the menu's size as the browser lays it out, while its box is still 96% of that.
+    const height = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(494);
+    const width = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(220);
+    const box = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ left: 0, top: 0, right: 211, bottom: 474, width: 211, height: 474 } as DOMRect);
+    try {
+      render(<ContextMenuHost />);
+      const y = window.innerHeight - 490; // the scaled box would fit below it; the menu itself doesn't
+      act(() =>
+        openContextMenu({
+          x: 20,
+          y,
+          returnFocus: null,
+          label: 'm',
+          entries: [{ label: 'A', icon: 'play', onSelect: vi.fn() }],
+        }),
+      );
+      expect(screen.getByRole('menu').style.top).toBe(`${Math.max(8, y - 494)}px`);
+    } finally {
+      height.mockRestore();
+      width.mockRestore();
+      box.mockRestore();
+    }
+  });
+
   it('draws a line above an entry that starts a group, and ignores its own scrolling', () => {
     render(<ContextMenuHost />);
     act(() =>

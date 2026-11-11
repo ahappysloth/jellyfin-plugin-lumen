@@ -81,7 +81,10 @@ export function ContextMenuHost() {
   const place = (): void => {
     const el = ref.current;
     if (!menu || !el) return;
-    const { width, height } = el.getBoundingClientRect();
+    // Its layout size: its bounding box is still scaled down by the opening animation (lmn-pop), so a menu that
+    // wouldn't fit below its point would seem to, and run off the bottom of the screen.
+    const width = el.offsetWidth;
+    const height = el.offsetHeight;
     const box = menu.anchor?.getBoundingClientRect();
     const x = box ? box.left : menu.x;
     const y = box ? box.bottom + ANCHOR_GAP : menu.y;
