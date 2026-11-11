@@ -56,6 +56,9 @@ public class HtmlInjectorRealPageTests
         Assert.Contains("<link rel=\"apple-touch-icon\"", page, StringComparison.Ordinal);
         Assert.Contains("<meta id=\"themeColor\"", page, StringComparison.Ordinal);
         Assert.Contains("<div id=\"reactRoot\"", page, StringComparison.Ordinal);
+
+        // Lumen asks iOS for a translucent status bar only where the page can keep clear of it.
+        Assert.Matches("<meta name=\"viewport\" content=\"[^\"]*viewport-fit=cover", page);
     }
 
     [Theory]
@@ -72,6 +75,28 @@ public class HtmlInjectorRealPageTests
         Assert.Contains("lumen-icon-180.png?v=h", result, StringComparison.Ordinal);
         Assert.DoesNotContain("content=\"#202020\"", result, StringComparison.Ordinal);
         Assert.Single(System.Text.RegularExpressions.Regex.Matches(result, "<link rel=\"manifest\""));
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(result, "<link rel=\"apple-touch-icon\""));
+        Assert.Equal("#0f0f0f", System.Text.RegularExpressions.Regex.Match(result, "<meta[^>]*name=\"theme-color\" content=\"([^\"]*)\"").Groups[1].Value);
+        Assert.Contains("<meta name=\"apple-mobile-web-app-status-bar-style\" content=\"black-translucent\">", result, StringComparison.Ordinal);
+        Assert.Contains("<meta name=\"apple-mobile-web-app-title\" content=\"Lumen\">", result, StringComparison.Ordinal);
+        Assert.Contains("<meta name=\"application-name\" content=\"Lumen\">", result, StringComparison.Ordinal);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(result, "name=\"apple-mobile-web-app-capable\""));
+        Assert.DoesNotContain("content=\"Jellyfin\"", result, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [MemberData(nameof(Pages))]
+    public void LeavesJellyfinWebsAppTags_WhenNotInstallingAsLumen(string fixture)
+    {
+        var page = Load(fixture);
+
+        var result = HtmlInjector.Inject(page, "h", "guard()");
+
+        Assert.Contains("<link rel=\"manifest\" href=\"manifest.json\">", result, StringComparison.Ordinal);
+        Assert.Contains("<meta name=\"application-name\" content=\"Jellyfin\">", result, StringComparison.Ordinal);
+        Assert.Contains("href=\"touchicon.", result, StringComparison.Ordinal);
+        Assert.DoesNotContain("apple-mobile-web-app-status-bar-style", result, StringComparison.Ordinal);
+        Assert.DoesNotContain("lumen-icon", result, StringComparison.Ordinal);
     }
 
     private static string Load(string fixture) => File.ReadAllText(Path.Combine(FixtureDirectory, fixture));

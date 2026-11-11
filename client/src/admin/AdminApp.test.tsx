@@ -195,6 +195,18 @@ describe('AdminApp', () => {
     expect(vi.mocked(api.saveConfig).mock.calls[0]![0].OptimizeWebClientFiles).toBe(false);
   });
 
+  it("saves the home-screen name choice, off when the server doesn't say", async () => {
+    const api = fakeApi();
+    render(<AdminApp api={api} />);
+
+    const toggle = await screen.findByRole('switch', { name: /Name the home-screen app after this server/ });
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(api.saveConfig).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(api.saveConfig).mock.calls[0]![0].AppNameFromServer).toBe(true);
+  });
+
   it('tests the Seerr connection with the typed address and key', async () => {
     const api = fakeApi({
       testSeerr: vi.fn(async () => ({ Ok: false, Version: null, Error: 'Seerr rejected the API key.' })),

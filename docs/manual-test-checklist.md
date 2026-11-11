@@ -27,6 +27,18 @@ Run against the release build on the latest stable Jellyfin.
 - [ ] With an MKV trailer holding H.264: no preview on home; on details it starts promptly (remuxed to MP4, not the
       whole file loaded first).
 
+## Home-screen app (iPhone Safari, Android Chrome)
+
+Automated tests check the page's tags, the manifest and the icons, and the layout with a simulated status bar; only a
+real phone shows what the installer and the launch do.
+
+- [ ] iPhone: Share → Add to Home Screen proposes "Lumen" with the red J on a dark tile. The app opens full screen,
+      the launch screen is dark (no white flash), and the clock and battery sit over Lumen's nav, which starts below
+      them. The Dashboard's app bar and a settings page clear the status bar too; rotating to landscape works.
+- [ ] Android: ⋮ → Install app (or Add to Home screen) proposes "Lumen" with the J; the splash is dark with the icon,
+      and the status bar is Lumen's near-black.
+- [ ] With Lumen switched off, a fresh install proposes Jellyfin's name and icon.
+
 ## Official iOS app
 
 - [ ] Home and details render; buttons are easy to tap; layout stacks on narrow screens.

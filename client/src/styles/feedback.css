@@ -80,7 +80,7 @@
   align-items: center;
   justify-content: center;
   min-height: 70vh;
-  padding: calc(var(--lmn-nav-h) + 24px) var(--lmn-gutter) 48px;
+  padding: calc(var(--lmn-nav-h) + var(--lmn-safe-top) + 24px) var(--lmn-gutter) 48px;
   text-align: center;
 }
 .lmn-page-error__title {

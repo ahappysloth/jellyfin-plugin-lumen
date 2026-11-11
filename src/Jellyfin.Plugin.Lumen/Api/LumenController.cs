@@ -2,6 +2,7 @@ using System.Text.Json;
 using Jellyfin.Plugin.Lumen.Assets;
 using Jellyfin.Plugin.Lumen.Configuration;
 using Jellyfin.Plugin.Lumen.Diagnostics;
+using Jellyfin.Plugin.Lumen.Injection;
 using MediaBrowser.Controller;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -16,9 +17,6 @@ namespace Jellyfin.Plugin.Lumen.Api;
 [Route("Lumen")]
 public sealed class LumenController : ControllerBase
 {
-    /// <summary>The installed app's background and status-bar colour (Lumen's page background).</summary>
-    public const string PwaColor = "#0f0f0f";
-
     private readonly AssetCatalog _assets;
     private readonly ILumenConfigReader _config;
     private readonly DiagnosticsStore _diagnostics;
@@ -66,14 +64,16 @@ public sealed class LumenController : ControllerBase
     }
 
     /// <summary>
-    /// The web app manifest (index.html points here instead of jellyfin-web's): the server's name and Lumen's icons, so
-    /// "Add to Home Screen" gets the J. Paths are relative to <c>/Lumen/</c>; the app itself still lives under /web/.
+    /// The web app manifest (index.html points here instead of jellyfin-web's while Lumen is on): Lumen's name (or the
+    /// server's, see <see cref="AppIdentity"/>), icons and colour, so "Add to Home Screen" and "Install app" get Lumen.
+    /// Anonymous, as browsers fetch it without the user's token. Paths are relative to <c>/Lumen/</c> (under any base URL);
+    /// the app itself still lives under /web/.
     /// </summary>
     [HttpGet("Manifest")]
     [AllowAnonymous]
     public IActionResult GetManifest()
     {
-        var name = string.IsNullOrWhiteSpace(_host.FriendlyName) ? "Jellyfin" : _host.FriendlyName;
+        var name = AppIdentity.Name(_config.Current, _host.FriendlyName);
         var version = Uri.EscapeDataString(_assets.BuildHash);
         var manifest = new
         {
@@ -83,8 +83,11 @@ public sealed class LumenController : ControllerBase
             start_url = "../web/index.html#/home",
             scope = "../web/",
             display = "standalone",
-            theme_color = PwaColor,
-            background_color = PwaColor,
+
+            // Either way up: the player wants landscape, the rest of the app portrait on a phone.
+            orientation = "any",
+            theme_color = AppIdentity.Color,
+            background_color = AppIdentity.Color,
             icons = new object[]
             {
                 new { src = $"Assets/lumen-icon-192.png?v={version}", sizes = "192x192", type = "image/png", purpose = "any" },

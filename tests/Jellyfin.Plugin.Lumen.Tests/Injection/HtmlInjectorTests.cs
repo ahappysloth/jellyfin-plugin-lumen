@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Jellyfin.Plugin.Lumen.Injection;
 using Xunit;
 
@@ -99,7 +100,60 @@ public class HtmlInjectorTests
         Assert.DoesNotContain("touchicon.png", result, StringComparison.Ordinal);
         Assert.Contains("href=\"../Lumen/Assets/lumen-icon-180.png?v=h\"", result, StringComparison.Ordinal);
         Assert.Contains("content=\"#0f0f0f\"", result, StringComparison.Ordinal);
+        Assert.Contains("<meta name=\"apple-mobile-web-app-title\" content=\"Lumen\">", result, StringComparison.Ordinal);
+        Assert.Contains("<meta name=\"application-name\" content=\"Lumen\">", result, StringComparison.Ordinal);
+        Assert.Contains("<meta name=\"apple-mobile-web-app-capable\" content=\"yes\">", result, StringComparison.Ordinal);
         Assert.Contains("manifest.json", HtmlInjector.Inject(page, "h"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InstallsAsLumen_AheadOfTheThemeColourJellyfinWebRewrites()
+    {
+        const string page = "<html><head><meta id=\"themeColor\" name=\"theme-color\" content=\"#202020\"></head><body></body></html>";
+
+        var result = HtmlInjector.Inject(page, "h", installAsLumen: true);
+
+        // Browsers take the first theme-color; jellyfin-web sets #themeColor to its theme's colour once it loads.
+        var themeColors = Regex.Matches(result, "<meta[^>]*name=\"theme-color\"[^>]*>");
+        Assert.Equal("<meta name=\"theme-color\" content=\"#0f0f0f\">", themeColors[0].Value);
+        Assert.Equal(2, themeColors.Count);
+        Assert.Single(Regex.Matches(result, "id=\"themeColor\""));
+    }
+
+    [Theory]
+    [InlineData("width=device-width,initial-scale=1,viewport-fit=cover", "black-translucent")]
+    [InlineData("width=device-width,initial-scale=1", "black")]
+    public void InstallsAsLumen_UnderATranslucentStatusBar_OnlyWhereThePageCanClearIt(string viewport, string style)
+    {
+        var page = $"<html><head><meta name=\"viewport\" content=\"{viewport}\"></head><body></body></html>";
+
+        var result = HtmlInjector.Inject(page, "h", installAsLumen: true);
+
+        Assert.Contains($"<meta name=\"apple-mobile-web-app-status-bar-style\" content=\"{style}\">", result, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InstallsAsLumen_ReplacingJellyfinWebsAppTags_NamedAsAsked()
+    {
+        const string page = "<html><head><meta name=\"apple-mobile-web-app-capable\" content=\"yes\"><meta name='application-name' content='Jellyfin'>"
+            + "<META content=default NAME=apple-mobile-web-app-status-bar-style><meta name=\"apple-mobile-web-app-title\" content=\"Jellyfin\">"
+            + "<meta name=\"apple-mobile-web-app-title-x\" content=\"keep\"></head><body></body></html>";
+
+        var result = HtmlInjector.Inject(page, "h", installAsLumen: true, appName: "Den & \"Co\" <TV>");
+
+        Assert.DoesNotContain("Jellyfin", result, StringComparison.Ordinal);
+        Assert.DoesNotContain("content=default", result, StringComparison.Ordinal);
+        Assert.Contains("<meta name=\"apple-mobile-web-app-title\" content=\"Den &amp; &quot;Co&quot; &lt;TV&gt;\">", result, StringComparison.Ordinal);
+        Assert.Contains("<meta name=\"application-name\" content=\"Den &amp; &quot;Co&quot; &lt;TV&gt;\">", result, StringComparison.Ordinal);
+        Assert.Contains("<meta name=\"apple-mobile-web-app-title-x\" content=\"keep\">", result, StringComparison.Ordinal);
+        foreach (var name in new[] { "apple-mobile-web-app-capable", "apple-mobile-web-app-status-bar-style", "apple-mobile-web-app-title", "application-name" })
+        {
+            Assert.Single(Regex.Matches(result, $"name=[\"']?{name}[\"'>\\s]", RegexOptions.IgnoreCase));
+        }
+
+        var notInstalling = HtmlInjector.Inject(page, "h");
+        Assert.Contains("<meta name='application-name' content='Jellyfin'>", notInstalling, StringComparison.Ordinal);
+        Assert.DoesNotContain("black-translucent", notInstalling, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -116,8 +170,9 @@ public class HtmlInjectorTests
         Assert.DoesNotContain("manifest.json", result, StringComparison.Ordinal);
         Assert.DoesNotContain("touchicon.png", result, StringComparison.Ordinal);
         Assert.DoesNotContain("#202020", result, StringComparison.Ordinal);
-        Assert.Single(System.Text.RegularExpressions.Regex.Matches(result, "theme-color"));
-        Assert.Single(System.Text.RegularExpressions.Regex.Matches(result, "rel=\"manifest\""));
+        Assert.Single(Regex.Matches(result, "id=\"themeColor\""));
+        Assert.Equal(2, Regex.Count(result, "name=\"theme-color\" content=\"#0f0f0f\""));
+        Assert.Single(Regex.Matches(result, "rel=\"manifest\""));
     }
 
     [Fact]

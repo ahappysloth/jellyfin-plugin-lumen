@@ -49,6 +49,12 @@ export function GeneralSettings({
         checked={config.OptimizeWebClientFiles ?? true}
         onChange={(v) => update({ OptimizeWebClientFiles: v })}
       />
+      <Switch
+        label="Name the home-screen app after this server"
+        hint="Off, it's called Lumen. An icon already on a phone's home screen keeps its name until it's removed and added again."
+        checked={config.AppNameFromServer ?? false}
+        onChange={(v) => update({ AppNameFromServer: v })}
+      />
       <Field label="Accent color" hint="Badges, ratings, progress bars and this page's buttons.">
         <input
           type="color"

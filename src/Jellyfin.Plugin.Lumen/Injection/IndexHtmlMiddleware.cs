@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Jellyfin.Plugin.Lumen.Assets;
 using Jellyfin.Plugin.Lumen.Configuration;
+using MediaBrowser.Controller;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
@@ -55,7 +56,8 @@ public sealed class IndexHtmlMiddleware
         if (IsIndexRequest(context.Request))
         {
             var store = ConfigReader(context);
-            await RewriteAsync(context, "text/html", original => Render(original, assets, store), ex =>
+            var host = context.RequestServices.GetService(typeof(IServerApplicationHost)) as IServerApplicationHost;
+            await RewriteAsync(context, "text/html", original => Render(original, assets, store, host), ex =>
             {
                 // That page goes out without the guard, so config.json mustn't list the plugin the guard defines.
                 Volatile.Write(ref _cache, null);
@@ -105,7 +107,7 @@ public sealed class IndexHtmlMiddleware
         return output.ToArray();
     }
 
-    private static Rendered Encode(string buildHash, int configVersion, byte[] input, byte[] output, bool definesWebPlugin)
+    private static Rendered Encode(string buildHash, int configVersion, byte[] input, byte[] output, bool definesWebPlugin, string? appName = null)
     {
         var hash = Convert.ToHexStringLower(SHA256.HashData(output))[..16];
         var compress = output.Length >= MinCompressBytes;
@@ -117,7 +119,8 @@ public sealed class IndexHtmlMiddleware
             "\"lmn-" + hash + "\"",
             compress ? Compress(output, s => new GZipStream(s, CompressionLevel.Optimal, leaveOpen: true)) : null,
             compress ? Compress(output, s => new BrotliStream(s, CompressionLevel.Optimal, leaveOpen: true)) : null,
-            definesWebPlugin);
+            definesWebPlugin,
+            appName);
     }
 
     private void Warn(Exception ex, string file, ref int warned)
@@ -206,13 +209,17 @@ public sealed class IndexHtmlMiddleware
     }
 
     /// <summary>The rewritten page for <paramref name="original"/>, from the cache when nothing it depends on changed.</summary>
-    private Rendered Render(byte[] original, AssetCatalog assets, ILumenConfigReader? store)
+    private Rendered Render(byte[] original, AssetCatalog assets, ILumenConfigReader? store, IServerApplicationHost? host)
     {
         var config = store?.Current;
         var configVersion = config?.ConfigVersion ?? -1;
+
+        // The server's name can change without Lumen's configuration changing, so it's part of the cache key too.
+        var appName = AppIdentity.Name(config, host?.FriendlyName);
         if (Volatile.Read(ref _cache) is { } cached
             && cached.BuildHash == assets.BuildHash
             && cached.ConfigVersion == configVersion
+            && cached.AppName == appName
             && cached.Input.AsSpan().SequenceEqual(original))
         {
             return cached;
@@ -229,7 +236,7 @@ public sealed class IndexHtmlMiddleware
         var appIdentity = config is { Enabled: true };
         var html = Encoding.UTF8.GetString(original);
         var notFound = new List<string>();
-        var injected = HtmlInjector.Inject(html, assets.BuildHash, guard, skin, appIdentity, notFound, config?.AccentColor, assets.CoreChunk, webPlugin);
+        var injected = HtmlInjector.Inject(html, assets.BuildHash, guard, skin, appIdentity, notFound, config?.AccentColor, assets.CoreChunk, webPlugin, appName);
         if (ReferenceEquals(injected, html) && !html.Contains(HtmlInjector.Marker, StringComparison.Ordinal)
             && Interlocked.Exchange(ref _warnedNoHead, 1) == 0)
         {
@@ -247,7 +254,7 @@ public sealed class IndexHtmlMiddleware
         var definesWebPlugin = webPlugin is not null
             && !ReferenceEquals(injected, html)
             && webPlugin.Contains(WebConfigInjector.PluginName, StringComparison.Ordinal);
-        var rendered = Encode(assets.BuildHash, configVersion, original, Encoding.UTF8.GetBytes(injected), definesWebPlugin);
+        var rendered = Encode(assets.BuildHash, configVersion, original, Encoding.UTF8.GetBytes(injected), definesWebPlugin, appName);
         Volatile.Write(ref _cache, rendered);
         return rendered;
     }
@@ -294,9 +301,10 @@ public sealed class IndexHtmlMiddleware
 
     /// <summary>
     /// A rewritten file and what it was made from. Each encoding gets its own ETag, as HTTP requires.
-    /// <paramref name="DefinesWebPlugin"/>: the page carries the definer of Lumen's jellyfin-web plugin.
+    /// <paramref name="DefinesWebPlugin"/>: the page carries the definer of Lumen's jellyfin-web plugin. <paramref name="AppName"/>:
+    /// the home-screen name it gives.
     /// </summary>
-    private sealed record Rendered(string BuildHash, int ConfigVersion, byte[] Input, byte[] Output, string ETag, byte[]? Gzip, byte[]? Brotli, bool DefinesWebPlugin)
+    private sealed record Rendered(string BuildHash, int ConfigVersion, byte[] Input, byte[] Output, string ETag, byte[]? Gzip, byte[]? Brotli, bool DefinesWebPlugin, string? AppName)
     {
         /// <summary>The representation to send for the client's <c>Accept-Encoding</c>: Brotli, then gzip, else identity.</summary>
         public (byte[] Body, string? Encoding, string ETag) Select(StringValues acceptEncoding)

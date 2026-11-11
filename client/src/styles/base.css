@@ -26,6 +26,9 @@
   --lmn-gutter: max(16px, min(6.25vw, 96px), env(safe-area-inset-left), env(safe-area-inset-right));
   --lmn-card-w: 320px;
   --lmn-nav-h: 80px;
+  /* The status bar's height where the page runs under it: an iPhone home-screen app (index.html asks for a
+     black-translucent status bar), the notch in portrait. 0 in a browser tab. Whatever sits at the top adds it. */
+  --lmn-safe-top: env(safe-area-inset-top);
   --lmn-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --lmn-font: -apple-system, system-ui, Inter, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
 }
@@ -34,6 +37,7 @@
 @supports not (width: max(1px, 2px)) {
   :root {
     --lmn-gutter: 5vw; /* 96px at 1920px, the cap elsewhere */
+    --lmn-safe-top: 0px;
   }
 }
 
@@ -54,6 +58,15 @@ html.lmn-pending .skinHeader {
 /* The Modern layout's <main> is empty on Lumen's pages, which bring their own (App.tsx): one main landmark. */
 html.lmn-active #reactRoot main {
   display: none !important;
+}
+/* jellyfin-web's Modern layout doesn't allow for a status bar over the page, which the home-screen app has (Lumen's
+   index.html asks iOS for a black-translucent one): its app bar would sit under the clock. Pad the bar and the drawer
+   by it; the page follows, as jellyfin-web sizes the spacer under the bar to the bar's height. With Lumen off there's
+   no such status bar, and in a browser tab the inset is 0, so these do nothing there. */
+#reactRoot .MuiAppBar-root,
+.MuiDrawer-paper {
+  padding-top: 0;
+  padding-top: env(safe-area-inset-top);
 }
 /* jellyfin-web's splash logo and loading spinner never show on Lumen's pages; the veil covers the cold load. */
 html.lmn-pending .splashLogo,

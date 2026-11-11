@@ -42,8 +42,8 @@
   width: 100%;
   max-width: calc(640px + 2 * var(--lmn-gutter));
   /* max(min()), not clamp(): Lightning CSS leaves a value with var() alone, and Safari 13.0 has no clamp(). */
-  padding: calc(var(--lmn-nav-h) + 24px) var(--lmn-gutter) 64px;
-  padding: calc(var(--lmn-nav-h) + 24px) var(--lmn-gutter) max(48px, min(9vh, 96px));
+  padding: calc(var(--lmn-nav-h) + var(--lmn-safe-top) + 24px) var(--lmn-gutter) 64px;
+  padding: calc(var(--lmn-nav-h) + var(--lmn-safe-top) + 24px) var(--lmn-gutter) max(48px, min(9vh, 96px));
 }
 .lmn-details__meta {
   color: #fff;

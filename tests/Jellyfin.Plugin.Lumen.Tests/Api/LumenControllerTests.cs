@@ -27,19 +27,49 @@ public class LumenControllerTests
     private readonly IServerApplicationHost _host = Substitute.For<IServerApplicationHost>();
 
     [Fact]
-    public void Manifest_UsesTheServerName_AndLumensIcons_UnderWebScope()
+    public void Manifest_IsLumens_WithItsIconsAndColour_UnderWebScope()
     {
         _host.FriendlyName.Returns("Den");
+        _config.Current.Returns(new PluginConfiguration());
+        var controller = Create();
+
+        var result = Assert.IsType<ContentResult>(controller.GetManifest());
+
+        Assert.Equal("application/manifest+json", result.ContentType);
+        Assert.Equal("no-cache", controller.Response.Headers.CacheControl.ToString());
+        using var json = System.Text.Json.JsonDocument.Parse(result.Content!);
+        var root = json.RootElement;
+        Assert.Equal("Lumen", root.GetProperty("name").GetString());
+        Assert.Equal("Lumen", root.GetProperty("short_name").GetString());
+        Assert.Equal("standalone", root.GetProperty("display").GetString());
+        Assert.Equal("any", root.GetProperty("orientation").GetString());
+        Assert.Equal("#0f0f0f", root.GetProperty("theme_color").GetString());
+        Assert.Equal("#0f0f0f", root.GetProperty("background_color").GetString());
+
+        // Relative to /Lumen/Manifest, so they hold under any base URL: <base>/web/ and <base>/Lumen/Assets/.
+        Assert.Equal("../web/", root.GetProperty("scope").GetString());
+        Assert.StartsWith("../web/", root.GetProperty("start_url").GetString(), StringComparison.Ordinal);
+        var icons = root.GetProperty("icons").EnumerateArray().ToList();
+        Assert.All(icons, i => Assert.StartsWith("Assets/lumen-icon-", i.GetProperty("src").GetString(), StringComparison.Ordinal));
+        Assert.Contains(icons, i => i.GetProperty("sizes").GetString() == "192x192" && i.GetProperty("purpose").GetString() == "any");
+        Assert.Contains(icons, i => i.GetProperty("sizes").GetString() == "512x512" && i.GetProperty("purpose").GetString() == "any");
+        Assert.Contains(icons, i => i.GetProperty("sizes").GetString() == "512x512" && i.GetProperty("purpose").GetString() == "maskable");
+    }
+
+    [Theory]
+    [InlineData("Den", "Den")]
+    [InlineData("  ", "Lumen")]
+    [InlineData(null, "Lumen")]
+    public void Manifest_TakesTheServersName_WhenTheAdminAsks(string? serverName, string expected)
+    {
+        _host.FriendlyName.Returns(serverName);
+        _config.Current.Returns(new PluginConfiguration { AppNameFromServer = true });
 
         var result = Assert.IsType<ContentResult>(Create().GetManifest());
 
-        Assert.Equal("application/manifest+json", result.ContentType);
         using var json = System.Text.Json.JsonDocument.Parse(result.Content!);
-        var root = json.RootElement;
-        Assert.Equal("Den", root.GetProperty("name").GetString());
-        Assert.Equal("../web/", root.GetProperty("scope").GetString());
-        Assert.StartsWith("../web/", root.GetProperty("start_url").GetString(), StringComparison.Ordinal);
-        Assert.Contains(root.GetProperty("icons").EnumerateArray(), i => i.GetProperty("purpose").GetString() == "maskable");
+        Assert.Equal(expected, json.RootElement.GetProperty("name").GetString());
+        Assert.Equal(expected, json.RootElement.GetProperty("short_name").GetString());
     }
 
     [Fact]

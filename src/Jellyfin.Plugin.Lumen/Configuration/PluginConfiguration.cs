@@ -54,6 +54,12 @@ public class PluginConfiguration : BasePluginConfiguration
 
     public string AccentColor { get; set; } = DefaultAccent;
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the web client, added to a phone's home screen, takes the server's name rather
+    /// than "Lumen" (see Injection/AppIdentity). Off by default: a config saved before it existed reads as off.
+    /// </summary>
+    public bool AppNameFromServer { get; set; }
+
     public HeroSource HeroSource { get; set; } = HeroSource.RecentlyAdded;
 
     public Guid? HeroCollectionId { get; set; }

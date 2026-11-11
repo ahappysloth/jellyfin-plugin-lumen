@@ -11,8 +11,10 @@
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 16px;
-  height: var(--lmn-nav-h);
+  /* Under a home-screen app's status bar, the nav grows by it and its fade covers it, so the clock stays legible. */
+  height: calc(var(--lmn-nav-h) + var(--lmn-safe-top));
   padding: 0 var(--lmn-gutter);
+  padding-top: var(--lmn-safe-top);
   /* No bar: a soft fade from dark at the top to clear at the bottom keeps the nav legible over any artwork. The
      extra height lets the fade finish below the nav. */
   pointer-events: none;
@@ -22,9 +24,10 @@
   position: absolute;
   z-index: -1;
   inset: 0 0 -40px;
+  /* At its darkest across a home-screen app's status bar (if any), so the clock reads over a scrolled page. */
   background: linear-gradient(
     to bottom,
-    rgba(0, 0, 0, 0.72) 0%,
+    rgba(0, 0, 0, 0.72) var(--lmn-safe-top),
     rgba(0, 0, 0, 0.45) 45%,
     rgba(0, 0, 0, 0.15) 75%,
     transparent 100%

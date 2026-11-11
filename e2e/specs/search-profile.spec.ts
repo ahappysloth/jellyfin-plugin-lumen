@@ -85,21 +85,6 @@ test('settings pages match the settings menu’s width, and an open menu doesn�
   await expect(page.locator('body')).toHaveCSS('padding-right', '0px');
 });
 
-test('installing to a home screen uses Lumen’s icon and the server’s name', async ({ page }) => {
-  await page.goto('/web/#/login');
-
-  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', /lumen-icon-180\.png/);
-  const manifestUrl = await page.locator('link[rel="manifest"]').evaluate((l) => (l as HTMLLinkElement).href);
-  const manifest = (await (await page.request.get(manifestUrl)).json()) as {
-    name: string;
-    icons: { src: string }[];
-  };
-  expect(manifest.name).toBe((await (await page.request.get('/System/Info/Public')).json()).ServerName);
-  for (const icon of manifest.icons) {
-    expect((await page.request.get(new URL(icon.src, manifestUrl).href)).headers()['content-type']).toBe('image/png');
-  }
-});
-
 test('jellyfin-web’s toasts, menus and dialogs wear Lumen’s look on the pages Lumen doesn’t take over', async ({ page, isMobile }) => {
   // A wrong password: jellyfin-web's toast, as Lumen's pill (styles/stock-skin.css).
   await page.goto('/web/#/login');
