@@ -1,8 +1,10 @@
+import { useEffect } from 'preact/hooks';
 import type { CatalogItem } from '../../api/types';
 import type { JellyfinApiClient } from '../../compat/jellyfin';
 import type { CardVariant } from '../../components/images';
 import { strings } from '../../strings';
 import { catalogImageUrl, stateLabel, useCatalogState } from './catalog';
+import { prefetchTitle } from './lazyTitle';
 
 interface Props {
   item: CatalogItem;
@@ -19,6 +21,8 @@ interface Props {
  */
 export function CatalogCard({ item, client, imageToken, variant, onSelect }: Props) {
   const state = useCatalogState(item);
+  // Most open the title page, whose code loads on its own (lazyTitle.tsx): have it ready.
+  useEffect(prefetchTitle, []);
   const label = item.JellyfinItemId ? null : stateLabel(state);
   const file = variant === 'poster' ? (item.Poster ?? item.Backdrop) : (item.Backdrop ?? item.Poster);
   const meta = [item.Year?.toString(), item.MediaType === 'movie' ? strings.movie : strings.show].filter(

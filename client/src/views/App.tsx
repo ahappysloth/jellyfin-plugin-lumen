@@ -9,14 +9,13 @@ import { FavoritesView } from './browse/FavoritesView';
 import { GenreView } from './browse/GenreView';
 import { LibraryView } from './browse/LibraryView';
 import type { ViewContext } from './context';
-import { TitleView } from './catalog/TitleView';
+import { LazyTitleView } from './catalog/lazyTitle';
 import { DetailsView } from './details/DetailsView';
 import { HomeView } from './home/HomeView';
 import { LazyPlayer, loadPlayer } from './player/lazyPlayer';
 import { LoadingScreen } from './player/LoadingScreen';
 import { clearStarting, useStarting } from '../playback/starting';
-import { ProfileView } from './profile/ProfileView';
-import { SettingsFrame } from './profile/SettingsFrame';
+import { LazyProfileView, LazySettingsFrame } from './profile/lazyProfile';
 import { SearchView } from './search/SearchView';
 import { Nav, type NavActive } from './Nav';
 import { usePageChange } from './usePageChange';
@@ -57,16 +56,16 @@ function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
     case 'search':
       return <SearchView initialQuery={route.query} ctx={ctx} />;
     case 'profile':
-      return <ProfileView ctx={ctx} />;
+      return <LazyProfileView ctx={ctx} />;
     case 'settings':
-      return <SettingsFrame page={route.page} />;
+      return <LazySettingsFrame page={route.page} />;
     case 'player':
       return <LazyPlayer ctx={ctx} />;
     case 'details':
       return <DetailsView key={route.id} id={route.id} ctx={ctx} />;
     case 'title':
       return (
-        <TitleView
+        <LazyTitleView
           key={`${route.mediaType}-${route.tmdbId}`}
           mediaType={route.mediaType}
           tmdbId={route.tmdbId}

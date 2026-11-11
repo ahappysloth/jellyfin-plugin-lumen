@@ -1,5 +1,6 @@
-// Fails when what every page loads (lumen.js, the chunks it loads at startup, lumen.css), the player's own chunk, the
-// trailer preview's or the restart banner's exceeds its gzipped budget.
+// Fails when what every page loads (lumen.js, the chunks it loads at startup, lumen.css), or one of the chunks loaded
+// when they're needed (the player, the trailer preview, the restart banner, the catalog title page, the profile pages),
+// exceeds its gzipped budget.
 import { readdirSync, readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 
@@ -16,13 +17,18 @@ const oneChunk = (name) => {
   return found[0];
 };
 const coreChunk = oneChunk('main');
-// Loaded when they're needed: views/player/lazyPlayer.tsx, views/home/lazyTrailer.tsx, takeover/restartWatch.ts.
+// Loaded when they're needed: views/player/lazyPlayer.tsx, views/home/lazyTrailer.tsx, takeover/restartWatch.ts,
+// views/catalog/lazyTitle.tsx, views/profile/lazyProfile.tsx.
 const playerChunk = oneChunk('PlayerView');
 const trailerChunk = oneChunk('TrailerPreview');
 const restartChunk = oneChunk('RestartBanner');
+const titleChunk = oneChunk('TitleView');
+const profileChunk = oneChunk('ProfilePages');
 // Startup is lumen.js and the core it imports, which the server preloads with it. Another chunk would be a download
 // the core waits for (vite.config.ts keeps it to one).
-const others = chunks.filter((f) => ![coreChunk, playerChunk, trailerChunk, restartChunk].includes(f));
+const others = chunks.filter(
+  (f) => ![coreChunk, playerChunk, trailerChunk, restartChunk, titleChunk, profileChunk].includes(f),
+);
 if (others.length) {
   console.error(`unexpected chunks: ${others.join(', ')}`);
   process.exit(1);
@@ -30,7 +36,8 @@ if (others.length) {
 
 // Raised from 60 KB in 0.3.1 (episode page, library tabs, Watch together, volume pill), and from 64 KB in 0.3.4
 // (player: Watch together, Cast, Ends at, settings with Repeat and Playback info, loading screen). The player has
-// loaded on its own since 0.3.7, and the trailer preview too, which freed about 2.5 KB. Raised to 72 KB in 0.3.7 anyway,
+// loaded on its own since 0.3.7, and the trailer preview too, which freed about 2.5 KB; the catalog title page and the
+// profile pages followed, about 3 KB more. Raised to 72 KB in 0.3.7 anyway,
 // at the owner's call: headroom for upcoming features.
 const BUDGET = 72 * 1024;
 const startup = ['lumen.js', 'lumen.css', coreChunk];
@@ -47,6 +54,14 @@ console.log(`lumen trailer preview: ${kb(trailer)} gzipped (budget ${TRAILER_BUD
 const RESTART_BUDGET = 4 * 1024;
 const restart = gz(`dist/${restartChunk}`);
 console.log(`lumen restart banner: ${kb(restart)} gzipped (budget ${RESTART_BUDGET / 1024} KB)`);
+// Loads on a catalog title's page, or once catalog cards show (only with Seerr): views/catalog/lazyTitle.tsx.
+const TITLE_BUDGET = 6 * 1024;
+const title = gz(`dist/${titleChunk}`);
+console.log(`lumen catalog title: ${kb(title)} gzipped (budget ${TITLE_BUDGET / 1024} KB)`);
+// Loads on the profile page or a stock settings page (views/profile/lazyProfile.tsx).
+const PROFILE_BUDGET = 5 * 1024;
+const profile = gz(`dist/${profileChunk}`);
+console.log(`lumen profile: ${kb(profile)} gzipped (budget ${PROFILE_BUDGET / 1024} KB)`);
 // The guard and the web plugin's definer are inlined into every index.html, so they share a small budget.
 const GUARD_BUDGET = 4 * 1024;
 const guard = gz('dist/lumen-guard.js') + gz('dist/lumen-web-plugin.js');
@@ -62,6 +77,8 @@ if (
   player > PLAYER_BUDGET ||
   trailer > TRAILER_BUDGET ||
   restart > RESTART_BUDGET ||
+  title > TITLE_BUDGET ||
+  profile > PROFILE_BUDGET ||
   guard > GUARD_BUDGET ||
   dashboard > DASHBOARD_BUDGET
 ) {

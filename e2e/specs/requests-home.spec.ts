@@ -1,6 +1,7 @@
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 import { ADMIN, KID, SEERR_URL, STUB_SEERR, api, loadState, resetLumen } from '../support/api';
 import { login } from '../support/login';
+import { navLink } from '../support/nav';
 
 // Seerr permission bits: REQUEST = 32. The admin is Seerr user 1 in every requests spec (Lumen caches the mapping).
 const REQUEST_PERMISSION = 32;
@@ -46,8 +47,18 @@ async function enableCatalogRows(types: string[]): Promise<void> {
   });
 }
 
+/** Whether the page has asked for the catalog title page's code (client/src/views/catalog/lazyTitle.tsx). */
+function watchTitleCode(page: Page): () => boolean {
+  let requested = false;
+  page.on('request', (request) => {
+    if (/\/lumen-chunk-TitleView-[^/]*\.js/.test(request.url())) requested = true;
+  });
+  return () => requested;
+}
+
 test('catalog rows mix library cards with request cards', async ({ page }) => {
   await enableCatalogRows(['CatalogPopularMovies', 'CatalogUpcoming']);
+  const titleCodeRequested = watchTitleCode(page);
   await login(page, ADMIN);
 
   const popular = page.getByRole('region', { name: 'Popular Movies' });
@@ -56,8 +67,24 @@ test('catalog rows mix library cards with request cards', async ({ page }) => {
   await expect(popular.getByRole('link', { name: /^Lumen Alpha/ })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Coming Soon' }).getByRole('button', { name: /Lumen Future/ })).toBeVisible();
 
+  // The title page's code is fetched while the catalog cards show, before one is opened.
+  await expect.poll(titleCodeRequested).toBe(true);
+
   await popular.getByRole('button', { name: 'The Matrix, Request' }).click();
   await expect(page).toHaveURL(/#\/home\?title=movie-603$/);
+});
+
+test('a server without Seerr never downloads the catalog title page', async ({ page }) => {
+  const titleCodeRequested = watchTitleCode(page);
+  await login(page, ADMIN);
+  await expect(page.locator('#lmn-root .lmn-home')).toBeVisible();
+  await navLink(page, 'Search').click();
+  await page.getByRole('searchbox', { name: 'Search' }).fill('matrix');
+  await expect(page.getByText('No results for “matrix”')).toBeVisible();
+
+  // Past the moment catalog cards would have fetched it (lazyTitle.tsx prefetches within 3 s).
+  await page.waitForTimeout(3500);
+  expect(titleCodeRequested()).toBe(false);
 });
 
 test('My Requests lists what the user asked for', async ({ page }) => {
