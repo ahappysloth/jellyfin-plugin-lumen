@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MediaSourceInfo } from '../../api/types';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { resetSessionCaches } from '../../util/sessionCaches';
-import { TRAILER_START_TIMEOUT_MS, TrailerPreview } from './TrailerPreview';
+import { TRAILER_FADE_MS, TRAILER_START_TIMEOUT_MS, TrailerPreview } from './TrailerPreview';
 
 const MKV_HEVC: MediaSourceInfo = {
   Id: 'ms1',
@@ -287,6 +287,106 @@ describe('TrailerPreview', () => {
     await startAfter(TRAILER_START_TIMEOUT_MS);
 
     expect(container.querySelector('video')!.getAttribute('src')).toContain('/stream?static=true');
+  });
+
+  it('shows the video over the backdrop only once it is under way, and says so then (no empty or black box)', async () => {
+    const time = vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0);
+    const onPlayingChange = vi.fn();
+    const { container } = render(
+      <TrailerPreview
+        trailerId="t1"
+        delaySeconds={0}
+        client={createFakeClient()}
+        onPlayingChange={onPlayingChange}
+      />,
+    );
+    await startAfter(0);
+    const video = container.querySelector('video')!;
+    // Loading, or its first frame: still see-through, and no controls yet.
+    act(() => {
+      video.dispatchEvent(new Event('playing'));
+    });
+    expect(video).not.toHaveClass('is-shown');
+    expect(onPlayingChange).not.toHaveBeenCalledWith(true);
+
+    time.mockReturnValue(0.3);
+    act(() => {
+      video.dispatchEvent(new Event('timeupdate'));
+    });
+
+    expect(video).toHaveClass('is-shown');
+    expect(onPlayingChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it('fades back to the backdrop when it ends, then goes', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(1);
+    const onPlayingChange = vi.fn();
+    const { container } = render(
+      <TrailerPreview
+        trailerId="t1"
+        delaySeconds={0}
+        client={createFakeClient()}
+        onPlayingChange={onPlayingChange}
+      />,
+    );
+    await startAfter(0);
+    const video = container.querySelector('video')!;
+    act(() => {
+      video.dispatchEvent(new Event('timeupdate'));
+    });
+    expect(video).toHaveClass('is-shown');
+
+    act(() => {
+      video.dispatchEvent(new Event('ended'));
+    });
+    expect(video).not.toHaveClass('is-shown');
+    expect(onPlayingChange).toHaveBeenLastCalledWith(false);
+    expect(container.querySelector('video')).toBe(video);
+
+    await startAfter(TRAILER_FADE_MS);
+    expect(container.querySelector('video')).toBeNull();
+  });
+
+  it('keeps its controls for a video that restarts paused (scrolled back into view), hidden until played', async () => {
+    const onPlayingChange = vi.fn();
+    const client = createFakeClient();
+    const { container } = render(
+      <TrailerPreview
+        trailerId="t1"
+        delaySeconds={0}
+        client={client}
+        paused
+        onPlayingChange={onPlayingChange}
+      />,
+    );
+    await startAfter(0);
+
+    expect(container.querySelector('video')).not.toHaveClass('is-shown');
+    expect(onPlayingChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it('keeps its controls when such a video is played and has not shown yet (focus stays on them)', async () => {
+    const onPlayingChange = vi.fn();
+    const client = createFakeClient();
+    const { container, rerender } = render(
+      <TrailerPreview
+        trailerId="t1"
+        delaySeconds={0}
+        client={client}
+        paused
+        onPlayingChange={onPlayingChange}
+      />,
+    );
+    await startAfter(0);
+    expect(onPlayingChange).toHaveBeenLastCalledWith(true);
+
+    rerender(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={client} onPlayingChange={onPlayingChange} />,
+    );
+    await act(async () => undefined);
+    expect(container.querySelector('video')).not.toHaveClass('is-shown');
+    // Off before it started, then on, and never off again in between.
+    expect(onPlayingChange.mock.calls.map(([on]) => on)).toEqual([false, true]);
   });
 
   it('starts the video itself, and keeps the backdrop when the browser refuses (iOS Low Power Mode)', async () => {

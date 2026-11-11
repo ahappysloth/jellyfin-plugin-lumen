@@ -15,6 +15,54 @@ test('movie details are rendered by Lumen, including the local trailer', { tag: 
   await expect(details.getByRole('button', { name: 'Trailer' })).toBeVisible();
 });
 
+test('movie details offer the file as a download beside Play', async ({ page }) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+
+  const details = page.locator('#lmn-root .lmn-details--movie');
+  // Named "Download" at every size, though a phone shows only its icon.
+  const download = details.getByRole('link', { name: 'Download' });
+  await expect(download).toBeVisible();
+  await expect(download).toHaveAttribute('href', new RegExp(`/Items/${items['Lumen Alpha']}/Download\\?ApiKey=`));
+  await expect(download).toHaveAttribute('title', /^Download \(\d/);
+
+  const file = page.waitForEvent('download');
+  await download.click();
+  expect((await file).suggestedFilename()).toBe('Lumen Alpha (2001).webm');
+});
+
+test('the details trailer fades in over the backdrop once it plays, Mute in the corner', async ({ page, browserName }) => {
+  // The fixture trailer is WebM, which Playwright's WebKit on Linux may not play.
+  test.skip(browserName === 'webkit', 'WebM playback');
+  const { items } = loadState();
+  await login(page, ADMIN);
+
+  await page.goto(`/web/#/details?id=${items['Lumen Zeta']}`);
+
+  const header = page.locator('#lmn-root .lmn-details__header');
+  const unmute = header.getByRole('button', { name: 'Unmute trailer' });
+  // The backdrop first; no trailer controls until there's a trailer to control.
+  await expect(header.locator('.lmn-details__backdrop')).toBeVisible();
+  await expect(unmute).toBeHidden();
+
+  const video = header.locator('.lmn-details__trailer video');
+  await expect(video).toHaveClass(/\bis-shown\b/, { timeout: 20_000 });
+  expect(await video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0);
+  await expect(unmute).toBeVisible();
+  await expect(header.getByRole('button', { name: 'Pause trailer' })).toBeVisible();
+
+  // Top right of the backdrop, clear of the title and the action row.
+  const box = (await unmute.boundingBox())!;
+  const area = (await header.boundingBox())!;
+  expect(box.x + box.width).toBeGreaterThan(area.x + area.width - 120);
+  expect(box.y).toBeLessThan(area.y + 120);
+
+  await unmute.click();
+  await expect(header.getByRole('button', { name: 'Mute trailer' })).toBeFocused();
+});
+
 test('series details offer smart play and season browsing', { tag: '@smoke' }, async ({ page }) => {
   const { items } = loadState();
   await login(page, ADMIN);
@@ -27,6 +75,8 @@ test('series details offer smart play and season browsing', { tag: '@smoke' }, a
   await expect(details.getByRole('option')).toHaveText(['Season 1', 'Season 2']);
   await page.keyboard.press('Escape');
   await expect(details.locator('.lmn-episode')).toHaveCount(3);
+  // A series is a folder: no Download (jellyfin-web's "Download all" stays in its own menu).
+  await expect(details.getByRole('link', { name: 'Download' })).toHaveCount(0);
 });
 
 test('episode details are rendered by Lumen, with previous/next across seasons', async ({ page }) => {

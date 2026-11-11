@@ -57,6 +57,40 @@ describe('DetailsHeader', () => {
     expect(screen.getByTestId('trailer')).toHaveAttribute('data-paused', 'false');
   });
 
+  it('offers the file as a Download link beside Play, named as it reads, its tooltip saying the size', () => {
+    renderHeader({
+      download: { url: 'http://jf/Items/m1/Download?ApiKey=token1', title: 'Download (4.2 GB)' },
+    });
+
+    const link = screen.getByRole('link', { name: 'Download' });
+    expect(link).toHaveAttribute('href', 'http://jf/Items/m1/Download?ApiKey=token1');
+    expect(link).toHaveAttribute('download');
+    expect(link).toHaveAttribute('title', 'Download (4.2 GB)');
+    expect(link).toHaveTextContent('Download');
+  });
+
+  it('offers no Download where the page has none to give (a series, a TV, a user who may not download)', () => {
+    renderHeader();
+    expect(screen.queryByRole('link', { name: 'Download' })).toBeNull();
+  });
+
+  it("lets the official apps' shell save the file instead of following the link", () => {
+    const downloadFiles = vi.fn();
+    Object.assign(window, { NativeShell: { downloadFiles } });
+    try {
+      renderHeader({ download: { url: 'http://jf/dl', title: 'Download' } });
+
+      const followed = fireEvent.click(screen.getByRole('link', { name: 'Download' }));
+
+      expect(followed).toBe(false); // default prevented
+      expect(downloadFiles).toHaveBeenCalledWith([
+        expect.objectContaining({ url: 'http://jf/dl', itemId: 'm1' }),
+      ]);
+    } finally {
+      delete (window as Window & { NativeShell?: unknown }).NativeShell;
+    }
+  });
+
   it('names Favorite and Watched as they read, their label saying the state (WCAG 2.5.3)', () => {
     const { rerender } = renderHeader();
     expect(screen.getByRole('button', { name: 'Favorite' })).toHaveTextContent('Favorite');

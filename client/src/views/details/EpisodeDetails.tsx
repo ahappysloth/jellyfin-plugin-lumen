@@ -11,6 +11,7 @@ import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { cardMenuHandler } from '../cardMenu';
 import { deriveBadges } from './badges';
+import { downloadLink } from './download';
 import { CastRow } from './CastRow';
 import { DetailsHeader } from './DetailsHeader';
 import { adjacentSeasons, episodeNeighbors } from './episodeNeighbors';
@@ -118,6 +119,7 @@ export function EpisodeDetails({ episode, ctx }: { episode: BaseItem; ctx: ViewC
           restart: ticks ? () => actions.play(episode) : undefined,
         }}
         trailerId={null}
+        download={downloadLink(episode, ctx.client, ctx.layout)}
         onBack={() => goBack(ctx)}
         badges={deriveBadges(episode.MediaStreams)}
         {...actions}

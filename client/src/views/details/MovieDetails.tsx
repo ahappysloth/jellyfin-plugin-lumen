@@ -7,6 +7,7 @@ import { resumeTicks } from '../../playback/play';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { deriveBadges } from './badges';
+import { downloadLink } from './download';
 import { CastRow } from './CastRow';
 import { DetailsHeader } from './DetailsHeader';
 import { SimilarRow } from './SimilarRow';
@@ -34,6 +35,7 @@ export function MovieDetails({ item, ctx }: { item: BaseItem; ctx: ViewContext }
         }}
         trailerId={trailerId}
         onTrailer={trailerId ? () => actions.play(trailerId) : undefined}
+        download={downloadLink(item, ctx.client, ctx.layout)}
         onBack={() => goBack(ctx)}
         badges={deriveBadges(item.MediaStreams)}
         {...actions}

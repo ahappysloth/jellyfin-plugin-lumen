@@ -47,6 +47,16 @@
   position: absolute;
   inset: 0;
 }
+/* A trailer stays see-through over the backdrop until it's actually playing (TrailerPreview adds .is-shown), then
+   fades in, and out again when it ends: no empty or black box while it loads. */
+.lmn-hero__video {
+  opacity: 0;
+  transition: opacity 0.8s var(--lmn-ease);
+  animation: none;
+}
+.lmn-hero__video.is-shown {
+  opacity: 1;
+}
 .lmn-hero__scrim,
 .lmn-details__scrim {
   position: absolute;

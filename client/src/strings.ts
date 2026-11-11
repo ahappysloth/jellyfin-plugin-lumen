@@ -10,6 +10,8 @@ export const strings = {
   starting: 'Starting…',
   moreInfo: 'More info',
   trailer: 'Trailer',
+  download: 'Download',
+  downloadSize: (size: string) => `Download (${size})`,
   watched: 'Watched',
   markWatched: 'Mark as watched',
   markWatchedShort: 'Mark watched',
