@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminApi } from './adminApi';
-import { parseReleaseNotes, waitForRestart } from './UpdatesSettings';
+import { waitForRestart } from './restart';
+import { parseReleaseNotes } from './UpdatesSettings';
 
 describe('release notes', () => {
   it('reads a CHANGELOG entry into headings and whole items', () => {

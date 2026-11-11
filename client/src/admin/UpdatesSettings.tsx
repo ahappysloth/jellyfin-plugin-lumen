@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { Icon } from '../components/icons';
 import type { AdminApi, UpdateStatus } from './adminApi';
 import { Card } from './controls';
-import { withTimeout } from '../util/withTimeout';
+import { waitForRestart } from './restart';
 
 type Step =
   | { kind: 'idle' }
@@ -16,42 +16,6 @@ type Step =
  * Check for updates: Lumen's manifest on GitHub and Jellyfin's plugin repositories, checked fresh by the server; then
  * Jellyfin's own installer, and a restart to load the new version.
  */
-/** How often a restart is checked on, and how long before giving up on it coming back. */
-export const RESTART_POLL_MS = 2000;
-export const RESTART_TIMEOUT_MS = 180_000;
-
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-
-/** A status check that hasn't answered after this long is given up on; it says nothing either way. */
-const STATE_TIMEOUT_MS = 10_000;
-
-/**
- * Resolves true once Jellyfin is back from a restart: it stopped answering and answers again, or it answers and no
- * longer has a restart pending (a restart quicker than one poll). False after `timeoutMs`, measured on the clock so a
- * status check that hangs mid-restart can't stretch it.
- */
-export async function waitForRestart(
-  api: AdminApi,
-  pollMs = RESTART_POLL_MS,
-  timeoutMs = RESTART_TIMEOUT_MS,
-): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  let wentDown = false;
-  while (Date.now() < deadline) {
-    await sleep(pollMs);
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) break;
-    // A busy Jellyfin can be slow just before it restarts, so a check that times out doesn't count as it going down.
-    const state = await withTimeout(api.serverState(), Math.min(STATE_TIMEOUT_MS, remaining)).catch(
-      () => null,
-    );
-    if (!state) continue;
-    if (!state.up) wentDown = true;
-    else if (wentDown || !state.restartPending) return true;
-  }
-  return false;
-}
-
 export function UpdatesSettings({
   api,
   autoCheck = false,

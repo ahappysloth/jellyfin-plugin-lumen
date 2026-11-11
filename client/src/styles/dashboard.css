@@ -756,3 +756,168 @@ html.lmn-skin-dashboard #addPluginPage .MuiFormControlLabel-root:has(.Mui-disabl
     margin: 18px 0 0 !important;
   }
 }
+
+/* ---- Restart banner (takeover/RestartBanner.tsx) ------------------------------------------------------------------ */
+/*
+ * Fixed under the app bar, across the content (the script measures the app bar into these properties), and under the
+ * app bar in the stacking order (1100; the drawer is 1200, dialogs higher), so it slides out from behind it. The page
+ * makes room for it rather than scrolling under it at the top.
+ */
+html.lmn-skin-dashboard .lmn-restart {
+  position: fixed;
+  z-index: 1090;
+  top: var(--lmn-restart-top, 0px);
+  right: var(--lmn-restart-right, 0px);
+  left: var(--lmn-restart-left, 0px);
+  padding: 8px 16px 0;
+  /* Opaque from the app bar down, so the page scrolling under it doesn't show in the gap above the card. */
+  background: var(--lmn-bg);
+  opacity: 0;
+  transform: translateY(-100%);
+  transition:
+    transform 0.25s var(--lmn-ease, ease),
+    opacity 0.25s ease;
+  pointer-events: none;
+}
+html.lmn-skin-dashboard .lmn-restart.lmn-restart--in {
+  opacity: 1;
+  transform: none;
+}
+/* No app bar found: the top of the window, clear of a phone's notch. */
+html.lmn-skin-dashboard .lmn-restart.lmn-restart--top {
+  padding-top: 8px;
+  padding-top: max(8px, env(safe-area-inset-top));
+}
+html.lmn-skin-dashboard.lmn-restart-shown #reactRoot .skinBody > .page {
+  margin-top: var(--lmn-restart-space, 0px);
+}
+html.lmn-skin-dashboard #reactRoot .skinBody > .page {
+  transition: margin-top 0.25s var(--lmn-ease, ease);
+}
+/* The metadata manager's library tree is fixed under the app bar from 50em (metadataeditor.scss): move it down too. */
+@media (min-width: 50em) {
+  html.lmn-skin-dashboard.lmn-restart-shown .editPageSidebar {
+    margin-top: var(--lmn-restart-space, 0px);
+  }
+}
+/* jellyfin-web's own "will need to be restarted" note after installing a plugin: the banner says it, with the button. */
+html.lmn-skin-dashboard.lmn-restart-shown #addPluginPage .MuiAlert-standardSuccess {
+  display: none;
+}
+html.lmn-skin-dashboard .lmn-restart__card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  box-sizing: border-box;
+  max-width: 1200px;
+  /* The button row's height, so the page doesn't shift when the buttons give way to "Restarting…". */
+  min-height: 58px;
+  margin: 0 auto;
+  padding: 10px 10px 10px 16px;
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: var(--lmn-radius);
+  background: var(--lmn-surface-2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  color: var(--lmn-text);
+  font: 15px/1.4 var(--lmn-font);
+  pointer-events: auto;
+}
+html.lmn-skin-dashboard .lmn-restart__icon {
+  flex: none;
+  color: var(--lmn-accent);
+}
+html.lmn-skin-dashboard .lmn-restart__text {
+  flex: 1 1 260px;
+  margin: 0;
+  font-weight: 500;
+}
+html.lmn-skin-dashboard .lmn-restart__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+html.lmn-skin-dashboard .lmn-restart__btn,
+html.lmn-skin-dashboard .lmn-restart__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+html.lmn-skin-dashboard .lmn-restart__btn:hover,
+html.lmn-skin-dashboard .lmn-restart__close:hover {
+  background: var(--lmn-fill-3);
+}
+html.lmn-skin-dashboard .lmn-restart__btn--primary {
+  border-color: transparent;
+  background: var(--lmn-accent);
+  color: #fff;
+}
+html.lmn-skin-dashboard .lmn-restart__btn--primary:hover {
+  background: var(--lmn-accent);
+  filter: brightness(0.85);
+}
+html.lmn-skin-dashboard .lmn-restart__close {
+  width: 36px;
+  padding: 0;
+  border-color: transparent;
+  color: var(--lmn-text-2);
+}
+html.lmn-skin-dashboard .lmn-restart button:focus {
+  outline: 2px solid var(--lmn-focus);
+  outline-offset: 2px;
+}
+/* Only for the keyboard where the browser can tell (Chromium 68 can't, and keeps the outline above). */
+html.lmn-skin-dashboard .lmn-restart button:focus:not(:focus-visible) {
+  outline: none;
+}
+html.lmn-skin-dashboard .lmn-restart__spinner {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--lmn-line-strong);
+  border-top-color: var(--lmn-text);
+  border-radius: 50%;
+  animation: lmn-restart-spin 0.8s linear infinite;
+}
+@keyframes lmn-restart-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* Phones: the full width, less a small margin and the notch in landscape. */
+@media (max-width: 599.98px) {
+  html.lmn-skin-dashboard .lmn-restart {
+    padding-right: 8px;
+    padding-right: max(8px, env(safe-area-inset-right));
+    padding-left: 8px;
+    padding-left: max(8px, env(safe-area-inset-left));
+  }
+  html.lmn-skin-dashboard .lmn-restart__card {
+    padding: 12px 8px 8px 14px;
+  }
+  html.lmn-skin-dashboard .lmn-restart__text {
+    flex-basis: calc(100% - 40px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html.lmn-skin-dashboard .lmn-restart,
+  html.lmn-skin-dashboard #reactRoot .skinBody > .page {
+    transition: none;
+  }
+  html.lmn-skin-dashboard .lmn-restart__spinner {
+    animation: none;
+  }
+}
