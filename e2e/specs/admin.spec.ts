@@ -150,6 +150,7 @@ test('admin pages sit in one centred column, with Lumen’s cards and tab strip'
 });
 
 test('a form’s “Settings saved.” alert stays outside the section cards', async ({ page }) => {
+  await login(page, ADMIN);
   // Networking puts the alert first in the form's stack, above the title: it must not take a slice of card.
   await page.goto('/web/#/dashboard/networking');
   await page.getByRole('button', { name: /^save$/i }).last().click();
