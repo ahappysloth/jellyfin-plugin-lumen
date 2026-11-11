@@ -101,7 +101,15 @@ test('right-clicking a card offers its actions, and favoriting from the menu sho
 
   await page.getByRole('list', { name: 'Movies' }).getByRole('link', { name: 'Lumen Gamma' }).click({ button: 'right' });
   const menu = page.getByRole('menu', { name: 'Actions for Lumen Gamma' });
-  await expect(menu.getByRole('menuitem')).toHaveText(['Play', 'More info', 'Open in new tab', 'Add to favorites', 'Mark as watched']);
+  await expect(menu.getByRole('menuitem')).toHaveText([
+    'Play',
+    'More info',
+    'Open in new tab',
+    'Add to favorites',
+    'Mark as watched',
+    // jellyfin-web's item actions, in a menu of their own (details.spec.ts covers them).
+    'More actions…',
+  ]);
   await menu.getByRole('menuitem', { name: 'Add to favorites' }).click();
   await expect(menu).toBeHidden();
 
