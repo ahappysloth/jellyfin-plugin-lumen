@@ -118,4 +118,33 @@ describe('DetailsHeader', () => {
     for (const name of ['Favorited', 'Watched'])
       expect(screen.getByRole('button', { name })).not.toHaveAttribute('aria-pressed');
   });
+
+  it('shows More only with actions to offer, and opens them under it', () => {
+    const { rerender } = renderHeader();
+    expect(screen.queryByRole('button', { name: 'More' })).toBeNull();
+
+    const open = vi.fn();
+    const more = { item: movie, commands: ['edit' as const], open };
+    rerender(
+      <DetailsHeader
+        item={movie}
+        client={createFakeClient()}
+        config={testConfig}
+        primary={null}
+        trailerId={null}
+        onBack={vi.fn()}
+        badges={[]}
+        played={false}
+        favorite={false}
+        error={null}
+        toggleWatched={vi.fn()}
+        toggleFavorite={vi.fn()}
+        more={more}
+      />,
+    );
+    const button = screen.getByRole('button', { name: 'More' });
+    expect(button).toHaveAttribute('aria-haspopup', 'menu');
+    fireEvent.click(button);
+    expect(open).toHaveBeenCalledWith(expect.objectContaining({ returnFocus: button, anchor: button }));
+  });
 });

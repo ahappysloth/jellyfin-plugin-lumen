@@ -71,4 +71,54 @@ describe('ContextMenu', () => {
       restore();
     },
   );
+
+  it('closes when the page scrolls, unless it hangs from a button, which it then follows', () => {
+    open();
+    fireEvent.scroll(window);
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    const button = document.createElement('button');
+    document.body.appendChild(button);
+    let top = 100;
+    button.getBoundingClientRect = () =>
+      ({ left: 20, right: 60, top, bottom: top + 40, width: 40, height: 40 }) as DOMRect;
+    act(() =>
+      openContextMenu({
+        x: 20,
+        y: 140,
+        returnFocus: button,
+        anchor: button,
+        label: 'm',
+        entries: [{ label: 'A', icon: 'play', onSelect: vi.fn() }],
+      }),
+    );
+    expect(screen.getByRole('menu').style.top).toBe('146px');
+    top = 40; // jellyfin-web's TV layout scrolled the button into view
+    act(() => {
+      fireEvent.scroll(window);
+    });
+    expect(screen.getByRole('menu').style.top).toBe('86px');
+    button.remove();
+  });
+
+  it('draws a line above an entry that starts a group, and ignores its own scrolling', () => {
+    render(<ContextMenuHost />);
+    act(() =>
+      openContextMenu({
+        x: 0,
+        y: 0,
+        returnFocus: null,
+        label: 'm',
+        entries: [
+          { label: 'A', icon: 'play', onSelect: vi.fn() },
+          { label: 'B', icon: 'trash', onSelect: vi.fn(), separated: true },
+        ],
+      }),
+    );
+    const [a, b] = screen.getAllByRole('menuitem');
+    expect(a).not.toHaveClass('lmn-menu__item--separated');
+    expect(b).toHaveClass('lmn-menu__item--separated');
+    fireEvent.scroll(screen.getByRole('menu'));
+    expect(screen.queryByRole('menu')).not.toBeNull();
+  });
 });

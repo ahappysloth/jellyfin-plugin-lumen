@@ -59,6 +59,15 @@ const PATHS = {
   back: 'M15.4 4.6 8 12l7.4 7.4-1.4 1.4L5.2 12 14 3.2Z',
   chevronRight: 'M8.6 4.6 16 12l-7.4 7.4 1.4 1.4 8.8-8.8L10 3.2Z',
   chevronLeft: 'M15.4 4.6 8 12l7.4 7.4-1.4 1.4L5.2 12 14 3.2Z',
+  // The item menu's actions (views/itemMenu).
+  playlistAdd: 'M3 6h12v2H3Zm0 4h12v2H3Zm0 4h8v2H3Zm14 0v-3h2v3h3v2h-3v3h-2v-3h-3v-2Z',
+  collection:
+    'M6 3h12v2H6ZM4 6h16v2H4Zm-1 3h18a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1Zm1 2v8h16v-8Z',
+  copy: 'M8 3h11a1 1 0 0 1 1 1v12h-2V5H8ZM4 7h11a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Zm1 2v10h9V9Z',
+  image:
+    'M4 4h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm1 2v12h14V6ZM6 17l4-5 3 3.5 2-2.5 3 4ZM9 7.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z',
+  refresh: 'M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.2L13 11h7V4Z',
+  trash: 'M9 3h6l1 1h4v2H4V4h4ZM6 8h12l-1 12a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1Zm2 2 .8 9h6.4l.8-9Z',
   volumeOff:
     'M4 9h4l5-4v14l-5-4H4Zm12.3.3 1.4-1.4 2.1 2.1 2.1-2.1 1.4 1.4-2.1 2.1 2.1 2.1-1.4 1.4-2.1-2.1-2.1 2.1-1.4-1.4 2.1-2.1Z',
   volumeOn:

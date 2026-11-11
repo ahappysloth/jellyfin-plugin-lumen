@@ -76,12 +76,21 @@ const FAILURE_MESSAGES: Record<Exclude<LoadFailure, 'notFound'>, string> = {
   offline: strings.pageFailed,
 };
 
+/** What a details page is given besides its item. */
+export interface DetailsProps {
+  ctx: ViewContext;
+  /** Fetches the item again (after an edit from its ⋯ menu); the page stays up meanwhile. */
+  reload: () => void;
+}
+
 export function DetailsView({ id, ctx }: { id: string; ctx: ViewContext }) {
   const [resolved, setResolved] = useState<ResolvedDetails | null>(null);
   const [failure, setFailure] = useState<LoadFailure | null>(null);
   const [attempt, setAttempt] = useState(0);
   // Try again keeps the error page (and Lumen's nav) up, its button busy, until the new attempt settles.
   const [retrying, setRetrying] = useState(false);
+  // Bumped to fetch the item again after an edit from its ⋯ menu (a reload: the page stays up meanwhile).
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,18 +100,21 @@ export function DetailsView({ id, ctx }: { id: string; ctx: ViewContext }) {
         setRetrying(false);
         setFailure(null);
         if (result) setResolved(result);
-        else ctx.onFallback();
+        else if (version === 0) ctx.onFallback();
       })
       // jellyfin-web's own page would only spin forever here (the item is gone, or the server is down): say which.
       .catch((error: unknown) => {
         if (cancelled) return;
         setRetrying(false);
+        // A reload that fails keeps the page as it was.
+        if (version > 0) return;
         setFailure(error instanceof ItemLoadError ? error.failure : 'offline');
       });
     return () => {
       cancelled = true;
     };
-  }, [id, attempt]);
+  }, [id, attempt, version]);
+  const reload = (): void => setVersion((v) => v + 1);
 
   useEffect(() => {
     if (resolved || failure) liftVeil();
@@ -140,14 +152,16 @@ export function DetailsView({ id, ctx }: { id: string; ctx: ViewContext }) {
   if (!resolved) return <div class="lmn-details lmn-details--loading" aria-busy="true" />;
   switch (resolved.item.Type) {
     case 'Movie':
-      return <MovieDetails item={resolved.item} ctx={ctx} />;
+      return <MovieDetails item={resolved.item} ctx={ctx} reload={reload} />;
     case 'BoxSet':
-      return <CollectionDetails item={resolved.item} ctx={ctx} />;
+      return <CollectionDetails item={resolved.item} ctx={ctx} reload={reload} />;
     case 'Person':
       return <PersonDetails item={resolved.item} ctx={ctx} />;
     case 'Episode':
-      return <EpisodeDetails key={resolved.item.Id} episode={resolved.item} ctx={ctx} />;
+      return <EpisodeDetails key={resolved.item.Id} episode={resolved.item} ctx={ctx} reload={reload} />;
     default:
-      return <SeriesDetails series={resolved.item} initialSeasonId={resolved.seasonId} ctx={ctx} />;
+      return (
+        <SeriesDetails series={resolved.item} initialSeasonId={resolved.seasonId} ctx={ctx} reload={reload} />
+      );
   }
 }

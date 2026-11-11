@@ -1,5 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
-import { DASHBOARD_THEME_VARIABLE, STOCK_SELECTORS } from '../../client/src/compat/registry';
+import {
+  ACTION_SHEET_MARKERS,
+  DASHBOARD_THEME_VARIABLE,
+  ITEM_MENU_MARKERS,
+  ITEM_MENU_METHODS,
+  STOCK_SELECTORS,
+  WEBPACK_CHUNK_GLOBAL,
+} from '../../client/src/compat/registry';
 import { STOCK_SELECTOR_META, type ProbePage } from '../../client/src/compat/registry.meta';
 import { WEB_PLUGIN_KEY, WEB_PLUGIN_NAME, type WebPluginSlot } from '../../client/src/compat/webPlugin';
 import { ADMIN, KID, loadState } from '../support/api';
@@ -89,6 +96,47 @@ test("jellyfin-web loads Lumen's web plugin, and Lumen's player takes jellyfin-w
   await expect(page.locator('#lmn-root .lmn-osd')).toBeVisible();
   expect((await plugin()).via).toBe('plugin');
   expect(warnings.filter((w) => w.includes('failed loading plugins'))).toEqual([]);
+});
+
+test("jellyfin-web's item menu and action sheet are where Lumen's More menu looks for them", { tag: '@smoke' }, async ({
+  page,
+}) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await expect(page.locator('#lmn-root .lmn-details--movie')).toBeVisible();
+
+  // What compat/itemMenu.ts searches for: exactly one module each, with the exports it calls.
+  const found = await page.evaluate(
+    ({ chunkGlobal, menuMarkers, menuMethods, sheetMarkers }) => {
+      type Require = ((id: string) => Record<string, unknown>) & { m: Record<string, unknown> };
+      let require: Require | undefined;
+      (window as unknown as Record<string, unknown[]>)[chunkGlobal]!.push([[Symbol('probe')], {}, (r: Require) => (require = r)]);
+      const matching = (markers: string[]) =>
+        Object.keys(require!.m).filter((id) => markers.every((m) => String(require!.m[id]).includes(m)));
+      const menus = matching(menuMarkers);
+      const sheets = matching(sheetMarkers);
+      const menu = menus.length === 1 ? require!(menus[0]!) : null;
+      const sheet = sheets.length === 1 ? require!(sheets[0]!) : null;
+      const menuApi = [menu, menu?.default].find(
+        (v) => !!v && menuMethods.every((k) => typeof (v as Record<string, unknown>)[k] === 'function'),
+      );
+      const sheetDefault = sheet?.default as { show?: unknown } | undefined;
+      return {
+        menus: menus.length,
+        sheets: sheets.length,
+        menuMethods: !!menuApi,
+        sheetShow: typeof sheetDefault?.show === 'function' && sheet?.show === sheetDefault.show,
+      };
+    },
+    {
+      chunkGlobal: WEBPACK_CHUNK_GLOBAL,
+      menuMarkers: [...ITEM_MENU_MARKERS],
+      menuMethods: [...ITEM_MENU_METHODS],
+      sheetMarkers: [...ACTION_SHEET_MARKERS],
+    },
+  );
+  expect(found).toEqual({ menus: 1, sheets: 1, menuMethods: true, sheetShow: true });
 });
 
 test('stock selectors on the Dashboard and the metadata manager', async ({ page }) => {

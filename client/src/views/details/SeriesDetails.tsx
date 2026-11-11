@@ -5,7 +5,9 @@ import { detailsHash } from '../../compat/jellyfin';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { resumeTicks } from '../../playback/play';
 import { strings } from '../../strings';
-import type { ViewContext } from '../context';
+import { Icon } from '../../components/icons';
+import { openUnder, useItemMenu } from '../itemMenu/lazyItemMenu';
+import type { DetailsProps } from './DetailsView';
 import { CastRow } from './CastRow';
 import { DetailsHeader } from './DetailsHeader';
 import { EpisodeList } from './EpisodeList';
@@ -15,14 +17,21 @@ import { goBack, useItemActions, useLocalTrailer } from './useItemActions';
 
 const seasonLabel = (season: BaseItem): string => (season.IndexNumber === 0 ? strings.specials : season.Name);
 
-interface Props {
+interface Props extends DetailsProps {
   series: BaseItem;
   initialSeasonId?: string;
-  ctx: ViewContext;
 }
 
-export function SeriesDetails({ series, initialSeasonId, ctx }: Props) {
+export function SeriesDetails({ series, initialSeasonId, ctx, reload }: Props) {
   const actions = useItemActions(series, ctx);
+  const more = useItemMenu(ctx, series, {
+    complete: true,
+    onChanged: reload,
+    onDeleted: () => goBack(ctx),
+    fallback: ctx.onFallback,
+  });
+  // Seasons are fetched again after one is edited or deleted from its own ⋯ menu.
+  const [seasonsVersion, setSeasonsVersion] = useState(0);
   const trailerId = useLocalTrailer(series, ctx);
   const [seasons, setSeasons] = useState<BaseItem[]>([]);
   const [seasonId, setSeasonId] = useState<string | undefined>(initialSeasonId);
@@ -58,7 +67,12 @@ export function SeriesDetails({ series, initialSeasonId, ctx }: Props) {
       const defaultSeason = list.find((s) => (s.IndexNumber ?? 0) > 0) ?? list[0];
       const target = resume.Items[0] ?? nextUp.Items[0];
       setSeasons(list);
-      setSeasonId(initialSeasonId ?? target?.SeasonId ?? defaultSeason?.Id);
+      // After a reload, the season shown stays if it's still there.
+      const listed = (id: string | undefined): id is string => !!id && list.some((s) => s.Id === id);
+      setSeasonId(
+        (shown) =>
+          [shown, initialSeasonId, target?.SeasonId, defaultSeason?.Id].find(listed) ?? defaultSeason?.Id,
+      );
 
       let first: BaseItem | undefined;
       if (defaultSeason) {
@@ -68,12 +82,19 @@ export function SeriesDetails({ series, initialSeasonId, ctx }: Props) {
       }
       setSmartPlay(computeSmartPlay(resume.Items[0], nextUp.Items[0], first));
     })().catch(() => {
-      if (!cancelled) ctx.onFallback();
+      if (!cancelled && seasonsVersion === 0) ctx.onFallback();
     });
     return () => {
       cancelled = true;
     };
-  }, [series.Id]);
+  }, [series.Id, seasonsVersion]);
+  const reloadSeasons = (): void => {
+    episodeRequests.current.clear();
+    setEpisodesBySeason({});
+    setSeasonsVersion((v) => v + 1);
+  };
+  const season = seasons.find((s) => s.Id === seasonId);
+  const seasonMore = useItemMenu(ctx, season, { onChanged: reloadSeasons, onDeleted: reloadSeasons });
 
   useEffect(() => {
     if (!seasonId || episodesBySeason[seasonId]) return;
@@ -105,6 +126,7 @@ export function SeriesDetails({ series, initialSeasonId, ctx }: Props) {
         onBack={() => goBack(ctx)}
         badges={[]}
         {...actions}
+        more={more}
       />
       <section class="lmn-episodes-section" aria-label={strings.episodes}>
         <div class="lmn-episodes-header">
@@ -117,6 +139,17 @@ export function SeriesDetails({ series, initialSeasonId, ctx }: Props) {
               options={seasons.map((s) => ({ value: s.Id, label: seasonLabel(s) }))}
               onChange={setSeasonId}
             />
+          )}
+          {season && seasonMore && (
+            <button
+              type="button"
+              class="lmn-icon-button lmn-icon-button--lg"
+              aria-label={strings.moreActionsFor(seasonLabel(season))}
+              aria-haspopup="menu"
+              onClick={(e) => openUnder(seasonMore, e.currentTarget)}
+            >
+              <Icon name="more" size={18} />
+            </button>
           )}
         </div>
         {episodes && (

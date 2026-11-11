@@ -18,16 +18,20 @@ const oneChunk = (name) => {
 };
 const coreChunk = oneChunk('main');
 // Loaded when they're needed: views/player/lazyPlayer.tsx, views/home/lazyTrailer.tsx, takeover/restartWatch.ts,
-// views/catalog/lazyTitle.tsx, views/profile/lazyProfile.tsx.
+// views/catalog/lazyTitle.tsx, views/profile/lazyProfile.tsx, views/itemMenu/lazyItemMenu.ts.
 const playerChunk = oneChunk('PlayerView');
 const trailerChunk = oneChunk('TrailerPreview');
 const restartChunk = oneChunk('RestartBanner');
 const titleChunk = oneChunk('TitleView');
 const profileChunk = oneChunk('ProfilePages');
+const itemMenuChunk = oneChunk('itemMenu');
 // Startup is lumen.js and the core it imports, which the server preloads with it. Another chunk would be a download
 // the core waits for (vite.config.ts keeps it to one).
 const others = chunks.filter(
-  (f) => ![coreChunk, playerChunk, trailerChunk, restartChunk, titleChunk, profileChunk].includes(f),
+  (f) =>
+    ![coreChunk, playerChunk, trailerChunk, restartChunk, titleChunk, profileChunk, itemMenuChunk].includes(
+      f,
+    ),
 );
 if (others.length) {
   console.error(`unexpected chunks: ${others.join(', ')}`);
@@ -65,6 +69,10 @@ console.log(`lumen catalog title: ${kb(title)} gzipped (budget ${TITLE_BUDGET / 
 const PROFILE_BUDGET = 5 * 1024;
 const profile = gz(`dist/${profileChunk}`);
 console.log(`lumen profile: ${kb(profile)} gzipped (budget ${PROFILE_BUDGET / 1024} KB)`);
+// Loads as a details page shows, or a card's "More actions…" is picked (views/itemMenu/lazyItemMenu.ts).
+const ITEM_MENU_BUDGET = 4 * 1024;
+const itemMenu = gz(`dist/${itemMenuChunk}`);
+console.log(`lumen item menu: ${kb(itemMenu)} gzipped (budget ${ITEM_MENU_BUDGET / 1024} KB)`);
 // The guard and the web plugin's definer are inlined into every index.html, so they share a small budget.
 const GUARD_BUDGET = 4 * 1024;
 const guard = gz('dist/lumen-guard.js') + gz('dist/lumen-web-plugin.js');
@@ -82,6 +90,7 @@ if (
   restart > RESTART_BUDGET ||
   title > TITLE_BUDGET ||
   profile > PROFILE_BUDGET ||
+  itemMenu > ITEM_MENU_BUDGET ||
   guard > GUARD_BUDGET ||
   dashboard > DASHBOARD_BUDGET
 ) {

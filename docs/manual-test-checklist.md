@@ -13,6 +13,11 @@ Run against the release build on the latest stable Jellyfin.
       page; Play/Resume, Trailer, My List, and Watched all work; You may like opens another title.
 - [ ] Series details: smart play label is correct, switching seasons works, and clicking an episode plays it.
 - [ ] Back from details returns to home at the same scroll position.
+- [ ] As an administrator, More on a movie, series, season (the ⋯ beside the season picker) and episode lists
+      jellyfin-web's actions; Edit metadata, Identify, Edit images, Edit subtitles, Media info, Add to collection, Add
+      to playlist and Refresh metadata each open jellyfin-web's own dialog, and a saved edit shows on the page without
+      a reload. Copy stream URL puts the file's link on the clipboard. As a restricted user, More shows only what their
+      policy allows. A card's right-click menu ends in "More actions…" with the same list.
 - [ ] Unticking "Replace the home screen" in the dashboard restores the stock home after a reload.
 
 ## Safari (macOS or iOS)
@@ -51,6 +56,8 @@ real phone shows what the installer and the launch do.
 
 - [ ] Focus starts on the hero's Play button, and arrow keys move through rows and buttons.
 - [ ] Returning home restores focus to the last selected card.
+- [ ] Details: More is reachable with the arrow keys, its menu opens with Enter, and Back closes a dialog it opened,
+      with focus back on More.
 
 ## Admin
 

@@ -8,6 +8,8 @@ import { ProgressBar } from '../../components/ProgressBar';
 import { usePrefersReducedMotion } from '../../components/usePrefersReducedMotion';
 import { strings } from '../../strings';
 import { formatDate } from '../../util/locale';
+import type { PreparedMenu } from '../itemMenu/itemMenu';
+import { openUnder } from '../itemMenu/lazyItemMenu';
 import { LazyTrailer } from '../home/lazyTrailer';
 import { formatRuntime } from './badges';
 import { type DownloadLink, nativeDownload } from './download';
@@ -49,6 +51,8 @@ interface Props {
   /** Gets the button, for focus to come back to after Mark as unwatched asks. */
   toggleWatched: (from: HTMLElement) => void;
   toggleFavorite: () => void;
+  /** jellyfin-web's ⋯ actions this user has for the item (views/itemMenu); no More button without any. */
+  more?: PreparedMenu | null;
 }
 
 /** "Mar 4, 2010" for an ISO date; undefined when missing or unparseable. */
@@ -243,6 +247,18 @@ export function DetailsHeader(props: Props) {
             <Icon name={props.played ? 'check' : 'eye'} />
             <span class="lmn-button__label">{watched}</span>
           </button>
+          {props.more && (
+            <button
+              type="button"
+              class="lmn-button lmn-button--secondary"
+              aria-label={strings.more}
+              aria-haspopup="menu"
+              onClick={(e) => openUnder(props.more!, e.currentTarget)}
+            >
+              <Icon name="more" />
+              <span class="lmn-button__label">{strings.more}</span>
+            </button>
+          )}
         </div>
         {props.error && (
           <p class="lmn-toast" role="alert">

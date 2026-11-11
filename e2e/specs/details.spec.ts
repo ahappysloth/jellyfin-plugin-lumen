@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import { ADMIN, api, loadState } from '../support/api';
+import { expect, test, type Page } from '@playwright/test';
+import { ADMIN, KID, api, loadState } from '../support/api';
 import { login } from '../support/login';
 
 /** Titles a test marked watched: put back to never played afterwards (marking played, then unplayed, clears the date). */
@@ -233,3 +233,108 @@ test('Mark as unwatched? goes away when jellyfin-web changes page, leaving the t
   });
   expect(data.Played).toBe(true);
 });
+
+const more = (page: Page) => page.locator('#lmn-root .lmn-details__header').getByRole('button', { name: 'More', exact: true });
+
+test("More offers an administrator jellyfin-web's item actions", { tag: '@smoke' }, async ({ page }) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+
+  await more(page).click();
+  const menu = page.getByRole('menu', { name: 'More actions for Lumen Alpha' });
+  // Download has its own button beside Play, so the menu doesn't repeat it.
+  await expect(menu.getByRole('menuitem')).toHaveText([
+    'Add to playlist',
+    'Add to collection',
+    'Copy stream URL',
+    'Media info',
+    'Edit metadata',
+    'Edit images',
+    'Edit subtitles',
+    'Identify',
+    'Refresh metadata',
+    'Delete movie',
+  ]);
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(more(page)).toBeFocused();
+});
+
+test('More offers a restricted user only what their policy allows', async ({ page }) => {
+  const { items } = loadState();
+  // The kid may download and make playlists: no editors, no collections, no Delete.
+  await login(page, KID);
+  await page.goto(`/web/#/details?id=${items['Lumen Show']}`);
+
+  await more(page).click();
+  await expect(page.getByRole('menu', { name: 'More actions for Lumen Show' }).getByRole('menuitem')).toHaveText([
+    'Add to playlist',
+    'Download all',
+  ]);
+});
+
+test.describe("More's Add to collection", () => {
+  let collectionId: string | undefined;
+  test.afterEach(async () => {
+    if (collectionId) await api('/Items', { method: 'DELETE', token: loadState().admin.token, query: { ids: collectionId } });
+    collectionId = undefined;
+  });
+
+  test("opens jellyfin-web's own dialog, which adds the movie to a new collection", async ({ page }) => {
+    const { items } = loadState();
+    await login(page, ADMIN);
+    await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+
+    await more(page).click();
+    await page.getByRole('menu').getByRole('menuitem', { name: 'Add to collection' }).click();
+
+    // jellyfin-web's collection editor, over Lumen's page: no stock action sheet came first.
+    const dialog = page.locator('.dialogContainer .dialog');
+    await expect(dialog.locator('#txtNewCollectionName')).toBeVisible();
+    await expect(page.locator('.actionSheet')).toHaveCount(0);
+    const name = `More menu ${Date.now()}`;
+    await dialog.locator('#txtNewCollectionName').fill(name);
+    await dialog.locator('button[type="submit"]').click();
+
+    // jellyfin-web opens the new collection, which Lumen's collection page shows with the movie in it.
+    const collection = page.locator('#lmn-root .lmn-details--collection');
+    await expect(collection.getByRole('heading', { level: 1, name })).toBeVisible();
+    const { admin } = loadState();
+    const created = await api<{ Items: { Id: string }[] }>('/Items', {
+      token: admin.token,
+      query: { userId: admin.userId, includeItemTypes: 'BoxSet', recursive: true, searchTerm: name },
+    });
+    collectionId = created.Items[0]?.Id;
+    expect(collectionId).toBeTruthy();
+    await expect(page).toHaveURL(new RegExp(`#/details\\?id=${collectionId}`));
+    await expect(collection.getByRole('list', { name: 'In this collection' }).getByText('Lumen Alpha')).toBeVisible();
+  });
+});
+
+test('TV layout: More opens with the D-pad, and focus comes back to it when the dialog closes', async ({ page }) => {
+  const { items } = loadState();
+  await page.addInitScript(() => localStorage.setItem('layout', 'tv'));
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+
+  const play = page.locator('#lmn-root .lmn-details__header').getByRole('button', { name: 'Play' });
+  await expect(play).toBeFocused();
+  // On a TV: no collection or playlist pickers and no downloads, like jellyfin-web.
+  for (let i = 0; i < 4 && !(await more(page).evaluate((b) => b === document.activeElement)); i++)
+    await page.keyboard.press('ArrowRight');
+  await expect(more(page)).toBeFocused();
+  await page.keyboard.press('Enter');
+  const menu = page.getByRole('menu');
+  await expect(menu.getByRole('menuitem').first()).toHaveText('Media info');
+  await expect(menu.getByRole('menuitem').first()).toBeFocused();
+  await page.keyboard.press('Enter');
+
+  // jellyfin-web's media info dialog; Back closes it and leaves the page where it was.
+  await expect(page.locator('.dialogContainer .dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.dialogContainer .dialog')).toHaveCount(0);
+  await expect(page.locator('#lmn-root .lmn-details--movie')).toBeVisible();
+  await expect(more(page)).toBeFocused();
+});
+
