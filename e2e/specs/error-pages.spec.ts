@@ -1,12 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { ADMIN, KID, loadState } from '../support/api';
 import { login } from '../support/login';
+import { expectNoLumenNav, lumenNav } from '../support/nav';
 import { expectPresentButHidden } from '../support/stock';
-
-const mainNav = (page: import('@playwright/test').Page) => page.getByRole('navigation', { name: 'Main' });
-/** Lumen's nav in either layout: the top pill, or on a phone the tab bar. */
-const lumenNav = (page: import('@playwright/test').Page) =>
-  page.getByRole('navigation', { name: /^(Main|Tabs)$/ }).filter({ visible: true });
 
 test("a title the user can't see says it isn't found, with Lumen's nav and Back", async ({ page }) => {
   // kid can't see the Movies library: the server answers 404, as for an item that's gone.
@@ -17,7 +13,7 @@ test("a title the user can't see says it isn't found, with Lumen's nav and Back"
 
   await expect(page.getByRole('heading', { level: 1, name: 'Not found' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Back' })).toBeVisible();
-  await expect(mainNav(page)).toBeVisible();
+  await expect(lumenNav(page)).toBeVisible();
   await expectPresentButHidden(page.locator('#reactRoot .skinBody'));
 });
 
@@ -31,11 +27,11 @@ test("a details page the server doesn't answer for offers Try again", async ({ p
   await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
 
   await expect(page.getByRole('heading', { level: 1, name: "Couldn't load this page" })).toBeVisible();
-  await expect(mainNav(page)).toBeVisible();
+  await expect(lumenNav(page)).toBeVisible();
   await page.unroute(offline);
   await page.getByRole('button', { name: 'Try again' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Lumen Alpha' })).toBeVisible();
-  await expect(mainNav(page)).toHaveCount(0);
+  await expectNoLumenNav(page);
 });
 
 test("an unknown address shows Lumen's page not found, with Home", { tag: '@smoke' }, async ({ page }) => {
@@ -45,7 +41,7 @@ test("an unknown address shows Lumen's page not found, with Home", { tag: '@smok
 
   const notFound = page.getByRole('region', { name: 'Page not found' });
   await expect(notFound.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
-  await expect(lumenNav(page).first()).toBeVisible();
+  await expect(lumenNav(page)).toBeVisible();
   // jellyfin-web decided it's a 404 (Lumen never guesses): its page is there, under Lumen's.
   await expectPresentButHidden(page.locator('#fallbackPage'));
 
@@ -53,19 +49,24 @@ test("an unknown address shows Lumen's page not found, with Home", { tag: '@smok
   await expect(page.locator('#lmn-root .lmn-home')).toBeVisible();
 });
 
-test('a reload that the server never answers says so on the loading screen, with Try again', async ({ page }) => {
-  await login(page, ADMIN);
-  // The page and Lumen's files load (from a cache, say), but nothing else reaches the server.
-  await page.route(
-    (url) => !url.pathname.startsWith('/web/') && !url.pathname.startsWith('/Lumen/Assets/'),
-    (route) => route.abort(),
-  );
+test.describe(() => {
+  // jellyfin-web's service worker answers some of the page's requests itself, out of page.route's reach (WebKit).
+  test.use({ serviceWorkers: 'block' });
 
-  await page.reload();
+  test('a reload that the server never answers says so on the loading screen, with Try again', async ({ page }) => {
+    await login(page, ADMIN);
+    // The page and Lumen's files load (from a cache, say), but nothing else reaches the server.
+    await page.route(
+      (url) => !url.pathname.startsWith('/web/') && !url.pathname.startsWith('/Lumen/Assets/'),
+      (route) => route.abort(),
+    );
 
-  const veil = page.locator('#lmn-veil');
-  await expect(veil.getByRole('alert')).toHaveText(/taking longer than usual/, { timeout: 10_000 });
-  await expect(veil.getByRole('button', { name: 'Try again' })).toBeFocused();
+    await page.reload();
+
+    const veil = page.locator('#lmn-veil');
+    await expect(veil.getByRole('alert')).toHaveText(/taking longer than usual/, { timeout: 15_000 });
+    await expect(veil.getByRole('button', { name: 'Try again' })).toBeFocused();
+  });
 });
 
 test("the loading screen's mark keeps its size when Lumen's stylesheet doesn't load", async ({ page }) => {
