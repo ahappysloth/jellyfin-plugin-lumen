@@ -28,6 +28,9 @@ export default defineConfig({
         codeSplitting: { groups: [{ name: 'main', test: /[\\/]src[\\/]main\.tsx$/ }] },
         // Library mode leaves ES output unminified for bundlers downstream; this one goes straight to browsers.
         minify: true,
+        // It also keeps every `/* @__PURE__ */` annotation (there for a downstream bundler's tree-shaking), about
+        // 0.5 KB gzipped in the core. Nothing bundles this output again, so drop all comments.
+        comments: false,
       },
     },
   },
