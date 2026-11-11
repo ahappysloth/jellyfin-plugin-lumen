@@ -166,13 +166,18 @@ html[data-lmn-skin] .formDialogFooter:not(.formDialogFooter-clear) {
     border-radius: 0 0 19px 19px;
   }
 }
-/* Phones: an editor's Cancel, Reset and Save side by side rather than stacked into a tall footer, above the home
-   indicator. (Below 80em × 45em the editors fill the screen, so their footer is its bottom edge.) */
+/* Below 80em × 45em the editors fill the screen, so their footer is its bottom edge: keep it above the home indicator
+   (a phone in landscape too). */
+@media (max-width: 79.99em), (max-height: 44.99em) {
+  html[data-lmn-skin] .dialog-fixedSize .formDialogFooter:not(.formDialogFooter-vertical) {
+    padding-bottom: 1em;
+    padding-bottom: calc(1em + env(safe-area-inset-bottom));
+  }
+}
+/* Phones: an editor's Cancel, Reset and Save side by side rather than stacked into a tall footer. */
 @media (max-width: 50em) {
   html[data-lmn-skin] .dialog-fixedSize .formDialogFooter:not(.formDialogFooter-vertical) {
     flex-wrap: nowrap;
-    padding-bottom: 1em;
-    padding-bottom: calc(1em + env(safe-area-inset-bottom));
   }
   html[data-lmn-skin]
     .dialog-fixedSize
@@ -259,10 +264,13 @@ html[data-lmn-skin] .dialogContainer .emby-button.raised.button-delete {
   background: transparent !important;
   color: var(--jf-palette-error-main) !important;
 }
-html.lmn-skin-dashboard .emby-button.raised.button-delete:hover,
-html[data-lmn-skin] .dialogContainer .emby-button.raised.button-delete:hover {
-  background: var(--lmn-danger) !important;
-  color: #fff !important;
+/* Only where there's a real hover: a tap on a touch screen would leave it filled. */
+@media (hover: hover) {
+  html.lmn-skin-dashboard .emby-button.raised.button-delete:hover,
+  html[data-lmn-skin] .dialogContainer .emby-button.raised.button-delete:hover {
+    background: var(--lmn-danger) !important;
+    color: #fff !important;
+  }
 }
 /* TV layout: no :focus-visible on its browsers, and D-pad focus must always show (over jellyfin-web's
    `outline: none !important` on its buttons). */
