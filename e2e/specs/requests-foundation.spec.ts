@@ -34,7 +34,7 @@ test('an admin connects Seerr from the dashboard; the key is never sent back', a
   await page.getByRole('button', { name: 'Test connection' }).click();
   await expect(page.getByText('Connected to Seerr 3.5.1-stub')).toBeVisible();
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText('Settings saved.')).toBeVisible();
+  await expect(page.locator('.lmna-savebar').getByText('Settings saved.')).toBeVisible();
 
   const config = await api<Record<string, unknown>>('/Lumen/Admin/Config', { token: admin.token });
   expect(config.SeerrApiKey ?? null).toBeNull();

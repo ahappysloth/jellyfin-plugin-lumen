@@ -1,3 +1,4 @@
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../components/icons';
 import { LumenMark } from '../components/LumenMark';
 import { newUuid } from '../util/uuid';
@@ -9,7 +10,7 @@ import { HomeSectionsSettings } from './HomeSectionsSettings';
 import { RequestsSettings } from './RequestsSettings';
 import { UpdatesSettings } from './UpdatesSettings';
 import { wantsCheck } from './updatesLink';
-import { isBusy, useAdminConfig } from './useAdminConfig';
+import { isBusy, RESET_FAILED, useAdminConfig } from './useAdminConfig';
 
 interface AdminAppProps {
   api: AdminApi;
@@ -19,6 +20,14 @@ interface AdminAppProps {
   hash?: string;
   /** Reloads the page once Jellyfin is back from a restart. */
   reload?: () => void;
+  /** How long "Settings saved." shows before the save bar slides away. */
+  savedFor?: number;
+}
+
+/** Where the settings column is on screen: the save bar is fixed to the viewport but lines up with it. */
+interface Column {
+  left: number;
+  width: number;
 }
 
 export function AdminApp({
@@ -27,13 +36,106 @@ export function AdminApp({
   confirm = (m) => window.confirm(m),
   hash = window.location.hash,
   reload,
+  savedFor = 2000,
 }: AdminAppProps) {
   const admin = useAdminConfig(api);
   const { config, status, errors, warnings, dirty, update } = admin;
   const busy = isBusy(status);
+  const formRef = useRef<HTMLFormElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+
+  // "Settings saved." shows for a moment, then the bar slides away. Reset on every status change, so the next save
+  // shows it again.
+  const [savedOver, setSavedOver] = useState(false);
+  useEffect(() => {
+    setSavedOver(false);
+    if (status !== 'saved') return undefined;
+    const timer = setTimeout(() => setSavedOver(true), savedFor);
+    return () => clearTimeout(timer);
+  }, [status]);
+  // The bar is up while there's something to save (a failed save leaves the changes unsaved, so its problem stays in the
+  // bar too), a save in flight, or a save just done. A failed reset with nothing changed is shown next to Reset instead:
+  // the bar would only offer Save, which isn't the answer to it.
+  const shown = dirty || status === 'saving' || (status === 'saved' && !savedOver);
+
+  // Jellyfin's dashboard scrolls the whole page, and an overflow: hidden wrapper stops position: sticky, so the bar is
+  // fixed to the viewport. It lines up with the settings column (not over the dashboard's drawer) by measuring it.
+  const [column, setColumn] = useState<Column | null>(null);
+  useLayoutEffect(() => {
+    if (!shown) return undefined;
+    const measure = (): void => {
+      // jellyfin-web drops pages it has left without unmounting the app: stop listening once this copy is gone.
+      if (!formRef.current?.isConnected) {
+        window.removeEventListener('resize', measure);
+        return;
+      }
+      const rect = formRef.current.getBoundingClientRect();
+      if (!rect || !rect.width) return;
+      setColumn((c) =>
+        c && c.left === rect.left && c.width === rect.width ? c : { left: rect.left, width: rect.width },
+      );
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [shown]);
+
+  // Saved from the bar's Save button with focus on it: when the bar slides away, focus would drop to the end of the
+  // page, so it goes to the page's heading instead, without scrolling. (Only then: Safari doesn't focus a tapped button,
+  // and before 15 it scrolls to whatever is focused.)
+  const savedFromBar = useRef(false);
+  useEffect(() => {
+    if (shown || !savedFromBar.current) return;
+    savedFromBar.current = false;
+    const active = document.activeElement;
+    // Disabling Save while it saves can drop focus to the body.
+    if (!active || active === document.body || barRef.current?.contains(active)) {
+      headingRef.current?.focus({ preventScroll: true });
+    }
+  }, [shown]);
+
+  // Ctrl+S / Cmd+S saves, while this copy of the page is the one showing (jellyfin-web keeps pages it has left).
+  const latest = useRef({ dirty, busy, save: admin.save });
+  latest.current = { dirty, busy, save: admin.save };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      // Pages jellyfin-web has dropped are never unmounted; a gone copy removes its own listener.
+      if (!formRef.current?.isConnected) {
+        document.removeEventListener('keydown', onKey);
+        return;
+      }
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || (e.key !== 's' && e.key !== 'S')) return;
+      if (!formRef.current?.offsetParent) return;
+      e.preventDefault();
+      if (latest.current.dirty && !latest.current.busy) void latest.current.save();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 
   if (status === 'failed') return <p role="alert">{admin.failure}</p>;
   if (!config) return <p>Loading Lumen settings…</p>;
+
+  // What the save bar says. A failed save (or reset) keeps its message until the next one works.
+  const failed = errors.length > 0 && !busy;
+  const statusText =
+    status === 'saving'
+      ? 'Saving…'
+      : status === 'resetting'
+        ? 'Resetting…'
+        : failed
+          ? errors.length === 1
+            ? errors[0]
+            : `${errors.length} problems need fixing. They're listed at the top of the page.`
+          : status === 'saved'
+            ? 'Settings saved.'
+            : dirty
+              ? 'Unsaved changes'
+              : '';
+  // A failed reset leaves the status as it was, which may still be 'saved': the failure comes first.
+  const tone = failed ? 'error' : status === 'saved' ? 'ok' : dirty && !busy ? 'dirty' : '';
+  const resetFailed = !shown && !busy && errors.includes(RESET_FAILED);
 
   const reset = (): void => {
     if (confirm('Reset all Lumen settings to their defaults?')) void admin.reset();
@@ -41,17 +143,22 @@ export function AdminApp({
 
   return (
     <form
-      class="lmn-admin"
+      ref={formRef}
+      class={`lmn-admin${shown ? ' has-savebar' : ''}`}
       style={{ '--a-accent': config.AccentColor } as Record<string, string>}
       onSubmit={(e) => {
         e.preventDefault();
+        if (busy) return;
+        savedFromBar.current = !!barRef.current?.contains(document.activeElement);
         void admin.save();
       }}
     >
       <header class="lmn-admin__header">
         <LumenMark class="lmn-admin__logo" />
         <div>
-          <h1>Lumen</h1>
+          <h1 ref={headingRef} tabIndex={-1}>
+            Lumen
+          </h1>
           <p>Cinematic home and details pages, and catalog requests through Seerr.</p>
         </div>
       </header>
@@ -89,27 +196,35 @@ export function AdminApp({
       <RequestsSettings api={api} config={config} savedUrl={admin.savedUrl} update={update} />
       <DiagnosticsSettings diagnostics={admin.diagnostics} />
 
-      {/* Status reads as text on the left; the actions sit together on the right, Save last (the primary). */}
-      <div class="lmna-savebar">
-        {status === 'saved' ? (
-          <p role="status" class="lmna-savebar__status lmna-savebar__status--ok">
-            <Icon name="check" size={16} />
-            Settings saved.
-          </p>
-        ) : (
-          <p class={`lmna-savebar__status${dirty && !busy ? ' lmna-savebar__status--dirty' : ''}`}>
-            {status === 'saving'
-              ? 'Saving…'
-              : status === 'resetting'
-                ? 'Resetting…'
-                : dirty
-                  ? 'Unsaved changes'
-                  : 'All changes saved'}
-          </p>
-        )}
-        <button type="button" class="lmna-btn lmna-btn--ghost" disabled={busy} onClick={reset}>
-          Reset to defaults
+      {/* Reset isn't in the save bar: it doesn't depend on unsaved changes, so it has to be there while the bar is
+          hidden, and it's kept away from Save. */}
+      <div class="lmna-reset">
+        <button type="button" class="lmna-btn" disabled={busy} onClick={reset}>
+          {status === 'resetting' ? 'Resetting…' : 'Reset to defaults'}
         </button>
+        {resetFailed && <p class="lmna-reset__error">{RESET_FAILED}</p>}
+      </div>
+
+      {/* The save bar's polite live region, outside the bar: a live region that appears together with its text (the
+          bar is hidden from screen readers while down) usually isn't read. So "Unsaved changes" is read once (not on
+          every keystroke), then "Saving…" and "Settings saved.". Not errors: the list at the top is an alert. */}
+      <span role="status" class="lmna-sr-only">
+        {failed ? '' : statusText}
+      </span>
+
+      {/* Slides up from the bottom of the window while there's something to say; status on the left, Save on the
+          right. Hidden, it's out of the tab order and the accessibility tree (visibility: hidden in admin.css). */}
+      <div
+        ref={barRef}
+        class={`lmna-savebar${shown ? ' is-shown' : ''}`}
+        aria-hidden={shown ? undefined : 'true'}
+        style={column ? { left: `${column.left}px`, width: `${column.width}px` } : undefined}
+      >
+        <p class={`lmna-savebar__status${tone ? ` lmna-savebar__status--${tone}` : ''}`}>
+          {tone === 'ok' && <Icon name="check" size={16} />}
+          {/* Read out by the live region above, except errors (the alert at the top reads those). */}
+          <span aria-hidden={failed ? undefined : 'true'}>{statusText}</span>
+        </p>
         <button type="submit" class="lmna-btn lmna-btn--primary" disabled={busy}>
           Save
         </button>

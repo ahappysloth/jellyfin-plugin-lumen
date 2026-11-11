@@ -41,4 +41,5 @@ Run against the release build on the latest stable Jellyfin.
 
 - [ ] Reorder, add, and remove sections; save; the result is reflected on home.
 - [ ] An invalid setting (collection hero source with no collection) shows an error and saves nothing.
+- [ ] The save bar slides up with the first change and stays at the bottom of the window wherever you scroll, on a phone too (clear of the home indicator); after Save it says "Settings saved." and slides away. A failed save keeps it up.
 - [ ] The Diagnostics section lists any reported compatibility failures.

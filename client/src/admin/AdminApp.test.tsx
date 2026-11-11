@@ -153,6 +153,8 @@ describe('AdminApp', () => {
     expect(key).toHaveValue('');
     expect(key).toHaveAttribute('placeholder', 'Saved (leave blank to keep it)');
     await waitFor(() => expect(key).toHaveAccessibleDescription('Seerr → Settings → General'));
+    // Some other change: the key field left blank keeps the saved key.
+    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(api.saveConfig).toHaveBeenCalledTimes(1));
     expect(vi.mocked(api.saveConfig).mock.calls[0]![0].SeerrApiKey ?? '').toBe('');
@@ -279,6 +281,7 @@ describe('AdminApp', () => {
     render(<AdminApp api={api} />);
 
     await screen.findByText('Genre rows');
+    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Accent color must look like #RRGGBB.');
@@ -294,16 +297,10 @@ describe('AdminApp', () => {
     expect(screen.getByRole('button', { name: 'Collection: (none)' })).toBeInTheDocument();
   });
 
-  it('puts the save status first and Save last, and keeps password managers out of the Seerr fields', async () => {
-    const { container } = render(<AdminApp api={fakeApi()} />);
+  it('keeps password managers out of the Seerr fields', async () => {
+    render(<AdminApp api={fakeApi()} />);
     await screen.findByText('Genre rows');
 
-    const bar = container.querySelector('.lmna-savebar')!;
-    expect([...bar.children].map((c) => c.textContent)).toEqual([
-      'All changes saved',
-      'Reset to defaults',
-      'Save',
-    ]);
     const key = screen.getByLabelText('Seerr API key');
     expect(key).toHaveAttribute('autocomplete', 'new-password');
     expect(key).toHaveAttribute('data-1p-ignore', 'true');
@@ -332,7 +329,8 @@ describe('AdminApp', () => {
       // A failed diagnostics request doesn't read as "no problems".
       expect(screen.getByText(/Couldn't load the diagnostics/)).toBeInTheDocument();
       expect(screen.queryByText('No compatibility problems reported.')).toBeNull();
-      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+      // Nothing to save: the save bar is down, and Save with it.
+      expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
     });
 
     it('still fails the page when the section types fail', async () => {
@@ -346,6 +344,7 @@ describe('AdminApp', () => {
       render(<AdminApp api={api} />);
 
       await screen.findByText('Genre rows');
+      fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
       fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
       expect(await screen.findByRole('alert')).toHaveTextContent('Saving failed. Check the server log.');
@@ -389,7 +388,8 @@ describe('AdminApp', () => {
 
       await waitFor(() => expect(screen.queryByText('Genre rows')).toBeNull());
       expect(api.reset).toHaveBeenCalledTimes(1);
-      expect(screen.getByText('All changes saved')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Reset to defaults' })).toBeEnabled();
+      expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
     });
 
     it('reports a failed reset and keeps the form', async () => {
@@ -416,5 +416,157 @@ describe('AdminApp', () => {
         "Lumen settings were reset to their defaults, but they couldn't be reloaded.",
       );
     });
+  });
+});
+
+describe('AdminApp save bar', () => {
+  const bar = (container: Element): HTMLElement => container.querySelector<HTMLElement>('.lmna-savebar')!;
+  const expectHidden = (container: Element): void => {
+    expect(bar(container)).not.toHaveClass('is-shown');
+    expect(bar(container)).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+  };
+  const expectShown = (container: Element): void => {
+    expect(bar(container)).toHaveClass('is-shown');
+    expect(bar(container)).not.toHaveAttribute('aria-hidden');
+    expect(container.querySelector('form')).toHaveClass('has-savebar');
+  };
+
+  it('stays down with nothing to save, comes up with a change, says saved, then goes down again', async () => {
+    let finishSave: () => void = () => undefined;
+    const api = fakeApi({
+      saveConfig: vi.fn(
+        () => new Promise<{ ok: true }>((resolve) => (finishSave = () => resolve({ ok: true }))),
+      ),
+    });
+    const { container } = render(<AdminApp api={api} savedFor={50} />);
+    await screen.findByText('Genre rows');
+    expectHidden(container);
+    expect(container.querySelector('form')).not.toHaveClass('has-savebar');
+    // Reset to defaults doesn't need the bar.
+    expect(screen.getByRole('button', { name: 'Reset to defaults' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    expectShown(container);
+    expect(screen.getByRole('status')).toHaveTextContent('Unsaved changes');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Saving…'));
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expectShown(container);
+
+    finishSave();
+    expect(await screen.findByRole('status')).toHaveTextContent('Settings saved.');
+    expect(bar(container).querySelector('.lmn-icon, svg')).not.toBeNull();
+    expectShown(container);
+    await waitFor(() => expectHidden(container));
+  });
+
+  it('stays up with the problem when a save fails', async () => {
+    const api = fakeApi({
+      saveConfig: vi.fn(async () => ({
+        ok: false as const,
+        errors: ['Accent color must look like #RRGGBB.', 'Hero count must be between 1 and 10.'],
+      })),
+    });
+    const { container } = render(<AdminApp api={api} savedFor={20} />);
+    await screen.findByText('Genre rows');
+    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await screen.findByRole('alert');
+    expect(bar(container)).toHaveTextContent(
+      "2 problems need fixing. They're listed at the top of the page.",
+    );
+    // The alert at the top reads the problems out; the bar's live region doesn't repeat them.
+    expect(screen.getByRole('status')).toHaveTextContent('');
+    await new Promise((r) => setTimeout(r, 60));
+    expectShown(container);
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  it('shows a failed reset next to Reset, not in the bar, when nothing was changed', async () => {
+    const api = fakeApi({ reset: vi.fn(() => Promise.reject(new Error('x'))) });
+    const { container } = render(<AdminApp api={api} confirm={() => true} />);
+    await screen.findByText('Genre rows');
+    fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }));
+
+    await screen.findByRole('alert');
+    expectHidden(container);
+    expect(container.querySelector('.lmna-reset')).toHaveTextContent(
+      "Couldn't reset the settings. Check the server log.",
+    );
+  });
+
+  it('shows a failed reset as a problem, not a success, right after a save', async () => {
+    const api = fakeApi({ reset: vi.fn(() => Promise.reject(new Error('x'))) });
+    const { container } = render(<AdminApp api={api} confirm={() => true} savedFor={10_000} />);
+    await screen.findByText('Genre rows');
+    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Settings saved.');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }));
+    await screen.findByRole('alert');
+    expect(bar(container)).toHaveTextContent("Couldn't reset the settings. Check the server log.");
+    expect(bar(container).querySelector('.lmna-savebar__status--error')).not.toBeNull();
+    expect(bar(container).querySelector('.lmna-savebar__status--ok')).toBeNull();
+  });
+
+  it('keeps its live region in the page while the bar is down', async () => {
+    const { container } = render(<AdminApp api={fakeApi()} />);
+    await screen.findByText('Genre rows');
+    const status = screen.getByRole('status');
+    expect(bar(container).contains(status)).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    expect(screen.getByRole('status')).toBe(status);
+    expect(status).toHaveTextContent('Unsaved changes');
+  });
+
+  it('removes its Ctrl+S listener once jellyfin-web has dropped the page', async () => {
+    const remove = vi.spyOn(document, 'removeEventListener');
+    const { container } = render(<AdminApp api={fakeApi()} />);
+    await screen.findByText('Genre rows');
+    container.remove(); // jellyfin-web drops old pages without unmounting
+    fireEvent.keyDown(document, { key: 'x' });
+    expect(remove).toHaveBeenCalledWith('keydown', expect.any(Function));
+    remove.mockRestore();
+  });
+
+  it('puts focus on the heading when the bar goes down with focus in it', async () => {
+    const { container } = render(<AdminApp api={fakeApi()} savedFor={20} />);
+    await screen.findByText('Genre rows');
+    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    const save = screen.getByRole('button', { name: 'Save' });
+    save.focus();
+    fireEvent.click(save);
+
+    await waitFor(() => expectHidden(container));
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Lumen' })).toHaveFocus());
+  });
+
+  it('saves on Ctrl+S or Cmd+S while the page is showing and there are changes', async () => {
+    const api = fakeApi();
+    const { container } = render(<AdminApp api={api} />);
+    await screen.findByText('Genre rows');
+    // jsdom has no layout: say the form is on screen (offsetParent is null for a hidden page).
+    const form = container.querySelector('form')!;
+    let onScreen = true;
+    Object.defineProperty(form, 'offsetParent', { get: () => (onScreen ? document.body : null) });
+
+    const clean = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true });
+    document.dispatchEvent(clean);
+    expect(clean.defaultPrevented).toBe(true); // not the browser's "Save page as"
+    expect(api.saveConfig).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    onScreen = false; // another dashboard page is showing
+    fireEvent.keyDown(document, { key: 's', ctrlKey: true });
+    expect(api.saveConfig).not.toHaveBeenCalled();
+
+    onScreen = true;
+    fireEvent.keyDown(document, { key: 's', metaKey: true });
+    await waitFor(() => expect(api.saveConfig).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole('status')).toHaveTextContent('Settings saved.');
   });
 });
