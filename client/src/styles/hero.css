@@ -162,6 +162,8 @@
   /* Over a bright backdrop the dots and the pill's empty part would vanish without an edge. */
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
   transition: background-color 0.35s;
+  /* Older WebKit (Safari 13) doesn't clip a transformed child's layer to rounded corners without a mask. */
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
 }
 .lmn-hero__dash:hover .lmn-hero__pill {
   background: var(--lmn-text-dim);
@@ -235,6 +237,16 @@
   .lmn-hero__controls .lmn-icon-button {
     width: 30px;
     height: 30px;
+  }
+}
+/* The smallest phones: ten slides' dots plus Pause would run off the left edge. */
+@media (max-width: 360px) {
+  .lmn-hero__dash {
+    width: 18px;
+  }
+  .lmn-hero__pill {
+    right: 5px;
+    left: 5px;
   }
 }
 

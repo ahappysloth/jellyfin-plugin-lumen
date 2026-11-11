@@ -108,15 +108,17 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
   // keeps what has run (as the pager's fill does) and resuming waits only for the rest, so the fill and the change of
   // slide stay together.
   const run = useRef({ index, ms: 0 });
-  useEffect(() => {
+  // A layout effect: its cleanup runs as the pager's is-paused class lands, so the time counted stops with the fill. (A
+  // plain effect's cleanup waits for the next frame, which a background tab may not draw for seconds.)
+  useLayoutEffect(() => {
     if (run.current.index !== index) run.current = { index, ms: 0 };
     if (count < 2 || paused) return;
     const slide = run.current;
-    const started = Date.now();
+    const started = performance.now();
     const timer = setTimeout(() => go(1), Math.max(0, config.HeroIntervalSeconds * 1000 - slide.ms));
     return () => {
       clearTimeout(timer);
-      slide.ms += Date.now() - started;
+      slide.ms += performance.now() - started;
     };
   }, [index, count, paused, config.HeroIntervalSeconds]);
 
