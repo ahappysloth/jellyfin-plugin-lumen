@@ -289,6 +289,18 @@ describe('AccountMenu', () => {
       expect(screen.queryByRole('menu')).toBeNull();
     });
 
+    it('stays open when a key is pressed in it after the mouse left', () => {
+      vi.useFakeTimers();
+      const { button } = setup();
+      const root = button.parentElement!;
+      fireEvent.pointerEnter(root, { pointerType: 'mouse' });
+      act(() => void vi.advanceTimersByTime(HOVER_OPEN_MS + 10));
+      fireEvent.pointerLeave(root, { pointerType: 'mouse' });
+      fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowDown' });
+      act(() => void vi.advanceTimersByTime(HOVER_CLOSE_MS * 2));
+      expect(screen.getByRole('menu')).toBeInTheDocument();
+    });
+
     it('a quick pass over the button never opens it', () => {
       vi.useFakeTimers();
       const { button } = setup();

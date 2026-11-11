@@ -244,7 +244,9 @@ export function AccountMenu({
   const onPointerLeave = (e: PointerEvent): void => {
     if (e.pointerType !== 'mouse') return;
     clearTimer();
-    if (open === 'hover') timer.current = window.setTimeout(() => setOpen(null), HOVER_CLOSE_MS);
+    // Only a menu still open from hovering: pressing a key in it meanwhile keeps it.
+    if (open === 'hover')
+      timer.current = window.setTimeout(() => setOpen((o) => (o === 'hover' ? null : o)), HOVER_CLOSE_MS);
   };
 
   const choose = (index: number): void => {
