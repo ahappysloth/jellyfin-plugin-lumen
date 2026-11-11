@@ -8,7 +8,8 @@ import { playedPercent } from '../../components/ProgressBar';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { resumeTicks } from '../../playback/play';
 import { strings } from '../../strings';
-import type { ViewContext } from '../context';
+import { useItemMenu } from '../itemMenu/lazyItemMenu';
+import type { DetailsProps } from './DetailsView';
 import { cardMenuHandler } from '../cardMenu';
 import { deriveBadges } from './badges';
 import { downloadLink } from './download';
@@ -40,8 +41,16 @@ interface Loaded {
 }
 
 /** An episode's page: its still, show and number, Play, previous/next, cast and the rest of its season. */
-export function EpisodeDetails({ episode, ctx }: { episode: BaseItem; ctx: ViewContext }) {
+export function EpisodeDetails({ episode, ctx, reload }: DetailsProps & { episode: BaseItem }) {
   const actions = useItemActions(episode, ctx);
+  const download = downloadLink(episode, ctx.client, ctx.layout);
+  const more = useItemMenu(ctx, episode, {
+    complete: true,
+    downloadButton: !!download,
+    onChanged: reload,
+    onDeleted: () => goBack(ctx),
+    fallback: ctx.onFallback,
+  });
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const rootRef = useRef<HTMLElement>(null);
   useAutoFocus(rootRef, true, ctx.layout);
@@ -119,7 +128,8 @@ export function EpisodeDetails({ episode, ctx }: { episode: BaseItem; ctx: ViewC
           restart: ticks ? () => actions.play(episode) : undefined,
         }}
         trailerId={null}
-        download={downloadLink(episode, ctx.client, ctx.layout)}
+        download={download}
+        more={more}
         onBack={() => goBack(ctx)}
         badges={deriveBadges(episode.MediaStreams)}
         {...actions}

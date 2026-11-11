@@ -71,4 +71,24 @@ describe('cardMenuEntries', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull();
     await waitFor(() => expect(requests).toEqual(['DELETE', 'POST']));
   });
+
+  it("ends a title's menu in More actions…, which opens its item menu where the card's was", async () => {
+    const openItemMenuAt = vi.fn(async () => undefined);
+    vi.doMock('./itemMenu/itemMenu', () => ({ openItemMenuAt }));
+    const ctx = makeContext(createFakeClient());
+    const at = { x: 5, y: 6, returnFocus: null };
+
+    const entries = cardMenuEntries(movie, ctx, {}, at);
+    expect(entries.map((e) => e.label).slice(-1)).toEqual(['More actions…']);
+    expect(entry(entries, 'More actions…').separated).toBe(true);
+    entry(entries, 'More actions…').onSelect();
+    await waitFor(() => expect(openItemMenuAt).toHaveBeenCalledWith(ctx, movie, at));
+    vi.doUnmock('./itemMenu/itemMenu');
+
+    // Not for a genre, nor where the menu's place isn't known.
+    expect(cardMenuEntries({ ...movie, Type: 'Genre' }, ctx, {}, at).map((e) => e.label)).not.toContain(
+      'More actions…',
+    );
+    expect(cardMenuEntries(movie, ctx).map((e) => e.label)).not.toContain('More actions…');
+  });
 });

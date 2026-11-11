@@ -9,6 +9,8 @@ export interface MenuEntry {
   onSelect: () => void;
   /** A second, quieter line (e.g. who is in a group). */
   detail?: string;
+  /** Starts a new group: a line above it. */
+  separated?: boolean;
 }
 
 interface OpenMenu {
@@ -17,6 +19,12 @@ interface OpenMenu {
   y: number;
   /** Where focus goes back to on close. */
   returnFocus: HTMLElement | null;
+  /**
+   * The button it opened from, if any. The menu then opens under it, or above it, or ending at its right edge, when it
+   * wouldn't fit, rather than over it, and follows it if the page scrolls (in the TV layout jellyfin-web scrolls a
+   * button that's clicked into view, just as the menu opens), where a menu opened at a point closes.
+   */
+  anchor?: HTMLElement;
   /** For screen readers: what the menu is about. */
   label: string;
   /** Shown above the entries (not focusable). */
@@ -37,6 +45,8 @@ export function closeContextMenu(): void {
 }
 
 const MARGIN = 8;
+/** Between a button and the menu it opened. */
+const ANCHOR_GAP = 6;
 
 /** Renders the open context menu. Closes on Escape or Back, an outside press, scroll, resize, blur, or a page change. */
 export function ContextMenuHost() {
@@ -61,14 +71,21 @@ export function ContextMenuHost() {
   };
 
   // Keep the menu on screen: flip left/up when it would overflow.
-  useLayoutEffect(() => {
+  const place = (): void => {
     const el = ref.current;
     if (!menu || !el) return;
     const { width, height } = el.getBoundingClientRect();
-    const left = menu.x + width + MARGIN > window.innerWidth ? Math.max(MARGIN, menu.x - width) : menu.x;
-    const top = menu.y + height + MARGIN > window.innerHeight ? Math.max(MARGIN, menu.y - height) : menu.y;
+    const box = menu.anchor?.getBoundingClientRect();
+    const x = box ? box.left : menu.x;
+    const y = box ? box.bottom + ANCHOR_GAP : menu.y;
+    const left = x + width + MARGIN > window.innerWidth ? Math.max(MARGIN, (box ? box.right : x) - width) : x;
+    const top =
+      y + height + MARGIN > window.innerHeight
+        ? Math.max(MARGIN, (box ? box.top - ANCHOR_GAP : y) - height)
+        : y;
     setPos({ left, top });
-  }, [menu]);
+  };
+  useLayoutEffect(place, [menu]);
   // Focus follows the highlighted item, so screen readers announce it.
   useEffect(() => {
     ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]')[active]?.focus({ preventScroll: true });
@@ -80,8 +97,13 @@ export function ContextMenuHost() {
       if (!ref.current?.contains(e.target as Node)) close(false);
     };
     const onDismiss = (): void => close(false);
+    const onScroll = (e: Event): void => {
+      if (e.target instanceof Node && ref.current?.contains(e.target)) return; // a long menu scrolling its items
+      if (menu.anchor) place();
+      else close(false);
+    };
     document.addEventListener('pointerdown', onPointer, true);
-    window.addEventListener('scroll', onDismiss, { passive: true, capture: true });
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
     window.addEventListener('resize', onDismiss);
     window.addEventListener('blur', onDismiss);
     // jellyfin-web's pushState as well as a hash change: an entry chosen after the page changed would act on a title
@@ -89,7 +111,7 @@ export function ContextMenuHost() {
     const stopNavigation = onNavigate(onDismiss);
     return () => {
       document.removeEventListener('pointerdown', onPointer, true);
-      window.removeEventListener('scroll', onDismiss, { capture: true });
+      window.removeEventListener('scroll', onScroll, { capture: true });
       window.removeEventListener('resize', onDismiss);
       window.removeEventListener('blur', onDismiss);
       stopNavigation();
@@ -141,7 +163,7 @@ export function ContextMenuHost() {
           type="button"
           role="menuitem"
           tabIndex={-1}
-          class={`lmn-menu__item${i === active ? ' is-active' : ''}`}
+          class={`lmn-menu__item${i === active ? ' is-active' : ''}${entry.separated && i > 0 ? ' lmn-menu__item--separated' : ''}`}
           onPointerMove={() => setActive(i)}
           onClick={() => choose(entry)}
         >

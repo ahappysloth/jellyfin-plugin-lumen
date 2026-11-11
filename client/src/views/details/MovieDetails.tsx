@@ -5,7 +5,8 @@ import { playedPercent } from '../../components/ProgressBar';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { resumeTicks } from '../../playback/play';
 import { strings } from '../../strings';
-import type { ViewContext } from '../context';
+import { useItemMenu } from '../itemMenu/lazyItemMenu';
+import type { DetailsProps } from './DetailsView';
 import { deriveBadges } from './badges';
 import { downloadLink } from './download';
 import { CastRow } from './CastRow';
@@ -13,9 +14,17 @@ import { DetailsHeader } from './DetailsHeader';
 import { SimilarRow } from './SimilarRow';
 import { goBack, useItemActions, useLocalTrailer } from './useItemActions';
 
-export function MovieDetails({ item, ctx }: { item: BaseItem; ctx: ViewContext }) {
+export function MovieDetails({ item, ctx, reload }: DetailsProps & { item: BaseItem }) {
   const actions = useItemActions(item, ctx);
   const trailerId = useLocalTrailer(item, ctx);
+  const download = downloadLink(item, ctx.client, ctx.layout);
+  const more = useItemMenu(ctx, item, {
+    complete: true,
+    downloadButton: !!download,
+    onChanged: reload,
+    onDeleted: () => goBack(ctx),
+    fallback: ctx.onFallback,
+  });
   const rootRef = useRef<HTMLElement>(null);
   useAutoFocus(rootRef, true, ctx.layout);
 
@@ -35,7 +44,8 @@ export function MovieDetails({ item, ctx }: { item: BaseItem; ctx: ViewContext }
         }}
         trailerId={trailerId}
         onTrailer={trailerId ? () => actions.play(trailerId) : undefined}
-        download={downloadLink(item, ctx.client, ctx.layout)}
+        download={download}
+        more={more}
         onBack={() => goBack(ctx)}
         badges={deriveBadges(item.MediaStreams)}
         {...actions}

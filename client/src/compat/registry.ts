@@ -222,6 +222,35 @@ export const SYNCPLAY_MANAGER_METHODS = [
   'haltGroupPlayback',
 ] as const;
 
+/**
+ * jellyfin-web's item menu (components/itemContextMenu.js, the same in 12.1–12.4): its `getCommands` decides what an
+ * item's ⋯ menu offers and its `show` opens jellyfin-web's own dialog for the command picked (metadata editor,
+ * identify, image and subtitle editors, media info, collection and playlist pickers, refresh, delete). It isn't
+ * exported anywhere Lumen can ask, so compat/itemMenu.ts finds it in the webpack bundle by these strings, which only its
+ * code has: the error `show` throws and command ids it handles. It loads in a chunk of its own, with jellyfin-web's
+ * now-playing bar (every layout but a TV browser's) and its stock details page (always, under Lumen's).
+ */
+export const ITEM_MENU_MARKERS = [
+  'No item commands present',
+  'moremediainfo',
+  'addtocollection',
+  'editsubtitles',
+] as const;
+export const ITEM_MENU_METHODS = ['getCommands', 'show'] as const;
+/**
+ * jellyfin-web's action sheet (components/actionSheet/actionSheet.ts): the list the item menu's `show` asks which
+ * command to run. Its default export is a plain `{ show }` object the menu calls through, so Lumen answers for it
+ * once, with the command the user picked in Lumen's own menu. Found by its class name and option, and confirmed by the
+ * export shape (`default.show` is the named `show`).
+ */
+export const ACTION_SHEET_MARKERS = ['actionSheetMenuItem', 'resolveOnClick'] as const;
+
+/**
+ * jellyfin-web's metadata manager (`#/metadata?id=`, controllers/edititemmetadata.js via scripts/editorsidebar.js),
+ * opened on one item: where Lumen sends an administrator's edit when it can't open jellyfin-web's dialog.
+ */
+export const METADATA_ITEM_PARAM = 'id';
+
 /** The stock settings pages Lumen restyles and frames (the page itself stays jellyfin-web's). */
 export const SETTINGS_ROUTES = {
   profile: '/userprofile',

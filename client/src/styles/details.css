@@ -106,7 +106,8 @@
   margin-bottom: 10px;
 }
 .lmn-episodes-header h2 {
-  margin: 0;
+  /* The season picker and its ⋯ sit together on the right. */
+  margin: 0 auto 0 0;
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.015em;

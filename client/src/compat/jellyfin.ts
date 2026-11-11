@@ -13,6 +13,7 @@ import {
   LIBRARY_ROUTES,
   LIST_PARAMS,
   LIVE_TV_ROUTE,
+  METADATA_ITEM_PARAM,
   MODERN_LIBRARY_ROUTES,
   PIGGY_BACKED_PARAMS,
   SETTINGS_ROUTES,
@@ -39,6 +40,11 @@ export interface JellyfinApiClient {
   getUrl(name: string, params?: Record<string, unknown>): string;
   ajax(request: AjaxRequest): Promise<unknown>;
   getPublicSystemInfo?(): Promise<{ Version?: string; ServerName?: string }>;
+  /**
+   * Server messages over the web socket, by MessageType (12.2+; jellyfin-web's notifications use it for
+   * LibraryChanged). Returns the unsubscribe.
+   */
+  subscribe?(types: string[], listener: (message: { Data?: unknown }) => void): () => void;
   /** The connected server's id (jellyfin-web's ApiClient has it; absent in older or test clients). */
   serverId?(): string | null;
   /** The server's websocket messages of these types (compat/registry.ts RESTART_MESSAGES); returns an unsubscribe. */
@@ -234,6 +240,11 @@ export function facetHash(facet: 'genre' | 'studio', id: string, parentId?: stri
   const param = facet === 'genre' ? LIST_PARAMS.genre : LIST_PARAMS.studio;
   const parent = parentId ? `&${LIST_PARAMS.parent}=${encodeURIComponent(parentId)}` : '';
   return `#${STOCK_ROUTES.list}?${param}=${encodeURIComponent(id)}${parent}`;
+}
+
+/** jellyfin-web's metadata manager, opened on one item (administrators only). */
+export function metadataHash(itemId: string): string {
+  return `#${STOCK_ROUTES.metadata}?${METADATA_ITEM_PARAM}=${encodeURIComponent(itemId)}`;
 }
 
 /** jellyfin-web's item list filtered to one genre. */

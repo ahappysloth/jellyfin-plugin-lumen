@@ -207,7 +207,14 @@ export interface UserInfo {
   ServerName?: string;
   PrimaryImageTag?: string;
   HasPassword?: boolean;
-  Policy?: { IsAdministrator?: boolean; SyncPlayAccess?: 'CreateAndJoinGroups' | 'JoinGroups' | 'None' };
+  Policy?: {
+    IsAdministrator?: boolean;
+    SyncPlayAccess?: 'CreateAndJoinGroups' | 'JoinGroups' | 'None';
+    /** What jellyfin-web's item menu reads (views/itemMenu/itemCommands.ts). */
+    EnableCollectionManagement?: boolean;
+    EnableSubtitleManagement?: boolean;
+    EnableContentDownloading?: boolean;
+  };
 }
 
 /** GET /Lumen/Requests/Status: what this user can do with Seerr's catalog (all false when off or unmapped). */
