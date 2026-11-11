@@ -110,7 +110,7 @@ export function ProfileView({ ctx }: { ctx: ViewContext }) {
                   onClick={(e) => void openWatchTogether(ctx, syncPlay, e.currentTarget)}
                 >
                   <span class="lmn-profile__icon">
-                    <Icon name="group" size={20} />
+                    <Icon name="watchTogether" size={20} />
                   </span>
                   <span class="lmn-profile__text">
                     <span class="lmn-profile__label">{strings.watchTogether}</span>
