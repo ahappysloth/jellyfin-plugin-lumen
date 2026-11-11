@@ -12,7 +12,11 @@
  * Pure data: no DOM access and no imports, so the inline guard and the e2e suite can import it cheaply.
  */
 
-/** A page the e2e probe opens to look for a selector; null means it can't be probed reliably (transient UI). */
+/**
+ * A page the e2e probe opens to look for a selector, or a dialog or menu it opens there (Dashboard > Users: a user's ⋯
+ * menu and its Delete confirmation; the header's user menu; API Keys > New API Key). Null means it can't be probed
+ * reliably (transient UI).
+ */
 export type ProbePage =
   | 'login'
   | 'home'
@@ -23,7 +27,11 @@ export type ProbePage =
   | 'dashboard-settings'
   | 'metadata'
   | 'plugins'
-  | 'notFound';
+  | 'notFound'
+  | 'actionSheet'
+  | 'confirmDialog'
+  | 'userMenu'
+  | 'apiKeyDialog';
 
 export interface StockSelector {
   selector: string;
@@ -81,14 +89,18 @@ export const STOCK_SELECTORS = {
    * jellyfin-web's shared components, on every page while the stock pages are restyled (stock-components.css): legacy
    * dialogs and the ones that float from 80em × 45em up, action sheets (⋯ menus), and MUI's menus, dialogs and drawers.
    */
-  dialogContainer: { selector: '.dialogContainer', probe: null, css: 'stock-components.css' },
-  formDialogHeader: { selector: '.formDialogHeader', probe: null, css: 'stock-components.css' },
-  floatingDialog: { selector: '.dialog-fullscreen-lowres', probe: null, css: 'stock-components.css' },
-  actionSheet: { selector: '.actionSheet', probe: null, css: 'stock-components.css' },
-  actionSheetItem: { selector: '.actionSheetMenuItem', probe: null, css: 'stock-components.css' },
-  muiMenu: { selector: '.MuiMenu-paper', probe: null, css: 'stock-components.css' },
-  muiModal: { selector: '.MuiModal-root', probe: null, css: 'stock-components.css' },
-  muiDialog: { selector: '.MuiDialog-paper', probe: null, css: 'stock-components.css' },
+  dialogContainer: { selector: '.dialogContainer', probe: 'actionSheet', css: 'stock-components.css' },
+  formDialogHeader: { selector: '.formDialogHeader', probe: 'confirmDialog', css: 'stock-components.css' },
+  floatingDialog: {
+    selector: '.dialog-fullscreen-lowres',
+    probe: 'confirmDialog',
+    css: 'stock-components.css',
+  },
+  actionSheet: { selector: '.actionSheet', probe: 'actionSheet', css: 'stock-components.css' },
+  actionSheetItem: { selector: '.actionSheetMenuItem', probe: 'actionSheet', css: 'stock-components.css' },
+  muiMenu: { selector: '.MuiMenu-paper', probe: 'userMenu', css: 'stock-components.css' },
+  muiModal: { selector: '.MuiModal-root', probe: 'userMenu', css: 'stock-components.css' },
+  muiDialog: { selector: '.MuiDialog-paper', probe: 'apiKeyDialog', css: 'stock-components.css' },
   /** The admin pages (dashboard.css): the Dashboard's MUI frame, drawer and controls. */
   dashboardDrawer: { selector: '.MuiDrawer-paper', probe: 'dashboard', css: 'dashboard.css' },
   dashboardNavItem: { selector: '.MuiListItemButton-root', probe: 'dashboard', css: 'dashboard.css' },

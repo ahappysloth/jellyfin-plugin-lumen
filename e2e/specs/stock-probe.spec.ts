@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { DASHBOARD_THEME_VARIABLE, STOCK_SELECTORS, type ProbePage } from '../../client/src/compat/registry';
 import { WEB_PLUGIN_KEY, WEB_PLUGIN_NAME, type WebPluginSlot } from '../../client/src/compat/webPlugin';
-import { ADMIN, loadState } from '../support/api';
+import { ADMIN, KID, loadState } from '../support/api';
 import { CANNOT_PLAY, cannotPlay } from '../support/browsers';
 import { login } from '../support/login';
 import { openFresh } from '../support/stock-pages';
@@ -131,6 +131,32 @@ test("stock selectors on jellyfin-web's 404 page", async ({ page }) => {
   await expect(page.getByRole('region', { name: 'Page not found' })).toBeVisible();
 });
 
+test("stock selectors in jellyfin-web's dialogs and menus", async ({ page }) => {
+  await login(page, ADMIN);
+  // A user's ⋯ menu (an action sheet) on Dashboard > Users, and its Delete confirmation (a floating dialog), cancelled.
+  await openFresh(page, '#/dashboard/users');
+  await page.locator('.page:not(.hide) .cardBox', { hasText: KID.name }).locator('.btnUserMenu').click();
+  await expect(page.locator('.actionSheet')).toBeVisible();
+  await expectSelectorsOn(page, 'actionSheet');
+  await page.locator('.actionSheetMenuItem', { hasText: 'Delete' }).click();
+  await expect(page.locator('.dialog-fullscreen-lowres')).toBeVisible();
+  await expectSelectorsOn(page, 'confirmDialog');
+  await page.locator('.dialog-fullscreen-lowres .button-cancel').click();
+  await expect(page.locator('.dialog-fullscreen-lowres')).toHaveCount(0);
+
+  // The header's user menu (MUI).
+  await page.getByRole('button', { name: 'User Menu' }).click();
+  await expect(page.locator('.MuiMenu-paper')).toBeVisible();
+  await expectSelectorsOn(page, 'userMenu');
+  await page.keyboard.press('Escape');
+
+  // API Keys > New API Key (a MUI dialog).
+  await openFresh(page, '#/dashboard/keys');
+  await page.getByRole('button', { name: 'New API Key' }).click();
+  await expect(page.locator('.MuiDialog-paper')).toBeVisible();
+  await expectSelectorsOn(page, 'apiKeyDialog');
+});
+
 test('every probed selector belongs to a page this spec opens', () => {
   const probed = new Set<ProbePage>([
     'login',
@@ -143,6 +169,10 @@ test('every probed selector belongs to a page this spec opens', () => {
     'metadata',
     'plugins',
     'notFound',
+    'actionSheet',
+    'confirmDialog',
+    'userMenu',
+    'apiKeyDialog',
   ]);
   for (const [name, entry] of Object.entries(STOCK_SELECTORS)) {
     if (entry.probe !== null) expect(probed.has(entry.probe), name).toBe(true);

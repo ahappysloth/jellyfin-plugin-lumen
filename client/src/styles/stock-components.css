@@ -45,6 +45,8 @@ html[data-lmn-skin] .MuiModal-root {
   --jf-palette-error-light: #f57a7f;
   --jf-palette-error-dark: #b3262c;
   --jf-palette-error-mainChannel: 240 72 79;
+  /* Lumen's red whatever the accent: destructive buttons (Delete, Restart, Uninstall). */
+  --lmn-danger: #e30b17;
   --jf-palette-info-main: #8ab4f8;
   --jf-palette-info-mainChannel: 138 180 248;
   --jf-palette-text-primary: var(--lmn-text);
@@ -97,7 +99,12 @@ html[data-lmn-skin] .MuiModal-root {
 html[data-lmn-skin] .dialogContainer {
   --jf-card-borderRadius: 10px;
 }
-html[data-lmn-skin] .dialog {
+/*
+ * Not the book, PDF and comics readers or the photo slideshow: they are fullscreen .dialogs too, with their own
+ * backgrounds and top-bar buttons (the comics reader is a .slideshowDialog). Action sheets have their own surface below.
+ */
+html[data-lmn-skin]
+  .dialog:not(.slideshowDialog):not([id='bookPlayer']):not([id='pdfPlayer']):not(.actionSheet) {
   background: var(--lmn-surface) !important;
   color: var(--lmn-text);
   font-family: var(--lmn-font);
@@ -118,10 +125,6 @@ html[data-lmn-skin] .dialog:not(.dialog-fullscreen):not(.dialog-fixedSize):not(.
     border-radius: 20px;
     box-shadow: 0 40px 80px -24px rgba(0, 0, 0, 0.9);
   }
-}
-html[data-lmn-skin] .dialogBackdropOpened {
-  background-color: #000;
-  opacity: 0.66;
 }
 html[data-lmn-skin] .formDialogHeader {
   border-bottom: 1px solid var(--lmn-line);
@@ -163,12 +166,33 @@ html[data-lmn-skin] .formDialogFooter:not(.formDialogFooter-clear) {
     border-radius: 0 0 19px 19px;
   }
 }
+/* Phones: an editor's Cancel, Reset and Save side by side rather than stacked into a tall footer, above the home
+   indicator. (Below 80em × 45em the editors fill the screen, so their footer is its bottom edge.) */
+@media (max-width: 50em) {
+  html[data-lmn-skin] .dialog-fixedSize .formDialogFooter:not(.formDialogFooter-vertical) {
+    flex-wrap: nowrap;
+    padding-bottom: 1em;
+    padding-bottom: calc(1em + env(safe-area-inset-bottom));
+  }
+  html[data-lmn-skin]
+    .dialog-fixedSize
+    .formDialogFooter:not(.formDialogFooter-vertical)
+    .formDialogFooterItem {
+    flex: 1 1 0;
+    min-width: 0;
+    margin: 0.25em !important;
+  }
+}
 /* Header icon buttons (Back, Close, More) and the small icon buttons beside fields: round, quiet, white on hover. */
-html[data-lmn-skin] .dialog .paper-icon-button-light {
+html[data-lmn-skin]
+  .dialog:not(.slideshowDialog):not([id='bookPlayer']):not([id='pdfPlayer'])
+  .paper-icon-button-light {
   border-radius: 50%;
   color: var(--lmn-text-2);
 }
-html[data-lmn-skin] .dialog .paper-icon-button-light:hover {
+html[data-lmn-skin]
+  .dialog:not(.slideshowDialog):not([id='bookPlayer']):not([id='pdfPlayer'])
+  .paper-icon-button-light:hover {
   background: var(--lmn-fill-3);
   color: #fff;
 }
@@ -223,25 +247,26 @@ html.lmn-skin-dashboard .listItem-border,
 html[data-lmn-skin] .dialogContainer .listItem-border {
   border-color: var(--lmn-line) !important;
 }
-/* Destructive buttons (Delete, Uninstall): Lumen's red, outlined; hover fills them. The others get an invisible border
+/* Destructive buttons (Delete, Uninstall): Lumen's red, outlined, whatever the accent; hover fills them. The label is the
+   palette's lighter error red, legible on the surface (4.9:1; Lumen's red is 3.6:1). The others get an invisible border
    of the same width, so a Delete beside a Cancel is the same height. */
 html[data-lmn-skin] .dialogContainer .emby-button.raised {
   border: 1px solid transparent;
 }
 html.lmn-skin-dashboard .emby-button.raised.button-delete,
 html[data-lmn-skin] .dialogContainer .emby-button.raised.button-delete {
-  border: 1px solid var(--lmn-accent);
+  border: 1px solid var(--lmn-danger);
   background: transparent !important;
-  color: var(--lmn-accent) !important;
+  color: var(--jf-palette-error-main) !important;
 }
 html.lmn-skin-dashboard .emby-button.raised.button-delete:hover,
 html[data-lmn-skin] .dialogContainer .emby-button.raised.button-delete:hover {
-  background: var(--lmn-accent) !important;
+  background: var(--lmn-danger) !important;
   color: #fff !important;
 }
 /* TV layout: no :focus-visible on its browsers, and D-pad focus must always show (over jellyfin-web's
    `outline: none !important` on its buttons). */
-html.layout-tv[data-lmn-skin] .dialogContainer .emby-button:focus,
+html.layout-tv[data-lmn-skin] .dialogContainer .emby-button:not(.actionSheetMenuItem):focus,
 html.layout-tv[data-lmn-skin] .dialog .paper-icon-button-light:focus,
 html.layout-tv[data-lmn-skin] .dialog .fab:focus {
   outline: 3px solid var(--lmn-focus) !important;
@@ -254,6 +279,8 @@ html[data-lmn-skin] .actionSheet {
   border-radius: 14px !important;
   background: rgba(28, 28, 28, 0.97) !important;
   box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.8);
+  color: var(--lmn-text);
+  font-family: var(--lmn-font);
 }
 html[data-lmn-skin] .actionSheet.actionsheet-fullscreen {
   border: 0;
@@ -322,11 +349,13 @@ html[data-lmn-skin] .MuiAutocomplete-paper {
   color: var(--lmn-text);
   font-family: var(--lmn-font);
 }
+/* Side gaps as the items' margins: MUI sizes a select's list to the paper's width, so side padding would overflow it. */
 html[data-lmn-skin] .MuiPopover-paper > .MuiList-root {
-  padding: 6px !important;
+  padding: 6px 0 !important;
 }
 html[data-lmn-skin] .MuiMenuItem-root {
   min-height: 40px;
+  margin: 0 6px;
   padding: 0 12px;
   border-radius: 8px;
   color: var(--lmn-text-2);

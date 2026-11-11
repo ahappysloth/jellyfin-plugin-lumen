@@ -625,3 +625,9 @@ html.lmn-skin-settings .MuiSelect-icon {
   opacity: 0;
   transform: translateY(-12px);
 }
+/* Reduced motion: it fades in and out where it stands (over the states above, hence !important). */
+@media (prefers-reduced-motion: reduce) {
+  :is(html.lmn-active, html.lmn-skin-player, html[data-lmn-skin]) .toastContainer .toast {
+    transform: none !important;
+  }
+}

@@ -458,19 +458,20 @@ html.lmn-skin-dashboard .MuiButton-textPrimary:not(.Mui-disabled) {
   color: var(--lmn-text);
 }
 /*
- * Destructive actions (Restart, Shutdown, Delete, Uninstall): Lumen's red, outlined, so they read as the same family as
- * the filled primary buttons without looking like one. Hover fills them.
+ * Destructive actions (Restart, Shutdown, Delete, Uninstall): Lumen's red whatever the accent, outlined, so they read as
+ * the same family as the filled primary buttons without looking like one. Hover fills them. Like the dialogs' Delete
+ * (stock-components.css), which sets --lmn-danger: the label in the lighter error red, to stay legible.
  */
 html.lmn-skin-dashboard
   .MuiButton-colorError:is(.MuiButton-contained, .MuiButton-outlined):not(.Mui-disabled) {
-  border: 1px solid var(--lmn-accent);
+  border: 1px solid var(--lmn-danger);
   background-color: transparent;
-  color: var(--lmn-accent);
+  color: var(--jf-palette-error-main);
 }
 html.lmn-skin-dashboard
   .MuiButton-colorError:is(.MuiButton-contained, .MuiButton-outlined):not(.Mui-disabled):hover {
-  border-color: var(--lmn-accent);
-  background-color: var(--lmn-accent);
+  border-color: var(--lmn-danger);
+  background-color: var(--lmn-danger);
   color: #fff;
 }
 html.lmn-skin-dashboard .MuiIconButton-root:hover {
