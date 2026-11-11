@@ -63,6 +63,26 @@ const ROUTE_CLASSES = [
   ...ROUTE_KINDS.map((kind) => `lmn-route-${kind}`),
 ];
 
+/** Which of the admin's switches lets Lumen have a kind of page. Off, jellyfin-web keeps it. */
+export function routeEnabled(kind: TakeoverRoute['kind'], config: ClientConfig): boolean {
+  switch (kind) {
+    case 'home':
+      return config.HomeTakeover;
+    case 'details':
+    case 'title':
+      return config.DetailsTakeover;
+    case 'settings':
+      return config.StyleStockPages;
+    case 'player':
+      return config.StyleVideoPlayer;
+    // Its way out is Lumen's home.
+    case 'notFound':
+      return config.HomeTakeover;
+    default:
+      return config.LibraryTakeover;
+  }
+}
+
 /** Owns #lmn-root and the <html> classes that hide the stock page. Never touches jellyfin-web's own DOM. */
 export class Takeover {
   private root: HTMLElement | null = null;
@@ -144,23 +164,7 @@ export class Takeover {
   }
 
   private isEnabled(route: TakeoverRoute): boolean {
-    const { config } = this.options;
-    switch (route.kind) {
-      case 'home':
-        return config.HomeTakeover;
-      case 'details':
-      case 'title':
-        return config.DetailsTakeover;
-      case 'settings':
-        return config.StyleStockPages;
-      case 'player':
-        return config.StyleVideoPlayer;
-      // Its way out is Lumen's home.
-      case 'notFound':
-        return config.HomeTakeover;
-      default:
-        return config.LibraryTakeover;
-    }
+    return routeEnabled(route.kind, this.options.config);
   }
 
   /**

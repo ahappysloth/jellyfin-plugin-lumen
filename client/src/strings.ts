@@ -178,6 +178,7 @@ export const strings = {
   historyHint: 'What you watched, newest first',
   noHistory: 'Nothing watched yet',
   noHistoryHint: 'Movies and episodes you play show up here, newest first.',
+  episodeCount: (n: number) => `${formatNumber(n)} episodes`,
   selectServer: 'Select server',
   exitApp: 'Exit app',
   clientSettings: 'Client settings',

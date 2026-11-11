@@ -20,6 +20,8 @@ interface CardProps {
   onMenu?: MenuCallback;
   /** The page's own item in a row of its siblings (an episode among its season's). */
   current?: boolean;
+  /** Shows this item's art instead of `item`'s (History's card for several episodes of a show: the latest's still). */
+  artItem?: BaseItem;
 }
 
 const LONG_PRESS_MS = 550;
@@ -103,9 +105,19 @@ export function useMenuHandlers(item: BaseItem, onMenu: MenuCallback | undefined
   };
 }
 
-export function Card({ item, client, variant, caption, badge, onSelect, onMenu, current }: CardProps) {
+export function Card({
+  item,
+  client,
+  variant,
+  caption,
+  badge,
+  onSelect,
+  onMenu,
+  current,
+  artItem,
+}: CardProps) {
   const { consumeClick, ...handlers } = useMenuHandlers(item, onMenu);
-  const art = cardArt(item, variant);
+  const art = cardArt(artItem ?? item, variant);
   const size = CARD_SIZES[variant];
   // Rows give cards a fixed width; grids (browse, "You may like") stretch them to fill their columns.
   const artRef = useRef<HTMLSpanElement>(null);

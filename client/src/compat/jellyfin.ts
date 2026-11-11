@@ -351,7 +351,12 @@ export function appSupports(feature: AppFeature, win: Window = window): boolean 
 
 /** The app's own screens and actions, offered only where appSupports() says so (as jellyfin-web's user menu does). */
 export const appActions = {
-  exit: (win: Window = window) => nativeShell(win)?.AppHost?.exit?.(),
+  /** jellyfin-web's appHost.exit() (it knows Tizen's and webOS's ways out too), else the official app's. */
+  exit: (win: Window = window) => {
+    const appHost = webPluginDeps(win)?.appHost as { exit?: () => void } | undefined;
+    if (typeof appHost?.exit === 'function') appHost.exit();
+    else nativeShell(win)?.AppHost?.exit?.();
+  },
   clientSettings: (win: Window = window) => nativeShell(win)?.openClientSettings?.(),
   downloadManager: (win: Window = window) => nativeShell(win)?.openDownloadManager?.(),
 };

@@ -263,7 +263,7 @@ export class LumenApi {
    * misses what was only started), so this sorts by last played and the caller stops at the first title never
    * played: those sort last.
    */
-  getHistory(page: Pick<BrowseQuery, 'startIndex' | 'limit'>): Promise<ItemsResult> {
+  getHistory(page: Pick<BrowseQuery, 'startIndex' | 'limit' | 'count'>): Promise<ItemsResult> {
     return this.getBrowseItems({
       includeItemTypes: 'Movie,Episode',
       sortBy: 'DatePlayed',

@@ -12,10 +12,20 @@ const page = (prefix: string, n: number, total: number): ItemsResult => ({
 
 /** A fetch whose answers the test hands out by hand. */
 function deferredFetch() {
-  const calls: { startIndex?: number; resolve: (r: ItemsResult) => void; reject: () => void }[] = [];
-  const fetch = (q: { startIndex?: number }) =>
+  const calls: {
+    startIndex?: number;
+    count?: boolean;
+    resolve: (r: ItemsResult) => void;
+    reject: () => void;
+  }[] = [];
+  const fetch = (q: { startIndex?: number; count?: boolean }) =>
     new Promise<ItemsResult>((resolve, reject) =>
-      calls.push({ startIndex: q.startIndex, resolve, reject: () => reject(new Error('down')) }),
+      calls.push({
+        startIndex: q.startIndex,
+        count: q.count,
+        resolve,
+        reject: () => reject(new Error('down')),
+      }),
     );
   return { calls, fetch };
 }
@@ -132,6 +142,33 @@ describe('useBrowseItems', () => {
     await settle(() => calls[1]!.resolve(page('q', PAGE_SIZE, PAGE_SIZE)));
     expect(result.current.total).toBe(PAGE_SIZE * 3);
     expect(result.current.hasMore).toBe(true);
+  });
+
+  it('uncounted: never asks for a count, and pages on until a short page', async () => {
+    const { calls, fetch } = deferredFetch();
+    const { result } = renderHook(() => useBrowseItems('k', fetch, { uncounted: true }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0]!.count).toBe(false);
+    // An uncounted answer's TotalRecordCount means nothing.
+    await settle(() => calls[0]!.resolve(page('p', PAGE_SIZE, 0)));
+    expect(result.current.total).toBe(PAGE_SIZE);
+    expect(result.current.hasMore).toBe(true);
+
+    act(() => result.current.loadMore());
+    expect(calls[1]).toMatchObject({ startIndex: PAGE_SIZE, count: false });
+    await settle(() => calls[1]!.resolve(page('q', 3, 0)));
+    expect(result.current.total).toBe(PAGE_SIZE + 3);
+    expect(result.current.hasMore).toBe(false);
+  });
+
+  it('a restored uncounted grid keeps paging if it had more (its total is only what was loaded)', async () => {
+    const items = Array.from({ length: PAGE_SIZE }, (_, i) => item(`p${i}`));
+    saveSnapshot('k', { items, total: PAGE_SIZE, scrollY: 0, offset: PAGE_SIZE, more: true });
+    const { calls, fetch } = deferredFetch();
+    const { result } = renderHook(() => useBrowseItems('k', fetch, { uncounted: true }));
+    expect(result.current.hasMore).toBe(true);
+    act(() => result.current.loadMore());
+    expect(calls[0]!.startIndex).toBe(PAGE_SIZE);
   });
 
   it('retries from the start when the first page failed', async () => {

@@ -8,7 +8,7 @@ export const PAGE_SIZE = 60;
 
 export interface BrowseState {
   items: BaseItem[];
-  /** null until the first page answers. */
+  /** null until the first page answers. Uncounted (BrowseOptions): the titles loaded so far. */
   total: number | null;
   loading: boolean;
   error: boolean;
@@ -23,14 +23,26 @@ export interface BrowseState {
   retry: () => void;
 }
 
-export type Fetch = (query: Pick<BrowseQuery, 'startIndex' | 'limit'>) => Promise<ItemsResult>;
+export type Fetch = (query: Pick<BrowseQuery, 'startIndex' | 'limit' | 'count'>) => Promise<ItemsResult>;
+
+export interface BrowseOptions {
+  /**
+   * Don't have the server count the matches (a second query over the whole library): page on until a short page.
+   * For a page that never shows a count (History).
+   */
+  uncounted?: boolean;
+}
 
 /**
  * Pages through a query. `key` identifies the query: when it changes the list restarts, or restores its snapshot
  * when browseStore's policy allows (Back to this page). Pages load one at a time; a stale answer for an old key is
  * dropped.
  */
-export function useBrowseItems(key: string, fetchPage: Fetch): BrowseState {
+export function useBrowseItems(
+  key: string,
+  fetchPage: Fetch,
+  { uncounted = false }: BrowseOptions = {},
+): BrowseState {
   // Taken once, on mount: a snapshot is used at most once.
   const [initial] = useState<GridSnapshot | undefined>(() => takeSnapshot(key));
   const [items, setItems] = useState<BaseItem[]>(initial?.items ?? []);
@@ -42,9 +54,7 @@ export function useBrowseItems(key: string, fetchPage: Fetch): BrowseState {
   const generation = useRef(0);
   /** Where the next page starts on the server. Not items.length: de-duplication can make that stall. */
   const offset = useRef(initial?.offset ?? initial?.items.length ?? 0);
-  const [done, setDone] = useState(
-    initial ? (initial.offset ?? initial.items.length) >= initial.total : false,
-  );
+  const [done, setDone] = useState(initial ? snapshotDone(initial) : false);
   const state = useRef({ items, total, loading, done });
   state.current = { items, total, loading, done };
   const fetchRef = useRef(fetchPage);
@@ -58,7 +68,10 @@ export function useBrowseItems(key: string, fetchPage: Fetch): BrowseState {
     setLoading(true);
     setError(false);
     state.current = { ...current, loading: true };
-    withTimeout(fetchRef.current({ startIndex, limit: PAGE_SIZE }), VIEW_TIMEOUT_MS)
+    const query = uncounted
+      ? { startIndex, limit: PAGE_SIZE, count: false }
+      : { startIndex, limit: PAGE_SIZE };
+    withTimeout(fetchRef.current(query), VIEW_TIMEOUT_MS)
       .then((page) => {
         if (gen !== generation.current) return;
         const base = reset ? [] : state.current.items;
@@ -68,11 +81,17 @@ export function useBrowseItems(key: string, fetchPage: Fetch): BrowseState {
         offset.current = startIndex + page.Items.length;
         setItems(next);
         // The end: a short page, or the server's offset reaching its count (shown as "N titles"). Only the first page
-        // is counted (getBrowseItems' count): later pages keep its total.
-        const counted = reset ? page.TotalRecordCount : (state.current.total ?? undefined);
-        const count = page.Items.length < PAGE_SIZE ? next.length : (counted ?? next.length);
-        setDone(page.Items.length < PAGE_SIZE || offset.current >= count);
-        setTotal(count);
+        // is counted (getBrowseItems' count): later pages keep its total. Uncounted, only a short page ends it.
+        const short = page.Items.length < PAGE_SIZE;
+        if (uncounted) {
+          setDone(short);
+          setTotal(next.length);
+        } else {
+          const counted = reset ? page.TotalRecordCount : (state.current.total ?? undefined);
+          const count = short ? next.length : (counted ?? next.length);
+          setDone(short || offset.current >= count);
+          setTotal(count);
+        }
         setLoading(false);
       })
       .catch(() => {
@@ -95,7 +114,7 @@ export function useBrowseItems(key: string, fetchPage: Fetch): BrowseState {
         setItems(snapshot.items);
         setTotal(snapshot.total);
         offset.current = snapshot.offset ?? snapshot.items.length;
-        setDone(offset.current >= snapshot.total);
+        setDone(snapshotDone(snapshot));
         setLoading(false);
         setError(false);
         setRestoredScrollY(snapshot.scrollY);
@@ -124,4 +143,11 @@ export function useBrowseItems(key: string, fetchPage: Fetch): BrowseState {
     loadMore: () => load(false),
     retry: () => load(state.current.items.length === 0),
   };
+}
+
+/** Whether a restored grid had loaded everything: as saved, or (older snapshots) its offset reached its count. */
+function snapshotDone(snapshot: GridSnapshot): boolean {
+  return snapshot.more !== undefined
+    ? !snapshot.more
+    : (snapshot.offset ?? snapshot.items.length) >= snapshot.total;
 }

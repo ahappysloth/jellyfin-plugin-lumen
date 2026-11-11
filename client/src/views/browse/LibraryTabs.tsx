@@ -231,7 +231,7 @@ function FacetTab({
       )}
       {items && items.length > 0 && (
         <div
-          class="lmn-facet-grid focuscontainer"
+          class="lmn-facet-grid focuscontainer-x"
           role="list"
           aria-label={`${title}: ${strings.libraryTabNames[facet]}`}
         >
