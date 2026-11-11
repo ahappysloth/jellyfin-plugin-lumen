@@ -468,11 +468,14 @@ html.lmn-skin-dashboard
   background-color: transparent;
   color: var(--jf-palette-error-main);
 }
-html.lmn-skin-dashboard
-  .MuiButton-colorError:is(.MuiButton-contained, .MuiButton-outlined):not(.Mui-disabled):hover {
-  border-color: var(--lmn-danger);
-  background-color: var(--lmn-danger);
-  color: #fff;
+/* Only where there's a real hover: a tap on a touch screen would leave it filled. */
+@media (hover: hover) {
+  html.lmn-skin-dashboard
+    .MuiButton-colorError:is(.MuiButton-contained, .MuiButton-outlined):not(.Mui-disabled):hover {
+    border-color: var(--lmn-danger);
+    background-color: var(--lmn-danger);
+    color: #fff;
+  }
 }
 html.lmn-skin-dashboard .MuiIconButton-root:hover {
   background-color: var(--lmn-fill-2);
