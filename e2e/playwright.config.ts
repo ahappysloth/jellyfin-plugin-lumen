@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { STUB_SEERR } from './support/api';
 
 export default defineConfig({
   testDir: './specs',
@@ -23,10 +24,11 @@ export default defineConfig({
     // Mobile Safari: WebKit with an iPhone's viewport, touch and user agent (jellyfin-web picks its mobile layout).
     { name: 'webkit-iphone', use: { ...devices['iPhone 15'] }, grepInvert: /\bTV layout\b/ },
   ],
-  // Stub Seerr + TMDB images. The Jellyfin server reaches it at LUMEN_E2E_SEERR_URL (see support/stub-seerr.mjs).
+  // Stub Seerr + TMDB images, on LUMEN_STUB_SEERR_PORT (5055 by default; the command inherits the variable). The
+  // Jellyfin server reaches it at LUMEN_E2E_SEERR_URL (see support/stub-seerr.mjs).
   webServer: {
     command: 'node support/stub-seerr.mjs',
-    url: 'http://localhost:5055/__stub/health',
+    url: `${STUB_SEERR}/__stub/health`,
     reuseExistingServer: !process.env.CI,
     stdout: 'ignore',
   },
