@@ -6,6 +6,7 @@ import {
   getAppBarHeight,
   getLayout,
   isBackKey,
+  isStockNotFound,
   isRemoteBack,
   isModernLayout,
   libraryHash,
@@ -190,5 +191,39 @@ describe('setFavicon', () => {
     document.head.innerHTML = '';
     setFavicon('<svg/>');
     expect(document.querySelectorAll('link[rel="icon"]')).toHaveLength(1);
+  });
+
+  describe('isStockNotFound', () => {
+    // jellyfin-web 12.x's routes/fallbackRoute, as rendered.
+    const STOCK_404 =
+      '<div id="fallbackPage" class="page mainAnimatedPage libraryPage"><div class="padded-left padded-right">' +
+      '<h1>Page not found</h1><p>This is not the page you are looking for.</p>' +
+      '<a class="emby-button button-link" href="#/home">Go Home</a></div></div>';
+    const show = (html: string): void => {
+      document.body.innerHTML = `<div id="reactRoot"><div class="skinBody">${html}</div></div>`;
+    };
+
+    it("is true for jellyfin-web's 404 page with only its own content", () => {
+      show(STOCK_404);
+      expect(isStockNotFound()).toBe(true);
+    });
+
+    it('is false with no 404 page, or one a plugin has drawn into', () => {
+      show('<div class="page"></div>');
+      expect(isStockNotFound()).toBe(false);
+
+      show(STOCK_404);
+      document.getElementById('fallbackPage')!.appendChild(document.createElement('div'));
+      expect(isStockNotFound()).toBe(false);
+
+      show(STOCK_404);
+      document.querySelector('#fallbackPage .padded-left')!.appendChild(document.createElement('section'));
+      expect(isStockNotFound()).toBe(false);
+
+      show(
+        '<div id="fallbackPage"><div class="padded-left padded-right"><div id="myPluginPage"></div></div></div>',
+      );
+      expect(isStockNotFound()).toBe(false);
+    });
   });
 });

@@ -14,7 +14,7 @@
 
 /** A page the e2e probe opens to look for a selector; null means it can't be probed reliably (transient UI). */
 export type ProbePage =
-  'login' | 'home' | 'settings' | 'display' | 'player' | 'dashboard' | 'metadata' | 'plugins';
+  'login' | 'home' | 'settings' | 'display' | 'player' | 'dashboard' | 'metadata' | 'plugins' | 'notFound';
 
 export interface StockSelector {
   selector: string;
@@ -101,10 +101,16 @@ export const STOCK_SELECTORS = {
   /** The Plugins page's Manage Repositories button; "Check for Lumen updates" goes beside it (takeover/pluginsButton.ts). */
   manageRepositories: { selector: 'a[href$="/dashboard/plugins/repositories"]', probe: 'plugins' },
   /**
-   * jellyfin-web's "Page not found" page (react-router's catch-all). Once it's up Lumen shows its own in its place
-   * (takeover/bootstrap.ts); e2e uses it as a marker.
+   * jellyfin-web's "Page not found" page (react-router's catch-all, routes/fallbackRoute). While it holds only its own
+   * content Lumen shows its "Page not found" in its place (takeover/bootstrap.ts); e2e uses it as a marker.
    */
-  notFoundPage: { selector: '#fallbackPage', probe: null },
+  notFoundPage: { selector: '#fallbackPage', probe: 'notFound' },
+  /**
+   * That page's content: one block with a heading, a message and a Go Home link, nothing else. Anything more (a plugin
+   * drawing its own page for a route jellyfin-web doesn't know) and Lumen leaves the page alone (compat/jellyfin.ts).
+   */
+  notFoundContent: { selector: '#fallbackPage > .padded-left.padded-right', probe: 'notFound' },
+  notFoundHomeLink: { selector: '#fallbackPage a.button-link[href="#/home"]', probe: 'notFound' },
 } as const satisfies Record<string, StockSelector>;
 
 /** The <html> classes jellyfin-web's layoutManager sets. */

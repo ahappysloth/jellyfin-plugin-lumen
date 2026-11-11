@@ -6,6 +6,7 @@ import {
   getLayout,
   getServerName,
   getServerVersion,
+  isStockNotFound,
   navigateTo,
   SELECTORS,
   selfTest,
@@ -13,7 +14,6 @@ import {
   type JellyfinApiClient,
 } from '../compat/jellyfin';
 import { findPlaybackManager } from '../compat/playbackManager';
-import { STOCK_SELECTORS } from '../compat/registry';
 import { describeServerVersion } from '../compat/testedVersions';
 import type { ViewContext } from '../views/context';
 import { VIEW_TIMEOUT_MS, withTimeout } from '../util/withTimeout';
@@ -251,16 +251,16 @@ export function startLumen(options: BootstrapOptions): () => void {
 
   /**
    * jellyfin-web's own 404 page is up: Lumen shows its "Page not found" in its place. Lumen never decides itself that a
-   * URL is unknown, because only jellyfin-web knows all its routes (plugins add more). A 404 page left from the URL
-   * before is gone as soon as jellyfin-web renders the new one; the watcher below syncs again then.
+   * URL is unknown, because only jellyfin-web knows all its routes (plugins add more). And only while that page holds
+   * just jellyfin-web's own content: a plugin may draw its page into it for a route of its own, and Lumen's would hide
+   * it. A 404 page left from the URL before is gone as soon as jellyfin-web renders the new one; the watcher below
+   * syncs again then, and when anything is drawn into the page.
    */
   const notFound = (route: Route): Route =>
-    route.kind === 'other' && doc.querySelector(STOCK_SELECTORS.notFoundPage.selector)
-      ? { kind: 'notFound' }
-      : route;
+    route.kind === 'other' && isStockNotFound(doc) ? { kind: 'notFound' } : route;
   let stockNotFound = false;
   const notFoundWatcher = new MutationObserver(() => {
-    const shown = doc.querySelector(STOCK_SELECTORS.notFoundPage.selector) !== null;
+    const shown = isStockNotFound(doc);
     if (shown === stockNotFound) return;
     stockNotFound = shown;
     void sync();
