@@ -33,6 +33,11 @@ export type Route =
   | { kind: 'settings'; page: SettingsPage }
   /** jellyfin-web's video player: Lumen draws its controls over it; playback stays jellyfin-web's. */
   | { kind: 'player' }
+  /**
+   * A URL jellyfin-web has no page for. Never from parseRoute: only jellyfin-web knows all its routes (plugins add
+   * more), so the bootstrap picks this once jellyfin-web has rendered its own 404 page for the URL.
+   */
+  | { kind: 'notFound' }
   | { kind: 'other' };
 export type TakeoverRoute = Exclude<Route, { kind: 'other' }>;
 

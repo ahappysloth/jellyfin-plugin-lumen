@@ -19,7 +19,7 @@ import { ProfileView } from './profile/ProfileView';
 import { SettingsFrame } from './profile/SettingsFrame';
 import { SearchView } from './search/SearchView';
 import { Nav, type NavActive } from './Nav';
-import { useFailedPage } from './pageError';
+import { PageError, useFailedPage } from './pageError';
 import { usePageChange } from './usePageChange';
 
 function navActive(route: TakeoverRoute): NavActive {
@@ -65,6 +65,8 @@ function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
       return <LazyPlayer ctx={ctx} />;
     case 'details':
       return <DetailsView key={route.id} id={route.id} ctx={ctx} />;
+    case 'notFound':
+      return <PageError ctx={ctx} title={strings.pageNotFoundTitle} message={strings.pageNotFound} />;
     case 'title':
       return (
         <TitleView
@@ -82,7 +84,13 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
   useEffect(() => clearStarting, []);
   // Home and details lift the veil when their data lands; the library pages draw their header at once.
   useEffect(() => {
-    if (route.kind === 'library' || route.kind === 'favorites' || route.kind === 'genre') liftVeil();
+    if (
+      route.kind === 'library' ||
+      route.kind === 'favorites' ||
+      route.kind === 'genre' ||
+      route.kind === 'notFound'
+    )
+      liftVeil();
   }, [route.kind]);
   // Lumen's own pages are the document's main content (jellyfin-web's, empty, is hidden: base.css). The player and
   // settings pages frame jellyfin-web's, which keep its main and its title.

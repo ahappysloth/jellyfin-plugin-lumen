@@ -89,6 +89,27 @@ describe('startLumen', () => {
     await vi.waitFor(() => expect(mount).toHaveBeenCalled());
   });
 
+  it("shows Lumen's page not found once jellyfin-web has rendered its own, and gives the next page back", async () => {
+    history.replaceState(null, '', '#/no-such-page');
+    const { mount, unmount } = start();
+    await new Promise((r) => setTimeout(r, 50));
+    // An unknown path is jellyfin-web's to judge (plugins add routes): nothing until it renders its 404 page.
+    expect(mount).not.toHaveBeenCalled();
+
+    const stock404 = document.createElement('div');
+    stock404.id = 'fallbackPage';
+    document.querySelector('.skinBody')!.appendChild(stock404);
+    await vi.waitFor(() => expect(mount).toHaveBeenCalledTimes(1));
+    expect(mount.mock.calls[0]![0]).toEqual({ kind: 'notFound' });
+    expect(document.documentElement.classList.contains('lmn-active')).toBe(true);
+
+    // A stock page: jellyfin-web replaces its 404 page, and Lumen lets go.
+    history.pushState(null, '', '#/music?topParentId=0123456789abcdef0123456789abcdef');
+    stock404.remove();
+    await vi.waitFor(() => expect(unmount).toHaveBeenCalled());
+    expect(document.documentElement.classList.contains('lmn-active')).toBe(false);
+  });
+
   it('releases takeover when the user signs out', async () => {
     const { mount, unmount } = start();
     await vi.waitFor(() => expect(mount).toHaveBeenCalled());

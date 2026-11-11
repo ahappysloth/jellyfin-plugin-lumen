@@ -100,7 +100,10 @@ export const STOCK_SELECTORS = {
   },
   /** The Plugins page's Manage Repositories button; "Check for Lumen updates" goes beside it (takeover/pluginsButton.ts). */
   manageRepositories: { selector: 'a[href$="/dashboard/plugins/repositories"]', probe: 'plugins' },
-  /** jellyfin-web's "Page not found" page (react-router's catch-all). Lumen never shows it; e2e uses it as a marker. */
+  /**
+   * jellyfin-web's "Page not found" page (react-router's catch-all). Once it's up Lumen shows its own in its place
+   * (takeover/bootstrap.ts); e2e uses it as a marker.
+   */
   notFoundPage: { selector: '#fallbackPage', probe: null },
 } as const satisfies Record<string, StockSelector>;
 
