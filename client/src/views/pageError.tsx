@@ -56,24 +56,28 @@ export function PageError({
   title,
   message,
   onRetry,
+  retrying = false,
   onBack,
 }: {
   ctx: ViewContext;
   title: string;
   message: string;
   onRetry?: () => void;
+  /** Try again is under way: the page stays, with Try again busy, until it settles. */
+  retrying?: boolean;
   /** Back to where the user came from; without it the way out is Home. */
   onBack?: () => void;
 }) {
   useMarkFailedPage();
   const root = useRef<HTMLElement>(null);
-  useAutoFocus(root, true, ctx.layout);
+  // Again once a retry has failed: disabling the busy Try again took a TV remote's focus with it.
+  useAutoFocus(root, !retrying, ctx.layout);
   return (
     <section ref={root} class="lmn-page-error" aria-labelledby="lmn-page-error-title">
       <h1 id="lmn-page-error-title" class="lmn-page-error__title">
         {title}
       </h1>
-      <LoadError message={message} onRetry={onRetry}>
+      <LoadError message={message} onRetry={onRetry} retrying={retrying}>
         {onBack ? (
           <button
             type="button"

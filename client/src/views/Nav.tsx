@@ -21,8 +21,8 @@ import type { ViewContext } from './context';
 const MAX_LIBRARIES = 4;
 const LIBRARY_ICONS: Record<string, IconName> = { movies: 'film', tvshows: 'tv', music: 'music' };
 
-/** Which pill item is current: 'home', 'favorites', 'search', 'profile', or a library's id. */
-export type NavActive = string;
+/** Which pill item is current: 'home', 'favorites', 'search', 'profile', or a library's id; null for none. */
+export type NavActive = string | null;
 
 interface NavData {
   serverName: string | null;

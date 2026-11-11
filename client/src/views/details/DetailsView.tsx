@@ -18,19 +18,28 @@ export interface ResolvedDetails {
   seasonId?: string;
 }
 
-/** The server has no such item for this user. */
-export class ItemNotFoundError extends Error {}
+/**
+ * Why an item couldn't be loaded. `notFound`: the server has no such item for this user; `forbidden`: the user may not
+ * (a 401/403); `server`: the server failed (5xx and the like); `offline`: no answer at all (a network error, or the
+ * view's timeout).
+ */
+export type LoadFailure = 'notFound' | 'forbidden' | 'server' | 'offline';
+
+export class ItemLoadError extends Error {
+  constructor(readonly failure: LoadFailure) {
+    super(`item couldn't be loaded: ${failure}`);
+  }
+}
 
 /**
- * Which Lumen view handles an item. Null means the stock details page keeps it. Rejects with ItemNotFoundError when
- * the server says there's no such item.
+ * Which Lumen view handles an item. Null means the stock details page keeps it. Rejects with ItemLoadError when the
+ * server answered with an error.
  */
 export async function resolveDetails(api: LumenApi, id: string): Promise<ResolvedDetails | null> {
   try {
     return await resolveItem(api, id);
   } catch (error) {
-    if (isNotFound(error)) throw new ItemNotFoundError(id);
-    throw error;
+    throw new ItemLoadError(loadFailure(error));
   }
 }
 
@@ -51,30 +60,44 @@ async function resolveItem(api: LumenApi, id: string): Promise<ResolvedDetails |
 
 /**
  * jellyfin-web's ajax rejects with the fetch Response. The server answers 404 both for an id it doesn't have and for an
- * item the user can't see (a library they have no access to, a parental rating above theirs).
+ * item the user can't see (a library they have no access to, a parental rating above theirs); 400 for an id that
+ * isn't one. No status: the request never got an answer.
  */
-export function isNotFound(error: unknown): boolean {
+export function loadFailure(error: unknown): LoadFailure {
   const status = (error as { status?: unknown } | null)?.status;
-  return status === 404 || status === 400;
+  if (status === 404 || status === 400) return 'notFound';
+  if (status === 401 || status === 403) return 'forbidden';
+  return typeof status === 'number' && status > 0 ? 'server' : 'offline';
 }
+
+const FAILURE_MESSAGES: Record<Exclude<LoadFailure, 'notFound'>, string> = {
+  forbidden: strings.pageForbidden,
+  server: strings.pageServerError,
+  offline: strings.pageFailed,
+};
 
 export function DetailsView({ id, ctx }: { id: string; ctx: ViewContext }) {
   const [resolved, setResolved] = useState<ResolvedDetails | null>(null);
-  const [failure, setFailure] = useState<'notFound' | 'failed' | null>(null);
+  const [failure, setFailure] = useState<LoadFailure | null>(null);
   const [attempt, setAttempt] = useState(0);
+  // Try again keeps the error page (and Lumen's nav) up, its button busy, until the new attempt settles.
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    setFailure(null);
     withTimeout(resolveDetails(ctx.api, id), VIEW_TIMEOUT_MS)
       .then((result) => {
         if (cancelled) return;
+        setRetrying(false);
+        setFailure(null);
         if (result) setResolved(result);
         else ctx.onFallback();
       })
       // jellyfin-web's own page would only spin forever here (the item is gone, or the server is down): say which.
       .catch((error: unknown) => {
-        if (!cancelled) setFailure(error instanceof ItemNotFoundError ? 'notFound' : 'failed');
+        if (cancelled) return;
+        setRetrying(false);
+        setFailure(error instanceof ItemLoadError ? error.failure : 'offline');
       });
     return () => {
       cancelled = true;
@@ -99,8 +122,17 @@ export function DetailsView({ id, ctx }: { id: string; ctx: ViewContext }) {
       <PageError
         ctx={ctx}
         title={strings.pageFailedTitle}
-        message={strings.pageFailed}
-        onRetry={() => setAttempt((n) => n + 1)}
+        message={FAILURE_MESSAGES[failure]}
+        // Asking again won't give the user access.
+        onRetry={
+          failure === 'forbidden'
+            ? undefined
+            : () => {
+                setRetrying(true);
+                setAttempt((n) => n + 1);
+              }
+        }
+        retrying={retrying}
         onBack={() => goBack(ctx)}
       />
     );

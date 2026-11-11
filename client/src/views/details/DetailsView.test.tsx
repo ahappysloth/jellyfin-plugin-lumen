@@ -6,7 +6,7 @@ import { makeContext, testConfig } from '../../../test/viewContext';
 import type { BaseItem } from '../../api/types';
 import * as compat from '../../compat/playbackManager';
 import { PAGE_SIZE } from '../browse/useBrowseItems';
-import { DetailsView, isNotFound } from './DetailsView';
+import { DetailsView, loadFailure } from './DetailsView';
 
 const movie: BaseItem = {
   Id: 'm1',
@@ -386,12 +386,15 @@ describe('DetailsView', () => {
     expect(ctx.onFallback).not.toHaveBeenCalled();
   });
 
-  it("says it couldn't load when the server fails, and tries again", async () => {
+  it("says it couldn't load when the server fails, and keeps the page up while it tries again", async () => {
     let fail = true;
+    let answer: () => void = () => undefined;
     const ok = routes({ 'Items/m1': movie, 'Items/m1/LocalTrailers': [], 'Items/m1/Similar': { Items: [] } });
     const ctx = makeContext(
       createFakeClient((request) =>
-        fail ? Promise.reject(new Response(null, { status: 503 })) : ok(request),
+        fail
+          ? Promise.reject(new Response(null, { status: 503 }))
+          : new Promise((resolve) => (answer = () => resolve(ok(request)))),
       ),
     );
     render(<DetailsView id="m1" ctx={ctx} />);
@@ -399,20 +402,54 @@ describe('DetailsView', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: "Couldn't load this page" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('The server had a problem.');
     fail = false;
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    // Until the server answers: the same page, Try again busy and not pressable twice.
+    const busy = await screen.findByRole('button', { name: /Trying again/ });
+    expect(busy).toBeDisabled();
+    expect(busy).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('heading', { level: 1, name: "Couldn't load this page" })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
+
+    answer();
     expect(await screen.findByRole('heading', { name: 'Lumen Alpha' })).toBeInTheDocument();
     expect(ctx.onFallback).not.toHaveBeenCalled();
   });
 
+  it('a retry that fails again leaves Try again ready for another go', async () => {
+    const ctx = makeContext(createFakeClient(() => Promise.reject(new TypeError('Failed to fetch'))));
+    render(<DetailsView id="m1" ctx={ctx} />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("The server didn't answer.");
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByRole('button', { name: 'Try again' })).toBeEnabled();
+    expect(screen.getByRole('alert')).toHaveTextContent("The server didn't answer.");
+  });
+
+  it('says the user has no access on a 401 or 403, without Try again', async () => {
+    const ctx = makeContext(createFakeClient(() => Promise.reject(new Response(null, { status: 403 }))));
+    render(<DetailsView id="m1" ctx={ctx} />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("You don't have access to this.");
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
+  });
+
   it.each([
-    [{ status: 404 }, true],
-    [{ status: 400 }, true],
-    [{ status: 500 }, false],
-    [new Error('offline'), false],
-    [null, false],
-  ])('isNotFound(%o) = %s', (error, expected) => {
-    expect(isNotFound(error)).toBe(expected);
+    [{ status: 404 }, 'notFound'],
+    [{ status: 400 }, 'notFound'],
+    [{ status: 401 }, 'forbidden'],
+    [{ status: 403 }, 'forbidden'],
+    [{ status: 500 }, 'server'],
+    [{ status: 503 }, 'server'],
+    [new TypeError('Failed to fetch'), 'offline'],
+    [new Error('timed out after 10000 ms'), 'offline'],
+    [null, 'offline'],
+  ])('loadFailure(%o) = %s', (error, expected) => {
+    expect(loadFailure(error)).toBe(expected);
   });
 
   describe('with a request that never answers', () => {

@@ -62,6 +62,8 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Not found' })).toBeInTheDocument();
     expect(await screen.findByRole('navigation', { name: 'Main' })).toBeInTheDocument();
+    // A title's page isn't Home: no place in the nav (the pill, or a phone's tab bar) is the current one.
+    expect(document.querySelector('.lmn-nav [aria-current="page"], .lmn-nav .is-active')).toBeNull();
 
     // The next details page draws its own header again.
     rerender(<App route={{ kind: 'details', id: 'm2' }} ctx={ctx} />);
