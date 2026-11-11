@@ -30,6 +30,8 @@ interface OpenMenu {
   /** Shown above the entries (not focusable). */
   title?: string;
   subtitle?: string;
+  /** Once it has closed, however that happened (including another menu opening in its place). */
+  onClose?: () => void;
 }
 
 type Listener = (menu: OpenMenu | null) => void;
@@ -55,11 +57,16 @@ export function ContextMenuHost() {
   const [active, setActive] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
+  const shown = useRef<OpenMenu | null>(null);
+  const show = (next: OpenMenu | null): void => {
+    const previous = shown.current;
+    shown.current = next;
+    setActive(0);
+    setMenu(next);
+    if (previous && previous !== next) previous.onClose?.();
+  };
   useEffect(() => {
-    listener = (next) => {
-      setActive(0);
-      setMenu(next);
-    };
+    listener = show;
     return () => {
       listener = null;
     };
@@ -67,7 +74,7 @@ export function ContextMenuHost() {
 
   const close = (refocus: boolean): void => {
     if (refocus) menu?.returnFocus?.focus({ preventScroll: true });
-    setMenu(null);
+    show(null);
   };
 
   // Keep the menu on screen: flip left/up when it would overflow.

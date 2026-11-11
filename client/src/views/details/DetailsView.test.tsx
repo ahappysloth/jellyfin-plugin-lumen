@@ -1,11 +1,16 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/preact';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { setJellyfinLocale } from '../../../test/locale';
 import { makeContext, testConfig } from '../../../test/viewContext';
 import type { BaseItem } from '../../api/types';
+import * as dialogs from '../../compat/itemMenu';
 import * as compat from '../../compat/playbackManager';
 import { ConfirmHost } from '../../components/ConfirmDialog';
+import { ContextMenuHost } from '../../components/ContextMenu';
+import { clearBrowseState, saveSnapshot, takeSnapshot } from '../browse/browseStore';
+import { getCachedHome, setCachedHome } from '../home/homeStore';
+import { resetItemMenuUsers } from '../itemMenu/itemMenu';
 import { PAGE_SIZE } from '../browse/useBrowseItems';
 import { DetailsView, loadFailure } from './DetailsView';
 
@@ -502,5 +507,90 @@ describe('DetailsView', () => {
       expect(screen.getByRole('alert')).toHaveTextContent(/didn't answer/);
       expect(ctx.onFallback).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('DetailsView after an action from its ⋯ menu', () => {
+  const admin = { Id: 'user1', Name: 'admin', Policy: { IsAdministrator: true } };
+  beforeEach(() => {
+    resetItemMenuUsers();
+    vi.spyOn(dialogs, 'canOpenItemDialogs').mockReturnValue(true);
+    vi.spyOn(dialogs, 'stockItemCommands').mockResolvedValue(null);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    clearBrowseState();
+  });
+
+  /** The movie page, with the item as `itemNow` answers it (a fresh object each time, as the server's JSON is). */
+  function page(itemNow: () => unknown) {
+    const c = client();
+    const respond = c.respond;
+    c.respond = (r) => {
+      const path = new URL(r.url).pathname;
+      if (path === '/Users/user1') return admin;
+      if (path === '/Items/m1') return itemNow();
+      return respond(r);
+    };
+    const ctx = makeContext(c);
+    render(
+      <>
+        <DetailsView id="m1" ctx={ctx} />
+        <ContextMenuHost />
+      </>,
+    );
+    return ctx;
+  }
+  const choose = async (name: string) => {
+    fireEvent.click(await screen.findByRole('button', { name: 'More actions for Lumen Alpha' }));
+    fireEvent.click(screen.getByRole('menuitem', { name }));
+  };
+
+  it('fetches the title again after an edit, and Back shows it so too', async () => {
+    vi.spyOn(dialogs, 'openItemDialog').mockResolvedValue({ updated: true, deleted: false });
+    let name = 'Lumen Alpha';
+    const ctx = page(() => ({ ...movie, Name: name, CanDelete: true }));
+    saveSnapshot('movies', {
+      items: [{ Id: 'm1', Name: 'Lumen Alpha', Type: 'Movie' }],
+      total: 1,
+      scrollY: 0,
+    });
+    setCachedHome('user1', { ConfigVersion: 1, Hero: [], Rows: [] });
+
+    name = 'Lumen Alpha Redux';
+    await choose('Edit metadata');
+    expect(await screen.findByRole('heading', { name: 'Lumen Alpha Redux' })).toBeInTheDocument();
+    expect(takeSnapshot('movies')!.items[0]!.Name).toBe('Lumen Alpha Redux');
+    expect(getCachedHome('user1')).toBeUndefined();
+    expect(ctx.onFallback).not.toHaveBeenCalled();
+  });
+
+  it('keeps the page as it was when that fetch fails', async () => {
+    vi.spyOn(dialogs, 'openItemDialog').mockResolvedValue({ updated: true, deleted: false });
+    let fail = false;
+    const ctx = page(() => (fail ? Promise.reject(new Error('down')) : { ...movie, CanDelete: true }));
+    await screen.findByRole('heading', { name: 'Lumen Alpha' });
+
+    fail = true;
+    await choose('Edit metadata');
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.getByRole('heading', { name: 'Lumen Alpha' })).toBeInTheDocument();
+    expect(ctx.onFallback).not.toHaveBeenCalled();
+  });
+
+  it("goes back after a deletion, to a grid that doesn't have the title any more", async () => {
+    vi.spyOn(dialogs, 'openItemDialog').mockResolvedValue({ updated: false, deleted: true });
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    vi.spyOn(window.history, 'length', 'get').mockReturnValue(3);
+    page(() => ({ ...movie, CanDelete: true }));
+    saveSnapshot('movies', {
+      items: [{ Id: 'm1', Name: 'Lumen Alpha', Type: 'Movie' }],
+      total: 1,
+      scrollY: 0,
+    });
+
+    await choose('Delete movie');
+    await waitFor(() => expect(back).toHaveBeenCalled());
+    expect(takeSnapshot('movies')!.items).toEqual([]);
   });
 });

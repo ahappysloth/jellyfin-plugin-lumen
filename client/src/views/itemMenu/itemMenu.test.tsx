@@ -6,6 +6,8 @@ import type { BaseItem } from '../../api/types';
 import * as dialogs from '../../compat/itemMenu';
 import { ContextMenuHost } from '../../components/ContextMenu';
 import { ToastHost } from '../../components/Toast';
+import { hasSnapshot, saveSnapshot, takeSnapshot } from '../browse/browseStore';
+import { getCachedHome, setCachedHome } from '../home/homeStore';
 import { openItemMenuAt, prepareItemMenu, resetItemMenuUsers } from './itemMenu';
 
 const full = {
@@ -113,6 +115,83 @@ describe('the item menu', () => {
     expect(onChanged).not.toHaveBeenCalled();
   });
 
+  it("forgets a deleted title in saved grids and the cached home, so Back doesn't bring its card back", async () => {
+    vi.spyOn(dialogs, 'openItemDialog').mockResolvedValue({ updated: false, deleted: true });
+    const { ctx } = context();
+    saveSnapshot('movies', {
+      items: [card, { Id: 'm2', Name: 'Beta', Type: 'Movie' }],
+      total: 2,
+      scrollY: 0,
+      offset: 2,
+    });
+    setCachedHome('user1', { ConfigVersion: 1, Hero: [], Rows: [] });
+    const onDeleted = vi.fn();
+    render(<ContextMenuHost />);
+    const menu = await prepareItemMenu(ctx, card, { onDeleted });
+    act(() => menu.open({ x: 0, y: 0, returnFocus: null }));
+
+    choose('Delete movie');
+    await waitFor(() => expect(onDeleted).toHaveBeenCalled());
+    expect(getCachedHome('user1')).toBeUndefined();
+    expect(hasSnapshot('movies')).toBe(true);
+    const grid = takeSnapshot('movies')!;
+    expect(grid.items.map((i) => i.Id)).toEqual(['m2']);
+    expect([grid.total, grid.offset]).toEqual([1, 1]);
+  });
+
+  it("offers only what jellyfin-web's own menu would, where it can be asked (a TV browser, no file saving)", async () => {
+    const stock = vi
+      .spyOn(dialogs, 'stockItemCommands')
+      .mockResolvedValue(['delete', 'edit', 'refresh', 'play']);
+    const { ctx } = context();
+    render(<ContextMenuHost />);
+    const menu = await prepareItemMenu(ctx, card);
+    act(() => menu.open({ x: 0, y: 0, returnFocus: null }));
+
+    expect(labels()).toEqual(['Edit metadata', 'Refresh metadata', 'Delete movie']);
+    expect(stock).toHaveBeenCalledWith(expect.objectContaining({ Id: 'm1', CanDelete: true }), admin);
+  });
+
+  it("doesn't watch for a refresh the user cancelled", async () => {
+    vi.spyOn(dialogs, 'openItemDialog').mockResolvedValue({
+      updated: false,
+      deleted: false,
+      refreshQueued: false,
+    });
+    const { client, ctx } = context();
+    client.subscribe = vi.fn(() => vi.fn());
+    const onChanged = vi.fn();
+    render(<ContextMenuHost />);
+    const menu = await prepareItemMenu(ctx, card, { onChanged });
+    act(() => menu.open({ x: 0, y: 0, returnFocus: null }));
+
+    choose('Refresh metadata');
+    await waitFor(() => expect(dialogs.openItemDialog).toHaveBeenCalled());
+    await act(async () => undefined);
+    expect(client.subscribe).not.toHaveBeenCalled();
+  });
+
+  it('hands the watch for a started refresh to the page, which stops it when it closes', async () => {
+    vi.spyOn(dialogs, 'openItemDialog').mockResolvedValue({
+      updated: false,
+      deleted: false,
+      refreshQueued: true,
+    });
+    const { client, ctx } = context();
+    const off = vi.fn();
+    client.subscribe = vi.fn(() => off);
+    const track = vi.fn();
+    render(<ContextMenuHost />);
+    const menu = await prepareItemMenu(ctx, card, { onChanged: vi.fn(), track });
+    act(() => menu.open({ x: 0, y: 0, returnFocus: null }));
+
+    choose('Refresh metadata');
+    await waitFor(() => expect(track).toHaveBeenCalledWith(expect.any(Function)));
+    expect(off).not.toHaveBeenCalled();
+    (track.mock.calls[0] as [() => void])[0]();
+    expect(off).toHaveBeenCalledTimes(1);
+  });
+
   it('reloads after a refresh once the server reports the item updated', async () => {
     vi.spyOn(dialogs, 'openItemDialog').mockResolvedValue({ updated: false, deleted: false });
     const { client, ctx } = context();
@@ -136,6 +215,49 @@ describe('the item menu', () => {
     listener!({ Data: { ItemsUpdated: ['m1'] } });
     expect(onChanged).toHaveBeenCalledTimes(1);
     expect(stop).toHaveBeenCalled();
+  });
+
+  describe("a card's More actions…", () => {
+    const at = { x: 0, y: 0, returnFocus: null };
+
+    it('tells the list about a deletion', async () => {
+      vi.spyOn(dialogs, 'openItemDialog').mockResolvedValue({ updated: false, deleted: true });
+      const { ctx } = context();
+      const onDeleted = vi.fn();
+      render(<ContextMenuHost />);
+      await act(() => openItemMenuAt(ctx, card, at, { onDeleted, openDetails: vi.fn() }));
+
+      choose('Delete movie');
+      await waitFor(() => expect(onDeleted).toHaveBeenCalledWith(card));
+    });
+
+    it('gives the list (and saved grids) the title as the server has it after an edit', async () => {
+      vi.spyOn(dialogs, 'openItemDialog').mockResolvedValue({ updated: true, deleted: false });
+      const { client, ctx } = context();
+      saveSnapshot('movies', { items: [card], total: 1, scrollY: 0 });
+      const onChanged = vi.fn();
+      render(<ContextMenuHost />);
+      await act(() => openItemMenuAt(ctx, card, at, { onChanged }));
+      client.respond = routes({ 'Items/m1': { ...full, Name: 'Alpha (Director’s Cut)' } });
+
+      choose('Edit metadata');
+      await waitFor(() =>
+        expect(onChanged).toHaveBeenCalledWith(expect.objectContaining({ Name: 'Alpha (Director’s Cut)' })),
+      );
+      expect(takeSnapshot('movies')!.items[0]!.Name).toBe('Alpha (Director’s Cut)');
+    });
+
+    it("opens the title's page instead where jellyfin-web hasn't loaded its item menu (a TV browser's home)", async () => {
+      vi.spyOn(dialogs, 'canOpenItemDialogs').mockReturnValue(false);
+      const { client, ctx } = context();
+      const openDetails = vi.fn();
+      render(<ContextMenuHost />);
+      await act(() => openItemMenuAt(ctx, card, at, { openDetails }));
+
+      expect(openDetails).toHaveBeenCalled();
+      expect(screen.queryByRole('menu')).toBeNull();
+      expect(client.requests).toEqual([]);
+    });
   });
 
   describe("when jellyfin-web's dialogs can't be opened here", () => {

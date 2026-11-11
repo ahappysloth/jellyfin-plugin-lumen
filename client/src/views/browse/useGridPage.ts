@@ -44,6 +44,10 @@ export function useGridPage(
       save(item);
       ctx.navigate(infoHash(item));
     },
-    onMenu: cardMenuHandler(ctx, { beforeNavigate: save }),
+    onMenu: cardMenuHandler(ctx, {
+      beforeNavigate: save,
+      onDeleted: (item) => state.remove(item.Id),
+      onChanged: state.replace,
+    }),
   };
 }

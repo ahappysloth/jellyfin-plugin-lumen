@@ -18,6 +18,9 @@ Run against the release build on the latest stable Jellyfin.
       to playlist and Refresh metadata each open jellyfin-web's own dialog, and a saved edit shows on the page without
       a reload. Copy stream URL puts the file's link on the clipboard. As a restricted user, More shows only what their
       policy allows. A card's right-click menu ends in "More actions…" with the same list.
+- [ ] Delete a collection from its card's "More actions…": the card leaves the grid, and stays gone after opening
+      another title and coming Back. Delete one from its own page: Back lands on the grid without it.
+- [ ] Switch seasons on a series page: the ⋯ beside the picker always opens the season shown (its title is in the menu).
 - [ ] Unticking "Replace the home screen" in the dashboard restores the stock home after a reload.
 
 ## Safari (macOS or iOS)
@@ -58,6 +61,8 @@ real phone shows what the installer and the launch do.
 - [ ] Returning home restores focus to the last selected card.
 - [ ] Details: More is reachable with the arrow keys, its menu opens with Enter, and Back closes a dialog it opened,
       with focus back on More.
+- [ ] On a real TV browser, a home card's "More actions…" opens the title's page (jellyfin-web hasn't loaded its item
+      menu on home there); that page's More has the actions.
 
 ## Admin
 

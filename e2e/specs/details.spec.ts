@@ -234,7 +234,7 @@ test('Mark as unwatched? goes away when jellyfin-web changes page, leaving the t
   expect(data.Played).toBe(true);
 });
 
-const more = (page: Page) => page.locator('#lmn-root .lmn-details__header').getByRole('button', { name: 'More', exact: true });
+const more = (page: Page) => page.locator('#lmn-root .lmn-details__header').getByRole('button', { name: /^More actions for / });
 
 test("More offers an administrator jellyfin-web's item actions", { tag: '@smoke' }, async ({ page }) => {
   const { items } = loadState();
@@ -309,6 +309,47 @@ test.describe("More's Add to collection", () => {
     expect(collectionId).toBeTruthy();
     await expect(page).toHaveURL(new RegExp(`#/details\\?id=${collectionId}`));
     await expect(collection.getByRole('list', { name: 'In this collection' }).getByText('Lumen Alpha')).toBeVisible();
+  });
+});
+
+test.describe("a card's More actions… Delete", () => {
+  const ids: string[] = [];
+  test.afterEach(async () => {
+    // The test deletes one through jellyfin-web; whatever is left goes here.
+    const left = ids.splice(0);
+    for (const id of left) await api('/Items', { method: 'DELETE', token: loadState().admin.token, query: { ids: id } }).catch(() => undefined);
+  });
+
+  test('takes the card off the grid, and Back to the grid does not bring it back', async ({ page }) => {
+    const { admin, items } = loadState();
+    const collection = async (name: string, movie: string) =>
+      (await api<{ Id: string }>('/Collections', { method: 'POST', token: admin.token, query: { name, ids: items[movie] } })).Id;
+    ids.push(await collection('Lumen Doomed Set', 'Lumen Alpha'), await collection('Lumen Kept Set', 'Lumen Gamma'));
+    const views = await api<{ Items: { Id: string; CollectionType?: string }[] }>('/UserViews', {
+      token: admin.token,
+      query: { userId: admin.userId },
+    });
+    const movies = views.Items.find((v) => v.CollectionType === 'movies')!.Id;
+    await login(page, ADMIN);
+    await page.goto(`/web/#/movies?topParentId=${movies}&collectionType=movies&tab=3`);
+
+    const grid = page.locator('#lmn-root');
+    const doomed = grid.getByRole('link', { name: 'Lumen Doomed Set' });
+    await doomed.click({ button: 'right' });
+    await page.getByRole('menu', { name: 'Actions for Lumen Doomed Set' }).getByRole('menuitem', { name: 'More actions…' }).click();
+    await page.getByRole('menu', { name: 'More actions for Lumen Doomed Set' }).getByRole('menuitem', { name: 'Delete collection' }).click();
+    // jellyfin-web's own confirmation.
+    await page.locator('.dialogContainer .dialog').getByRole('button', { name: 'Delete' }).click();
+
+    await expect(doomed).toHaveCount(0);
+    await expect(grid.getByRole('link', { name: 'Lumen Kept Set' })).toBeVisible();
+
+    // Back restores the grid as it was saved when the other card was opened: still without the deleted one.
+    await grid.getByRole('link', { name: 'Lumen Kept Set' }).click();
+    await expect(page.locator('#lmn-root .lmn-details--collection')).toBeVisible();
+    await page.goBack();
+    await expect(grid.getByRole('link', { name: 'Lumen Kept Set' })).toBeVisible();
+    await expect(doomed).toHaveCount(0);
   });
 });
 

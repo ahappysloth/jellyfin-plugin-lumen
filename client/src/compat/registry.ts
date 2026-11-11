@@ -244,6 +244,13 @@ export const ITEM_MENU_METHODS = ['getCommands', 'show'] as const;
  * export shape (`default.show` is the named `show`).
  */
 export const ACTION_SHEET_MARKERS = ['actionSheetMenuItem', 'resolveOnClick'] as const;
+/**
+ * jellyfin-web's refresh dialog (components/refreshdialog/refreshdialog.js). The item menu's `show` resolves for
+ * "refresh" as soon as it has asked for the dialog's chunk, before the dialog opens (12.1–12.4), so Lumen finds the
+ * dialog itself, by its refresh-mode field, and waits for the `close` event dialogHelper sends on the dialog element
+ * once it's gone. Its form submits on "Refresh"; Cancel closes it without submitting.
+ */
+export const REFRESH_DIALOG = { field: '#selectMetadataRefreshMode', dialog: '.dialog' } as const;
 
 /**
  * jellyfin-web's metadata manager (`#/metadata?id=`, controllers/edititemmetadata.js via scripts/editorsidebar.js),

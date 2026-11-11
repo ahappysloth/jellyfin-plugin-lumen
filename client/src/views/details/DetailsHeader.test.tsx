@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/preact';
+import { act, fireEvent, render, screen } from '@testing-library/preact';
 import { useEffect } from 'preact/hooks';
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeClient } from '../../../test/fakeClient';
@@ -121,7 +121,7 @@ describe('DetailsHeader', () => {
 
   it('shows More only with actions to offer, and opens them under it', () => {
     const { rerender } = renderHeader();
-    expect(screen.queryByRole('button', { name: 'More' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^More/ })).toBeNull();
 
     const open = vi.fn();
     const more = { item: movie, commands: ['edit' as const], open };
@@ -142,9 +142,15 @@ describe('DetailsHeader', () => {
         more={more}
       />,
     );
-    const button = screen.getByRole('button', { name: 'More' });
+    // Named for its title, and expanded while its menu is open, as the Dropdown is.
+    const button = screen.getByRole('button', { name: `More actions for ${movie.Name}` });
     expect(button).toHaveAttribute('aria-haspopup', 'menu');
+    expect(button).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(button);
     expect(open).toHaveBeenCalledWith(expect.objectContaining({ returnFocus: button, anchor: button }));
+    expect(button).toHaveAttribute('aria-expanded', 'true');
+    const { onClose } = (open.mock.calls[0] as unknown as [{ onClose: () => void }])[0];
+    act(() => onClose());
+    expect(button).toHaveAttribute('aria-expanded', 'false');
   });
 });

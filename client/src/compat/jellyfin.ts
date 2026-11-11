@@ -40,14 +40,13 @@ export interface JellyfinApiClient {
   getUrl(name: string, params?: Record<string, unknown>): string;
   ajax(request: AjaxRequest): Promise<unknown>;
   getPublicSystemInfo?(): Promise<{ Version?: string; ServerName?: string }>;
-  /**
-   * Server messages over the web socket, by MessageType (12.2+; jellyfin-web's notifications use it for
-   * LibraryChanged). Returns the unsubscribe.
-   */
-  subscribe?(types: string[], listener: (message: { Data?: unknown }) => void): () => void;
   /** The connected server's id (jellyfin-web's ApiClient has it; absent in older or test clients). */
   serverId?(): string | null;
-  /** The server's websocket messages of these types (compat/registry.ts RESTART_MESSAGES); returns an unsubscribe. */
+  /**
+   * The server's web socket messages of these types (compat/registry.ts: RESTART_MESSAGES, and LibraryChanged as
+   * jellyfin-web's own pages listen for it). Returns an unsubscribe, but isn't typed by jellyfin-web: check that it's a
+   * function before calling it, and check `subscribe` is one too.
+   */
   subscribe?(
     types: string[],
     onMessage: (message: { MessageType?: string; Data?: unknown }) => void,

@@ -25,6 +25,19 @@ export async function fetchHome(api: LumenApi, retryDelayMs = 500): Promise<Home
   }
 }
 
+/** Home without a title deleted from its card's menu: out of the hero and the rows (a row left empty goes too). */
+export function withoutItem(home: HomeResponse, itemId: string): HomeResponse {
+  return {
+    ...home,
+    Hero: home.Hero.filter((h) => h.Item.Id !== itemId),
+    Rows: home.Rows.map((row) => ({
+      ...row,
+      Items: row.Items.filter((i) => i.Id !== itemId),
+      Entries: row.Entries?.filter((e) => e.Item?.Id !== itemId),
+    })).filter((row) => row.Items.length > 0 || !!row.Entries?.length),
+  };
+}
+
 export const isEmptyHome = (home: HomeResponse): boolean => home.Hero.length === 0 && home.Rows.length === 0;
 
 /** The cached home, unless it is empty (an empty home means "use stock", so it is never worth showing). */

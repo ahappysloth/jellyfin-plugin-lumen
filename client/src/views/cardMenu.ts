@@ -1,3 +1,4 @@
+import { useState } from 'preact/hooks';
 import type { BaseItem } from '../api/types';
 import { infoHash } from '../compat/jellyfin';
 import { type MenuEntry, openContextMenu } from '../components/ContextMenu';
@@ -23,6 +24,13 @@ export interface CardMenuOptions {
   onError?: (message: string) => void;
   /** Called before the menu leaves the page (Play, More info, Open), e.g. so a grid can save its scroll position. */
   beforeNavigate?: (item: BaseItem) => void;
+  /**
+   * The title was deleted from "More actions…": the list should drop its card. Saved grids and the cached home are
+   * already taken care of (views/itemChanges.ts).
+   */
+  onDeleted?: (item: BaseItem) => void;
+  /** The title was edited from "More actions…": the list can show it as the server now has it. */
+  onChanged?: (fresh: BaseItem) => void;
 }
 
 /**
@@ -62,7 +70,13 @@ export function cardMenuEntries(
             separated: true,
             onSelect: () =>
               void loadItemMenu()
-                .then((menu) => menu.openItemMenuAt(ctx, item, at))
+                .then((menu) =>
+                  menu.openItemMenuAt(ctx, item, at, {
+                    onDeleted: options.onDeleted,
+                    onChanged: options.onChanged,
+                    openDetails: go,
+                  }),
+                )
                 .catch(() => onError(strings.itemMenuFailed)),
           },
         ]
@@ -107,4 +121,23 @@ export function cardMenuHandler(ctx: ViewContext, options: CardMenuOptions = {})
       returnFocus: from,
       label: strings.actionsFor(item.Name),
     });
+}
+
+/**
+ * cardMenuHandler for a list that keeps its items as they loaded: `shown` leaves out the titles deleted from their
+ * card's "More actions…" since.
+ */
+export function useCardMenu(
+  ctx: ViewContext,
+  options: CardMenuOptions = {},
+): { onMenu: CardMenuHandler; shown: <T extends BaseItem>(items: T[]) => T[] } {
+  const [deleted, setDeleted] = useState<ReadonlySet<string>>(new Set());
+  const onMenu = cardMenuHandler(ctx, {
+    ...options,
+    onDeleted: (item) => {
+      setDeleted((ids) => new Set(ids).add(item.Id));
+      options.onDeleted?.(item);
+    },
+  });
+  return { onMenu, shown: (items) => (deleted.size ? items.filter((i) => !deleted.has(i.Id)) : items) };
 }
