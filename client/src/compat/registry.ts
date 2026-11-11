@@ -4,8 +4,9 @@
  * (e2e/specs/stock-probe.spec.ts checks each selector matches on its page; stock-routes.spec.ts checks no route
  * Lumen links to is jellyfin-web's 404 page). When jellyfin-web changes, fix it here.
  *
- * The CSS (styles/base.css, player.css, stock-skin.css, dashboard.css) can't import this module, so it repeats the selectors it
- * needs; `css` names the stylesheet that does, and registry.test.ts checks the selector text really occurs there.
+ * The CSS (styles/base.css, player.css, stock-skin.css, dashboard.css, nav.css) can't import this module, so it repeats
+ * the selectors it needs; `css` names the stylesheet that does, and registry.test.ts checks the selector text really
+ * occurs there.
  * Evidence for each entry: docs/reference/jellyfin-web-12.1-notes.md.
  *
  * Pure data: no DOM access and no imports, so the inline guard and the e2e suite can import it cheaply.
@@ -19,7 +20,7 @@ export interface StockSelector {
   selector: string;
   probe: ProbePage | null;
   /** The stylesheet that repeats this selector, if any. */
-  css?: 'base.css' | 'player.css' | 'stock-skin.css' | 'dashboard.css';
+  css?: 'base.css' | 'player.css' | 'stock-skin.css' | 'dashboard.css' | 'nav.css';
 }
 
 export const STOCK_SELECTORS = {
@@ -38,6 +39,11 @@ export const STOCK_SELECTORS = {
   /** jellyfin-web's cold-load splash and spinner (gone by the time a probe could look). */
   splashLogo: { selector: '.splashLogo', probe: null, css: 'base.css' },
   spinner: { selector: '.docspinner', probe: null, css: 'base.css' },
+  /**
+   * jellyfin-web's fixed footer (components/appFooter): the music now-playing bar renders inside it, so it's what
+   * nav.css lifts above Lumen's phone tab bar. Always in the DOM, empty until something plays.
+   */
+  appFooter: { selector: '.appfooter', probe: 'home', css: 'nav.css' },
   /** The player's own controls, hidden under Lumen's. */
   videoOsd: { selector: '.videoOsdBottom', probe: 'player', css: 'player.css' },
   /** jellyfin-web's volume card (components/playback/volumeosd.js); Lumen's controls show the volume instead. */

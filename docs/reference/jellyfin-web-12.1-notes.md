@@ -310,6 +310,7 @@ There is no `main` element in the legacy layout.
 - Give our root an opaque background, or also hide `.backdropContainer` while active.
 - The legacy home header still shows the Home/Favorites tabs (`.skinHeader .headerTabs`). The modern home also adds `noHomeButtonHeader` to `.skinHeader`.
 - The now-playing bar lives in `body > .appfooter`, outside `#reactRoot`, so it stays visible.
+  `.appfooter` is the fixed element (`bottom: 0`, `padding-bottom: env(safe-area-inset-bottom)`, z-index 1201); `.nowPlayingBar` inside it isn't positioned, so offsetting the bar itself does nothing (checked in 12.4).
 
 ## Later findings (checked against the 12.2 and 12.4 Docker images)
 
