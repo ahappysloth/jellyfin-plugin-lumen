@@ -9,8 +9,11 @@ export const VEIL_ID = 'lmn-veil';
 export const PENDING_CLASS = 'lmn-pending';
 const NAME_KEY = 'lmn-server-name';
 const LIFT_MS = 900;
-/** How long the veil waits before saying it's slow and offering Try again (the server may be down). */
-export const SLOW_MS = 6000;
+/**
+ * How long the veil waits before saying it's slow and offering Try again (the server may be down). The same as the
+ * guard's SAFETY_MS (runGuard.ts): a page that loads in the time the guard allows never sees the message.
+ */
+export const SLOW_MS = 8000;
 /**
  * The veil ships in the inline guard, before Lumen's strings (and any network) are there, so these two are inline.
  * Keep them in step with strings.ts's tone.
@@ -81,7 +84,9 @@ function showSlow(doc: Document, veil: HTMLElement): void {
   slow.querySelector('p')!.textContent = SLOW_TEXT;
   const retry = slow.querySelector('button')!;
   retry.textContent = RETRY_TEXT;
-  retry.addEventListener('click', () => doc.defaultView?.location.reload());
+  retry.addEventListener('click', () => {
+    if (!veil.classList.contains('is-lifting')) doc.defaultView?.location.reload();
+  });
   veil.appendChild(slow);
   // A TV remote needs something focused to press.
   retry.focus();
@@ -93,6 +98,14 @@ export function liftVeil(doc: Document = document): void {
   const veil = doc.getElementById(VEIL_ID);
   if (!veil || veil.classList.contains('is-lifting')) return;
   veil.classList.add('is-lifting');
+  // Lumen's page is ready: a remote's OK while the veil rises mustn't press its Try again and reload. Disabled and
+  // blurred rather than `inert`, which TV browsers don't know.
+  veil.setAttribute('aria-hidden', 'true');
+  const retry = veil.querySelector('button');
+  if (retry) {
+    retry.disabled = true;
+    retry.blur();
+  }
   const remove = (): void => veil.remove();
   veil.addEventListener('transitionend', remove, { once: true });
   setTimeout(remove, LIFT_MS + 200);
