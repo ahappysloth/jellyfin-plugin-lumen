@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type APIResponse, type Page, type Route } from '@playwright/test';
 import { STOCK_SELECTORS } from '../../client/src/compat/registry';
 import { ADMIN } from '../support/api';
 import { login } from '../support/login';
@@ -12,23 +12,32 @@ import { login } from '../support/login';
 // jellyfin-web's service worker would fetch some of these itself after the reload, past the stubs.
 test.use({ serviceWorkers: 'block' });
 
+/**
+ * Answers with the server's response, rewritten. The page reloads after the restart, and a request still in flight then
+ * has its response disposed (Firefox): that one is abandoned, not an error.
+ */
+async function rewrite(route: Route, json: (response: APIResponse) => Promise<unknown>): Promise<void> {
+  try {
+    const response = await route.fetch();
+    await route.fulfill({ response, json: await json(response) });
+  } catch {
+    await route.abort().catch(() => undefined);
+  }
+}
+
 async function stubRestart(page: Page): Promise<{ restarts: () => number }> {
   let pending = true;
   let restarts = 0;
-  await page.route(/\/System\/Info(\?|$)/, async (route) => {
-    const response = await route.fetch();
-    const info = (await response.json()) as Record<string, unknown>;
-    await route.fulfill({ response, json: { ...info, HasPendingRestart: pending } });
-  });
-  await page.route(/\/Plugins(\?|$)/, async (route) => {
-    const response = await route.fetch();
-    // Whatever the server really has waiting is left out, so the message is always the same.
-    const plugins = ((await response.json()) as Record<string, unknown>[]).map((p) => ({ ...p, Status: 'Active' }));
-    await route.fulfill({
-      response,
-      json: [...plugins, { Name: 'Webhook', Id: 'b0000000000000000000000000000000', Version: '22.0.0.0', Status: 'Restart' }],
-    });
-  });
+  await page.route(/\/System\/Info(\?|$)/, (route) =>
+    rewrite(route, async (response) => ({ ...((await response.json()) as object), HasPendingRestart: pending })),
+  );
+  await page.route(/\/Plugins(\?|$)/, (route) =>
+    rewrite(route, async (response) => {
+      // Whatever the server really has waiting is left out, so the message is always the same.
+      const plugins = ((await response.json()) as Record<string, unknown>[]).map((p) => ({ ...p, Status: 'Active' }));
+      return [...plugins, { Name: 'Webhook', Id: 'b0000000000000000000000000000000', Version: '22.0.0.0', Status: 'Restart' }];
+    }),
+  );
   await page.route(/\/System\/Restart(\?|$)/, async (route) => {
     restarts++;
     pending = false; // as if Jellyfin restarted quicker than the banner's first check
