@@ -21,6 +21,10 @@ export interface BrowseState {
   offset: number;
   loadMore: () => void;
   retry: () => void;
+  /** A title was deleted: its card goes, and the next page starts one earlier on the server. */
+  remove: (itemId: string) => void;
+  /** A title was edited: its card shows it as the server now has it. */
+  replace: (fresh: BaseItem) => void;
 }
 
 export type Fetch = (query: Pick<BrowseQuery, 'startIndex' | 'limit' | 'count'>) => Promise<ItemsResult>;
@@ -142,6 +146,16 @@ export function useBrowseItems(
     offset: offset.current,
     loadMore: () => load(false),
     retry: () => load(state.current.items.length === 0),
+    remove: (itemId) => {
+      const current = state.current;
+      const next = current.items.filter((i) => i.Id !== itemId);
+      if (next.length === current.items.length) return;
+      offset.current = Math.max(0, offset.current - 1);
+      state.current = { ...current, items: next };
+      setItems(next);
+      setTotal((t) => (t === null ? t : Math.max(0, t - 1)));
+    },
+    replace: (fresh) => setItems((list) => list.map((i) => (i.Id === fresh.Id ? { ...i, ...fresh } : i))),
   };
 }
 

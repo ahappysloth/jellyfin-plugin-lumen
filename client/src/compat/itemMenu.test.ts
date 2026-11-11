@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { BaseItem } from '../api/types';
-import { canOpenItemDialogs, findItemMenu, ItemDialogUnavailable, openItemDialog } from './itemMenu';
+import {
+  canOpenItemDialogs,
+  findItemMenu,
+  ItemDialogUnavailable,
+  openItemDialog,
+  stockItemCommands,
+  whenRefreshDialogCloses,
+} from './itemMenu';
 
 /** Minified sources: what the search sees of each module (12.4's chunks, abridged). */
 const MENU_SOURCE =
@@ -144,5 +151,70 @@ describe('openItemDialog', () => {
   it('throws ItemDialogUnavailable when jellyfin-web has no item menu on this page', async () => {
     const win = { document } as unknown as Window;
     await expect(openItemDialog(item, user, 'edit', win)).rejects.toBeInstanceOf(ItemDialogUnavailable);
+  });
+});
+
+describe('stockItemCommands', () => {
+  it("asks jellyfin-web's own getCommands for the item and user", async () => {
+    const { win, menu } = fakeJellyfinWeb({ offers: ['edit', 'refresh', 'delete'] });
+    await expect(stockItemCommands(item, user, win)).resolves.toEqual(['edit', 'refresh', 'delete']);
+    expect(menu.getCommands).toHaveBeenCalledWith({ item, user });
+  });
+
+  it("is null when it can't be asked, or fails", async () => {
+    await expect(stockItemCommands(item, user, { document } as unknown as Window)).resolves.toBeNull();
+    const { win, menu } = fakeJellyfinWeb();
+    menu.getCommands.mockRejectedValueOnce(new Error('offline'));
+    await expect(stockItemCommands(item, user, win)).resolves.toBeNull();
+  });
+});
+
+describe("refresh's dialog", () => {
+  /** jellyfin-web's refresh dialog as dialogHelper shows it: a .dialog with the form, sending `close` once it's gone. */
+  function showRefreshDialog() {
+    const dialog = document.createElement('div');
+    dialog.className = 'dialog';
+    dialog.innerHTML =
+      '<form><select id="selectMetadataRefreshMode"></select><button type="submit">Refresh</button></form>';
+    document.body.appendChild(dialog);
+    const close = () => {
+      dialog.remove();
+      dialog.dispatchEvent(new CustomEvent('close'));
+    };
+    return {
+      submit: () => {
+        dialog.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        close();
+      },
+      cancel: close,
+    };
+  }
+
+  it('resolves only once the dialog that opens after the menu has resolved closes, saying it was started', async () => {
+    const { win } = fakeJellyfinWeb({ offers: ['refresh'] });
+    let settled = false;
+    const pending = openItemDialog(item, user, 'refresh', win).then((r) => {
+      settled = true;
+      return r;
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(settled).toBe(false); // jellyfin-web's menu has resolved; its dialog is still loading
+    const dialog = showRefreshDialog();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(settled).toBe(false);
+    dialog.submit();
+    await expect(pending).resolves.toEqual({ updated: false, deleted: false, refreshQueued: true });
+  });
+
+  it('says so when it was cancelled', async () => {
+    const closed = whenRefreshDialogCloses(window);
+    const dialog = showRefreshDialog();
+    await new Promise((r) => setTimeout(r, 0));
+    dialog.cancel();
+    await expect(closed).resolves.toBe(false);
+  });
+
+  it("gives up on a dialog that doesn't open", async () => {
+    await expect(whenRefreshDialogCloses(window, 10)).resolves.toBeNull();
   });
 });

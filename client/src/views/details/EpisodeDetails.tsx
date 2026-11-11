@@ -10,7 +10,7 @@ import { resumeTicks } from '../../playback/play';
 import { strings } from '../../strings';
 import { useItemMenu } from '../itemMenu/lazyItemMenu';
 import type { DetailsProps } from './DetailsView';
-import { cardMenuHandler } from '../cardMenu';
+import { useCardMenu } from '../cardMenu';
 import { deriveBadges } from './badges';
 import { downloadLink } from './download';
 import { CastRow } from './CastRow';
@@ -105,7 +105,7 @@ export function EpisodeDetails({ episode, ctx, reload }: DetailsProps & { episod
     ? episodeNeighbors(episode.Id, loaded.season, loaded.before, loaded.after)
     : { previous: null, next: null };
   const open = (item: BaseItem): void => ctx.navigate(detailsHash(item.Id, item.ServerId));
-  const onMenu = cardMenuHandler(ctx);
+  const { onMenu, shown } = useCardMenu(ctx);
 
   return (
     <article ref={rootRef} class="lmn-details lmn-details--episode">
@@ -169,7 +169,7 @@ export function EpisodeDetails({ episode, ctx, reload }: DetailsProps & { episod
         <section class="lmn-row" aria-label={strings.moreFromSeason(loaded.seasonName)}>
           <h2 class="lmn-row__title">{strings.moreFromSeason(loaded.seasonName)}</h2>
           <div class="lmn-row__scroller focuscontainer-x">
-            {loaded.season.map((e) => (
+            {shown(loaded.season).map((e) => (
               <Card
                 key={e.Id}
                 item={e}

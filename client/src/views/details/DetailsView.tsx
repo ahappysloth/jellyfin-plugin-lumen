@@ -4,6 +4,7 @@ import type { BaseItem } from '../../api/types';
 import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import type { ViewContext } from '../context';
 import { strings } from '../../strings';
+import { rememberEdit } from '../itemChanges';
 import { liftVeil } from '../../veil/veil';
 import { PageError } from '../pageError';
 import { CollectionDetails } from './CollectionDetails';
@@ -99,8 +100,11 @@ export function DetailsView({ id, ctx }: { id: string; ctx: ViewContext }) {
         if (cancelled) return;
         setRetrying(false);
         setFailure(null);
-        if (result) setResolved(result);
-        else if (version === 0) ctx.onFallback();
+        if (result) {
+          setResolved(result);
+          // After an edit from the ⋯ menu: Back shows the title as it is now.
+          if (version > 0) rememberEdit(ctx.userId, result.item);
+        } else if (version === 0) ctx.onFallback();
       })
       // jellyfin-web's own page would only spin forever here (the item is gone, or the server is down): say which.
       .catch((error: unknown) => {

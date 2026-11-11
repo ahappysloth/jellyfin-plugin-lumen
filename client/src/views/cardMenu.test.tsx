@@ -5,7 +5,7 @@ import { makeContext } from '../../test/viewContext';
 import type { BaseItem } from '../api/types';
 import { ConfirmHost } from '../components/ConfirmDialog';
 import { ToastHost } from '../components/Toast';
-import { cardMenuEntries } from './cardMenu';
+import { cardMenuEntries, infoHash } from './cardMenu';
 import { clearUserData, userDataValue } from './userDataStore';
 
 const movie: BaseItem = {
@@ -78,11 +78,25 @@ describe('cardMenuEntries', () => {
     const ctx = makeContext(createFakeClient());
     const at = { x: 5, y: 6, returnFocus: null };
 
-    const entries = cardMenuEntries(movie, ctx, {}, at);
+    const onDeleted = vi.fn();
+    const onChanged = vi.fn();
+    const beforeNavigate = vi.fn();
+    const entries = cardMenuEntries(movie, ctx, { onDeleted, onChanged, beforeNavigate }, at);
     expect(entries.map((e) => e.label).slice(-1)).toEqual(['More actions…']);
     expect(entry(entries, 'More actions…').separated).toBe(true);
     entry(entries, 'More actions…').onSelect();
-    await waitFor(() => expect(openItemMenuAt).toHaveBeenCalledWith(ctx, movie, at));
+    // The list hears of a delete or an edit; without jellyfin-web's item menu, the card opens its details page.
+    await waitFor(() =>
+      expect(openItemMenuAt).toHaveBeenCalledWith(ctx, movie, at, {
+        onDeleted,
+        onChanged,
+        openDetails: expect.any(Function),
+      }),
+    );
+    const hooks = (openItemMenuAt.mock.calls[0] as unknown[])[3] as { openDetails: () => void };
+    hooks.openDetails();
+    expect(beforeNavigate).toHaveBeenCalledWith(movie);
+    expect(ctx.navigate).toHaveBeenCalledWith(infoHash(movie));
     vi.doUnmock('./itemMenu/itemMenu');
 
     // Not for a genre, nor where the menu's place isn't known.

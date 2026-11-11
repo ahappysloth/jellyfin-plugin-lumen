@@ -5,7 +5,7 @@ import { Card } from '../../components/Card';
 import { LoadError } from '../../components/LoadError';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { strings } from '../../strings';
-import { cardMenuHandler, infoHash } from '../cardMenu';
+import { infoHash, useCardMenu } from '../cardMenu';
 import type { ViewContext } from '../context';
 import { captionFor, Row } from '../home/Row';
 import { PageHeader } from './Toolbar';
@@ -104,7 +104,7 @@ export function SuggestionsTab({
     };
   }, [id, ctx.userId, attempt]);
 
-  const onMenu = cardMenuHandler(ctx);
+  const { onMenu, shown: visible } = useCardMenu(ctx);
   return (
     <div ref={rootRef} class="lmn-browse lmn-suggestions">
       <PageHeader title={title} tabs={tabs} />
@@ -117,7 +117,7 @@ export function SuggestionsTab({
       {rows?.map((r) => (
         <Row
           key={r.Id}
-          row={r}
+          row={{ ...r, Items: visible(r.Items) }}
           client={ctx.client}
           onSelect={(item) => ctx.navigate(infoHash(item))}
           onMenu={onMenu}
@@ -187,8 +187,8 @@ export function UpcomingTab({
     };
   }, [id, ctx.userId, attempt]);
 
-  const groups = items ? groupByAirDay(items) : [];
-  const onMenu = cardMenuHandler(ctx);
+  const { onMenu, shown: visible } = useCardMenu(ctx);
+  const groups = items ? groupByAirDay(visible(items)) : [];
   return (
     <div ref={rootRef} class="lmn-browse lmn-upcoming">
       <PageHeader title={title} tabs={tabs} />

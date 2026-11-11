@@ -9,7 +9,7 @@ import { usePrefersReducedMotion } from '../../components/usePrefersReducedMotio
 import { strings } from '../../strings';
 import { formatDate } from '../../util/locale';
 import type { PreparedMenu } from '../itemMenu/itemMenu';
-import { openUnder } from '../itemMenu/lazyItemMenu';
+import { useMoreButton } from '../itemMenu/lazyItemMenu';
 import { LazyTrailer } from '../home/lazyTrailer';
 import { formatRuntime } from './badges';
 import { type DownloadLink, nativeDownload } from './download';
@@ -75,6 +75,7 @@ export function DetailsHeader(props: Props) {
   const [paused, setPaused] = useState(false);
   const [trailerPlaying, setTrailerPlaying] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
+  const moreButton = useMoreButton(props.more ?? null);
   const backdrop =
     props.image ??
     resolveImage(item, ['Backdrop']) ??
@@ -251,9 +252,10 @@ export function DetailsHeader(props: Props) {
             <button
               type="button"
               class="lmn-button lmn-button--secondary"
-              aria-label={strings.more}
+              aria-label={strings.moreActionsFor(item.Name)}
               aria-haspopup="menu"
-              onClick={(e) => openUnder(props.more!, e.currentTarget)}
+              aria-expanded={moreButton.expanded}
+              onClick={(e) => moreButton.open(e.currentTarget)}
             >
               <Icon name="more" />
               <span class="lmn-button__label">{strings.more}</span>

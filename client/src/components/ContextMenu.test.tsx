@@ -121,4 +121,30 @@ describe('ContextMenu', () => {
     fireEvent.scroll(screen.getByRole('menu'));
     expect(screen.queryByRole('menu')).not.toBeNull();
   });
+
+  it('says when it has closed: an entry picked, dismissed, or another menu opened in its place', () => {
+    render(<ContextMenuHost />);
+    const menu = (onClose: () => void) =>
+      openContextMenu({
+        x: 0,
+        y: 0,
+        returnFocus: null,
+        label: 'm',
+        entries: [{ label: 'A', icon: 'play', onSelect: vi.fn() }],
+        onClose,
+      });
+    const first = vi.fn();
+    act(() => menu(first));
+    expect(first).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'A' }));
+    expect(first).toHaveBeenCalledTimes(1);
+
+    const second = vi.fn();
+    const third = vi.fn();
+    act(() => menu(second));
+    act(() => menu(third));
+    expect(second).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    expect(third).toHaveBeenCalledTimes(1);
+  });
 });

@@ -3,6 +3,8 @@ import {
   clearBrowseState,
   getChoice,
   hasSnapshot,
+  removeFromSnapshots,
+  replaceInSnapshots,
   saveChoice,
   saveSnapshot,
   SNAPSHOT_TTL_MS,
@@ -75,5 +77,28 @@ describe('browseStore', () => {
     expect(getChoice('c', null)).toEqual({ sort: 'title' });
     clearBrowseState();
     expect(getChoice('c', 'fallback')).toBe('fallback');
+  });
+
+  it('takes a deleted title out of every saved grid, which then pages on from one earlier', () => {
+    const a = { Id: 'a', Name: 'A', Type: 'Movie' };
+    const b = { Id: 'b', Name: 'B', Type: 'Movie' };
+    saveSnapshot('k1', { items: [a, b], total: 90, scrollY: 400, offset: 60, selectedId: 'a' });
+    saveSnapshot('k2', { items: [b], total: 1, scrollY: 0 });
+    removeFromSnapshots('a');
+    expect(takeSnapshot('k1')).toEqual({
+      items: [b],
+      total: 89,
+      scrollY: 400,
+      offset: 59,
+      selectedId: undefined,
+    });
+    expect(takeSnapshot('k2')).toEqual({ items: [b], total: 1, scrollY: 0 });
+  });
+
+  it('shows an edited title as the server now has it, keeping what the grid had', () => {
+    const a = { Id: 'a', Name: 'A', Type: 'Movie', UserData: { Played: true } };
+    saveSnapshot('k', { items: [a], total: 1, scrollY: 0 });
+    replaceInSnapshots({ Id: 'a', Name: 'A, renamed', Type: 'Movie' });
+    expect(takeSnapshot('k')!.items).toEqual([{ ...a, Name: 'A, renamed' }]);
   });
 });

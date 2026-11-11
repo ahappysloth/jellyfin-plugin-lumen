@@ -15,7 +15,7 @@
  * caller falls back to a stock page.
  */
 import type { BaseItem } from '../api/types';
-import { ACTION_SHEET_MARKERS, ITEM_MENU_MARKERS, ITEM_MENU_METHODS } from './registry';
+import { ACTION_SHEET_MARKERS, ITEM_MENU_MARKERS, ITEM_MENU_METHODS, REFRESH_DIALOG } from './registry';
 import { webpackRequire } from './playbackManager';
 
 /** What jellyfin-web's item menu reports once the dialog closes. */
@@ -23,6 +23,11 @@ export interface ItemDialogResult {
   /** The item changed (metadata saved, added to a collection or playlist, subtitles changed). */
   updated: boolean;
   deleted: boolean;
+  /**
+   * Refresh only: whether the user started it (true) or cancelled the dialog (false). Undefined when the dialog wasn't
+   * seen to open.
+   */
+  refreshQueued?: boolean;
 }
 
 interface SheetOptions {
@@ -33,6 +38,8 @@ interface ActionSheet {
   show(options: SheetOptions): Promise<string>;
 }
 interface ItemMenuModule {
+  /** Async in 12.4 (it may ask the server whether a playlist is editable); a plain list before. */
+  getCommands(options: Record<string, unknown>): Promise<{ id?: unknown }[]> | { id?: unknown }[];
   show(options: Record<string, unknown>): Promise<{ updated?: boolean; deleted?: boolean } | undefined>;
 }
 interface Found {
@@ -105,6 +112,65 @@ export function canOpenItemDialogs(win: Window = window): boolean {
 }
 
 /**
+ * The command ids jellyfin-web's own ⋯ menu would list for this item and user (its `getCommands`), or null when Lumen
+ * can't ask it here. It knows what Lumen's port of its rules (views/itemMenu/itemCommands.ts) can't: whether the
+ * browser is a TV and whether the app can save files.
+ */
+export async function stockItemCommands(
+  item: BaseItem,
+  user: unknown,
+  win: Window = window,
+): Promise<string[] | null> {
+  const modules = findItemMenu(win);
+  if (!modules) return null;
+  try {
+    const commands = await modules.menu.getCommands({ item, user });
+    if (!Array.isArray(commands)) return null;
+    return commands.map((c) => c?.id).filter((id): id is string => typeof id === 'string');
+  } catch {
+    return null;
+  }
+}
+
+/** How long the refresh dialog's chunk may take to load and show it. */
+const REFRESH_DIALOG_WAIT_MS = 10_000;
+
+/** Resolves once the refresh dialog closes, with whether it was submitted; null if it didn't open in time. */
+export function whenRefreshDialogCloses(
+  win: Window = window,
+  waitMs = REFRESH_DIALOG_WAIT_MS,
+): Promise<boolean | null> {
+  const doc = win.document;
+  const find = (): Element | null =>
+    doc.querySelector(REFRESH_DIALOG.field)?.closest(REFRESH_DIALOG.dialog) ?? null;
+  return new Promise((resolve) => {
+    const watch = (dialog: Element): void => {
+      let submitted = false;
+      // The form's submit reaches the dialog before jellyfin-web's own handler closes it.
+      dialog.addEventListener('submit', () => (submitted = true), true);
+      dialog.addEventListener('close', () => resolve(submitted), { once: true });
+    };
+    const now = find();
+    if (now) return watch(now);
+    const observer = new MutationObserver(() => {
+      const dialog = find();
+      if (!dialog) return;
+      stop();
+      watch(dialog);
+    });
+    const timer = setTimeout(() => {
+      stop();
+      resolve(null);
+    }, waitMs);
+    const stop = (): void => {
+      observer.disconnect();
+      clearTimeout(timer);
+    };
+    observer.observe(doc.body, { childList: true, subtree: true });
+  });
+}
+
+/**
  * Opens jellyfin-web's dialog for one of its item commands (`edit`, `identify`, `editimages`, `editsubtitles`,
  * `moremediainfo`, `addtocollection`, `addtoplaylist`, `refresh`, `delete`, `downloadall`) and resolves once it
  * closes. `item` must be the full item (as `GET /Items/{id}` returns it) and `user` the signed-in user with its Policy:
@@ -136,8 +202,13 @@ export async function openItemDialog(
   };
   sheet.show = answer;
   try {
+    // Watched for before asking: the dialog may open as soon as `show` has its answer.
+    const refresh = command === 'refresh' ? whenRefreshDialogCloses(win) : null;
     const result = await menu.show({ item, user, positionTo: marker });
-    return { updated: !!result?.updated, deleted: !!result?.deleted };
+    const done = { updated: !!result?.updated, deleted: !!result?.deleted };
+    // `show` resolved before the refresh dialog opened: wait for the user to finish with it.
+    if (refresh) return { ...done, refreshQueued: (await refresh) ?? undefined };
+    return done;
   } catch (error) {
     if (!offered) throw new ItemDialogUnavailable(`jellyfin-web doesn't offer ${command} here`);
     throw error;

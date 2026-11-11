@@ -183,4 +183,23 @@ describe('useBrowseItems', () => {
     await settle(() => calls[1]!.resolve(page('p', 2, 2)));
     expect(result.current.total).toBe(2);
   });
+
+  it('drops a deleted title, counting one fewer and paging on from one earlier, and shows an edited one afresh', async () => {
+    const { calls, fetch } = deferredFetch();
+    const { result } = renderHook(() => useBrowseItems('k', fetch));
+    await settle(() => calls[0]!.resolve(page('a', PAGE_SIZE, 100)));
+    expect([result.current.total, result.current.offset]).toEqual([100, PAGE_SIZE]);
+
+    act(() => result.current.remove('a1'));
+    expect(result.current.items.map((i) => i.Id)).not.toContain('a1');
+    expect([result.current.total, result.current.offset]).toEqual([99, PAGE_SIZE - 1]);
+    act(() => result.current.remove('missing'));
+    expect(result.current.total).toBe(99);
+
+    act(() => result.current.replace({ ...item('a2'), Name: 'renamed' }));
+    expect(result.current.items.find((i) => i.Id === 'a2')!.Name).toBe('renamed');
+
+    act(() => result.current.loadMore());
+    expect(calls[1]!.startIndex).toBe(PAGE_SIZE - 1);
+  });
 });

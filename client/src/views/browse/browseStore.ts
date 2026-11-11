@@ -87,6 +87,27 @@ export function updateSnapshots(itemId: string, field: UserDataField, value: boo
   }
 }
 
+/**
+ * A title was deleted: take its card out of every saved grid, so Back doesn't bring back a card that leads nowhere. The
+ * server's list is one shorter now, so the next page starts one earlier.
+ */
+export function removeFromSnapshots(itemId: string): void {
+  for (const { snapshot } of snapshots.values()) {
+    const items = snapshot.items.filter((i) => i.Id !== itemId);
+    if (items.length === snapshot.items.length) continue;
+    snapshot.items = items;
+    snapshot.total = Math.max(0, snapshot.total - 1);
+    if (snapshot.offset !== undefined) snapshot.offset = Math.max(0, snapshot.offset - 1);
+    if (snapshot.selectedId === itemId) snapshot.selectedId = undefined;
+  }
+}
+
+/** A title was edited (renamed, new images…): saved grids show it as the server now has it. */
+export function replaceInSnapshots(fresh: BaseItem): void {
+  for (const { snapshot } of snapshots.values())
+    snapshot.items = snapshot.items.map((i) => (i.Id === fresh.Id ? { ...i, ...fresh } : i));
+}
+
 /** The sort/filter a user last chose for a page, so revisiting Movies keeps "Rating · Unwatched". */
 const choices = new Map<string, unknown>();
 

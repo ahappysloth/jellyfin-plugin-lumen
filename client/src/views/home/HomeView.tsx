@@ -21,6 +21,7 @@ import {
   restoreScrollTop,
   setCachedHome,
   usableCachedHome,
+  withoutItem,
 } from './homeStore';
 import { liftVeil } from '../../veil/veil';
 import { Row } from './Row';
@@ -46,6 +47,8 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
     if (home) liftVeil();
   }, [home !== null]);
 
+  // Fetched again after a title is edited from its card's "More actions…".
+  const [version, setVersion] = useState(0);
   useEffect(() => {
     let cancelled = false;
     withTimeout(fetchHome(ctx.api), VIEW_TIMEOUT_MS)
@@ -60,12 +63,12 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
         }
       })
       .catch(() => {
-        if (!cancelled && !usableCachedHome(ctx.userId)) ctx.onFallback();
+        if (!cancelled && version === 0 && !usableCachedHome(ctx.userId)) ctx.onFallback();
       });
     return () => {
       cancelled = true;
     };
-  }, [ctx.api, ctx.userId]);
+  }, [ctx.api, ctx.userId, version]);
 
   const open = (item: BaseItem): void => ctx.navigate(detailsHash(item.Id, item.ServerId));
   // The hero's Play shows "Starting…" while jellyfin-web opens the player (Lumen hides jellyfin-web's spinner).
@@ -78,7 +81,10 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
         .catch(() => showToast(strings.playbackFailed)),
     );
   };
-  const onMenu = cardMenuHandler(ctx);
+  const onMenu = cardMenuHandler(ctx, {
+    onDeleted: (item) => setHome((current) => current && withoutItem(current, item.Id)),
+    onChanged: () => setVersion((v) => v + 1),
+  });
   const select = (item: BaseItem, row: HomeRow): void => {
     const card = rootRef.current?.querySelector(`[data-row-id="${row.Id}"] [data-item-id="${item.Id}"]`);
     rememberSelection(ctx.userId, {

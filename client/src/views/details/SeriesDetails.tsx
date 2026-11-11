@@ -6,7 +6,7 @@ import { useAutoFocus } from '../../components/useAutoFocus';
 import { resumeTicks } from '../../playback/play';
 import { strings } from '../../strings';
 import { Icon } from '../../components/icons';
-import { openUnder, useItemMenu } from '../itemMenu/lazyItemMenu';
+import { useItemMenu, useMoreButton } from '../itemMenu/lazyItemMenu';
 import type { DetailsProps } from './DetailsView';
 import { CastRow } from './CastRow';
 import { DetailsHeader } from './DetailsHeader';
@@ -32,10 +32,16 @@ export function SeriesDetails({ series, initialSeasonId, ctx, reload }: Props) {
   });
   // Seasons are fetched again after one is edited or deleted from its own ⋯ menu.
   const [seasonsVersion, setSeasonsVersion] = useState(0);
+  // Which load the episodes shown came from: a reload fetches the shown season's again, showing the old ones meanwhile.
+  const [episodesLoad, setEpisodesLoad] = useState(0);
+  const loads = useRef(0);
+  const loadedSeries = useRef<string | null>(null);
   const trailerId = useLocalTrailer(series, ctx);
   const [seasons, setSeasons] = useState<BaseItem[]>([]);
   const [seasonId, setSeasonId] = useState<string | undefined>(initialSeasonId);
-  const [episodesBySeason, setEpisodesBySeason] = useState<Record<string, BaseItem[]>>({});
+  const [episodesBySeason, setEpisodesBySeason] = useState<
+    Record<string, { load: number; items: BaseItem[] }>
+  >({});
   const [smartPlay, setSmartPlay] = useState<SmartPlay | null>(null);
   const rootRef = useRef<HTMLElement>(null);
   useAutoFocus(rootRef, true, ctx.layout);
@@ -53,9 +59,15 @@ export function SeriesDetails({ series, initialSeasonId, ctx, reload }: Props) {
     return request;
   };
 
+  // Again when the page has the series afresh (an edit, Identify or Refresh from its ⋯ menu: its seasons and episodes
+  // may have changed too), or a season was edited or deleted.
   useEffect(() => {
     let cancelled = false;
     const empty = { Items: [] as BaseItem[] };
+    const load = loads.current++;
+    if (load > 0) episodeRequests.current.clear();
+    const reloading = loadedSeries.current === series.Id;
+    loadedSeries.current = series.Id;
     (async () => {
       const [seasonResult, resume, nextUp] = await Promise.all([
         ctx.api.getSeasons(series.Id),
@@ -67,6 +79,7 @@ export function SeriesDetails({ series, initialSeasonId, ctx, reload }: Props) {
       const defaultSeason = list.find((s) => (s.IndexNumber ?? 0) > 0) ?? list[0];
       const target = resume.Items[0] ?? nextUp.Items[0];
       setSeasons(list);
+      setEpisodesLoad(load);
       // After a reload, the season shown stays if it's still there.
       const listed = (id: string | undefined): id is string => !!id && list.some((s) => s.Id === id);
       setSeasonId(
@@ -82,28 +95,27 @@ export function SeriesDetails({ series, initialSeasonId, ctx, reload }: Props) {
       }
       setSmartPlay(computeSmartPlay(resume.Items[0], nextUp.Items[0], first));
     })().catch(() => {
-      if (!cancelled && seasonsVersion === 0) ctx.onFallback();
+      // A reload that fails keeps the page as it was.
+      if (!cancelled && !reloading) ctx.onFallback();
     });
     return () => {
       cancelled = true;
     };
-  }, [series.Id, seasonsVersion]);
-  const reloadSeasons = (): void => {
-    episodeRequests.current.clear();
-    setEpisodesBySeason({});
-    setSeasonsVersion((v) => v + 1);
-  };
+  }, [series, seasonsVersion]);
+  const reloadSeasons = (): void => setSeasonsVersion((v) => v + 1);
   const season = seasons.find((s) => s.Id === seasonId);
   const seasonMore = useItemMenu(ctx, season, { onChanged: reloadSeasons, onDeleted: reloadSeasons });
+  const seasonMoreButton = useMoreButton(seasonMore);
 
   useEffect(() => {
-    if (!seasonId || episodesBySeason[seasonId]) return;
+    if (!seasonId || episodesBySeason[seasonId]?.load === episodesLoad) return;
+    const load = episodesLoad;
     loadEpisodes(seasonId)
-      .then((items) => setEpisodesBySeason((current) => ({ ...current, [seasonId]: items })))
+      .then((items) => setEpisodesBySeason((current) => ({ ...current, [seasonId]: { load, items } })))
       .catch(() => undefined);
-  }, [seasonId]);
+  }, [seasonId, episodesLoad]);
 
-  const episodes = seasonId ? episodesBySeason[seasonId] : undefined;
+  const episodes = seasonId ? episodesBySeason[seasonId]?.items : undefined;
   return (
     <article ref={rootRef} class="lmn-details lmn-details--series">
       <DetailsHeader
@@ -140,13 +152,14 @@ export function SeriesDetails({ series, initialSeasonId, ctx, reload }: Props) {
               onChange={setSeasonId}
             />
           )}
-          {season && seasonMore && (
+          {season && seasonMore?.item.Id === season.Id && (
             <button
               type="button"
               class="lmn-icon-button lmn-icon-button--lg"
               aria-label={strings.moreActionsFor(seasonLabel(season))}
               aria-haspopup="menu"
-              onClick={(e) => openUnder(seasonMore, e.currentTarget)}
+              aria-expanded={seasonMoreButton.expanded}
+              onClick={(e) => seasonMoreButton.open(e.currentTarget)}
             >
               <Icon name="more" size={18} />
             </button>

@@ -9,7 +9,12 @@
  * action isn't offered.
  */
 import type { BaseItem, UserInfo } from '../../api/types';
-import { canOpenItemDialogs, ItemDialogUnavailable, openItemDialog } from '../../compat/itemMenu';
+import {
+  canOpenItemDialogs,
+  ItemDialogUnavailable,
+  openItemDialog,
+  stockItemCommands,
+} from '../../compat/itemMenu';
 import { metadataHash } from '../../compat/jellyfin';
 import { type MenuEntry, openContextMenu } from '../../components/ContextMenu';
 import type { IconName } from '../../components/icons';
@@ -17,6 +22,7 @@ import { showToast } from '../../components/Toast';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { downloadUrl, nativeDownload } from '../details/download';
+import { forgetItem, rememberEdit } from '../itemChanges';
 import { COMMAND_GROUPS, type ItemCommand, itemCommands, type MenuItem } from './itemCommands';
 
 export interface ItemMenuOptions {
@@ -26,9 +32,12 @@ export interface ItemMenuOptions {
   downloadButton?: boolean;
   /** The item changed (metadata saved, refreshed, images or subtitles edited, added to a collection). */
   onChanged?: () => void;
+  /** The item was deleted (saved grids and the cached home have already forgotten it). */
   onDeleted?: () => void;
   /** The page's stock version, for actions Lumen can't open here (see the top of this file). */
   fallback?: () => void;
+  /** Given the stop of a refresh's watch for the server's update, for the page to call when it closes. */
+  track?: (stop: () => void) => void;
 }
 
 /** A menu ready to show: the full item, and what this user may do with it. */
@@ -42,6 +51,8 @@ export interface PreparedMenu {
     returnFocus: HTMLElement | null;
     anchor?: HTMLElement;
     title?: string;
+    /** Once the menu has closed (an entry picked or dismissed). */
+    onClose?: () => void;
   }): void;
 }
 
@@ -127,18 +138,28 @@ function download(ctx: ViewContext, item: MenuItem): void {
 const REFRESH_WATCH_MS = 10 * 60 * 1000;
 /**
  * Calls back once the server reports the item updated (its LibraryChanged message, as jellyfin-web's own pages
- * listen for): a refresh runs on the server after the dialog has closed. Without the web socket API, nothing.
+ * listen for): a refresh runs on the server after the dialog has closed. Returns the stop, or null without the web
+ * socket API.
  */
-function whenUpdated(ctx: ViewContext, itemId: string, onUpdated: () => void): void {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const stop = ctx.client.subscribe?.(['LibraryChanged'], ({ Data }) => {
+function whenUpdated(ctx: ViewContext, itemId: string, onUpdated: () => void): (() => void) | null {
+  const client = ctx.client;
+  if (typeof client.subscribe !== 'function') return null;
+  let off: unknown;
+  const stop = (): void => {
+    clearTimeout(timer);
+    if (typeof off === 'function') (off as () => void)();
+    off = undefined;
+  };
+  const timer = setTimeout(stop, REFRESH_WATCH_MS);
+  off = client.subscribe(['LibraryChanged'], ({ Data }) => {
     const updated = (Data as { ItemsUpdated?: string[] } | undefined)?.ItemsUpdated ?? [];
     if (!updated.includes(itemId)) return;
-    clearTimeout(timer);
-    stop?.();
+    stop();
     onUpdated();
   });
-  if (stop) timer = setTimeout(stop, REFRESH_WATCH_MS);
+  if (typeof off === 'function') return stop;
+  clearTimeout(timer);
+  return null;
 }
 
 async function run(
@@ -156,14 +177,19 @@ async function run(
     );
   try {
     // What had focus as the menu closed (its button or card), for when the dialog closes: jellyfin-web puts focus back
-    // only in the TV layout, and not always.
+    // only in the TV layout, and not always. (Refresh resolves once its dialog has closed: compat/itemMenu.ts.)
     const from = document.activeElement;
     const result = await openItemDialog(item, user, command);
     if ((!document.activeElement || document.activeElement === document.body) && from instanceof HTMLElement)
       from.focus({ preventScroll: true });
-    if (result.deleted) options.onDeleted?.();
-    else if (result.updated) options.onChanged?.();
-    else if (command === 'refresh' && options.onChanged) whenUpdated(ctx, item.Id, options.onChanged);
+    if (result.deleted) {
+      forgetItem(ctx.userId, item.Id);
+      options.onDeleted?.();
+    } else if (result.updated) options.onChanged?.();
+    else if (command === 'refresh' && result.refreshQueued !== false && options.onChanged) {
+      const stop = whenUpdated(ctx, item.Id, options.onChanged);
+      if (stop) options.track?.(stop);
+    }
   } catch (error) {
     if (!(error instanceof ItemDialogUnavailable)) return; // jellyfin-web reported the failure itself
     if (IN_METADATA_MANAGER.includes(command) && user.Policy?.IsAdministrator)
@@ -206,15 +232,19 @@ export async function prepareItemMenu(
     currentUser(ctx),
   ]);
   const dialogs = canOpenItemDialogs();
+  // jellyfin-web's own answer, where it can be asked; Lumen's port of its rules (with the layout standing in for its
+  // TV and file-saving checks) otherwise.
+  const stock = dialogs ? await stockItemCommands(full, user) : null;
   const commands = itemCommands(full, user.Policy ?? {}, {
     tv: ctx.layout === 'tv',
     downloadButton: options.downloadButton,
-  }).filter(
-    (command) =>
-      dialogs ||
-      !isDialog(command) ||
-      !!options.fallback ||
-      (IN_METADATA_MANAGER.includes(command) && !!user.Policy?.IsAdministrator),
+  }).filter((command) =>
+    stock
+      ? stock.includes(command)
+      : dialogs ||
+        !isDialog(command) ||
+        !!options.fallback ||
+        (IN_METADATA_MANAGER.includes(command) && !!user.Policy?.IsAdministrator),
   );
   return {
     item: full,
@@ -228,18 +258,44 @@ export async function prepareItemMenu(
         anchor: at.anchor,
         label: strings.moreActionsFor(full.Name),
         title: at.title,
+        onClose: at.onClose,
       }),
   };
 }
 
-/** For a card's "More actions…": fetches, then shows the menu where the card's menu was (or says there's nothing). */
+/** What a card's list wants to hear about, and where the card leads (cardMenu.ts). */
+export interface CardMenuHooks {
+  onDeleted?: (item: BaseItem) => void;
+  /** With the item as the server now has it. */
+  onChanged?: (fresh: BaseItem) => void;
+  /** Opens the title's details page. */
+  openDetails?: () => void;
+}
+
+/**
+ * For a card's "More actions…": fetches, then shows the menu where the card's menu was (or says there's nothing).
+ * Where jellyfin-web hasn't loaded its item menu (a TV browser's home: compat/registry.ts ITEM_MENU_MARKERS), it opens
+ * the title's details page instead, whose stock page underneath loads it, and whose own More button has the actions.
+ */
 export async function openItemMenuAt(
   ctx: ViewContext,
   item: BaseItem,
   at: { x: number; y: number; returnFocus: HTMLElement | null },
-  options: ItemMenuOptions = {},
+  card: CardMenuHooks = {},
 ): Promise<void> {
-  const menu = await prepareItemMenu(ctx, item, options);
+  if (card.openDetails && !canOpenItemDialogs()) return card.openDetails();
+  const menu = await prepareItemMenu(ctx, item, {
+    onDeleted: () => card.onDeleted?.(item),
+    // The card shows the title as it is now, and so do saved grids.
+    onChanged: () =>
+      void ctx.api.getItem(item.Id).then(
+        (fresh) => {
+          rememberEdit(ctx.userId, fresh);
+          card.onChanged?.(fresh);
+        },
+        () => undefined,
+      ),
+  });
   if (menu.commands.length === 0) showToast(strings.noMoreActions);
   else menu.open({ ...at, title: menu.item.Name });
 }

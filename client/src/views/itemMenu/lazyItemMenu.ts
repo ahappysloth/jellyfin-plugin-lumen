@@ -21,7 +21,8 @@ export function loadItemMenu(): Promise<ItemMenuModule> {
 
 /**
  * A details page's ⋯ menu for `item`: null until it's known what this user may do with it, and when that's nothing
- * (the page then shows no More button). Prepared again when the page has the item afresh (after an edit).
+ * (the page then shows no More button). Prepared again when the page has the item afresh (after an edit), keeping the
+ * old menu meanwhile; never a menu for another item (a season picker's ⋯ while the next season's menu loads).
  */
 export function useItemMenu(
   ctx: ViewContext,
@@ -32,11 +33,19 @@ export function useItemMenu(
   // The latest callbacks, so a menu prepared earlier still reloads and navigates for the page as it is now.
   const latest = useRef(options);
   latest.current = options;
+  // Refreshes still being watched for, stopped when the page closes.
+  const watches = useRef(new Set<() => void>());
+  useEffect(
+    () => () => {
+      watches.current.forEach((stop) => stop());
+      watches.current.clear();
+    },
+    [],
+  );
+  const id = item?.Id;
   useEffect(() => {
-    if (!item) {
-      setMenu(null);
-      return;
-    }
+    if (menu && menu.item.Id !== id) setMenu(null);
+    if (!item) return;
     let live = true;
     loadItemMenu()
       .then((module) =>
@@ -46,6 +55,7 @@ export function useItemMenu(
           onChanged: () => latest.current.onChanged?.(),
           onDeleted: () => latest.current.onDeleted?.(),
           fallback: options.fallback && (() => latest.current.fallback?.()),
+          track: (stop) => watches.current.add(stop),
         }),
       )
       .then(
@@ -60,11 +70,27 @@ export function useItemMenu(
       live = false;
     };
   }, [item]);
-  return menu;
+  return menu && menu.item.Id === id ? menu : null;
 }
 
 /** Opens a prepared menu under its button, aligned to the button's left edge (the menu flips if it would overflow). */
-export function openUnder(menu: PreparedMenu, button: HTMLElement): void {
+export function openUnder(menu: PreparedMenu, button: HTMLElement, onClose?: () => void): void {
   const box = button.getBoundingClientRect();
-  menu.open({ x: box.left, y: box.bottom, returnFocus: button, anchor: button });
+  menu.open({ x: box.left, y: box.bottom, returnFocus: button, anchor: button, onClose });
+}
+
+/** A More button: opens its menu underneath, and is `expanded` (aria-expanded) while the menu is open. */
+export function useMoreButton(menu: PreparedMenu | null): {
+  expanded: boolean;
+  open: (button: HTMLElement) => void;
+} {
+  const [expanded, setExpanded] = useState(false);
+  return {
+    expanded,
+    open: (button) => {
+      if (!menu) return;
+      setExpanded(true);
+      openUnder(menu, button, () => setExpanded(false));
+    },
+  };
 }

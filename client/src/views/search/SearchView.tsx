@@ -10,7 +10,7 @@ import { strings } from '../../strings';
 import { liftVeil } from '../../veil/veil';
 import { CatalogCard } from '../catalog/CatalogCard';
 import { catalogHash, loadRequestStatus, useCatalogImageToken } from '../catalog/catalog';
-import { cardMenuHandler, infoHash } from '../cardMenu';
+import { type CardMenuHandler, infoHash, useCardMenu } from '../cardMenu';
 import type { ViewContext } from '../context';
 import { initials } from '../details/CastRow';
 import { captionFor } from '../home/Row';
@@ -104,7 +104,7 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
   const latest = useRef('');
   const resultsRef = useRef<HTMLDivElement>(null);
   const [attempt, setAttempt] = useState(0);
-  const onMenu = cardMenuHandler(ctx);
+  const { onMenu, shown: visible } = useCardMenu(ctx);
   const searching = query.length >= MIN_QUERY;
 
   useEffect(() => {
@@ -205,7 +205,13 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
       </p>
       <div ref={resultsRef} aria-busy={pending}>
         {!searching && explore && explore.length > 0 && (
-          <ResultSection title={strings.explore} variant="poster" items={explore} ctx={ctx} onMenu={onMenu} />
+          <ResultSection
+            title={strings.explore}
+            variant="poster"
+            items={visible(explore)}
+            ctx={ctx}
+            onMenu={onMenu}
+          />
         )}
         {failed && (
           <LoadError
@@ -227,7 +233,7 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
             key={section.key}
             title={section.title}
             variant={section.variant}
-            items={section.items}
+            items={visible(section.items)}
             ctx={ctx}
             onMenu={onMenu}
           />
@@ -293,8 +299,9 @@ function ResultSection({
   variant: CardVariant;
   items: BaseItem[];
   ctx: ViewContext;
-  onMenu: ReturnType<typeof cardMenuHandler>;
+  onMenu: CardMenuHandler;
 }) {
+  if (items.length === 0) return null; // its last title was deleted from its card's menu
   return (
     <section class="lmn-search__section" aria-label={title}>
       <h2 class="lmn-row__title">{title}</h2>
