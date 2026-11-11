@@ -39,8 +39,9 @@ public static partial class HtmlInjector
     /// (Lumen's are added anyway), so the caller can warn that index.html changed shape.
     /// </param>
     /// <param name="accentColor">
-    /// The server's accent (<c>#rrggbb</c>; anything else is ignored), for the admin pages' stylesheet: those pages are
-    /// outside Lumen's own root, where lumen.js sets the accent, so it comes with the page to be there at first paint.
+    /// The server's accent (<c>#rrggbb</c>; anything else is ignored), for the restyled jellyfin-web pages, dialogs and
+    /// menus: they're outside Lumen's own root, where lumen.js sets the accent, so it comes with the page to be there at
+    /// first paint.
     /// </param>
     /// <param name="coreChunk">
     /// The client's core file (<see cref="Assets.AssetCatalog.CoreChunk"/>), which lumen.js imports: preloaded alongside it, so
@@ -81,7 +82,7 @@ public static partial class HtmlInjector
         var dashboard = styleStockPages
             ? $"<link rel=\"stylesheet\" href=\"{AssetBase}lumen-dashboard.css?v={version}\">"
                 + (accentColor is not null && HexColor().IsMatch(accentColor)
-                    ? $"<style>html.lmn-skin-dashboard{{--lmn-accent:{accentColor}}}</style>"
+                    ? $"<style>html[data-lmn-skin]{{--lmn-accent:{accentColor}}}</style>"
                     : string.Empty)
             : string.Empty;
         var tags = $"{Marker}{guard}<link rel=\"stylesheet\" href=\"{AssetBase}lumen.css?v={version}\">{dashboard}"
