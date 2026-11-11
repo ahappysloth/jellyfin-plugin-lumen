@@ -42,14 +42,18 @@ export function useItemMenu(
     },
     [],
   );
+  // Bumped when jellyfin-web's item menu loads after this one was prepared without it (PreparedMenu.dialogs).
+  const [upgrade, setUpgrade] = useState(0);
   const id = item?.Id;
   useEffect(() => {
     if (menu && menu.item.Id !== id) setMenu(null);
     if (!item) return;
     let live = true;
+    let stopWaiting: (() => void) | undefined;
+    let module: ItemMenuModule;
     loadItemMenu()
-      .then((module) =>
-        module.prepareItemMenu(ctx, item, {
+      .then((loaded) =>
+        (module = loaded).prepareItemMenu(ctx, item, {
           complete: options.complete,
           downloadButton: options.downloadButton,
           onChanged: () => latest.current.onChanged?.(),
@@ -60,7 +64,9 @@ export function useItemMenu(
       )
       .then(
         (prepared) => {
-          if (live) setMenu(prepared.commands.length > 0 ? prepared : null);
+          if (!live) return;
+          setMenu(prepared.commands.length > 0 ? prepared : null);
+          if (!prepared.dialogs) stopWaiting = module.whenItemDialogsLoad(() => setUpgrade((n) => n + 1));
         },
         () => {
           if (live) setMenu(null);
@@ -68,8 +74,9 @@ export function useItemMenu(
       );
     return () => {
       live = false;
+      stopWaiting?.();
     };
-  }, [item]);
+  }, [item, upgrade]);
   return menu && menu.item.Id === id ? menu : null;
 }
 

@@ -6,6 +6,8 @@ import type { HomeResponse } from '../../api/types';
 import { ContextMenuHost } from '../../components/ContextMenu';
 import { HomeView } from './HomeView';
 import { getCachedHome, getSelection, setCachedHome } from './homeStore';
+import { forgetItem } from '../itemChanges';
+import { resetSessionCaches } from '../../util/sessionCaches';
 
 const home: HomeResponse = {
   ConfigVersion: 1,
@@ -38,6 +40,7 @@ const home: HomeResponse = {
 
 describe('HomeView', () => {
   beforeEach(() => setCachedHome('nobody', { ConfigVersion: 0, Hero: [], Rows: [] }));
+  afterEach(() => resetSessionCaches());
 
   it('shows server badges on cards and opens a genre tile in the stock genre list', async () => {
     const withExtras: HomeResponse = {
@@ -70,6 +73,17 @@ describe('HomeView', () => {
     expect(tile.querySelector('img')!.getAttribute('src')).toContain('Items/m1/Images/Backdrop');
     fireEvent.click(tile);
     expect(ctx.navigate).toHaveBeenCalledWith('#/list?genreId=gid&serverId=s');
+  });
+
+  it('leaves out a title deleted here even while the server, catching up, still lists it', async () => {
+    forgetItem('user1', 'm1');
+    const ctx = makeContext(createFakeClient(routes({ 'Lumen/Home': home })));
+    render(<HomeView ctx={ctx} />);
+
+    await waitFor(() => expect(document.querySelector('[data-item-id="e1"]')).not.toBeNull());
+    // Its row, left empty, goes too.
+    expect(document.querySelector('[data-item-id="m1"]')).toBeNull();
+    expect(document.querySelector('[data-row-id="r2"]')).toBeNull();
   });
 
   it('has a page heading for screen readers (the hero and rows have h2s)', async () => {

@@ -44,6 +44,12 @@ export interface ItemMenuOptions {
 export interface PreparedMenu {
   item: MenuItem;
   commands: ItemCommand[];
+  /**
+   * Whether jellyfin-web's item menu had loaded, to work out the commands with. Its chunk can come seconds after the
+   * page (a slow TV): a menu prepared before then is prepared again as it opens, and useItemMenu prepares it again
+   * once the chunk is in.
+   */
+  dialogs: boolean;
   /** Shows the menu at a point (a card's long-press) or under a button. */
   open(at: {
     x: number;
@@ -162,6 +168,34 @@ function whenUpdated(ctx: ViewContext, itemId: string, onUpdated: () => void): (
   return null;
 }
 
+/**
+ * Where focus goes once a deleted title's card has gone, as `from` (its card, or its ⋯ button) did with it: the card
+ * after it in its list, or the one before if it was the last; with none left, the page's first control below the nav.
+ * Without this a TV remote is left on the page's body, from where the next press jumps to the header. Taken before the
+ * card goes, as an id: a list may reuse the card's element for its neighbour.
+ */
+function focusAfterDelete(from: Element | null): () => void {
+  const cell = from?.closest('.lmn-card-cell');
+  // A grid's card is in a list item of its own; a row's is right in the row.
+  const unit = cell?.parentElement?.getAttribute('role') === 'listitem' ? cell.parentElement : cell;
+  const list = unit?.parentElement;
+  const units = list ? [...list.children].filter((c) => c.querySelector('[data-item-id]')) : [];
+  const i = unit ? units.indexOf(unit) : -1;
+  const id = (units[i + 1] ?? units[i - 1])?.querySelector('[data-item-id]')?.getAttribute('data-item-id');
+  const control = from?.classList.contains('lmn-card__more') ? '.lmn-card__more' : '.lmn-card';
+  return () => {
+    const active = document.activeElement;
+    if (!cell || (active && active !== document.body && active.isConnected)) return;
+    const card = list?.isConnected
+      ? [...list.querySelectorAll('[data-item-id]')].find((c) => c.getAttribute('data-item-id') === id)
+      : undefined;
+    const target = card
+      ? (card.closest('.lmn-card-cell')!.querySelector<HTMLElement>(control) ?? (card as HTMLElement))
+      : document.querySelector<HTMLElement>('.lmn-main button, .lmn-main a[href]');
+    target?.focus();
+  };
+}
+
 async function run(
   ctx: ViewContext,
   item: MenuItem,
@@ -183,8 +217,11 @@ async function run(
     if ((!document.activeElement || document.activeElement === document.body) && from instanceof HTMLElement)
       from.focus({ preventScroll: true });
     if (result.deleted) {
+      const refocus = focusAfterDelete(from);
       forgetItem(ctx.userId, item.Id);
       options.onDeleted?.();
+      // Once the list has dropped the card.
+      setTimeout(refocus);
     } else if (result.updated) options.onChanged?.();
     else if (command === 'refresh' && result.refreshQueued !== false && options.onChanged) {
       const stop = whenUpdated(ctx, item.Id, options.onChanged);
@@ -249,7 +286,16 @@ export async function prepareItemMenu(
   return {
     item: full,
     commands,
-    open: (at) =>
+    dialogs,
+    open: (at) => {
+      if (!dialogs && canOpenItemDialogs())
+        return void prepareItemMenu(ctx, full, { ...options, complete: true }).then((fresh) => {
+          if (fresh.commands.length) fresh.open(at);
+          else {
+            showToast(strings.noMoreActions);
+            at.onClose?.();
+          }
+        }, at.onClose);
       openContextMenu({
         entries: menuEntries(ctx, full, user, commands, options),
         x: at.x,
@@ -259,8 +305,19 @@ export async function prepareItemMenu(
         label: strings.moreActionsFor(full.Name),
         title: at.title,
         onClose: at.onClose,
-      }),
+      });
+    },
   };
+}
+
+/** Calls `then` once jellyfin-web's item menu has loaded (checked each second, for `seconds`). Returns the stop. */
+export function whenItemDialogsLoad(then: () => void, seconds = 30): () => void {
+  const timer = setInterval(() => {
+    const loaded = canOpenItemDialogs();
+    if (loaded || --seconds <= 0) clearInterval(timer);
+    if (loaded) then();
+  }, 1000);
+  return () => clearInterval(timer);
 }
 
 /** What a card's list wants to hear about, and where the card leads (cardMenu.ts). */

@@ -90,9 +90,20 @@ describe('browseStore', () => {
       total: 89,
       scrollY: 400,
       offset: 59,
-      selectedId: undefined,
+      // The card after it, for the TV layout to focus on Back.
+      selectedId: 'b',
     });
     expect(takeSnapshot('k2')).toEqual({ items: [b], total: 1, scrollY: 0 });
+  });
+
+  it('selects the card before a deleted one that was the last, and none when the grid is left empty', () => {
+    const a = { Id: 'a', Name: 'A', Type: 'Movie' };
+    const b = { Id: 'b', Name: 'B', Type: 'Movie' };
+    saveSnapshot('k1', { items: [a, b], total: 2, scrollY: 0, selectedId: 'b' });
+    saveSnapshot('k2', { items: [b], total: 1, scrollY: 0, selectedId: 'b' });
+    removeFromSnapshots('b');
+    expect(takeSnapshot('k1')!.selectedId).toBe('a');
+    expect(takeSnapshot('k2')!.selectedId).toBeUndefined();
   });
 
   it('shows an edited title as the server now has it, keeping what the grid had', () => {

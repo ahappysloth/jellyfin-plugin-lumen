@@ -89,16 +89,18 @@ export function updateSnapshots(itemId: string, field: UserDataField, value: boo
 
 /**
  * A title was deleted: take its card out of every saved grid, so Back doesn't bring back a card that leads nowhere. The
- * server's list is one shorter now, so the next page starts one earlier.
+ * server's list is one shorter now, so the next page starts one earlier. A grid it was opened from selects the card
+ * after it (the one before, if it was the last), for the TV layout to focus.
  */
 export function removeFromSnapshots(itemId: string): void {
   for (const { snapshot } of snapshots.values()) {
-    const items = snapshot.items.filter((i) => i.Id !== itemId);
-    if (items.length === snapshot.items.length) continue;
+    const i = snapshot.items.findIndex((item) => item.Id === itemId);
+    if (i < 0) continue;
+    const items = snapshot.items.filter((item) => item.Id !== itemId);
     snapshot.items = items;
     snapshot.total = Math.max(0, snapshot.total - 1);
     if (snapshot.offset !== undefined) snapshot.offset = Math.max(0, snapshot.offset - 1);
-    if (snapshot.selectedId === itemId) snapshot.selectedId = undefined;
+    if (snapshot.selectedId === itemId) snapshot.selectedId = (items[i] ?? items[i - 1])?.Id;
   }
 }
 

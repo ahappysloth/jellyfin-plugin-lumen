@@ -124,7 +124,7 @@ describe('DetailsHeader', () => {
     expect(screen.queryByRole('button', { name: /^More/ })).toBeNull();
 
     const open = vi.fn();
-    const more = { item: movie, commands: ['edit' as const], open };
+    const more = { item: movie, commands: ['edit' as const], dialogs: true, open };
     rerender(
       <DetailsHeader
         item={movie}
