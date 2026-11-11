@@ -84,7 +84,8 @@ export function LazyTitleView(props: Props) {
       <article ref={rootRef} class="lmn-details lmn-title">
         <LoadError
           class="lmn-title__failed"
-          message={strings.titleFailed}
+          // Lumen's own code didn't arrive (network, or an update since the tab opened): not Seerr's fault.
+          message={strings.loadFailed}
           onRetry={() => setAttempt((n) => n + 1)}
         >
           <button type="button" class="lmn-button lmn-button--secondary" onClick={() => goBack(props.ctx)}>
