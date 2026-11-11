@@ -1,86 +1,19 @@
 /*
  * Lumen's look for jellyfin-web's admin pages: the Dashboard (#/dashboard/*), the metadata manager (#/metadata) and
  * plugin settings pages (#/configurationpage). Built on its own (vite.dashboard.config.ts → lumen-dashboard.css) and
- * only linked when the admin leaves "Restyle Jellyfin's sign-in, settings and Dashboard pages" on; everything is scoped to
- * html.lmn-skin-dashboard, which the inline guard sets on those routes (veil/skin.ts).
+ * only linked when the admin leaves "Restyle Jellyfin's sign-in, settings and Dashboard pages" on; everything here is
+ * scoped to html.lmn-skin-dashboard, which the inline guard sets on those routes (veil/skin.ts). The stylesheet also
+ * carries stock-components.css: jellyfin-web's dialogs, menus and drawers, which it restyles on every page.
  *
  * The Dashboard is React + MUI. MUI reads its colours from jellyfin-web's `--jf-*` CSS variables, so Lumen's palette
- * goes in there first; the rest uses MUI's stable `Mui*` class names (never emotion's generated `css-*` ones) and
+ * goes in there first (stock-components.css, shared with those components); the rest uses MUI's stable `Mui*` class names (never emotion's generated `css-*` ones) and
  * jellyfin-web's legacy class names for the older pages and dialogs. The legacy emby-* form controls share their
  * rules with the settings pages (stock-skin.css). If a selector stops matching after a Jellyfin update, that part
  * looks stock again; nothing here changes how a page works.
  */
 
-/* ---- Palette: jellyfin-web's MUI theme variables (set over every dashboard theme) ---------- */
-html.lmn-skin-dashboard[data-theme],
-html.lmn-skin-dashboard {
-  color-scheme: dark;
-  --jf-palette-mode: dark;
-  --jf-palette-background-default: var(--lmn-bg);
-  --jf-palette-background-defaultChannel: 15 15 15;
-  --jf-palette-background-paper: var(--lmn-surface);
-  --jf-palette-background-paperChannel: 24 24 24;
-  --jf-palette-primary-main: var(--lmn-accent);
-  --jf-palette-primary-light: color-mix(in srgb, var(--lmn-accent) 80%, #fff);
-  --jf-palette-primary-dark: color-mix(in srgb, var(--lmn-accent) 80%, #000);
-  --jf-palette-primary-contrastText: #fff;
-  /* MUI tints hovers and selections with these channels; neutral, so they work with any accent colour. */
-  --jf-palette-primary-mainChannel: 255 255 255;
-  --jf-palette-primary-darkChannel: 255 255 255;
-  --jf-palette-secondary-main: var(--lmn-accent);
-  --jf-palette-secondary-contrastText: #fff;
-  --jf-palette-secondary-mainChannel: 255 255 255;
-  --jf-palette-error-main: #f0484f;
-  --jf-palette-error-light: #f57a7f;
-  --jf-palette-error-dark: #b3262c;
-  --jf-palette-error-mainChannel: 240 72 79;
-  --jf-palette-info-main: #8ab4f8;
-  --jf-palette-info-mainChannel: 138 180 248;
-  --jf-palette-text-primary: var(--lmn-text);
-  --jf-palette-text-secondary: var(--lmn-text-2);
-  --jf-palette-text-disabled: var(--lmn-text-4);
-  --jf-palette-text-primaryChannel: 242 242 242;
-  --jf-palette-divider: var(--lmn-line);
-  --jf-palette-action-selected: var(--lmn-fill-3);
-  --jf-palette-action-selectedChannel: 255 255 255;
-  --jf-palette-action-hover: var(--lmn-fill-2);
-  /* The rest of the dark scheme, so a light dashboard theme doesn't leave dark-on-dark icons and controls. */
-  --jf-palette-action-active: #fff;
-  --jf-palette-action-activeChannel: 255 255 255;
-  --jf-palette-action-disabled: rgba(255, 255, 255, 0.3);
-  --jf-palette-action-disabledBackground: rgba(255, 255, 255, 0.12);
-  --jf-palette-action-focus: rgba(255, 255, 255, 0.12);
-  --jf-palette-text-secondaryChannel: 179 179 179;
-  --jf-palette-text-icon: rgba(255, 255, 255, 0.5);
-  --jf-palette-dividerChannel: 255 255 255;
-  --jf-palette-common-onBackground: #fff;
-  --jf-palette-common-onBackgroundChannel: 255 255 255;
-  --jf-palette-FilledInput-bg: rgba(255, 255, 255, 0.06);
-  --jf-palette-FilledInput-hoverBg: rgba(255, 255, 255, 0.09);
-  --jf-palette-FilledInput-disabledBg: rgba(255, 255, 255, 0.12);
-  --jf-palette-Button-inheritContainedBg: var(--lmn-surface-2);
-  --jf-palette-Button-inheritContainedHoverBg: #2c2c2c;
-  --jf-palette-Chip-defaultBorder: var(--lmn-line-strong);
-  --jf-palette-Chip-defaultIconColor: var(--lmn-text-2);
-  --jf-palette-Switch-defaultColor: #e0e0e0;
-  --jf-palette-Switch-defaultDisabledColor: #757575;
-  --jf-palette-Tooltip-bg: var(--lmn-surface-2);
-  --jf-palette-AppBar-defaultBg: var(--lmn-bg);
-  --jf-palette-AppBar-darkBg: var(--lmn-bg);
-  --jf-palette-Avatar-defaultBg: var(--lmn-surface-2);
-  --jf-palette-SnackbarContent-bg: var(--lmn-surface-2);
-  --jf-palette-TableCell-border: var(--lmn-line);
-  --jf-palette-LinearProgress-primaryBg: var(--lmn-fill-3);
-  --jf-palette-LinearProgress-successBg: var(--lmn-fill-3);
-  --jf-palette-Switch-primaryDisabledColor: var(--lmn-surface-2);
-  --jf-overlays-1: none;
-  --jf-overlays-2: none;
-  --jf-overlays-4: none;
-  --jf-overlays-8: none;
-  --jf-overlays-16: none;
-  --jf-overlays-24: none;
-  --jf-shape-borderRadius: 10px;
-}
+/* jellyfin-web's dialogs, menus and drawers on every page, and the palette the admin pages share with them. */
+@import './stock-components.css';
 
 /* ---- Page, type -------------------------------------------------------------------------------------------------- */
 html.lmn-skin-dashboard body,
@@ -748,62 +681,6 @@ html.lmn-skin-dashboard .MuiSelect-icon {
   color: var(--lmn-text-2);
 }
 
-/* ---- Menus, dialogs, tooltips, snackbars ------------------------------------------------------------------------- */
-html.lmn-skin-dashboard :is(.MuiMenu-paper, .MuiPopover-paper, .MuiAutocomplete-paper) {
-  border: 1px solid var(--lmn-line-strong);
-  border-radius: 14px !important;
-  background: rgba(28, 28, 28, 0.97) !important;
-  background-image: none !important;
-  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.8) !important;
-}
-html.lmn-skin-dashboard .MuiMenu-list {
-  padding: 6px !important;
-}
-html.lmn-skin-dashboard .MuiMenuItem-root {
-  min-height: 36px;
-  padding: 0 12px;
-  border-radius: 8px;
-  color: var(--lmn-text-2);
-  font-size: 14px;
-}
-html.lmn-skin-dashboard .MuiMenuItem-root:hover,
-html.lmn-skin-dashboard .MuiMenuItem-root.Mui-focusVisible {
-  background: var(--lmn-fill-3) !important;
-  color: #fff;
-}
-html.lmn-skin-dashboard .MuiMenuItem-root.Mui-selected {
-  background: var(--lmn-fill-2) !important;
-  color: #fff;
-  font-weight: 600;
-}
-html.lmn-skin-dashboard .MuiDialog-paper {
-  border: 1px solid var(--lmn-line-strong);
-  border-radius: 20px !important;
-  background: var(--lmn-surface) !important;
-  box-shadow: 0 40px 80px -24px rgba(0, 0, 0, 0.9) !important;
-}
-html.lmn-skin-dashboard .MuiDialogTitle-root {
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-html.lmn-skin-dashboard .MuiBackdrop-root:not(.MuiBackdrop-invisible) {
-  background-color: rgba(0, 0, 0, 0.7);
-}
-html.lmn-skin-dashboard .MuiTooltip-tooltip {
-  border-radius: 8px;
-  background: var(--lmn-surface-2);
-  color: var(--lmn-text);
-  font-size: 12px;
-}
-html.lmn-skin-dashboard .MuiSnackbarContent-root,
-html.lmn-skin-dashboard .MuiAlert-root {
-  border-radius: 12px;
-}
-html.lmn-skin-dashboard .MuiSnackbarContent-root {
-  border: 1px solid var(--lmn-line-strong);
-  color: var(--lmn-text);
-}
-
 /* ---- Tables (Activity, Devices, API keys: material-react-table) ------------------------------------------------- */
 /* Cells keep MUI's opaque paper background (Lumen's surface, through the palette), so sticky headers and pinned
    columns stay readable over the rows scrolling under them. */
@@ -824,43 +701,6 @@ html.lmn-skin-dashboard .MuiTableCell-head {
 }
 
 /* ---- Legacy pages and dialogs (metadata editor, Add library, Identify, Edit images, plugin pages) ------------------ */
-html.lmn-skin-dashboard .formDialog,
-html.lmn-skin-dashboard .dialog.formDialog {
-  border: 1px solid var(--lmn-line-strong);
-  background: var(--lmn-surface) !important;
-  color: var(--lmn-text);
-  font-family: var(--lmn-font);
-}
-html.lmn-skin-dashboard .dialog:not(.dialog-fullscreen) {
-  border-radius: 20px;
-}
-html.lmn-skin-dashboard .formDialogHeader {
-  border-bottom: 1px solid var(--lmn-line);
-  background: var(--lmn-surface) !important;
-}
-html.lmn-skin-dashboard .formDialogHeaderTitle {
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-html.lmn-skin-dashboard .formDialogFooter {
-  border-top: 1px solid var(--lmn-line);
-  background: var(--lmn-surface) !important;
-}
-html.lmn-skin-dashboard .dialogBackdropOpened {
-  background-color: rgba(0, 0, 0, 0.7);
-  opacity: 1;
-}
-html.lmn-skin-dashboard .actionSheet {
-  border: 1px solid var(--lmn-line-strong);
-  border-radius: 14px;
-  background: rgba(28, 28, 28, 0.97) !important;
-}
-html.lmn-skin-dashboard .actionSheetMenuItem {
-  border-radius: 8px;
-}
-html.lmn-skin-dashboard .actionSheetMenuItem:hover {
-  background: var(--lmn-fill-3);
-}
 html.lmn-skin-dashboard .editPageSidebar {
   border-right: 1px solid var(--lmn-line);
   background: var(--lmn-bg);
@@ -891,23 +731,6 @@ html.lmn-skin-dashboard .libraryTree :is(.jstree-clicked, .jstree-wholerow-click
   background: var(--lmn-fill-3) !important;
   color: #fff !important;
   box-shadow: none !important;
-}
-html.lmn-skin-dashboard .paperList,
-html.lmn-skin-dashboard .detailSection .paperList {
-  border-radius: 12px;
-  background: var(--lmn-surface) !important;
-}
-html.lmn-skin-dashboard .listItem-border {
-  border-color: var(--lmn-line) !important;
-}
-html.lmn-skin-dashboard .emby-button.raised.button-delete {
-  border: 1px solid var(--lmn-accent);
-  background: transparent !important;
-  color: var(--lmn-accent) !important;
-}
-html.lmn-skin-dashboard .emby-button.raised.button-delete:hover {
-  background: var(--lmn-accent) !important;
-  color: #fff !important;
 }
 html.lmn-skin-dashboard .emby-tab-button-active {
   color: #fff;

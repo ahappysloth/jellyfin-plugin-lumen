@@ -26,7 +26,8 @@ public static partial class HtmlInjector
     /// <param name="styleStockPages">
     /// Marks the page (<c>data-lmn-skin</c> on &lt;html&gt;) so Lumen restyles the sign-in page, which loads before
     /// anyone is signed in and so can't read Lumen's per-user client config, and links the admin pages' stylesheet
-    /// (<c>lumen-dashboard.css</c>, applied only on the Dashboard, metadata manager and plugin settings pages).
+    /// (<c>lumen-dashboard.css</c>: the Dashboard, metadata manager and plugin settings pages, and jellyfin-web's dialogs
+    /// and menus on every page).
     /// </param>
     /// <param name="installAsLumen">
     /// Points the web app manifest, Apple touch icon and theme colour at Lumen's, so a home-screen install gets the J.

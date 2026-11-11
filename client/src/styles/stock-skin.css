@@ -3,6 +3,7 @@
  *   html.lmn-signin         sign in / forgot password / server select (veil/skin.ts, no session needed)
  *   html.lmn-skin-settings  Profile, Quick Connect, Display, Home, Playback, Subtitles, Controls (takeover.ts)
  *   html.lmn-skin-dashboard the admin pages share the form controls below; the rest of their look is dashboard.css
+ *   html[data-lmn-skin] .dialogContainer  jellyfin-web's dialogs on any page share them too (stock-components.css)
  * The pages keep jellyfin-web's markup and behaviour; if a selector stops matching after a Jellyfin update, that
  * part simply looks stock again. Selectors are jellyfin-web's legacy emby-* controls and its MUI (Display page).
  */
@@ -41,14 +42,16 @@ html:is(.lmn-skin-settings, .lmn-skin-dashboard) .mui-fixed {
   letter-spacing: -0.02em;
 }
 :is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
-  :is(.inputLabel, .selectLabel, .textareaLabel) {
+  :is(.inputLabel, .selectLabel, .textareaLabel),
+html[data-lmn-skin] .dialogContainer :is(.inputLabel, .selectLabel, .textareaLabel) {
   color: var(--lmn-text-2) !important;
   font-family: var(--lmn-font);
   font-size: 13px;
   font-weight: 500;
 }
 :is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
-  :is(.emby-input, .emby-select, .emby-textarea) {
+  :is(.emby-input, .emby-select, .emby-textarea),
+html[data-lmn-skin] .dialogContainer :is(.emby-input, .emby-select, .emby-textarea) {
   min-height: 46px;
   padding: 0 14px;
   border: 1px solid var(--lmn-line-strong) !important;
@@ -63,41 +66,50 @@ html:is(.lmn-skin-settings, .lmn-skin-dashboard) .mui-fixed {
     background-color 0.2s;
 }
 :is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
-  :is(.emby-input, .emby-select, .emby-textarea):focus {
+  :is(.emby-input, .emby-select, .emby-textarea):focus,
+html[data-lmn-skin] .dialogContainer :is(.emby-input, .emby-select, .emby-textarea):focus {
   border-color: color-mix(in srgb, var(--lmn-accent) 75%, transparent) !important;
   background: rgba(255, 255, 255, 0.08) !important;
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--lmn-accent) 18%, transparent);
   outline: none;
 }
 /* Multi-line fields (the metadata editor's Overview) keep room above and below the text. */
-:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-textarea {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-textarea,
+html[data-lmn-skin] .dialogContainer .emby-textarea {
   min-height: 92px;
   padding: 10px 14px;
 }
-:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-select option {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-select option,
+html[data-lmn-skin] .dialogContainer .emby-select option {
   background: var(--lmn-surface-2);
 }
-:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .selectArrowContainer {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .selectArrowContainer,
+html[data-lmn-skin] .dialogContainer .selectArrowContainer {
   right: 14px;
   color: var(--lmn-text-2);
 }
 :is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
-  :is(.fieldDescription, .checkboxListLabel) {
+  :is(.fieldDescription, .checkboxListLabel),
+html[data-lmn-skin] .dialogContainer :is(.fieldDescription, .checkboxListLabel) {
   color: var(--lmn-text-3);
   font-size: 13px;
 }
-:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .checkboxLabel {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .checkboxLabel,
+html[data-lmn-skin] .dialogContainer .checkboxLabel {
   color: var(--lmn-text);
   font-family: var(--lmn-font);
 }
 /* Checkboxes: a 20px rounded box, centred on its label; the accent with a white tick when checked. */
-:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-checkbox-label {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-checkbox-label,
+html[data-lmn-skin] .dialogContainer .emby-checkbox-label {
   padding-left: 32px;
 }
-:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .checkboxFieldDescription {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .checkboxFieldDescription,
+html[data-lmn-skin] .dialogContainer .checkboxFieldDescription {
   padding-left: 32px;
 }
-:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .checkboxOutline {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .checkboxOutline,
+html[data-lmn-skin] .dialogContainer .checkboxOutline {
   top: 50%;
   width: 20px;
   height: 20px;
@@ -109,10 +121,17 @@ html:is(.lmn-skin-settings, .lmn-skin-dashboard) .mui-fixed {
     border-color 0.15s,
     background-color 0.15s;
 }
-:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .checkboxIcon {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .checkboxIcon,
+html[data-lmn-skin] .dialogContainer .checkboxIcon {
   font-size: 16px;
 }
 :is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
+  .emby-checkbox-label:hover
+  .emby-checkbox:not(:checked)
+  + span
+  + .checkboxOutline,
+html[data-lmn-skin]
+  .dialogContainer
   .emby-checkbox-label:hover
   .emby-checkbox:not(:checked)
   + span
@@ -123,13 +142,15 @@ html:is(.lmn-skin-settings, .lmn-skin-dashboard) .mui-fixed {
 :is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
   .emby-checkbox:focus:not(:checked)
   + span
-  + .checkboxOutline {
+  + .checkboxOutline,
+html[data-lmn-skin] .dialogContainer .emby-checkbox:focus:not(:checked) + span + .checkboxOutline {
   border-color: var(--lmn-line-strong) !important;
 }
 :is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
   .emby-checkbox:checked
   + span
-  + .checkboxOutline {
+  + .checkboxOutline,
+html[data-lmn-skin] .dialogContainer .emby-checkbox:checked + span + .checkboxOutline {
   border-color: var(--lmn-accent) !important;
   background: var(--lmn-accent) !important;
 }
@@ -137,16 +158,19 @@ html:is(.lmn-skin-settings, .lmn-skin-dashboard) .mui-fixed {
   .emby-checkbox:checked
   + span
   + .checkboxOutline
-  .checkboxIcon-checked {
+  .checkboxIcon-checked,
+html[data-lmn-skin] .dialogContainer .emby-checkbox:checked + span + .checkboxOutline .checkboxIcon-checked {
   color: #fff !important;
 }
 :is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
   .emby-checkbox:focus-visible
   + span
-  + .checkboxOutline {
+  + .checkboxOutline,
+html[data-lmn-skin] .dialogContainer .emby-checkbox:focus-visible + span + .checkboxOutline {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--lmn-accent) 35%, transparent);
 }
-:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-button.raised {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-button.raised,
+html[data-lmn-skin] .dialogContainer .emby-button.raised {
   min-height: 46px;
   border-radius: 10px !important;
   background: var(--lmn-surface-2) !important;
@@ -160,21 +184,26 @@ html:is(.lmn-skin-settings, .lmn-skin-dashboard) .mui-fixed {
     background-color 0.2s,
     transform 0.1s;
 }
-:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-button.raised:hover {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-button.raised:hover,
+html[data-lmn-skin] .dialogContainer .emby-button.raised:hover {
   background: #2c2c2c !important;
 }
-:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-button.raised:active {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-button.raised:active,
+html[data-lmn-skin] .dialogContainer .emby-button.raised:active {
   transform: scale(0.99);
 }
-:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-button.raised.button-submit {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-button.raised.button-submit,
+html[data-lmn-skin] .dialogContainer .emby-button.raised.button-submit {
   background: var(--lmn-accent) !important;
 }
-:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard)
-  .emby-button.raised.button-submit:hover {
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-button.raised.button-submit:hover,
+html[data-lmn-skin] .dialogContainer .emby-button.raised.button-submit:hover {
   background: color-mix(in srgb, var(--lmn-accent) 82%, #000) !important;
 }
-:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-button:focus-visible {
-  outline: 2px solid var(--lmn-focus);
+:is(html.lmn-signin, html.lmn-skin-settings, html.lmn-skin-dashboard) .emby-button:focus-visible,
+html[data-lmn-skin] .dialogContainer .emby-button:focus-visible {
+  /* jellyfin-web removes every emby-button's outline with !important. */
+  outline: 2px solid var(--lmn-focus) !important;
   outline-offset: 2px;
 }
 :is(html.lmn-signin, html.lmn-skin-settings) .skinBody a:not(.emby-button) {
@@ -381,6 +410,31 @@ html.lmn-skin-settings #userProfilePage .username {
   font-size: 28px !important;
   font-weight: 700;
 }
+/* No picture yet: jellyfin-web's white silhouette on black becomes Lumen's avatar (the settings menu's), a person in
+   the accent's gradient. The placeholder is the inline background-image jellyfin-web sets, hence !important. */
+html.lmn-skin-settings #userProfilePage #image[style*='avatar.png'] {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23fff' fill-opacity='.9'%3E%3Ccircle cx='12' cy='8' r='4'/%3E%3Cpath d='M4 20.5c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5z'/%3E%3C/svg%3E")
+      center / 50% no-repeat,
+    var(--lmn-accent) !important;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23fff' fill-opacity='.9'%3E%3Ccircle cx='12' cy='8' r='4'/%3E%3Cpath d='M4 20.5c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5z'/%3E%3C/svg%3E")
+      center / 50% no-repeat,
+    linear-gradient(135deg, var(--lmn-accent), color-mix(in srgb, var(--lmn-accent) 40%, #000)) !important;
+}
+/* Add Image and Delete Image are secondary actions: a quiet button, not the accent (Save Password is the page's one). */
+html.lmn-skin-settings #userProfilePage #btnAddImage,
+html.lmn-skin-settings #userProfilePage #btnDeleteImage {
+  min-height: 40px;
+  margin-top: 4px;
+  padding: 0 18px;
+  background: var(--lmn-fill-3) !important;
+  font-size: 14px;
+}
+html.lmn-skin-settings #userProfilePage #btnAddImage:hover,
+html.lmn-skin-settings #userProfilePage #btnDeleteImage:hover {
+  background: rgba(255, 255, 255, 0.14) !important;
+}
 
 /* ---- Sign in ------------------------------------------------------------------------------------------------- */
 html.lmn-signin .skinBody,
@@ -515,58 +569,17 @@ html.lmn-skin-settings .lmn-stock-select .lmn-dropdown__button {
   font-weight: 500;
 }
 
-/* MUI selects (Display page): their pop-up menu dressed like Lumen's dropdown list. */
-html.lmn-skin-settings .MuiPopover-paper,
+/* MUI selects (Display page): their pop-up menu is Lumen's (stock-components.css), just below the field. */
 html.lmn-skin-settings .MuiMenu-paper {
   margin-top: 6px;
-  border: 1px solid var(--lmn-line-strong);
-  border-radius: 14px !important;
-  background: rgba(28, 28, 28, 0.96) !important;
-  background-image: none !important;
-  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.8) !important;
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-}
-html.lmn-skin-settings .MuiMenu-list {
-  padding: 6px !important;
-}
-html.lmn-skin-settings .MuiMenuItem-root {
-  min-height: 36px;
-  margin: 0;
-  padding: 0 12px;
-  border-radius: 8px;
-  color: var(--lmn-text-2);
-  font-family: var(--lmn-font);
-  font-size: 13px;
-  font-weight: 500;
-}
-html.lmn-skin-settings .MuiMenuItem-root:hover,
-html.lmn-skin-settings .MuiMenuItem-root.Mui-focusVisible {
-  background: rgba(255, 255, 255, 0.08) !important;
-  color: #fff;
-}
-html.lmn-skin-settings .MuiMenuItem-root.Mui-selected {
-  background: transparent !important;
-  color: #fff;
-  font-weight: 600;
-}
-html.lmn-skin-settings .MuiMenuItem-root.Mui-selected::after {
-  content: '';
-  width: 16px;
-  height: 16px;
-  margin-left: auto;
-  background: var(--lmn-accent);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z'/%3E%3C/svg%3E")
-    center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z'/%3E%3C/svg%3E")
-    center / contain no-repeat;
 }
 html.lmn-skin-settings .MuiSelect-icon {
   color: var(--lmn-text-2);
 }
 
-/* jellyfin-web's toasts (SyncPlay notices and others) on Lumen's pages and player: Lumen's toast look. */
-:is(html.lmn-active, html.lmn-skin-player, html.lmn-skin-settings) .toastContainer {
+/* jellyfin-web's toasts (SyncPlay notices, "URL copied", a wrong password…) on Lumen's pages and player, and on every
+   page while the stock pages are restyled: Lumen's toast look. */
+:is(html.lmn-active, html.lmn-skin-player, html[data-lmn-skin]) .toastContainer {
   top: 16px;
   top: calc(16px + env(safe-area-inset-top));
   right: 0;
@@ -581,7 +594,7 @@ html.lmn-skin-settings .MuiSelect-icon {
   top: calc(var(--lmn-nav-h) + 8px + env(safe-area-inset-top));
 }
 /* A glass pill that drops from the top centre, like the player's volume pill. */
-:is(html.lmn-active, html.lmn-skin-player, html.lmn-skin-settings) .toastContainer .toast {
+:is(html.lmn-active, html.lmn-skin-player, html[data-lmn-skin]) .toastContainer .toast {
   min-width: 0;
   max-width: calc(100vw - 32px);
   max-width: min(480px, calc(100vw - 32px));
@@ -604,11 +617,11 @@ html.lmn-skin-settings .MuiSelect-icon {
     opacity 0.2s var(--lmn-ease),
     transform 0.25s var(--lmn-ease);
 }
-:is(html.lmn-active, html.lmn-skin-player, html.lmn-skin-settings) .toastContainer .toast.toastVisible {
+:is(html.lmn-active, html.lmn-skin-player, html[data-lmn-skin]) .toastContainer .toast.toastVisible {
   opacity: 1;
   transform: none;
 }
-:is(html.lmn-active, html.lmn-skin-player, html.lmn-skin-settings) .toastContainer .toast.toastHide {
+:is(html.lmn-active, html.lmn-skin-player, html[data-lmn-skin]) .toastContainer .toast.toastHide {
   opacity: 0;
   transform: translateY(-12px);
 }

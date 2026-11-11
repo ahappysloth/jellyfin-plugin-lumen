@@ -1,0 +1,513 @@
+/*
+ * Lumen's look for jellyfin-web's shared components wherever "Restyle Jellyfin's sign-in, settings and Dashboard pages"
+ * is on: item dialogs (Edit metadata, Identify, Edit images, Media info, Add to playlist, confirmations…), action
+ * sheets (the ⋯ menus), MUI menus and popovers (the header's SyncPlay, Cast and user menus, a library's Filter, Sort and
+ * View menus), MUI dialogs and the phone drawer. They open over any page, so they are scoped to html[data-lmn-skin],
+ * which the index.html injection sets on every page while the option is on, rather than to a page's class.
+ *
+ * Part of lumen-dashboard.css (imported first by dashboard.css, so the admin pages' own rules win ties): the server links
+ * that stylesheet on every page while the option is on and never otherwise, so these rules cost Lumen's startup
+ * nothing. The emby-* form controls inside dialogs share their rules with the settings pages (stock-skin.css, under
+ * `html[data-lmn-skin] .dialogContainer`), and jellyfin-web's toasts are restyled there too.
+ *
+ * Selectors are jellyfin-web's legacy class names and MUI's stable Mui* ones, never emotion's generated css-* ones.
+ * Nothing here changes how a component works; if a selector stops matching after a Jellyfin update, that part simply
+ * looks stock again.
+ */
+
+/*
+ * ---- Palette: jellyfin-web's MUI theme variables -----------------------------------------------------------------
+ * Set over every dashboard theme on the admin pages, and on the dialogs, menus and drawers of every other page: MUI
+ * and jellyfin-web's theme.css read their colours from these, so setting them on a component's root recolours the
+ * component and nothing around it.
+ */
+html.lmn-skin-dashboard[data-theme],
+html.lmn-skin-dashboard,
+html[data-lmn-skin] .dialogContainer,
+html[data-lmn-skin] .MuiModal-root {
+  color-scheme: dark;
+  --jf-palette-mode: dark;
+  --jf-palette-background-default: var(--lmn-bg);
+  --jf-palette-background-defaultChannel: 15 15 15;
+  --jf-palette-background-paper: var(--lmn-surface);
+  --jf-palette-background-paperChannel: 24 24 24;
+  --jf-palette-primary-main: var(--lmn-accent);
+  --jf-palette-primary-light: color-mix(in srgb, var(--lmn-accent) 80%, #fff);
+  --jf-palette-primary-dark: color-mix(in srgb, var(--lmn-accent) 80%, #000);
+  --jf-palette-primary-contrastText: #fff;
+  /* MUI tints hovers and selections with these channels; neutral, so they work with any accent colour. */
+  --jf-palette-primary-mainChannel: 255 255 255;
+  --jf-palette-primary-darkChannel: 255 255 255;
+  --jf-palette-secondary-main: var(--lmn-accent);
+  --jf-palette-secondary-contrastText: #fff;
+  --jf-palette-secondary-mainChannel: 255 255 255;
+  --jf-palette-error-main: #f0484f;
+  --jf-palette-error-light: #f57a7f;
+  --jf-palette-error-dark: #b3262c;
+  --jf-palette-error-mainChannel: 240 72 79;
+  --jf-palette-info-main: #8ab4f8;
+  --jf-palette-info-mainChannel: 138 180 248;
+  --jf-palette-text-primary: var(--lmn-text);
+  --jf-palette-text-secondary: var(--lmn-text-2);
+  --jf-palette-text-disabled: var(--lmn-text-4);
+  --jf-palette-text-primaryChannel: 242 242 242;
+  --jf-palette-divider: var(--lmn-line);
+  --jf-palette-action-selected: var(--lmn-fill-3);
+  --jf-palette-action-selectedChannel: 255 255 255;
+  --jf-palette-action-hover: var(--lmn-fill-2);
+  /* The rest of the dark scheme, so a light dashboard theme doesn't leave dark-on-dark icons and controls. */
+  --jf-palette-action-active: #fff;
+  --jf-palette-action-activeChannel: 255 255 255;
+  --jf-palette-action-disabled: rgba(255, 255, 255, 0.3);
+  --jf-palette-action-disabledBackground: rgba(255, 255, 255, 0.12);
+  --jf-palette-action-focus: rgba(255, 255, 255, 0.12);
+  --jf-palette-text-secondaryChannel: 179 179 179;
+  --jf-palette-text-icon: rgba(255, 255, 255, 0.5);
+  --jf-palette-dividerChannel: 255 255 255;
+  --jf-palette-common-onBackground: #fff;
+  --jf-palette-common-onBackgroundChannel: 255 255 255;
+  --jf-palette-FilledInput-bg: rgba(255, 255, 255, 0.06);
+  --jf-palette-FilledInput-hoverBg: rgba(255, 255, 255, 0.09);
+  --jf-palette-FilledInput-disabledBg: rgba(255, 255, 255, 0.12);
+  --jf-palette-Button-inheritContainedBg: var(--lmn-surface-2);
+  --jf-palette-Button-inheritContainedHoverBg: #2c2c2c;
+  --jf-palette-Chip-defaultBorder: var(--lmn-line-strong);
+  --jf-palette-Chip-defaultIconColor: var(--lmn-text-2);
+  --jf-palette-Switch-defaultColor: #e0e0e0;
+  --jf-palette-Switch-defaultDisabledColor: #757575;
+  --jf-palette-Tooltip-bg: var(--lmn-surface-2);
+  --jf-palette-AppBar-defaultBg: var(--lmn-bg);
+  --jf-palette-AppBar-darkBg: var(--lmn-bg);
+  --jf-palette-Avatar-defaultBg: var(--lmn-surface-2);
+  --jf-palette-SnackbarContent-bg: var(--lmn-surface-2);
+  --jf-palette-TableCell-border: var(--lmn-line);
+  --jf-palette-LinearProgress-primaryBg: var(--lmn-fill-3);
+  --jf-palette-LinearProgress-successBg: var(--lmn-fill-3);
+  --jf-palette-Switch-primaryDisabledColor: var(--lmn-surface-2);
+  --jf-overlays-1: none;
+  --jf-overlays-2: none;
+  --jf-overlays-4: none;
+  --jf-overlays-8: none;
+  --jf-overlays-16: none;
+  --jf-overlays-24: none;
+  --jf-shape-borderRadius: 10px;
+}
+
+/* ---- Legacy dialogs (.dialogContainer > .dialog: item editors, confirmations, Quick Connect) ------------------- */
+html[data-lmn-skin] .dialogContainer {
+  --jf-card-borderRadius: 10px;
+}
+html[data-lmn-skin] .dialog {
+  background: var(--lmn-surface) !important;
+  color: var(--lmn-text);
+  font-family: var(--lmn-font);
+}
+/*
+ * Floating dialogs get Lumen's frame. Fixed-size dialogs (the item editors) and confirmations marked
+ * dialog-fullscreen-lowres float only from 80em × 45em up; below that jellyfin-web makes them fill the screen, square.
+ */
+html[data-lmn-skin] .dialog:not(.dialog-fullscreen):not(.dialog-fixedSize):not(.dialog-fullscreen-lowres) {
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 20px;
+  box-shadow: 0 40px 80px -24px rgba(0, 0, 0, 0.9);
+}
+@media (min-width: 80em) and (min-height: 45em) {
+  html[data-lmn-skin] .dialog-fixedSize:not(.dialog-fullscreen),
+  html[data-lmn-skin] .dialog-fullscreen-lowres:not(.dialog-fullscreen) {
+    border: 1px solid var(--lmn-line-strong);
+    border-radius: 20px;
+    box-shadow: 0 40px 80px -24px rgba(0, 0, 0, 0.9);
+  }
+}
+html[data-lmn-skin] .dialogBackdropOpened {
+  background-color: #000;
+  opacity: 0.66;
+}
+html[data-lmn-skin] .formDialogHeader {
+  border-bottom: 1px solid var(--lmn-line);
+  background: transparent !important;
+  color: #fff;
+}
+html[data-lmn-skin] .formDialogHeader:not(.formDialogHeader-clear) {
+  padding-right: 12px;
+  padding-left: 16px;
+}
+html[data-lmn-skin] .formDialogHeader-clear {
+  border-bottom: 0;
+}
+html[data-lmn-skin] .formDialogHeaderTitle {
+  color: #fff;
+  font-family: var(--lmn-font);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+/* Confirmations and alerts (Delete, Quick Connect): a larger, centred title over quieter text. */
+html[data-lmn-skin] .formDialogHeader-clear .formDialogHeaderTitle {
+  margin: 8px 0 0;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+html[data-lmn-skin] .centeredDialog .text {
+  color: var(--lmn-text-2);
+  font-size: 15px;
+  line-height: 1.5;
+}
+html[data-lmn-skin] .formDialogFooter:not(.formDialogFooter-clear) {
+  border-top: 1px solid var(--lmn-line);
+  background: var(--lmn-surface) !important;
+}
+/* The footer of a floating editor sits on its bottom edge: round it with the dialog. */
+@media (min-width: 80em) and (min-height: 45em) {
+  html[data-lmn-skin] .dialog-fixedSize .formDialogFooter {
+    border-radius: 0 0 19px 19px;
+  }
+}
+/* Header icon buttons (Back, Close, More) and the small icon buttons beside fields: round, quiet, white on hover. */
+html[data-lmn-skin] .dialog .paper-icon-button-light {
+  border-radius: 50%;
+  color: var(--lmn-text-2);
+}
+html[data-lmn-skin] .dialog .paper-icon-button-light:hover {
+  background: var(--lmn-fill-3);
+  color: #fff;
+}
+html[data-lmn-skin] .dialog .paper-icon-button-light:focus-visible {
+  outline: 2px solid var(--lmn-focus) !important;
+  outline-offset: 0;
+}
+html[data-lmn-skin] .dialog .button-link {
+  color: var(--lmn-text-2);
+}
+/* Section headings inside an editor (External IDs, Genres, People, Images, Video…). */
+html[data-lmn-skin] .dialogContentInner h2,
+html[data-lmn-skin] .dialogContentInner .sectionTitle {
+  color: #fff;
+  font-family: var(--lmn-font);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+/* Round add buttons (Genres, People, Images): Lumen's quiet surface instead of jellyfin-web's blue. */
+html[data-lmn-skin] .dialog .fab {
+  background: var(--lmn-fill-3) !important;
+  color: #fff !important;
+}
+html[data-lmn-skin] .dialog .fab:hover {
+  background: rgba(255, 255, 255, 0.16) !important;
+}
+/* Image cards (Edit images, Identify results). */
+html[data-lmn-skin] .dialog .visualCardBox {
+  border: 1px solid var(--lmn-line);
+  background: var(--lmn-surface-2) !important;
+}
+/* Media info: label and value pairs, labels quieter. */
+html[data-lmn-skin] .mediaInfoContent .mediaInfoLabel {
+  color: var(--lmn-text-3);
+  font-weight: 500;
+}
+html[data-lmn-skin] .mediaInfoContent .mediaInfoAttribute {
+  color: var(--lmn-text);
+}
+/* Lists inside editors (Genres, People, the subtitle list) and on the admin pages. */
+html.lmn-skin-dashboard .paperList,
+html[data-lmn-skin] .dialogContainer .paperList {
+  border-radius: 12px;
+  background: var(--lmn-surface) !important;
+}
+html[data-lmn-skin] .dialogContainer .paperList {
+  border: 1px solid var(--lmn-line);
+  background: var(--lmn-fill) !important;
+}
+html.lmn-skin-dashboard .listItem-border,
+html[data-lmn-skin] .dialogContainer .listItem-border {
+  border-color: var(--lmn-line) !important;
+}
+/* Destructive buttons (Delete, Uninstall): Lumen's red, outlined; hover fills them. The others get an invisible border
+   of the same width, so a Delete beside a Cancel is the same height. */
+html[data-lmn-skin] .dialogContainer .emby-button.raised {
+  border: 1px solid transparent;
+}
+html.lmn-skin-dashboard .emby-button.raised.button-delete,
+html[data-lmn-skin] .dialogContainer .emby-button.raised.button-delete {
+  border: 1px solid var(--lmn-accent);
+  background: transparent !important;
+  color: var(--lmn-accent) !important;
+}
+html.lmn-skin-dashboard .emby-button.raised.button-delete:hover,
+html[data-lmn-skin] .dialogContainer .emby-button.raised.button-delete:hover {
+  background: var(--lmn-accent) !important;
+  color: #fff !important;
+}
+/* TV layout: no :focus-visible on its browsers, and D-pad focus must always show (over jellyfin-web's
+   `outline: none !important` on its buttons). */
+html.layout-tv[data-lmn-skin] .dialogContainer .emby-button:focus,
+html.layout-tv[data-lmn-skin] .dialog .paper-icon-button-light:focus,
+html.layout-tv[data-lmn-skin] .dialog .fab:focus {
+  outline: 3px solid var(--lmn-focus) !important;
+  outline-offset: 3px;
+}
+
+/* ---- Action sheets (.actionSheet: the ⋯ menus, track and quality pickers) -------------------------------------- */
+html[data-lmn-skin] .actionSheet {
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 14px !important;
+  background: rgba(28, 28, 28, 0.97) !important;
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.8);
+}
+html[data-lmn-skin] .actionSheet.actionsheet-fullscreen {
+  border: 0;
+  border-radius: 0 !important;
+}
+html[data-lmn-skin] .actionSheetContent {
+  padding: 6px !important;
+}
+html[data-lmn-skin] .actionSheetTitle {
+  color: var(--lmn-text-3);
+  font-family: var(--lmn-font);
+  font-size: 13px;
+  font-weight: 600;
+}
+html[data-lmn-skin] .actionSheetMenuItem {
+  min-height: 40px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--lmn-text-2);
+  font-family: var(--lmn-font);
+  font-size: 14px;
+  font-weight: 500;
+}
+html[data-lmn-skin] .actionSheetMenuItem:hover,
+html[data-lmn-skin] .actionSheetMenuItem:focus {
+  background: var(--lmn-fill-3);
+  color: #fff;
+}
+html[data-lmn-skin] .actionsheetMenuItemIcon {
+  color: var(--lmn-text-3);
+  font-size: 20px;
+}
+html[data-lmn-skin] .actionSheetMenuItem:hover .actionsheetMenuItemIcon,
+html[data-lmn-skin] .actionSheetMenuItem:focus .actionsheetMenuItemIcon {
+  color: inherit;
+}
+/* The current choice in a picker (audio, subtitles, quality) is ticked: the tick in Lumen's accent. */
+html[data-lmn-skin] .actionsheetMenuItemIcon.check {
+  color: var(--lmn-accent);
+}
+html[data-lmn-skin] .actionSheetItemAsideText {
+  color: var(--lmn-text-3);
+}
+html[data-lmn-skin] .actionsheetDivider {
+  margin: 6px 4px;
+  background: var(--lmn-line);
+}
+/* Keyboard focus ring inside the item: the sheet's scroller would clip one drawn outside. */
+html[data-lmn-skin] .dialogContainer .actionSheetMenuItem:focus-visible {
+  outline-offset: -2px;
+}
+html.layout-tv[data-lmn-skin] .actionSheetMenuItem:focus {
+  outline: 3px solid var(--lmn-focus) !important;
+  outline-offset: -3px;
+}
+
+/* ---- MUI menus and popovers (header menus, a library's Filter, Sort and View menus, select lists) ------------- */
+html[data-lmn-skin] .MuiMenu-paper,
+html[data-lmn-skin] .MuiPopover-paper,
+html[data-lmn-skin] .MuiAutocomplete-paper {
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 14px !important;
+  background: rgba(28, 28, 28, 0.97) !important;
+  background-image: none !important;
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.8) !important;
+  color: var(--lmn-text);
+  font-family: var(--lmn-font);
+}
+html[data-lmn-skin] .MuiPopover-paper > .MuiList-root {
+  padding: 6px !important;
+}
+html[data-lmn-skin] .MuiMenuItem-root {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: var(--lmn-text-2);
+  font-family: var(--lmn-font);
+  font-size: 14px;
+  font-weight: 500;
+}
+html[data-lmn-skin] .MuiMenuItem-root .MuiTypography-root {
+  font: inherit;
+}
+html[data-lmn-skin] .MuiMenuItem-root .MuiListItemIcon-root {
+  min-width: 32px;
+  color: inherit;
+}
+html[data-lmn-skin] .MuiMenuItem-root .MuiSvgIcon-root {
+  font-size: 20px;
+}
+html[data-lmn-skin] .MuiMenuItem-root:hover,
+html[data-lmn-skin] .MuiMenuItem-root.Mui-focusVisible {
+  background: var(--lmn-fill-3) !important;
+  color: #fff;
+}
+html[data-lmn-skin] .MuiMenuItem-root.Mui-selected {
+  background: var(--lmn-fill-2) !important;
+  color: #fff;
+  font-weight: 600;
+}
+/* A select's list (Display page, Dashboard) ticks its current choice, like Lumen's dropdowns. */
+html[data-lmn-skin] .MuiMenu-list[role='listbox'] > .MuiMenuItem-root.Mui-selected::after {
+  content: '';
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  padding-left: 12px;
+  background: var(--lmn-accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z'/%3E%3C/svg%3E")
+    right center / 16px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z'/%3E%3C/svg%3E")
+    right center / 16px no-repeat;
+}
+html[data-lmn-skin] .MuiPopover-paper .MuiDivider-root {
+  margin: 6px 4px;
+  border-color: var(--lmn-line);
+}
+html[data-lmn-skin] .MuiPopover-paper .MuiListSubheader-root {
+  background: transparent;
+  color: var(--lmn-text-3);
+  font-family: var(--lmn-font);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 32px;
+  text-transform: uppercase;
+}
+
+/* ---- MUI dialogs (New API key, Restart, the Dashboard's confirmations) ---------------------------------------- */
+html[data-lmn-skin] .MuiDialog-paper:not(.MuiDialog-paperFullScreen) {
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 20px !important;
+  box-shadow: 0 40px 80px -24px rgba(0, 0, 0, 0.9) !important;
+}
+html[data-lmn-skin] .MuiDialog-paper {
+  background: var(--lmn-surface) !important;
+  color: var(--lmn-text);
+  font-family: var(--lmn-font);
+}
+html[data-lmn-skin] .MuiDialogTitle-root {
+  color: #fff;
+  font-family: var(--lmn-font);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+html[data-lmn-skin] .MuiBackdrop-root:not(.MuiBackdrop-invisible) {
+  background-color: rgba(0, 0, 0, 0.66);
+}
+html[data-lmn-skin] .MuiDialog-paper .MuiButton-root {
+  border-radius: 10px;
+  font-family: var(--lmn-font);
+  font-weight: 600;
+  text-transform: none;
+  box-shadow: none;
+}
+/* Underlined (standard) text fields: Lumen's field, label above the box like everywhere else. */
+html[data-lmn-skin] .MuiDialog-paper .MuiInputLabel-standard {
+  position: relative;
+  margin-bottom: 6px;
+  transform: none;
+  color: var(--lmn-text-2) !important;
+  font-family: var(--lmn-font);
+  font-size: 13px;
+  font-weight: 500;
+}
+html[data-lmn-skin] .MuiDialog-paper .MuiInput-root {
+  min-height: 46px;
+  margin-top: 0 !important;
+  padding: 0 14px;
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-family: var(--lmn-font);
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+html[data-lmn-skin] .MuiDialog-paper .MuiInput-root::before,
+html[data-lmn-skin] .MuiDialog-paper .MuiInput-root::after {
+  display: none;
+}
+html[data-lmn-skin] .MuiDialog-paper .MuiInput-root.Mui-focused {
+  border-color: var(--lmn-accent);
+  border-color: color-mix(in srgb, var(--lmn-accent) 75%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--lmn-accent) 18%, transparent);
+}
+html[data-lmn-skin] .MuiDialog-paper .MuiInput-root.Mui-error {
+  border-color: var(--jf-palette-error-main);
+}
+html[data-lmn-skin] .MuiDialog-paper .MuiFormHelperText-root:not(.Mui-error) {
+  margin: 6px 0 0;
+  color: var(--lmn-text-3);
+  font-family: var(--lmn-font);
+  font-size: 13px;
+}
+
+/* ---- Tooltips and snackbars ------------------------------------------------------------------------------------ */
+html[data-lmn-skin] .MuiTooltip-tooltip {
+  border-radius: 8px;
+  background: var(--lmn-surface-2);
+  color: var(--lmn-text);
+  font-family: var(--lmn-font);
+  font-size: 12px;
+}
+html[data-lmn-skin] .MuiSnackbarContent-root,
+html[data-lmn-skin] .MuiAlert-root {
+  border-radius: 12px;
+  font-family: var(--lmn-font);
+}
+html[data-lmn-skin] .MuiSnackbarContent-root {
+  border: 1px solid var(--lmn-line-strong);
+  color: var(--lmn-text);
+}
+
+/* ---- The phone drawer outside the admin pages (those style theirs in dashboard.css) ---------------------------- */
+html[data-lmn-skin]:not(.lmn-skin-dashboard) .MuiDrawer-modal .MuiDrawer-paper {
+  border-right: 1px solid var(--lmn-line);
+  background: var(--lmn-bg) !important;
+  font-family: var(--lmn-font);
+}
+html[data-lmn-skin]:not(.lmn-skin-dashboard) .MuiDrawer-modal .MuiTypography-root {
+  font-family: var(--lmn-font);
+}
+html[data-lmn-skin]:not(.lmn-skin-dashboard) .MuiDrawer-modal .MuiListSubheader-root {
+  background: transparent;
+  color: var(--lmn-text-3);
+  font-family: var(--lmn-font);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 36px;
+  text-transform: uppercase;
+}
+html[data-lmn-skin]:not(.lmn-skin-dashboard) .MuiDrawer-modal .MuiListItemButton-root {
+  width: auto;
+  margin: 1px 8px;
+  border-radius: 10px;
+  color: var(--lmn-text-2);
+}
+html[data-lmn-skin]:not(.lmn-skin-dashboard) .MuiDrawer-modal .MuiListItemButton-root:hover,
+html[data-lmn-skin]:not(.lmn-skin-dashboard) .MuiDrawer-modal .MuiListItemButton-root.Mui-focusVisible {
+  background: var(--lmn-fill-2);
+  color: #fff;
+}
+html[data-lmn-skin]:not(.lmn-skin-dashboard) .MuiDrawer-modal .MuiListItemButton-root.Mui-selected {
+  background: var(--lmn-fill-3) !important;
+  color: #fff;
+}
+html[data-lmn-skin]:not(.lmn-skin-dashboard) .MuiDrawer-modal .MuiListItemIcon-root {
+  min-width: 40px;
+  color: inherit;
+}
+html[data-lmn-skin]:not(.lmn-skin-dashboard) .MuiDrawer-modal .MuiDivider-root {
+  border-color: var(--lmn-line);
+}
