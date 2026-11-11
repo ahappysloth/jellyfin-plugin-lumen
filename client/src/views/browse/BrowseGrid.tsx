@@ -9,6 +9,22 @@ import { captionFor } from '../home/Row';
 import type { CardMenuHandler } from '../cardMenu';
 import type { BrowseState } from './useBrowseItems';
 
+/** One card in the grid: an item, or several shown as one (History's run of a show's episodes). */
+export interface GridCell {
+  key: string;
+  /** What the card links to and is named after. */
+  item: BaseItem;
+  caption?: string;
+  /** Whose art the card shows, when not the item's own (the latest of the episodes). */
+  artItem?: BaseItem;
+  /** Without one, the card has no menu (a card standing for several titles). */
+  menu?: boolean;
+}
+
+/** The grid's default: a card per item, episodes captioned "S1:E2 · Pilot". */
+const itemCells = (items: BaseItem[]): GridCell[] =>
+  items.map((item) => ({ key: item.Id, item, caption: captionFor(item), menu: true }));
+
 interface Props {
   state: BrowseState;
   client: Pick<JellyfinApiClient, 'getUrl'>;
@@ -23,12 +39,24 @@ interface Props {
    * the same key.
    */
   groupBy?: (item: BaseItem) => { key: string; label: string };
+  /** Turns each section's items into cards (by default one per item). */
+  toCells?: (items: BaseItem[]) => GridCell[];
 }
 
 const SKELETONS = 18;
 
 /** A responsive grid of cards that loads the next page as its end nears the viewport. */
-export function BrowseGrid({ state, client, variant, label, onSelect, onMenu, empty, groupBy }: Props) {
+export function BrowseGrid({
+  state,
+  client,
+  variant,
+  label,
+  onSelect,
+  onMenu,
+  empty,
+  groupBy,
+  toCells = itemCells,
+}: Props) {
   const sentinel = useRef<HTMLDivElement>(null);
   const { items, total, loading, error, hasMore, loadMore, restoredScrollY } = state;
 
@@ -56,17 +84,20 @@ export function BrowseGrid({ state, client, variant, label, onSelect, onMenu, em
 
   if (total === 0 && !loading) return <div class="lmn-browse__empty">{empty}</div>;
 
-  const gridClass = `lmn-browse-grid lmn-browse-grid--${variant} focuscontainer`;
+  // D-pad: Left and Right stay in the grid, Up and Down leave it (the toolbar and nav above, the next day's section
+  // below). A plain focuscontainer is a wall in every direction for jellyfin-web's focusManager.
+  const gridClass = `lmn-browse-grid lmn-browse-grid--${variant} focuscontainer-x`;
   const cells = (list: BaseItem[]) =>
-    list.map((item) => (
-      <div role="listitem" key={item.Id} class="lmn-browse-grid__cell">
+    toCells(list).map((cell) => (
+      <div role="listitem" key={cell.key} class="lmn-browse-grid__cell">
         <Card
-          item={item}
+          item={cell.item}
+          artItem={cell.artItem}
           client={client}
           variant={variant}
-          caption={captionFor(item)}
+          caption={cell.caption}
           onSelect={onSelect}
-          onMenu={onMenu}
+          onMenu={cell.menu ? onMenu : undefined}
         />
       </div>
     ));

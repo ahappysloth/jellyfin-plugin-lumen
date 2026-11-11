@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
-import { ADMIN, loadState } from '../support/api';
+import { ADMIN, api, loadState } from '../support/api';
 import { walkDpad } from '../support/dpad';
 import { login } from '../support/login';
+import { navLink } from '../support/nav';
 
 // TV remotes have only arrows, OK and Back: a control the arrows can't reach can't be used at all. (Chromium only, like
 // TVs' browsers: see playwright.config.ts.)
@@ -102,4 +103,74 @@ test("TV layout: the focused item of jellyfin-web's ⋯ menu shows its ring insi
   // Drawn inside the item: one outside it would be clipped by the sheet's scroller (styles/stock-components.css).
   await expect(first).toHaveCSS('outline-style', 'solid');
   await expect(first).toHaveCSS('outline-offset', '-3px');
+});
+
+test.describe('History', () => {
+  /** Titles the test played: put back to never played afterwards (marking played, then unplayed, clears the date). */
+  let played: string[] = [];
+  test.afterEach(async () => {
+    const { admin } = loadState();
+    for (const id of played)
+      for (const method of ['POST', 'DELETE'] as const)
+        await api(`/UserPlayedItems/${id}`, { method, token: admin.token, query: { userId: admin.userId } });
+    played = [];
+  });
+
+  test('TV layout: the D-pad moves between the days, and up to the nav', async ({ page }) => {
+    const { admin, items } = loadState();
+    // A play today, one more than a day ago and one more than three days ago: three day sections, whatever the hour.
+    const plays = [
+      ['Lumen Alpha', 1],
+      ['Lumen Beta', 25 * 60],
+      ['Lumen Gamma', 73 * 60],
+    ] as const;
+    for (const [name, minutesAgo] of plays) {
+      played.push(items[name]!);
+      await api(`/UserItems/${items[name]}/UserData`, {
+        method: 'POST',
+        token: admin.token,
+        query: { userId: admin.userId },
+        body: { PlaybackPositionTicks: 50_000_000, LastPlayedDate: new Date(Date.now() - minutesAgo * 60_000).toISOString() },
+      });
+    }
+    await signInOnTv(page);
+    await page.goto('/web/#/home?lumen=history');
+    const sections = page.locator('#lmn-root .lmn-history section');
+    await expect(sections).toHaveCount(3);
+    const first = sections.first().getByRole('link', { name: 'Lumen Alpha' });
+    await expect(first).toBeFocused();
+
+    // Down from today's card reaches the next day's, and on to the last day's; Up comes back, and on up to the nav.
+    await page.keyboard.press('ArrowDown');
+    await expect(sections.nth(1).getByRole('link', { name: 'Lumen Beta' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(sections.nth(2).getByRole('link', { name: 'Lumen Gamma' })).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('ArrowUp');
+    await expect(first).toBeFocused();
+    // jellyfin-web scrolls the focused card into view: let it get back to the top (a remote is slower than this).
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    await page.keyboard.press('ArrowUp');
+    await expect(page.locator('#lmn-root .lmn-nav :focus')).toHaveCount(1);
+
+    const { unreachable } = await walkDpad(page, first);
+    expect(unreachable.map((c) => c.name)).toEqual([]);
+  });
+});
+
+test("TV layout: every control on a library's grid page is reachable with the D-pad (Up from the grid reaches the nav)", async ({
+  page,
+}) => {
+  await signInOnTv(page);
+  await navLink(page, 'Movies').click();
+  const cards = page.locator('#lmn-root .lmn-browse-grid .lmn-card');
+  await expect(cards).toHaveCount(8);
+  // From the grid's first card: everything above it (the tabs, the toolbar, the nav) only Up can reach.
+  const start = cards.first();
+  await expect(page.locator('#lmn-root .lmn-library-tabs .lmn-autofocus')).toBeFocused();
+
+  const { controls, unreachable } = await walkDpad(page, start);
+
+  expect(controls.length).toBeGreaterThan(10);
+  expect(unreachable.map((c) => c.name)).toEqual([]);
 });

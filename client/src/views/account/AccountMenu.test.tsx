@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
-import { makeContext } from '../../../test/viewContext';
+import { makeContext, testConfig } from '../../../test/viewContext';
 import { ContextMenuHost } from '../../components/ContextMenu';
 import { resetMultiServer } from '../../compat/jellyfin';
 import { WEB_PLUGIN_KEY } from '../../compat/webPlugin';
@@ -18,17 +18,19 @@ function setup({
   quickConnect = false,
   syncPlay = NO_SYNCPLAY,
   layout = 'desktop',
+  config = testConfig,
 }: {
   user?: object;
   quickConnect?: boolean;
   syncPlay?: SyncPlayState;
   layout?: ViewContext['layout'];
+  config?: ViewContext['config'];
 } = {}) {
   const ctx = makeContext(
     createFakeClient(
       routes({ 'Users/user1': user, 'QuickConnect/Enabled': quickConnect, 'SyncPlay/List': [] }),
     ),
-    { layout },
+    { layout, config },
   );
   render(
     <>
@@ -93,6 +95,12 @@ describe('AccountMenu', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
+  it("leaves History out where Lumen doesn't draw it (Library pages off): its link would open stock home", async () => {
+    const { button } = setup({ config: { ...testConfig, HomeTakeover: true, LibraryTakeover: false } });
+    const menu = await openByClick(button);
+    expect(names(menu)).toEqual(['Settings', 'Profile']);
+  });
+
   it('adds the Dashboard and Metadata manager for administrators only', async () => {
     const { button } = setup({ user: ROOT });
     const menu = await openByClick(button, 'Root');
@@ -153,6 +161,22 @@ describe('AccountMenu', () => {
     ]);
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Exit app' }));
     expect(exit).toHaveBeenCalled();
+
+    // jellyfin-web's appHost exits where it can (Tizen, webOS), so it goes first when Lumen's web plugin has it.
+    cleanup();
+    resetSessionCaches();
+    const appHostExit = vi.fn();
+    exit.mockClear();
+    Object.assign(window, {
+      [WEB_PLUGIN_KEY]: {
+        deps: { appHost: { supports: (f: string) => f === 'exitmenu', exit: appHostExit } },
+      },
+    });
+    const withPlugin = setup();
+    menu = await openByClick(withPlugin.button);
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Exit app' }));
+    expect(appHostExit).toHaveBeenCalled();
+    expect(exit).not.toHaveBeenCalled();
   });
 
   it("asks jellyfin-web's appHost first, when Lumen's web plugin has it", async () => {
@@ -234,6 +258,36 @@ describe('AccountMenu', () => {
       fireEvent.click(button, { detail: 0 });
       await screen.findByText('Sam');
       expect(within(screen.getByRole('menu')).getAllByRole('menuitem')[0]).toHaveFocus();
+    });
+
+    it("keeps Left and Right (nothing is beside the items): jellyfin-web's D-pad doesn't take focus out", async () => {
+      const { button } = setup({ layout: 'tv' });
+      fireEvent.click(button, { detail: 0 });
+      await screen.findByText('Sam');
+      const first = within(screen.getByRole('menu')).getAllByRole('menuitem')[0]!;
+      for (const key of ['ArrowLeft', 'ArrowRight']) {
+        const passedOn = vi.fn();
+        document.addEventListener('keydown', passedOn);
+        expect(fireEvent.keyDown(first, { key })).toBe(false);
+        document.removeEventListener('keydown', passedOn);
+        expect(passedOn).not.toHaveBeenCalled();
+        expect(first).toHaveFocus();
+      }
+      expect(screen.getByRole('menu')).toBeInTheDocument();
+    });
+
+    it('closes when focus moves elsewhere on the page', async () => {
+      const outside = document.body.appendChild(document.createElement('button'));
+      const { button } = setup();
+      fireEvent.click(button, { detail: 0 });
+      await screen.findByText('Sam');
+      const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
+      // Within the menu it stays.
+      act(() => items[1]!.focus());
+      expect(screen.getByRole('menu')).toBeInTheDocument();
+      act(() => outside.focus());
+      expect(screen.queryByRole('menu')).toBeNull();
+      outside.remove();
     });
 
     it("closes on a remote's Back", async () => {

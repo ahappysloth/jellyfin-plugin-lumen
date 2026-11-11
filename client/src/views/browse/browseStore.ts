@@ -12,6 +12,8 @@ export interface GridSnapshot {
   scrollY: number;
   /** The server offset the next page starts at (de-duplicated items can be fewer). */
   offset?: number;
+  /** More pages to load (an uncounted grid can't tell from its total). */
+  more?: boolean;
   /** The card the user opened, so the TV layout can focus it again. */
   selectedId?: string;
 }

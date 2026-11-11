@@ -14,3 +14,11 @@
 .layout-tv .lmn-card:focus .lmn-card__art > img:first-child {
   transform: scale(1.06);
 }
+
+/* Menus (the account menu, a card's menu): the focused item is plain to see from the couch, not just a faint fill. */
+.layout-tv .lmn-menu__item:focus {
+  outline: 3px solid var(--lmn-focus);
+  outline-offset: -3px;
+  background: var(--lmn-fill-3);
+  color: #fff;
+}

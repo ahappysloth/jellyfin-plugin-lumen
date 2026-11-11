@@ -45,9 +45,18 @@ test.describe('wide screens', () => {
     ]);
     await expect(accountMenu(page).getByRole('menuitem', { name: 'Dashboard' })).toHaveAttribute('href', '#/dashboard');
 
-    // Moving down into the menu (across the gap under the button) keeps it open.
-    const settings = accountMenu(page).getByRole('menuitem', { name: 'Settings' });
-    await settings.hover();
+    // Moving down into the menu keeps it open, even pausing in the gap between button and menu for longer than the
+    // close delay (300 ms).
+    const from = (await button.boundingBox())!;
+    const panel = (await page.locator('.lmn-account__panel').boundingBox())!;
+    const x = from.x + from.width / 2;
+    const gapY = (from.y + from.height + panel.y) / 2;
+    expect(panel.y - (from.y + from.height)).toBeGreaterThan(2);
+    await page.mouse.move(x, gapY, { steps: 8 });
+    await page.waitForTimeout(600);
+    await expect(accountMenu(page)).toBeVisible();
+    const settings = (await accountMenu(page).getByRole('menuitem', { name: 'Settings' }).boundingBox())!;
+    await page.mouse.move(x, settings.y + settings.height / 2, { steps: 8 });
     await page.waitForTimeout(500);
     await expect(accountMenu(page)).toBeVisible();
 
@@ -125,12 +134,34 @@ test.describe('wide screens', () => {
     await page.keyboard.press('Enter');
     await expect(accountMenu(page).getByRole('menuitem', { name: 'History' })).toBeFocused();
     await page.keyboard.press('ArrowDown');
-    await expect(accountMenu(page).getByRole('menuitem').nth(1)).toBeFocused();
+    const second = accountMenu(page).getByRole('menuitem').nth(1);
+    await expect(second).toBeFocused();
+    // Nothing is beside the items: Left and Right don't take focus out to the nav's links behind the open menu.
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowLeft');
+    await expect(second).toBeFocused();
+    await expect(accountMenu(page)).toBeVisible();
 
     await page.keyboard.press('Escape');
     await expect(accountMenu(page)).toBeHidden();
     await expect(button).toBeFocused();
     await expect(page).toHaveURL(/#\/home$/);
+  });
+
+  test("History: a show marked watched is one card for its episodes, which opens the show", async ({ page }) => {
+    const { admin, items } = loadState();
+    const show = items['Lumen Show']!;
+    played = [show];
+    await api(`/UserPlayedItems/${show}`, { method: 'POST', token: admin.token, query: { userId: admin.userId } });
+
+    await login(page, ADMIN);
+    await page.goto('/web/#/home?lumen=history');
+    const today = page.getByRole('list', { name: 'Today' });
+    const card = today.getByRole('link', { name: /^Lumen Show \d+ episodes$/ });
+    await expect(card).toBeVisible();
+    await expect(today.getByRole('link')).toHaveCount(1);
+    await card.click();
+    await expect(page).toHaveURL(new RegExp(`#/details\\?id=${show}`));
   });
 });
 

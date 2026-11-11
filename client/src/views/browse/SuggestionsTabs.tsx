@@ -201,7 +201,7 @@ export function UpcomingTab({
       {groups.map((group) => (
         <section key={group.label} class="lmn-upcoming__day" aria-label={group.label}>
           <h2 class="lmn-row__title">{group.label}</h2>
-          <div class="lmn-browse-grid lmn-browse-grid--landscape focuscontainer">
+          <div class="lmn-browse-grid lmn-browse-grid--landscape focuscontainer-x">
             {group.items.map((item) => (
               <Card
                 key={item.Id}

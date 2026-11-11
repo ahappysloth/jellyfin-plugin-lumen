@@ -7,7 +7,7 @@ import type { BaseItem } from '../../api/types';
 import type { AjaxRequest } from '../../compat/jellyfin';
 import { clearBrowseState } from '../browse/browseStore';
 import { clearUserData } from '../userDataStore';
-import { HistoryView, playedDay, playedOnly } from './HistoryView';
+import { HistoryView, historyCells, playedDay, playedOnly } from './HistoryView';
 
 const at = (date: Date, hour: number): string => {
   const d = new Date(date);
@@ -54,6 +54,44 @@ describe('playedDay', () => {
   it('crosses month and year boundaries for Yesterday', () => {
     const newYear = new Date(2027, 0, 1, 9);
     expect(playedDay(played({ Id: 'a' }, at(new Date(2026, 11, 31), 22)), newYear).label).toBe('Yesterday');
+  });
+});
+
+const episode = (id: string, series: string, n: number, when = at(new Date(), 20)): BaseItem =>
+  played(
+    {
+      Id: id,
+      Name: `Episode ${n}`,
+      Type: 'Episode',
+      SeriesId: series,
+      SeriesName: `Show ${series}`,
+      ParentIndexNumber: 1,
+      IndexNumber: n,
+      ServerId: 's',
+    },
+    when,
+  );
+
+describe('historyCells', () => {
+  it("makes a run of one show's episodes one card for the show, with the latest's art and no menu", () => {
+    const cells = historyCells([
+      episode('a6', 'A', 6),
+      episode('a5', 'A', 5),
+      episode('a4', 'A', 4),
+      played({ Id: 'm1', Name: 'Movie' }, at(new Date(), 19)),
+      episode('a3', 'A', 3),
+      episode('b1', 'B', 1),
+      episode('b2', 'B', 2),
+    ]);
+    expect(cells.map((c) => [c.item.Id, c.item.Type, c.caption, c.artItem?.Id, !!c.menu])).toEqual([
+      ['A', 'Series', '3 episodes', 'a6', false],
+      ['m1', 'Movie', undefined, undefined, true],
+      // On its own: an episode as usual.
+      ['a3', 'Episode', 'S1:E3 · Episode 3', undefined, true],
+      ['B', 'Series', '2 episodes', 'b1', false],
+    ]);
+    expect(cells[0]!.item).toMatchObject({ Name: 'Show A', ServerId: 's' });
+    expect(new Set(cells.map((c) => c.key)).size).toBe(cells.length);
   });
 });
 
@@ -105,9 +143,38 @@ describe('HistoryView', () => {
       'Yesterday',
     ]);
 
+    // D-pad: the day sections don't wall focus in (Down from Today reaches Yesterday): only Left/Right stay in a grid.
+    for (const grid of [today, yesterday]) {
+      expect(grid).toHaveClass('focuscontainer-x');
+      expect(grid).not.toHaveClass('focuscontainer');
+    }
+
     expect(query!.get('sortBy')).toBe('DatePlayed');
+    // Never counted: that would be a second query over the whole library.
+    expect(query!.get('enableTotalRecordCount')).toBe('false');
     expect(query!.get('sortOrder')).toBe('Descending');
     expect(query!.get('includeItemTypes')).toBe('Movie,Episode');
+  });
+
+  it("shows a run of a show's episodes on one day as one card that opens the show", async () => {
+    const ctx = makeContext(
+      createFakeClient(
+        routes({
+          Items: {
+            Items: [episode('a3', 'A', 3), episode('a2', 'A', 2), episode('a1', 'A', 1, at(daysAgo(1), 20))],
+            TotalRecordCount: 0,
+          },
+        }),
+      ),
+    );
+    render(<HistoryView ctx={ctx} />);
+    const today = await screen.findByRole('list', { name: 'Today' });
+    const card = within(today).getByRole('link', { name: /^Show A ?2 episodes$/ });
+    expect(card).toHaveAttribute('href', expect.stringContaining('id=A'));
+    expect(within(today).getAllByRole('link')).toHaveLength(1);
+    // The run stops at the day: yesterday's episode is its own card.
+    const yesterday = screen.getByRole('list', { name: 'Yesterday' });
+    expect(within(yesterday).getByRole('link', { name: /^Show A ?S1:E1 · Episode 1$/ })).toBeInTheDocument();
   });
 
   it('says so when nothing has been watched', async () => {

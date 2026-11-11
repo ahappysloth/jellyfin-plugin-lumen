@@ -10,6 +10,7 @@ import {
   signOut,
 } from '../../compat/jellyfin';
 import { Icon, type IconName } from '../../components/icons';
+import { routeEnabled } from '../../takeover/takeover';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { initials } from '../details/CastRow';
@@ -48,7 +49,10 @@ export function accountItems(
   win: Window = window,
 ): Item[][] {
   const access = accountAccess(account, win);
-  const mine: Item[] = [{ key: 'history', label: strings.history, icon: 'history', href: HISTORY_HASH }];
+  const mine: Item[] = [];
+  // Its link rides on home: where Lumen doesn't draw History, it would open jellyfin-web's home instead.
+  if (routeEnabled('history', ctx.config))
+    mine.push({ key: 'history', label: strings.history, icon: 'history', href: HISTORY_HASH });
   if (syncPlay.available)
     mine.push({
       key: 'watchTogether',
@@ -263,6 +267,10 @@ export function AccountMenu({
       End: () => focusItem(last),
       Enter: () => active >= 0 && choose(active),
       ' ': () => active >= 0 && choose(active),
+      // Nothing beside the items: kept here, or jellyfin-web's D-pad navigation would move focus out (to the nav's
+      // links) and leave the menu open behind it.
+      ArrowLeft: () => undefined,
+      ArrowRight: () => undefined,
     };
     if (e.key === 'Tab') {
       // Focus moves on as usual (the menu is still there for the browser to step past), and the menu closes.
@@ -287,6 +295,12 @@ export function AccountMenu({
       class={`lmn-account${open ? ' is-open' : ''}`}
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
+      onFocusOut={(e) => {
+        // Focus went somewhere else on the page (a click, a remote's key Lumen doesn't handle): the menu goes too.
+        // Not on a window blur (no relatedTarget), which closes it anyway; nor while the pointer still hovers it.
+        const to = e.relatedTarget as Node | null;
+        if (open && to && !root.current?.contains(to)) close(false);
+      }}
     >
       <button
         ref={button}

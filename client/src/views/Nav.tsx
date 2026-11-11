@@ -98,7 +98,8 @@ export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavAc
         <LumenMark class="lmn-nav__mark" />
         <span class="lmn-nav__name">{data?.serverName ?? 'Lumen'}</span>
       </a>
-      <nav class="lmn-nav__pill focuscontainer-x" aria-label={strings.mainNav}>
+      {/* No D-pad wall: Left from Home reaches the brand (Up from a wide card lands on Home, not on the brand). */}
+      <nav class="lmn-nav__pill" aria-label={strings.mainNav}>
         <NavItem href={HOME_HASH} icon="home" label={strings.home} current={active === 'home'} />
         {data?.libraries.map((view) => (
           <NavItem

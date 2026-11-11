@@ -279,13 +279,14 @@ button.lmn-nav__item {
   overflow-y: auto;
   transform-origin: top right;
 }
-/* Fills the gap above the menu, so the pointer crossing from the button never leaves the hover area. */
-.lmn-account__panel::before {
+/* Fills the gap between button and menu, so the pointer crossing it never leaves the hover area. On the account
+   element, not the menu: the menu scrolls, which would clip anything hanging outside it. */
+.lmn-account.is-open::after {
   content: '';
   position: absolute;
-  top: -12px;
-  right: 0;
-  left: 0;
+  top: 100%;
+  right: -6px;
+  width: 260px;
   height: 12px;
 }
 .lmn-account__header {

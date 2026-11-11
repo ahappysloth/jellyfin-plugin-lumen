@@ -2,7 +2,7 @@ import type { BaseItem } from '../../api/types';
 import { type CardMenuHandler, cardMenuHandler, infoHash } from '../cardMenu';
 import type { ViewContext } from '../context';
 import { saveSnapshot, type SnapshotOptions } from './browseStore';
-import { type BrowseState, type Fetch, useBrowseItems } from './useBrowseItems';
+import { type BrowseOptions, type BrowseState, type Fetch, useBrowseItems } from './useBrowseItems';
 
 export interface GridPage {
   state: BrowseState;
@@ -20,9 +20,9 @@ export function useGridPage(
   ctx: ViewContext,
   queryKey: string,
   fetchPage: Fetch,
-  options: SnapshotOptions = {},
+  options: SnapshotOptions & BrowseOptions = {},
 ): GridPage {
-  const state = useBrowseItems(queryKey, fetchPage);
+  const state = useBrowseItems(queryKey, fetchPage, { uncounted: options.uncounted });
   const save = (item: BaseItem): void => {
     if (state.total === null) return;
     saveSnapshot(
@@ -32,9 +32,10 @@ export function useGridPage(
         total: state.total,
         scrollY: window.scrollY,
         offset: state.offset,
+        more: state.hasMore,
         selectedId: item.Id,
       },
-      options,
+      { dependsOn: options.dependsOn },
     );
   };
   return {
