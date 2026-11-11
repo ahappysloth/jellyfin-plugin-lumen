@@ -55,7 +55,7 @@ export async function openWatchTogether(
   const entries: MenuEntry[] = groups.map((g) => ({
     label: g.GroupName,
     detail: g.Participants.join(', '),
-    icon: 'group',
+    icon: 'watchTogether',
     onSelect: () => void ctx.api.joinSyncPlayGroup(g.GroupId).catch(failed),
   }));
   if (state.canCreate) {
@@ -101,7 +101,7 @@ export function WatchTogetherButton({
       }
       onClick={(e) => void openWatchTogether(ctx, state, e.currentTarget)}
     >
-      <Icon name="group" size={size} />
+      <Icon name="watchTogether" size={size} />
     </button>
   );
 }

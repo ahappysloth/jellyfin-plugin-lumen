@@ -372,7 +372,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
           {subtitle && <p class="lmn-player__subtitle">{subtitle}</p>}
           {syncPlay.group && (
             <p class="lmn-player__syncplay">
-              <Icon name="group" size={16} />
+              <Icon name="watchTogether" size={16} />
               {othersInGroup(syncPlay).length > 0
                 ? strings.watchingWith(othersInGroup(syncPlay))
                 : strings.inGroup(syncPlay.group.GroupName)}

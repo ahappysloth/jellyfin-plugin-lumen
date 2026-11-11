@@ -114,7 +114,7 @@ export function SettingsPanel({
               closeToPill();
             }}
           >
-            <Icon name="group" size={18} />
+            <Icon name="watchTogether" size={18} />
             <span class="lmn-panel__option-label">{strings.watchTogether}</span>
             {syncPlay.group && (
               <span class="lmn-panel__option-detail">

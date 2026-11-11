@@ -6,8 +6,9 @@ const PATHS = {
   pause: 'M7 4h3v16H7zM14 4h3v16h-3z',
   info: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16Zm-1 7h2v6h-2zm0-4h2v2h-2z',
   plus: 'M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z',
-  group:
-    'M9 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm7.5 0a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Zm0 2a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3ZM9 13c3.9 0 7 1.8 7 4.5V20H2v-2.5C2 14.8 5.1 13 9 13Zm0 2c-2.9 0-5 1.2-5 2.5V18h10v-.5c0-1.3-2.1-2.5-5-2.5Zm8.1-1.8c2.8.3 4.9 1.8 4.9 3.8V20h-4v-2h2v-1c0-.8-1-1.6-2.6-2Z',
+  /** Watch together (SyncPlay): a screen playing. Not people, so it doesn't read as the account icon. */
+  watchTogether:
+    'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 2v12h16V6Zm6 2.5v7l5.5-3.5Z',
   stop: 'M6 6h12v12H6z',
   check: 'M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z',
   cast: 'M1 18v3h3a3 3 0 0 0-3-3Zm0-4v2a5 5 0 0 1 5 5h2a7 7 0 0 0-7-7Zm0-4v2a9 9 0 0 1 9 9h2A11 11 0 0 0 1 10Zm20-7H3a2 2 0 0 0-2 2v3h2V5h18v14h-7v2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Z',
