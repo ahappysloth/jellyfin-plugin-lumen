@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/preact';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { changePage } from '../../test/navigation';
 import { ConfirmHost, confirmDialog } from './ConfirmDialog';
 
@@ -138,7 +138,6 @@ describe('confirmDialog', () => {
 
   it("locks the page's scroll while open, and gives <body> back exactly the styles it had", async () => {
     document.body.style.overflow = 'clip';
-    document.body.style.paddingRight = '3px';
     setup();
     expect(document.body.style.overflow).toBe('hidden');
     // A replacing request keeps it locked, and the styles still come back as they were.
@@ -147,7 +146,18 @@ describe('confirmDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     await settle();
     expect(document.body.style.overflow).toBe('clip');
-    expect(document.body.style.paddingRight).toBe('3px');
     document.body.removeAttribute('style');
+  });
+
+  it("keeps the root's scrollbar gutter while a classic scrollbar is hidden, and gives it back", async () => {
+    const width = vi
+      .spyOn(document.documentElement, 'clientWidth', 'get')
+      .mockReturnValue(window.innerWidth - 15);
+    setup();
+    expect(document.documentElement.style.getPropertyValue('scrollbar-gutter')).toBe('stable');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await settle();
+    expect(document.documentElement.style.getPropertyValue('scrollbar-gutter')).toBe('');
+    width.mockRestore();
   });
 });

@@ -33,7 +33,10 @@ function controlledServer() {
 const item: BaseItem = { Id: 'm1', Name: 'Alpha', Type: 'Movie', UserData: { IsFavorite: false } };
 
 describe('userDataStore', () => {
-  afterEach(clearUserData);
+  afterEach(() => {
+    clearUserData();
+    vi.useRealTimers();
+  });
 
   it('sends changes to one item in order, and a stale failure does not roll back a newer change', async () => {
     const calls: string[] = [];
@@ -239,7 +242,6 @@ describe('userDataStore', () => {
     void setUserData(ctx, ahead, 'Played', false);
     expect(markedUnwatched(ahead)).toBe(true);
     expect(markedUnwatched(playedAt('2026-11-11T20:03:00.0000000Z'))).toBe(false);
-    vi.useRealTimers();
   });
 
   it('forgets the unwatch when fresh server data shows the title played, but not while the change is on its way', async () => {
