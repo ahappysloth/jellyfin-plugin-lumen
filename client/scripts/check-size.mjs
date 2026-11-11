@@ -44,7 +44,9 @@ const BUDGET = 72 * 1024;
 const startup = ['lumen.js', 'lumen.css', coreChunk];
 const total = startup.reduce((sum, f) => sum + gz(`dist/${f}`), 0);
 console.log(`lumen bundle: ${kb(total)} gzipped (budget ${BUDGET / 1024} KB): ${startup.join(', ')}`);
-const PLAYER_BUDGET = 12 * 1024;
+// Loads on Play, behind the "Starting…" screen. 13 KB since its own strings and icons moved here out of the core (about
+// 1 KB, which freed ~2.8 KB at startup).
+const PLAYER_BUDGET = 13 * 1024;
 const player = gz(`dist/${playerChunk}`);
 console.log(`lumen player: ${kb(player)} gzipped (budget ${PLAYER_BUDGET / 1024} KB)`);
 // Loads as a title with a trailer preview shows (views/home/lazyTrailer.tsx).
