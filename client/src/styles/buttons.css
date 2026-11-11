@@ -38,11 +38,13 @@
 }
 /* Goes ahead with something that can't be taken back in a click (Mark as unwatched forgets the play history). */
 .lmn-button--danger {
-  background: var(--lmn-accent);
+  background: var(--lmn-danger);
   color: #fff;
 }
+/* Still red (not .lmn-button's grey), darker, so the white label only gains contrast. */
 .lmn-button--danger:hover {
-  background: #b80912;
+  background: var(--lmn-danger);
+  filter: brightness(0.85);
 }
 .lmn-icon-button {
   display: inline-grid;

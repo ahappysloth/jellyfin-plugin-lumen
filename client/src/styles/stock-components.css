@@ -45,7 +45,8 @@ html[data-lmn-skin] .MuiModal-root {
   --jf-palette-error-light: #f57a7f;
   --jf-palette-error-dark: #b3262c;
   --jf-palette-error-mainChannel: 240 72 79;
-  /* Lumen's red whatever the accent: destructive buttons (Delete, Restart, Uninstall). */
+  /* Lumen's red whatever the accent: destructive buttons (Delete, Restart, Uninstall). Also in base.css, for Lumen's
+     own pages: this sheet only loads with the restyle. */
   --lmn-danger: #e30b17;
   --jf-palette-info-main: #8ab4f8;
   --jf-palette-info-mainChannel: 138 180 248;

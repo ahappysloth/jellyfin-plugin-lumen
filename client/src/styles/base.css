@@ -2,6 +2,8 @@
    order by lumen.css. Every selector targets Lumen-owned elements or is scoped by html.lmn-active. */
 :root {
   --lmn-accent: #e30b17;
+  /* Lumen's red whatever the accent: buttons that go ahead with something a click can't take back. White on it: 4.8:1. */
+  --lmn-danger: #e30b17;
   --lmn-bg: #0f0f0f;
   --lmn-surface: #181818;
   --lmn-surface-2: #212121;

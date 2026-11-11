@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
+import { changePage } from '../../../test/navigation';
 import { makeContext, testConfig } from '../../../test/viewContext';
 import { ContextMenuHost } from '../../components/ContextMenu';
 import { resetMultiServer } from '../../compat/jellyfin';
@@ -407,14 +408,16 @@ describe('AccountMenu', () => {
       expect(screen.queryByRole('menu')).toBeNull();
     });
 
-    it('closes when the page changes', () => {
-      const { button } = setup();
-      fireEvent.click(button, { detail: 1 });
-      expect(screen.getByRole('menu')).toBeInTheDocument();
-      act(() => {
-        window.dispatchEvent(new HashChangeEvent('hashchange'));
-      });
-      expect(screen.queryByRole('menu')).toBeNull();
-    });
+    it.each(['pushState', 'hash'] as const)(
+      "closes when the page changes (by %s: jellyfin-web's pushState, as a remote's Home key does, or a hash change)",
+      (how) => {
+        const { button } = setup();
+        fireEvent.click(button, { detail: 1 });
+        expect(screen.getByRole('menu')).toBeInTheDocument();
+        const restore = changePage(how);
+        expect(screen.queryByRole('menu')).toBeNull();
+        restore();
+      },
+    );
   });
 });

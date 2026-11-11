@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import baseCss from './base.css?raw';
+import buttonsCss from './buttons.css?raw';
 import detailsCss from './details.css?raw';
 
 /** A `--name: #rrggbb` token from base.css's :root. */
@@ -46,5 +47,20 @@ describe('text contrast', () => {
     expect(contrast(token(color), token('--lmn-bg'))).toBeGreaterThanOrEqual(7);
     expect(Number(/font-size:\s*(\d+)px/.exec(rule)![1])).toBeGreaterThanOrEqual(13);
     expect(Number(/font-weight:\s*(\d+)/.exec(rule)?.[1] ?? 400)).toBeGreaterThanOrEqual(500);
+  });
+
+  // Mark unwatched's button: Lumen's red whatever accent the user picked, with a label that stays legible.
+  it('draws a destructive button in the danger red, white on it at 4.5:1 or more, darker on hover', () => {
+    const rule = (selector: string) => {
+      const start = buttonsCss.indexOf(`${selector} {`);
+      expect(start, selector).toBeGreaterThanOrEqual(0);
+      return buttonsCss.slice(start, buttonsCss.indexOf('}', start));
+    };
+    expect(rule('.lmn-button--danger')).toMatch(/background:\s*var\(--lmn-danger\);\s*color:\s*#fff;/);
+    expect(contrast(token('--lmn-danger'), '#ffffff')).toBeGreaterThanOrEqual(4.5);
+    const hover = rule('.lmn-button--danger:hover');
+    expect(hover).toMatch(/background:\s*var\(--lmn-danger\);/); // not .lmn-button:hover's grey
+    const dimmed = /filter:\s*brightness\(([\d.]+)\)/.exec(hover);
+    expect(Number(dimmed?.[1])).toBeLessThan(1);
   });
 });

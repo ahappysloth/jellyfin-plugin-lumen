@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { isBackKey } from '../compat/jellyfin';
 import { strings } from '../strings';
+import { onNavigate } from '../takeover/navigation';
 
 export interface ConfirmOptions {
   title: string;
@@ -39,25 +40,32 @@ export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
  */
 export function ConfirmHost() {
   const [open, setOpen] = useState<Open | null>(null);
+  // The request being asked, kept outside state so each one is answered exactly once, and never from inside a state
+  // updater (Preact may run those more than once).
+  const pending = useRef<Open | null>(null);
   const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const mine = (next: Open): void =>
-      setOpen((current) => {
-        current?.resolve(false);
-        return next;
-      });
+    const mine = (next: Open): void => {
+      const replaced = pending.current;
+      pending.current = next;
+      replaced?.resolve(false);
+      setOpen(next);
+    };
     show = mine;
     return () => {
       if (show === mine) show = null;
     };
   }, []);
 
-  const close = (ok: boolean): void => {
-    if (!open) return;
-    open.returnFocus?.focus({ preventScroll: true });
+  /** Answers the open request. `refocus` false: the page changed, and the new one decides where focus goes. */
+  const close = (ok: boolean, refocus = true): void => {
+    const current = pending.current;
+    if (!current) return;
+    pending.current = null;
+    if (refocus) current.returnFocus?.focus({ preventScroll: true });
     setOpen(null);
-    open.resolve(ok);
+    current.resolve(ok);
   };
 
   // A layout effect: focus is in the dialog as it appears, never moved there after an answer came in.
@@ -71,12 +79,15 @@ export function ConfirmHost() {
       e.stopPropagation();
       close(false);
     };
-    const onLeave = (): void => close(false);
     document.addEventListener('keydown', onKey, true);
-    window.addEventListener('hashchange', onLeave);
+    // Any page change: jellyfin-web's own (pushState: a remote's Home key, a "go home" or "play" sent from another
+    // device, signing out) as well as a hash change. The question was about the page that's gone.
+    const stopNavigation = onNavigate(() => close(false, false));
+    const unlock = lockScroll();
     return () => {
       document.removeEventListener('keydown', onKey, true);
-      window.removeEventListener('hashchange', onLeave);
+      stopNavigation();
+      unlock();
     };
   }, [open]);
 
@@ -125,4 +136,22 @@ export function ConfirmHost() {
       </div>
     </div>
   );
+}
+
+/**
+ * Keeps the page behind from scrolling (a wheel or a swipe over the backdrop) and gives back exactly the inline styles
+ * <body> had. Where a classic scrollbar goes away, <body> keeps its width so the page doesn't shift sideways.
+ * jellyfin-web's own pages override <body>'s overflow with !important (stock-skin.css), and win there.
+ */
+function lockScroll(): () => void {
+  const { body, documentElement } = document;
+  const { overflow, paddingRight } = body.style;
+  const scrollbar = window.innerWidth - documentElement.clientWidth;
+  body.style.overflow = 'hidden';
+  if (scrollbar > 0)
+    body.style.paddingRight = `${parseFloat(getComputedStyle(body).paddingRight) + scrollbar}px`;
+  return () => {
+    body.style.overflow = overflow;
+    body.style.paddingRight = paddingRight;
+  };
 }

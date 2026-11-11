@@ -21,10 +21,11 @@ const queues = new Map<string, Promise<unknown>>();
 const versions = new Map<string, number>();
 const pending = new Map<string, number>();
 /**
- * Titles marked unwatched this session (optimistically, until a refusal rolls it back): Jellyfin forgets when they were
- * played, so History leaves them out at once rather than on the next visit.
+ * When each title was marked unwatched this session (optimistically, until a refusal rolls it back): Jellyfin forgets
+ * when it was played, so History leaves it out at once rather than on the next visit, but only until it's played again
+ * (here or on another device), which gives it a newer last-played date.
  */
-const unwatched = new Set<string>();
+const unwatched = new Map<string, number>();
 const listeners = new Set<() => void>();
 
 const keyOf = (itemId: string, field: UserDataField): string => `${itemId}:${field}`;
@@ -54,9 +55,12 @@ export function useUserData(item: BaseItem, field: UserDataField): boolean {
   return userDataValue(item, field);
 }
 
-/** The title was marked unwatched this session (see `unwatched`). */
-export function markedUnwatched(itemId: string): boolean {
-  return unwatched.has(itemId);
+/** The title was marked unwatched this session, after it was last played as far as `item` knows (see `unwatched`). */
+export function markedUnwatched(item: BaseItem): boolean {
+  const at = unwatched.get(item.Id);
+  if (at === undefined) return false;
+  // A date the browser can't read (NaN) isn't newer.
+  return !(Date.parse(item.UserData?.LastPlayedDate ?? '') > at);
 }
 
 /**
@@ -75,7 +79,7 @@ export function setUserData(
   const version = (versions.get(key) ?? 0) + 1;
   versions.set(key, version);
   pending.set(key, (pending.get(key) ?? 0) + 1);
-  if (field === 'Played') markUnwatched(item.Id, !value);
+  if (field === 'Played') markUnwatched(item, !value);
   apply(item.Id, key, field, value);
 
   const send = (): Promise<void> =>
@@ -90,7 +94,7 @@ export function setUserData(
       },
       () => {
         if (versions.get(key) !== version) return true;
-        if (field === 'Played' && !value) markUnwatched(item.Id, false);
+        if (field === 'Played' && !value) markUnwatched(item, false);
         apply(item.Id, key, field, confirmed.get(key) ?? !value);
         return false;
       },
@@ -118,10 +122,12 @@ export function toggleUserData(
  * History: Lumen asks first, in its own dialog (focus starts on Cancel and returns to `returnFocus`, by default the
  * control that had it). Resolves true to go ahead. For any surface that offers Mark as unwatched.
  */
-export function confirmUnwatched(returnFocus?: HTMLElement | null): Promise<boolean> {
+export function confirmUnwatched(item: BaseItem, returnFocus?: HTMLElement | null): Promise<boolean> {
+  const whole = item.Type === 'Series' || item.Type === 'Season';
   return confirmDialog({
     title: strings.markUnwatchedTitle,
-    body: strings.markUnwatchedBody,
+    // A show or a season: every episode in it is reset.
+    body: whole ? strings.markUnwatchedEpisodesBody : strings.markUnwatchedBody,
     confirmLabel: strings.markUnwatchedShort,
     returnFocus,
   });
@@ -136,12 +142,16 @@ export function togglePlayed(
   returnFocus?: HTMLElement | null,
 ): void {
   if (played) return toggleUserData(ctx, item, 'Played', true, onError);
-  void confirmUnwatched(returnFocus).then((ok) => ok && toggleUserData(ctx, item, 'Played', false, onError));
+  void confirmUnwatched(item, returnFocus).then(
+    (ok) => ok && toggleUserData(ctx, item, 'Played', false, onError),
+  );
 }
 
-function markUnwatched(itemId: string, on: boolean): void {
-  if (on) unwatched.add(itemId);
-  else unwatched.delete(itemId);
+function markUnwatched(item: BaseItem, on: boolean): void {
+  // The server's clock may be ahead of this one: a play it dated later than now is still the one being undone.
+  const lastPlayed = Date.parse(item.UserData?.LastPlayedDate ?? '') || 0;
+  if (on) unwatched.set(item.Id, Math.max(Date.now(), lastPlayed));
+  else unwatched.delete(item.Id);
 }
 
 function apply(itemId: string, key: string, field: UserDataField, value: boolean): void {
@@ -152,7 +162,7 @@ function apply(itemId: string, key: string, field: UserDataField, value: boolean
 
 /**
  * The server just sent this item fresh (e.g. its details page): its values win over older session changes, unless
- * a change is still on its way.
+ * a change is still on its way. Played again since it was marked unwatched: History shows it again.
  */
 export function reconcileUserData(item: BaseItem): void {
   let changed = false;
@@ -161,6 +171,7 @@ export function reconcileUserData(item: BaseItem): void {
     if (pending.get(key)) continue;
     confirmed.delete(key);
     if (overrides.delete(key)) changed = true;
+    if (field === 'Played' && item.UserData?.Played && unwatched.delete(item.Id)) changed = true;
   }
   if (changed) notify();
 }

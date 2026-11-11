@@ -1,7 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 import { ADMIN, api, KID, loadState } from '../support/api';
 import { login } from '../support/login';
-import { accountButton, accountMenu } from '../support/nav';
+import { accountButton, accountMenu, navLink } from '../support/nav';
 
 /** Titles a test played: put back to never played afterwards (marking played, then unplayed, clears the date too). */
 let played: string[] = [];
@@ -139,8 +139,31 @@ test.describe('wide screens', () => {
     await expect(confirm).toBeHidden();
     await expect(cards).toHaveCount(1);
     await expect(cards.first()).toHaveAccessibleName('Lumen Beta');
-    await page.reload();
-    await expect(page.getByRole('list', { name: 'Today' }).getByRole('link')).toHaveCount(1);
+    // Focus stays where the user was: on the card now in the removed one's place.
+    await expect(cards.first()).toBeFocused();
+    const episodePlayed = async () => {
+      const data = await api<{ Played: boolean }>(`/UserItems/${episode.Id}/UserData`, {
+        token: admin.token,
+        query: { userId: admin.userId },
+      });
+      return data.Played;
+    };
+    await expect.poll(episodePlayed).toBe(false);
+    const openHistory = async () => {
+      await navLink(page, 'Movies').click();
+      await expect(page).toHaveURL(/#\/movies/);
+      await accountButton(page).click();
+      await accountMenu(page).getByRole('menuitem', { name: 'History' }).click();
+      await expect(page.getByRole('heading', { name: 'History', level: 1 })).toBeVisible();
+    };
+    await openHistory();
+    await expect(cards).toHaveCount(1);
+
+    // Played again (here, or on another device): it's back.
+    await api(`/UserPlayedItems/${episode.Id}`, { method: 'POST', token: admin.token, query: { userId: admin.userId } });
+    await openHistory();
+    await expect(cards).toHaveCount(2);
+    await expect(cards.first()).toHaveAccessibleName(new RegExp(`^Lumen Show S\\d+:E\\d+ · ${episode.Name}$`));
   });
 
   test('TV layout: OK on the account button opens the menu, and Back closes it', async ({ page }) => {
