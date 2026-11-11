@@ -17,7 +17,7 @@ function setup({
   const state = { pending };
   let handler: Handler | null = null;
   const unsubscribe = vi.fn();
-  const ajax = vi.fn(async ({ url }: { url: string }) => {
+  const ajax = vi.fn(async ({ url }: { url: string }): Promise<unknown> => {
     if (url === 'Users/Me') return { Policy: { IsAdministrator: admin } };
     if (url === 'System/Info') {
       if (state.pending === 'error') throw new Error('down');

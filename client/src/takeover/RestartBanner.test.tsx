@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { JellyfinApiClient } from '../compat/jellyfin';
 import {
+  type PluginChange,
   BANNER_ID,
   confirmText,
   describeRestart,
@@ -61,12 +62,12 @@ describe('what the banner says', () => {
       'Restart Jellyfin to finish removing A and B.',
     ],
     [
-      ['A', 'B', 'C', 'D'].map((name) => ({ name, kind: 'install' })),
+      ['A', 'B', 'C', 'D'].map((name): PluginChange => ({ name, kind: 'install' })),
       'Restart Jellyfin to finish installing 4 plugins.',
     ],
     [[], 'Jellyfin needs a restart to apply changes.'],
-  ] as const)('%j', (changes, text) => {
-    expect(describeRestart([...changes])).toBe(text);
+  ] as [PluginChange[], string][])('%j', (changes, text) => {
+    expect(describeRestart(changes)).toBe(text);
   });
 
   it('says how many devices a restart interrupts, when it can tell', () => {
