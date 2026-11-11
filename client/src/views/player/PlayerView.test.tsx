@@ -427,6 +427,158 @@ describe('PlayerView', () => {
     });
   });
 
+  describe('the picture', () => {
+    const open = async () => {
+      const pm = fakeManager();
+      vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+      const { container } = render(<PlayerView ctx={makeContext(createFakeClient())} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      const surface = container.querySelector<HTMLElement>('.lmn-player__surface')!;
+      vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 900, 500));
+      return { pm, osd: container.querySelector('.lmn-osd')!, surface };
+    };
+    /** A press, a lift and the click they make, as a browser sends them for a tap or a click. */
+    const press = (el: Element, pointerType: string, clientX = 450) => {
+      const at = { pointerType, pointerId: 1, clientX, clientY: 250 };
+      fireEvent.pointerDown(el, at);
+      fireEvent.pointerUp(el, at);
+      fireEvent.click(el, { clientX, clientY: 250 });
+    };
+    const idle = async () =>
+      act(async () => {
+        await vi.advanceTimersByTimeAsync(4000);
+      });
+
+    it('shows the controls on a tap, and hides them on the next, without playing or pausing', async () => {
+      const { pm, osd, surface } = await open();
+      await idle();
+      expect(osd).toHaveClass('is-idle');
+
+      press(surface, 'touch');
+      expect(osd).not.toHaveClass('is-idle');
+      press(surface, 'touch');
+      expect(osd).toHaveClass('is-idle'); // at once, not after the idle delay
+      press(surface, 'pen');
+      expect(osd).not.toHaveClass('is-idle');
+      expect(pm.playPause).not.toHaveBeenCalled();
+      expect(pm.toggleFullscreen).not.toHaveBeenCalled();
+    });
+
+    it("takes a click that WebKit moves to the picture from a tap on a bar's shading as the tap it was", async () => {
+      const { pm, osd, surface } = await open();
+      // WebKit's click is a MouseEvent, pointerType or not, and lands on the clickable picture under the bar.
+      fireEvent.pointerDown(osd.querySelector('.lmn-player__bottom')!, {
+        pointerType: 'touch',
+        pointerId: 1,
+      });
+      fireEvent.click(surface, { clientX: 450, clientY: 250 });
+      expect(osd).toHaveClass('is-idle');
+      expect(pm.playPause).not.toHaveBeenCalled();
+    });
+
+    it('hides the controls on a tap while paused too, and brings them back on the next', async () => {
+      const { osd, surface } = await open();
+      fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+      await idle();
+      expect(osd).not.toHaveClass('is-idle'); // paused: they stay up
+
+      press(surface, 'touch');
+      expect(osd).toHaveClass('is-idle');
+      press(surface, 'touch');
+      expect(osd).not.toHaveClass('is-idle');
+    });
+
+    it('still plays and pauses on a mouse click, and goes full screen on a double click', async () => {
+      const { pm, surface } = await open();
+      await idle();
+      press(surface, 'mouse');
+      expect(pm.playPause).toHaveBeenCalledTimes(1);
+      fireEvent.dblClick(surface);
+      expect(pm.toggleFullscreen).toHaveBeenCalledTimes(1);
+      // A click without a press before it (a script's) counts as a mouse's.
+      fireEvent.click(surface);
+      expect(pm.playPause).toHaveBeenCalledTimes(2);
+    });
+
+    it('skips on a double tap at either side, not going full screen', async () => {
+      const { pm, osd, surface } = await open();
+      await idle();
+      press(surface, 'touch', 100);
+      press(surface, 'touch', 100);
+      fireEvent.dblClick(surface); // Chrome on Android sends one
+      expect(pm.rewind).toHaveBeenCalledTimes(1);
+      expect(osd).not.toHaveClass('is-idle'); // showing where it went
+      press(surface, 'touch', 800);
+      press(surface, 'touch', 800);
+      expect(pm.fastForward).toHaveBeenCalledTimes(1);
+      expect(pm.toggleFullscreen).not.toHaveBeenCalled();
+      expect(pm.playPause).not.toHaveBeenCalled();
+    });
+
+    it('closes an open panel and does nothing else, by mouse or by finger', async () => {
+      const { pm, osd, surface } = await open();
+      for (const pointerType of ['mouse', 'touch']) {
+        fireEvent.click(screen.getByRole('button', { name: /Quality/ }));
+        expect(screen.getByRole('dialog', { name: 'Quality' })).toBeInTheDocument();
+        press(surface, pointerType);
+        expect(screen.queryByRole('dialog', { name: 'Quality' })).toBeNull();
+        expect(osd).not.toHaveClass('is-idle');
+      }
+      expect(pm.playPause).not.toHaveBeenCalled();
+    });
+
+    it('keeps a panel open while a finger scrolls it, or scrolls from outside it', async () => {
+      const { surface } = await open();
+      fireEvent.click(screen.getByRole('button', { name: /Quality/ }));
+      const dialog = screen.getByRole('dialog', { name: 'Quality' });
+      const option = within(dialog).getAllByRole('radio')[1]!;
+      // A scroll inside: the browser cancels the touch.
+      fireEvent.pointerDown(option, { pointerType: 'touch', pointerId: 1, clientX: 50, clientY: 300 });
+      fireEvent.pointerCancel(option, { pointerType: 'touch', pointerId: 1 });
+      // A drag that starts on the picture, or on the bottom bar.
+      for (const from of [surface, screen.getByRole('slider', { name: playerStrings.seek })]) {
+        fireEvent.pointerDown(from, { pointerType: 'touch', pointerId: 2, clientX: 50, clientY: 300 });
+        fireEvent.pointerMove(from, { pointerType: 'touch', pointerId: 2, clientX: 50, clientY: 200 });
+        fireEvent.pointerUp(from, { pointerType: 'touch', pointerId: 2, clientX: 50, clientY: 200 });
+      }
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000); // nor do the controls hide under it
+      });
+      expect(screen.getByRole('dialog', { name: 'Quality' })).toBeInTheDocument();
+      // A tap inside picks without closing; a tap outside closes.
+      press(option, 'touch');
+      expect(screen.getByRole('dialog', { name: 'Quality' })).toBeInTheDocument();
+      press(screen.getByRole('button', { name: 'Back 10 seconds' }), 'touch');
+      expect(screen.queryByRole('dialog', { name: 'Quality' })).toBeNull();
+    });
+
+    it('turns to landscape in full screen where the browser can, and back on the way out', async () => {
+      const lock = vi.fn(() => Promise.reject(new Error('NotSupportedError'))); // as iOS and desktops answer
+      const unlock = vi.fn();
+      Object.defineProperty(window.screen, 'orientation', { value: { lock, unlock }, configurable: true });
+      let element: Element | null = null;
+      Object.defineProperty(document, 'fullscreenElement', { get: () => element, configurable: true });
+      try {
+        await open();
+        element = document.documentElement;
+        act(() => void document.dispatchEvent(new Event('fullscreenchange')));
+        expect(lock).toHaveBeenCalledWith('landscape');
+        element = null;
+        act(() => void document.dispatchEvent(new Event('fullscreenchange')));
+        expect(unlock).toHaveBeenCalledTimes(1);
+      } finally {
+        Object.defineProperty(window.screen, 'orientation', { value: undefined, configurable: true });
+      }
+      // Without the API (Safari before 16.4) there's nothing to call, and nothing throws.
+      element = document.documentElement;
+      act(() => void document.dispatchEvent(new Event('fullscreenchange')));
+      expect(screen.getByRole('button', { name: 'Exit full screen' })).toBeInTheDocument();
+      delete (document as { fullscreenElement?: unknown }).fullscreenElement;
+    });
+  });
+
   it('keeps "Ends at" moving while paused', async () => {
     vi.setSystemTime(new Date(2026, 10, 10, 21, 0, 0));
     const pm = fakeManager();

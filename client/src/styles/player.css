@@ -36,6 +36,9 @@ html.lmn-skin-player .upNextContainer {
 .lmn-player__surface {
   position: absolute;
   inset: 0;
+  /* Two quick taps skip (views/player/touch.ts), so they mustn't zoom the page; and no grey flash on a tap in Safari. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 /* Where Escape leaves focus as the controls go away: nothing to show. */
 .lmn-player__surface:focus {
@@ -72,6 +75,24 @@ html.lmn-skin-player .upNextContainer {
   padding-bottom: 14px;
   padding-bottom: max(14px, env(safe-area-inset-bottom));
   background: linear-gradient(to top, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.35) 55%, transparent);
+}
+/* The bars' shading is the picture's: a tap or a click there is one on the picture. Only what's in them takes it, and
+   only while they're shown. */
+.lmn-player__top,
+.lmn-player__bottom {
+  pointer-events: none;
+}
+.lmn-osd:not(.is-idle) .lmn-player__back,
+.lmn-osd:not(.is-idle) .lmn-player__pills,
+.lmn-osd:not(.is-idle) .lmn-seek,
+.lmn-osd:not(.is-idle) .lmn-player__group {
+  pointer-events: auto;
+}
+/* An open panel lies over the bottom bar (and Playback info), so every entry in it can be reached. The top bar doesn't
+   slide while one is open: a moving bar would carry a phone's panel along (it's fixed to the screen, below). */
+.lmn-osd.has-panel .lmn-player__top {
+  z-index: 2;
+  transition: opacity 0.35s ease;
 }
 .lmn-osd.is-idle .lmn-player__top {
   opacity: 0;
@@ -205,6 +226,10 @@ html.lmn-skin-player .upNextContainer {
   backdrop-filter: blur(24px) saturate(1.3);
   animation: lmn-panel-in 0.18s var(--lmn-ease);
   scrollbar-width: thin;
+  /* A finger scrolls the panel, with momentum (iOS 12 has to be asked), and not the page once it reaches the end. */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 @keyframes lmn-panel-in {
   from {
@@ -469,10 +494,33 @@ html.lmn-skin-player .upNextContainer {
   background: #fff;
 }
 
-/* Phones: icon-only pills, a smaller control row; the panel spans the width. */
+/* Phones, either way up (and short windows): the panel hangs below the top bar as before, but fixed to the screen, so
+   that 100% is the height actually on screen (vh in Safari counts the space under its toolbars). It stops short of the
+   home indicator and scrolls inside. */
+@media (max-width: 640px), (max-height: 500px) {
+  .lmn-panel {
+    position: fixed;
+    top: 72px;
+    top: calc(max(20px, env(safe-area-inset-top)) + 52px);
+    right: 16px;
+    right: max(16px, min(3vw, 40px), env(safe-area-inset-right));
+    max-height: calc(100% - 88px);
+    max-height: calc(
+      100% - max(20px, env(safe-area-inset-top)) - 52px - max(16px, env(safe-area-inset-bottom))
+    );
+  }
+}
+/* Phones: icon-only pills (their names stay for screen readers), a smaller control row; the panel spans the width. */
 @media (max-width: 640px) {
   .lmn-player__pill-label,
-  .lmn-player__pill-value,
+  .lmn-player__pill-value {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
   .lmn-player__next-label {
     display: none;
   }
@@ -483,10 +531,6 @@ html.lmn-skin-player .upNextContainer {
     position: static;
   }
   .lmn-panel {
-    top: 72px;
-    top: calc(max(20px, env(safe-area-inset-top)) + 52px);
-    right: 16px;
-    right: max(16px, env(safe-area-inset-right));
     left: 16px;
     left: max(16px, env(safe-area-inset-left));
     width: auto;

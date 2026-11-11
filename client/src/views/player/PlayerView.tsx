@@ -26,6 +26,8 @@ import {
 import { readPlayerState, snapshotKey, type PlayerSnapshot } from './playerState';
 import { PLAYER_ICONS } from './playerIcons';
 import { playerStrings } from './playerStrings';
+import { lockLandscape, unlockOrientation } from './orientation';
+import { isTouchLike, type LastTap, surfaceTap } from './touch';
 
 /**
  * How often the controls re-read jellyfin-web's player (cheap: it reads cached state). They only redraw when what
@@ -36,6 +38,8 @@ const POLL_MS = 250;
 const IDLE_MS = 3000;
 /** How long the volume pill stays after the last change. */
 const PILL_MS = 1200;
+/** The longest a press on the picture can be held for its click still to count as a tap (see `press`). */
+const PRESS_MS = 1000;
 
 type Panel = 'quality' | 'tracks' | 'settings' | null;
 
@@ -49,6 +53,8 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   const syncPlay = useSyncPlayState(ctx);
   const [snap, setSnap] = useState<PlayerSnapshot | null>(null);
   const [visible, setVisible] = useState(true);
+  /** A tap put the controls away while paused (they otherwise stay up while paused). Any input brings them back. */
+  const [tapHidden, setTapHidden] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
   const [fullscreen, setFullscreen] = useState(!!document.fullscreenElement);
   const idleTimer = useRef<number | undefined>(undefined);
@@ -95,10 +101,26 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
     };
   }, []);
 
+  // Full screen on a phone turns the picture sideways where the browser allows it (Android); a portrait video stays as
+  // it is. iOS can't lock (its expand button hands the video to iOS's own player, which turns it).
   useEffect(() => {
-    const onChange = (): void => setFullscreen(!!document.fullscreenElement);
+    let locked = false;
+    const onChange = (): void => {
+      const on = !!document.fullscreenElement;
+      setFullscreen(on);
+      if (on) {
+        const video = document.querySelector<HTMLVideoElement>('video.htmlvideoplayer');
+        if (!video || video.videoWidth >= video.videoHeight) locked = lockLandscape();
+      } else if (locked) {
+        locked = false;
+        unlockOrientation();
+      }
+    };
     document.addEventListener('fullscreenchange', onChange);
-    return () => document.removeEventListener('fullscreenchange', onChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      if (locked) unlockOrientation();
+    };
   }, []);
 
   const itemId = snap?.item?.Id;
@@ -121,6 +143,16 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   }, [itemId, snap?.playlistIndex]);
 
   const osdRef = useRef<HTMLDivElement>(null);
+  /**
+   * The last press, anywhere, and what was on screen just before it (the document's other listeners are about to wake
+   * the controls and close a panel). A click on the picture asks it which pointer it came from: WebKit's click is a
+   * MouseEvent, even for a tap, and a tap on a bar may land its click on the picture underneath.
+   */
+  const press = useRef<{ pointerType: string; shown: boolean; panelOpen: boolean; at: number } | null>(null);
+  /** Kept from the last press, for a double click (a double tap's, in Chrome on Android, isn't full screen's). */
+  const lastPointer = useRef<string | undefined>(undefined);
+  const shownNow = useRef(true);
+  const lastTap = useRef<LastTap | null>(null);
   /** The picture: where Escape leaves focus as it puts the controls away. */
   const surfaceRef = useRef<HTMLDivElement>(null);
   /**
@@ -162,6 +194,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   // Show on any input; hide after a pause while playing with no menu open.
   const wake = (): void => {
     setVisible(true);
+    setTapHidden(false);
     clearTimeout(idleTimer.current);
     const idle = (): void => {
       if (holdsKeyboardFocus()) idleTimer.current = window.setTimeout(idle, IDLE_MS);
@@ -243,6 +276,19 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   const open = useRef({ panel: false, info: false });
   open.current = { panel: panel !== null, info };
   useEffect(() => {
+    const onDown = (e: PointerEvent): void => {
+      lastPointer.current = e.pointerType;
+      press.current = {
+        pointerType: e.pointerType,
+        shown: shownNow.current,
+        panelOpen: open.current.panel,
+        at: Date.now(),
+      };
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, []);
+  useEffect(() => {
     const consume = (e: KeyboardEvent): void => {
       e.preventDefault();
       e.stopPropagation();
@@ -295,7 +341,8 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
     return pm.current ? <LoadingScreen ctx={ctx} snap={null} starting={starting} /> : null;
   const manager = pm.current;
   const player: Player = snap.player;
-  const shown = visible || snap.paused || panel !== null;
+  const shown = visible || (snap.paused && !tapHidden) || panel !== null;
+  shownNow.current = shown;
   const act = (fn: () => void) => (): void => {
     try {
       fn();
@@ -343,17 +390,46 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
       )}
       <VolumePill volume={volume} />
       <SwitchOverlay state={switching.state} />
-      {/* Clicking the picture toggles play (closes a menu first); double-click toggles full screen. */}
+      {/* A click on the picture plays or pauses (or closes a panel); a double click toggles full screen. A tap shows or
+          hides the controls, and a double tap at the sides skips (touch.ts). */}
       <div
         ref={surfaceRef}
         tabIndex={-1}
         class="lmn-player__surface"
         onClick={(e) => {
-          if (panel) return setPanel(null);
-          if ((e as unknown as PointerEvent).pointerType === 'touch' && !visible) return; // first tap just shows the controls
-          act(() => manager.playPause(player))();
+          // A click with no press just before it (a script's) is a mouse's.
+          const recent = press.current && Date.now() - press.current.at < PRESS_MS ? press.current : null;
+          press.current = null;
+          const down = recent ?? { pointerType: 'mouse', shown, panelOpen: panel !== null };
+          const box = e.currentTarget.getBoundingClientRect();
+          const tap = surfaceTap(
+            down,
+            { at: Date.now(), x: e.clientX - box.left, width: box.width },
+            lastTap.current,
+          );
+          lastTap.current = tap.last;
+          switch (tap.action) {
+            case 'closePanel':
+              return setPanel(null);
+            case 'togglePlay':
+              return act(() => manager.playPause(player))();
+            case 'show':
+              return wake();
+            case 'hide':
+              clearTimeout(idleTimer.current);
+              setVisible(false);
+              return setTapHidden(true);
+            case 'back':
+            case 'forward':
+              seekingUntil.current = Date.now() + PENDING_MAX_MS;
+              act(() => (tap.action === 'back' ? manager.rewind(player) : manager.fastForward(player)))();
+              return wake();
+          }
         }}
-        onDblClick={act(() => manager.toggleFullscreen(player))}
+        onDblClick={() => {
+          // A double tap skips instead (Chrome on Android sends a dblclick for it).
+          if (!isTouchLike(lastPointer.current)) act(() => manager.toggleFullscreen(player))();
+        }}
       />
 
       <header class="lmn-player__top">
