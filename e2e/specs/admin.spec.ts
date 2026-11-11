@@ -98,7 +98,7 @@ test('Check for Lumen updates on the Plugins page opens Lumen’s settings and c
   await expect(updates.getByRole('button', { name: 'Check for updates' })).toBeEnabled();
 });
 
-test('admin pages sit in one centred column, with Lumen’s tab strip', { tag: '@smoke' }, async ({ page, isMobile }) => {
+test('admin pages sit in one centred column, with Lumen’s cards and tab strip', { tag: '@smoke' }, async ({ page, isMobile }) => {
   await login(page, ADMIN);
   await page.goto('/web/#/dashboard/settings');
   const form = page.locator('#dashboardGeneralPage .content-primary form');
@@ -110,8 +110,25 @@ test('admin pages sit in one centred column, with Lumen’s tab strip', { tag: '
     expect(Math.round(box.x - area.x)).toBe(16);
   } else {
     // As wide as Lumen's settings page and centred in the space beside the drawer, not pinned to its left edge.
-    expect(Math.round(box.width)).toBe(880);
+    expect(Math.round(box.width)).toBe(920);
     expect(Math.abs(box.x - area.x - (area.x + area.width - box.x - box.width))).toBeLessThanOrEqual(2);
+  }
+  // Each section is a card: its heading opens one (Lumen's surface, rounded top) and sits inside the card's padding.
+  const heading = form.locator('h2').first();
+  const card = await heading.evaluate((h) => {
+    const before = getComputedStyle(h, '::before');
+    return { background: before.backgroundColor, radius: before.borderTopLeftRadius, x: h.getBoundingClientRect().x };
+  });
+  expect(card).toMatchObject({ background: 'rgb(24, 24, 24)', radius: '12px' });
+  expect(Math.round(card.x - box.x)).toBe(isMobile ? 16 : 24);
+
+  // Card grids use the whole width beside the drawer (jellyfin-web picks cards per row from the window's width).
+  if (!isMobile) {
+    await page.goto('/web/#/dashboard/plugins');
+    const plugins = page.locator('#pluginsPage .content-primary');
+    await expect(plugins).toBeVisible();
+    const pluginsArea = (await page.locator('#pluginsPage').boundingBox())!;
+    expect(Math.round((await plugins.boundingBox())!.width)).toBe(Math.round(pluginsArea.width));
   }
 
   // A user's tabs: a framed strip as wide as its tabs, the current tab filled; no underline.
@@ -122,4 +139,12 @@ test('admin pages sit in one centred column, with Lumen’s tab strip', { tag: '
   await expect(tabs.locator('.MuiTab-root.Mui-selected')).toHaveCSS('background-color', 'rgba(255, 255, 255, 0.12)');
   await expect(tabs.locator('.MuiTabs-indicator')).toBeHidden();
   expect((await tabs.boundingBox())!.width).toBeLessThan(isMobile ? 390 : 600);
+  if (!isMobile) {
+    // Keyboard (and a TV remote's D-pad) focus: a ring inside the tab, where the scrolling strip doesn't clip it.
+    await tabs.locator('.MuiTab-root.Mui-selected').focus();
+    await page.keyboard.press('ArrowRight');
+    const focused = tabs.locator('.MuiTab-root.Mui-focusVisible');
+    await expect(focused).toHaveCSS('outline-style', 'solid');
+    await expect(focused).toHaveCSS('outline-offset', '-2px');
+  }
 });
