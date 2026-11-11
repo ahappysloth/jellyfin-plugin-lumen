@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { ADMIN, KID } from '../support/api';
+import { ADMIN, KID, loadState } from '../support/api';
 import { login } from '../support/login';
 import { navLink } from '../support/nav';
 import { expectPresentButHidden } from '../support/stock';
@@ -98,4 +98,33 @@ test('installing to a home screen uses Lumen’s icon and the server’s name', 
   for (const icon of manifest.icons) {
     expect((await page.request.get(new URL(icon.src, manifestUrl).href)).headers()['content-type']).toBe('image/png');
   }
+});
+
+test('jellyfin-web’s toasts, menus and dialogs wear Lumen’s look on the pages Lumen doesn’t take over', async ({ page, isMobile }) => {
+  // A wrong password: jellyfin-web's toast, as Lumen's pill (styles/stock-skin.css).
+  await page.goto('/web/#/login');
+  await page.locator('#txtManualName').fill(ADMIN.name);
+  await page.locator('#txtManualPassword').fill('not-the-password');
+  await page.locator('.manualLoginForm button[type="submit"]').click();
+  await expect(page.locator('.toastContainer .toast').first()).toHaveCSS('border-top-left-radius', '999px');
+
+  // A library's stock item list: its header menu and the legacy Sort dialog (styles/stock-components.css).
+  await login(page, ADMIN);
+  await page.goto(`/web/#/list?parentId=${loadState().libraries.movies}`);
+  await page.getByRole('button', { name: 'User Menu' }).click();
+  const menu = page.locator('.MuiMenu-paper', { hasText: 'Sign Out' });
+  await expect(menu).toHaveCSS('border-top-left-radius', '14px');
+  await expect(menu).toHaveCSS('background-color', 'rgba(28, 28, 28, 0.97)');
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  // The Sort button hides its label on phones; the dialog is the same one.
+  if (isMobile) return;
+  await page.locator('.page:not(.hide) .btnSort').first().click();
+  const dialog = page.locator('.dialogContainer .formDialog');
+  await expect(dialog).toHaveCSS('background-color', 'rgb(24, 24, 24)');
+  await expect(dialog).toHaveCSS('border-top-left-radius', '20px');
+  // Its fields are Lumen's, like the settings pages'.
+  await expect(dialog.locator('.selectSortBy')).toHaveCSS('border-top-left-radius', '12px');
+  await dialog.locator('.btnCancel').click();
+  await expect(dialog).toHaveCount(0);
 });

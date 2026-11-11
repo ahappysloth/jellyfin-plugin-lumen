@@ -3,6 +3,7 @@ import baseCss from '../styles/base.css?raw';
 import dashboardCss from '../styles/dashboard.css?raw';
 import navCss from '../styles/nav.css?raw';
 import playerCss from '../styles/player.css?raw';
+import stockComponentsCss from '../styles/stock-components.css?raw';
 import stockSkinCss from '../styles/stock-skin.css?raw';
 import { PLAYBACK_MANAGER_METHODS, STOCK_SELECTORS } from './registry';
 
@@ -12,6 +13,7 @@ const stylesheets: Record<string, string> = {
   'stock-skin.css': stockSkinCss,
   'dashboard.css': dashboardCss,
   'nav.css': navCss,
+  'stock-components.css': stockComponentsCss,
 };
 
 describe('registry', () => {

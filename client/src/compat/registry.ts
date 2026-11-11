@@ -4,9 +4,9 @@
  * (e2e/specs/stock-probe.spec.ts checks each selector matches on its page; stock-routes.spec.ts checks no route
  * Lumen links to is jellyfin-web's 404 page). When jellyfin-web changes, fix it here.
  *
- * The CSS (styles/base.css, player.css, stock-skin.css, dashboard.css, nav.css) can't import this module, so it repeats
- * the selectors it needs; `css` names the stylesheet that does, and registry.test.ts checks the selector text really
- * occurs there.
+ * The CSS (styles/base.css, player.css, stock-skin.css, dashboard.css, nav.css, stock-components.css) can't import this
+ * module, so it repeats the selectors it needs; `css` names the stylesheet that does, and registry.test.ts checks the
+ * selector text really occurs there.
  * Evidence for each entry: docs/reference/jellyfin-web-12.1-notes.md.
  *
  * Pure data: no DOM access and no imports, so the inline guard and the e2e suite can import it cheaply.
@@ -29,7 +29,7 @@ export interface StockSelector {
   selector: string;
   probe: ProbePage | null;
   /** The stylesheet that repeats this selector, if any. */
-  css?: 'base.css' | 'player.css' | 'stock-skin.css' | 'dashboard.css' | 'nav.css';
+  css?: 'base.css' | 'player.css' | 'stock-skin.css' | 'dashboard.css' | 'nav.css' | 'stock-components.css';
 }
 
 export const STOCK_SELECTORS = {
@@ -77,6 +77,18 @@ export const STOCK_SELECTORS = {
   /** jellyfin-web's toast animation states (Lumen's pill drops in and fades out on them). */
   toastShown: { selector: '.toast.toastVisible', probe: null, css: 'stock-skin.css' },
   toastHiding: { selector: '.toast.toastHide', probe: null, css: 'stock-skin.css' },
+  /**
+   * jellyfin-web's shared components, on every page while the stock pages are restyled (stock-components.css): legacy
+   * dialogs and the ones that float from 80em × 45em up, action sheets (⋯ menus), and MUI's menus, dialogs and drawers.
+   */
+  dialogContainer: { selector: '.dialogContainer', probe: null, css: 'stock-components.css' },
+  formDialogHeader: { selector: '.formDialogHeader', probe: null, css: 'stock-components.css' },
+  floatingDialog: { selector: '.dialog-fullscreen-lowres', probe: null, css: 'stock-components.css' },
+  actionSheet: { selector: '.actionSheet', probe: null, css: 'stock-components.css' },
+  actionSheetItem: { selector: '.actionSheetMenuItem', probe: null, css: 'stock-components.css' },
+  muiMenu: { selector: '.MuiMenu-paper', probe: null, css: 'stock-components.css' },
+  muiModal: { selector: '.MuiModal-root', probe: null, css: 'stock-components.css' },
+  muiDialog: { selector: '.MuiDialog-paper', probe: null, css: 'stock-components.css' },
   /** The admin pages (dashboard.css): the Dashboard's MUI frame, drawer and controls. */
   dashboardDrawer: { selector: '.MuiDrawer-paper', probe: 'dashboard', css: 'dashboard.css' },
   dashboardNavItem: { selector: '.MuiListItemButton-root', probe: 'dashboard', css: 'dashboard.css' },

@@ -158,3 +158,18 @@ test('a form’s “Settings saved.” alert stays outside the section cards', a
   await expect(alert).toBeVisible();
   expect(await alert.evaluate((el) => getComputedStyle(el, '::before').content)).toBe('none');
 });
+
+test('the Dashboard’s dialogs use Lumen’s fields', async ({ page }) => {
+  await login(page, ADMIN);
+  await page.goto('/web/#/dashboard/keys');
+  await page.getByRole('button', { name: 'New API Key' }).click();
+  const dialog = page.locator('.MuiDialog-paper');
+  await expect(dialog).toHaveCSS('border-top-left-radius', '20px');
+  // jellyfin-web's underlined field becomes Lumen's boxed one (styles/stock-components.css), and still takes input.
+  const field = dialog.locator('.MuiInput-root');
+  await expect(field).toHaveCSS('border-top-left-radius', '12px');
+  await field.locator('input').fill('lumen-e2e');
+  await expect(field.locator('input')).toHaveValue('lumen-e2e');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+});
