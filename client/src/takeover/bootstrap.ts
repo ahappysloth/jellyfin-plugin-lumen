@@ -226,8 +226,8 @@ export function startLumen(options: BootstrapOptions): () => void {
     // The compatibility check is being retried: the veil and lmn-pending stay up until the takeover calls back.
     if (session?.takeover?.handle(route) === 'waiting') return;
     // The inline guard hid the stock chrome and showed the veil while this was undecided. If Lumen now owns the page,
-    // its view lifts the veil once its content is ready (with a fallback here); otherwise lift it now (once the stock
-    // page's fonts are in, at most FONT_WAIT_MS: veil.ts).
+    // its view lifts the veil once its content is ready (with a fallback here); otherwise lift it now (once Lumen's
+    // font is in where the page uses it, at most FONT_WAIT_MS: veil.ts).
     if (doc.documentElement.classList.contains('lmn-active')) {
       doc.documentElement.classList.remove(PENDING_CLASS);
       win.setTimeout(() => liftVeilNow(doc), VEIL_FALLBACK_MS);
