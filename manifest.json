@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/ahappysloth/jellyfin-plugin-lumen/main/assets/lumen-plugin.png",
     "versions": [
       {
+        "version": "0.4.3.0",
+        "changelog": "\n### Fixed\n- Lumen's settings page now updates with Lumen. Behind a proxy that caches scripts by itself (Nginx Proxy Manager's\n  \"Cache Assets\"), browsers could keep the previous version's settings page for hours after an update, without the\n  Storage tab or the Top 10 card.",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/ahappysloth/jellyfin-plugin-lumen/releases/download/v0.4.3/lumen_0.4.3.0.zip",
+        "checksum": "340f97ace6e16465e9f978be06e80cd9",
+        "timestamp": "2026-11-12T19:20:58Z"
+      },
+      {
         "version": "0.4.2.0",
         "changelog": "\n### Added\n- Request progress (with Seerr): your requests say where they stand (Requested, Queued, Downloading, Processing,\n  Ready, or Declined/Failed) on their posters in every row and on their title page, with a progress bar and the time\n  left while they download (from Radarr's and Sonarr's queues, when Seerr is connected to them); a show counts its\n  episodes. A title page updates while it's open.\n- My requests in the account menu (and on the Me page on phones) lists your requests, newest first.\n- A pop-up says when something you requested is ready to watch, with Open, once per title across your devices.\n- Lumen settings in the account menu (and the Me page) for administrators: Lumen's settings page in one click,\n  instead of Dashboard → Plugins → Lumen.",
         "targetAbi": "12.1.0.0",
