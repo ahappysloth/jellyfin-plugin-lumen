@@ -8,6 +8,8 @@ const VIEWPORT_MARGIN = 8;
 export interface DropdownOption<T extends string> {
   value: T;
   label: string;
+  /** Shown, but can't be picked: the arrows, Home/End and type-ahead pass over it (aria-disabled). */
+  disabled?: boolean;
 }
 
 interface Props<T extends string> {
@@ -24,6 +26,7 @@ interface Props<T extends string> {
 /**
  * A select replacement styled for Lumen: a pill button that opens a floating listbox. Keyboard: Up/Down/Home/End move,
  * Enter/Space pick, Escape (or a TV remote's Back)/Tab close, and typing jumps to the first option starting with those letters.
+ * Disabled options are skipped by all of these, and a click on one does nothing.
  */
 export function Dropdown<T extends string>({
   label,
@@ -61,6 +64,7 @@ export function Dropdown<T extends string>({
   };
   const pick = (index: number): void => {
     const option = options[index];
+    if (option?.disabled) return;
     close(true);
     if (option && option.value !== value) onChange(option.value);
   };
@@ -95,6 +99,11 @@ export function Dropdown<T extends string>({
     return () => document.removeEventListener('pointerdown', onPointer, true);
   }, [open]);
 
+  /** The nearest option from `from` (itself included) that can be picked, stepping by `step`; or `fallback`. */
+  const enabled = (from: number, step: 1 | -1, fallback: number): number => {
+    for (let i = from; i >= 0 && i < options.length; i += step) if (!options[i]!.disabled) return i;
+    return fallback;
+  };
   const onListKey = (e: KeyboardEvent): void => {
     const last = options.length - 1;
     if (isBackKey(e)) {
@@ -105,16 +114,16 @@ export function Dropdown<T extends string>({
     }
     switch (e.key) {
       case 'ArrowDown':
-        setActive((i) => Math.min(last, i + 1));
+        setActive((i) => enabled(i + 1, 1, i));
         break;
       case 'ArrowUp':
-        setActive((i) => Math.max(0, i - 1));
+        setActive((i) => enabled(i - 1, -1, i));
         break;
       case 'Home':
-        setActive(0);
+        setActive((i) => enabled(0, 1, i));
         break;
       case 'End':
-        setActive(last);
+        setActive((i) => enabled(last, -1, i));
         break;
       case 'Enter':
       case ' ':
@@ -128,7 +137,7 @@ export function Dropdown<T extends string>({
         const now = Date.now();
         const text = (now - typed.current.at < 700 ? typed.current.text : '') + e.key.toLowerCase();
         typed.current = { text, at: now };
-        const match = options.findIndex((o) => o.label.toLowerCase().startsWith(text));
+        const match = options.findIndex((o) => !o.disabled && o.label.toLowerCase().startsWith(text));
         if (match >= 0) setActive(match);
       }
     }
@@ -180,8 +189,9 @@ export function Dropdown<T extends string>({
               data-index={i}
               role="option"
               aria-selected={option.value === value}
+              aria-disabled={option.disabled || undefined}
               class={`lmn-dropdown__option${i === active ? ' is-active' : ''}`}
-              onPointerMove={() => setActive(i)}
+              onPointerMove={() => !option.disabled && setActive(i)}
               onClick={(e) => {
                 // Inside a <label> (the admin page's fields), the click would also re-click the button.
                 e.preventDefault();

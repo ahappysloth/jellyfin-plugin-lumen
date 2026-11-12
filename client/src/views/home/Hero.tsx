@@ -233,7 +233,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
   const trailerStart = (): number =>
     run.current.index === index && run.current.video ? run.current.position : 0;
   // Taken off in its last second, it's as good as over: TrailerPreview won't seek that close to the end, so put back it
-  // would play again from the start under an almost full pill.
+  // would play again from the start under an almost full bar.
   useLayoutEffect(() => {
     const slide = run.current;
     if (!holding || (canShowTrailer && !pageHidden) || slide.index !== index || !slide.video) return;
@@ -303,6 +303,29 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
   const trackStyle = {
     transform: `translateX(calc(${offset} + ${sliding !== 0 ? 0 : dragX}px))`,
   };
+
+  // Pause sits right of the pager, as a slideshow's controls usually do, and comes after it in Tab order too. On a TV it
+  // comes first: there Left and Right on the pager change the slide, so Pause after it could only be reached through
+  // every title's bar; first, Right from the slide's buttons reaches it in one press.
+  const tv = getLayout() === 'tv';
+  const pause = (
+    <button
+      type="button"
+      class="lmn-icon-button"
+      aria-label={
+        count > 1
+          ? stopped
+            ? strings.resumeRotation
+            : strings.pauseRotation
+          : stopped
+            ? strings.playTrailer
+            : strings.pauseTrailer
+      }
+      onClick={() => setStopped((s) => !s)}
+    >
+      <Icon name={stopped ? 'play' : 'pause'} size={16} />
+    </button>
+  );
 
   return (
     // A row to jellyfin-web's D-pad (focuscontainer-x, as Lumen's rows are): Right from the slide's buttons goes to its
@@ -379,25 +402,9 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
       {/* Pause stops the slideshow and the trailer; one title alone still gets it while a trailer can play. */}
       {(count > 1 || trailerId) && (
         <div class="lmn-hero__controls">
-          {/* First, so the D-pad reaches it in one press from the slide's buttons, before the titles' pills. */}
-          <button
-            type="button"
-            class="lmn-icon-button"
-            aria-label={
-              count > 1
-                ? stopped
-                  ? strings.resumeRotation
-                  : strings.pauseRotation
-                : stopped
-                  ? strings.playTrailer
-                  : strings.pauseTrailer
-            }
-            onClick={() => setStopped((s) => !s)}
-          >
-            <Icon name={stopped ? 'play' : 'pause'} size={16} />
-          </button>
+          {tv && pause}
           {/* Tabs with roving focus: Tab reaches the current one, arrows pick another (and pause rotation). On a TV
-              they're a row like any other: past either end the D-pad moves on (Left from the first pill to Pause)
+              they're a row like any other: past either end the D-pad moves on (Left from the first bar to Pause)
               rather than wrapping round, which would keep a remote in here for good. */}
           {count > 1 && (
             <div
@@ -429,8 +436,8 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
                     class={`lmn-hero__dash${active ? ' is-active' : ''}`}
                     onClick={() => sliding === 0 && setIndex(i)}
                   >
-                    <span class="lmn-hero__pill">
-                      {/* Grows across the pill over the slide's interval; keyed by slide so each one starts it
+                    <span class="lmn-hero__bar">
+                      {/* Grows across the bar over the slide's interval; keyed by slide so each one starts it
                           over. It sits still while the track slides in: the new slide's interval starts once it's
                           there. */}
                       {active && (
@@ -447,6 +454,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
               })}
             </div>
           )}
+          {!tv && pause}
         </div>
       )}
     </section>

@@ -6,6 +6,21 @@ import { AdminApp } from './AdminApp';
 const types: SectionTypeDef[] = [
   { Type: 'ContinueWatching', DisplayName: 'Continue Watching', Parameters: [] },
   {
+    Type: 'RecentlyAdded',
+    DisplayName: 'Recently Added',
+    Parameters: [
+      {
+        Name: 'libraryId',
+        Label: 'Library (empty = all libraries)',
+        Kind: 'Library',
+        Required: false,
+        DefaultValue: null,
+        Min: null,
+        Max: null,
+      },
+    ],
+  },
+  {
     Type: 'Genre',
     DisplayName: 'Genre rows',
     Description: 'A row per genre the viewer likes.',
@@ -286,6 +301,8 @@ describe('AdminApp', () => {
     render(<AdminApp api={api} newId={() => 'new1'} />);
 
     await screen.findByText('Genre rows');
+    // Genre rows are already on the home screen, and once is enough: out of the list first.
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Genre rows' }));
     fireEvent.click(screen.getByRole('button', { name: /^Section type to add:/ }));
     fireEvent.click(screen.getByRole('option', { name: 'Genre rows' }));
     // The chosen type explains itself before it's added.
@@ -294,13 +311,78 @@ describe('AdminApp', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(api.saveConfig).toHaveBeenCalled());
-    expect(vi.mocked(api.saveConfig).mock.calls[0]![0].Sections[2]).toEqual({
+    expect(vi.mocked(api.saveConfig).mock.calls[0]![0].Sections[1]).toEqual({
       Id: 'new1',
       Type: 'Genre',
       Enabled: true,
       Title: null,
       Params: [{ Name: 'genreCount', Value: '3' }],
     });
+  });
+
+  it('offers a section type only useful once as "already added" while it is on the home screen', async () => {
+    const api = fakeApi({
+      getConfig: vi.fn(async () => ({
+        ...config(),
+        Sections: [
+          ...config().Sections,
+          { Id: 's3', Type: 'RecentlyAdded', Enabled: true, Title: null, Params: [] },
+        ],
+      })),
+    });
+    render(<AdminApp api={api} newId={() => 'new1'} />);
+    await screen.findByText('Genre rows');
+    const open = () => fireEvent.click(screen.getByRole('button', { name: /^Section type to add:/ }));
+
+    open();
+    const continueWatching = screen.getByRole('option', { name: 'Continue Watching (already added)' });
+    expect(continueWatching).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('option', { name: 'Genre rows (already added)' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    // One that picks a library can be added again, for another library.
+    expect(screen.getByRole('option', { name: 'Recently Added' })).not.toHaveAttribute('aria-disabled');
+    fireEvent.click(continueWatching);
+    expect(screen.getByRole('listbox')).toBeInTheDocument(); // still open: nothing was picked
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('option', { name: 'Recently Added' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+    // Removed, it's addable again.
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Continue Watching' }));
+    open();
+    fireEvent.click(screen.getByRole('option', { name: 'Continue Watching' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    open();
+    expect(screen.getByRole('option', { name: 'Continue Watching (already added)' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(api.saveConfig).toHaveBeenCalled());
+    expect(vi.mocked(api.saveConfig).mock.calls[0]![0].Sections.map((s) => s.Type)).toEqual([
+      'Genre',
+      'RecentlyAdded',
+      'RecentlyAdded',
+      'ContinueWatching',
+    ]);
+  });
+
+  it('still loads, edits and saves a config that already has a section twice', async () => {
+    const twice = [
+      { Id: 'a', Type: 'ContinueWatching', Enabled: true, Title: null, Params: [] },
+      { Id: 'b', Type: 'ContinueWatching', Enabled: true, Title: 'Again', Params: [] },
+    ];
+    const api = fakeApi({ getConfig: vi.fn(async () => ({ ...config(), Sections: twice })) });
+    render(<AdminApp api={api} />);
+    await screen.findByText('Again');
+    fireEvent.click(screen.getByRole('switch', { name: 'Show Again' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(api.saveConfig).toHaveBeenCalled());
+    expect(vi.mocked(api.saveConfig).mock.calls[0]![0].Sections).toEqual([
+      twice[0],
+      { ...twice[1], Enabled: false },
+    ]);
   });
 
   it('shows server validation errors', async () => {
@@ -575,6 +657,82 @@ describe('AdminApp save bar', () => {
 
     await waitFor(() => expectHidden(container));
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Lumen' })).toHaveFocus());
+  });
+
+  it('discards unsaved changes: the settings as loaded, the bar down and focus on the heading, nothing saved', async () => {
+    const api = fakeApi();
+    const { container } = render(<AdminApp api={api} />);
+    await screen.findByText('Genre rows');
+    const names = () =>
+      [...container.querySelectorAll('.lmna-section__name')].map((n) => n.firstChild?.textContent);
+    expect(names()).toEqual(['Continue Watching', 'Genre rows']);
+    // No Discard with nothing to discard.
+    expect(screen.queryByRole('button', { name: 'Discard' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    fireEvent.input(screen.getByLabelText('Seerr address'), { target: { value: 'http://typo' } });
+    expect(names()).toEqual(['Genre rows', 'Continue Watching']);
+    const discard = screen.getByRole('button', { name: 'Discard' });
+    discard.focus();
+    fireEvent.click(discard);
+
+    expect(names()).toEqual(['Continue Watching', 'Genre rows']);
+    expect(screen.getByLabelText('Seerr address')).toHaveValue('');
+    expectHidden(container);
+    expect(screen.queryByRole('button', { name: 'Discard' })).toBeNull();
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Lumen' })).toHaveFocus());
+    expect(api.saveConfig).not.toHaveBeenCalled();
+  });
+
+  it("discards a failed save's changes and its problems, back to what was last saved", async () => {
+    const saveConfig = vi
+      .fn<AdminApi['saveConfig']>()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: false, errors: ['Accent color must look like #RRGGBB.'] });
+    // The server hands back what was saved.
+    let stored = config();
+    const api = fakeApi({
+      getConfig: vi.fn(async () => stored),
+      saveConfig: vi.fn(async (c: LumenConfig) => {
+        const result = await saveConfig(c);
+        if (result.ok) stored = c;
+        return result;
+      }),
+    });
+    const { container } = render(<AdminApp api={api} savedFor={10} />);
+    await screen.findByText('Genre rows');
+    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expectHidden(container));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move Genre rows down' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    expectHidden(container);
+    // The order saved first, not the one loaded at the start.
+    expect(screen.getByRole('button', { name: 'Move Genre rows up' })).toBeDisabled();
+  });
+
+  it('starts sections with state of their own afresh on Discard (a Seerr test result, a section type picked)', async () => {
+    const { container } = render(<AdminApp api={fakeApi()} />);
+    await screen.findByText('Genre rows');
+    fireEvent.input(screen.getByLabelText('Seerr address'), { target: { value: 'http://seerr:5055' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }));
+    expect(await screen.findByText('Connected to Seerr 3.5.1')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Section type to add:/ }));
+    fireEvent.click(screen.getByRole('option', { name: 'Recently Added' }));
+    expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expectHidden(container);
+    expect(screen.queryByText('Connected to Seerr 3.5.1')).toBeNull();
+    expect(screen.getByRole('button', { name: /^Section type to add:/ })).toHaveAccessibleName(
+      'Section type to add: Choose a section to add…',
+    );
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
   });
 
   it('saves on Ctrl+S or Cmd+S while the page is showing and there are changes', async () => {

@@ -44,6 +44,45 @@ test('the save bar comes up with a change, wherever the page is scrolled, and go
   }
 });
 
+test('Discard in the save bar drops unsaved changes, and nothing reaches the server', { tag: '@smoke' }, async ({
+  page,
+}) => {
+  await login(page, ADMIN);
+  await page.goto('/web/#/configurationpage?name=Lumen');
+  const root = page.locator('[id="lmn-admin-root"]:visible');
+  const bar = root.locator('.lmna-savebar');
+  const address = root.getByLabel('Seerr address');
+  const sections = () =>
+    root.locator('.lmna-section__name').evaluateAll((els) => els.map((el) => el.firstChild?.textContent));
+  await expect(root.getByRole('group', { name: 'Home sections' })).toBeVisible();
+  const loadedAddress = await address.inputValue();
+  const loadedSections = await sections();
+
+  try {
+    await address.fill('http://discard-me:5055');
+    await root.getByRole('button', { name: /Move Continue Watching down/ }).click();
+    expect(await sections()).not.toEqual(loadedSections);
+    await expect(bar).toContainText('Unsaved changes');
+    // From the keyboard: Safari doesn't focus a tapped or clicked button, so there'd be no focus to look after.
+    await bar.getByRole('button', { name: 'Discard' }).focus();
+    await page.keyboard.press('Enter');
+
+    await expect(address).toHaveValue(loadedAddress);
+    expect(await sections()).toEqual(loadedSections);
+    await expect(bar).toBeHidden();
+    // The bar went from under the focus: it's on the page's heading, not lost.
+    await expect(root.getByRole('heading', { level: 1, name: 'Lumen' })).toBeFocused();
+
+    await page.reload();
+    await expect(root.getByRole('group', { name: 'Home sections' })).toBeVisible();
+    await expect(address).toHaveValue(loadedAddress);
+    expect(await sections()).toEqual(loadedSections);
+    await expect(bar).toBeHidden();
+  } finally {
+    await resetLumen();
+  }
+});
+
 test('the Dashboard wears Lumen’s look, and only on admin pages', async ({ page, isMobile }) => {
   await login(page, ADMIN);
   const html = page.locator('html');

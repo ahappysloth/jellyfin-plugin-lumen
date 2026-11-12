@@ -28,6 +28,22 @@ export function removeSection(sections: SectionDef[], index: number): SectionDef
   return sections.filter((_, i) => i !== index);
 }
 
+/** Parameter kinds that pick what a section shows (a library, collection, playlist or tag). */
+const SOURCE_KINDS = ['Library', 'Collection', 'Playlist', 'Text'];
+
+/**
+ * Whether a section type makes sense more than once on the home screen: only one that picks a source (Recently Added in
+ * each library, a curated row per collection). A second Next Up or Trending would show the same row twice.
+ */
+export function isRepeatable(type: SectionTypeDef): boolean {
+  return type.Parameters.some((p) => SOURCE_KINDS.includes(p.Kind));
+}
+
+/** Whether a type can be added now: repeatable, or not in the list yet (removing it makes it addable again). */
+export function canAdd(type: SectionTypeDef, sections: SectionDef[]): boolean {
+  return isRepeatable(type) || !sections.some((s) => s.Type === type.Type);
+}
+
 export function newSection(type: SectionTypeDef, id: string): SectionDef {
   return {
     Id: id,

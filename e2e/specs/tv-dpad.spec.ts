@@ -54,35 +54,38 @@ test("TV layout: the hero's Pause is reachable with no card below it", async ({ 
   await expect(start).toBeFocused();
   await expect(page.locator('#lmn-root .lmn-row').first()).toBeVisible();
 
-  // Along the hero as along a row: Play, More info, Pause, then the current title's pill.
+  // Along the hero as along a row: Play, More info, Pause, then the current title's bar. (On a TV Pause comes before the
+  // bars, on screen too; elsewhere it's after them.)
   const pause = hero.getByRole('button', { name: 'Pause slideshow' });
-  const pill = hero.getByRole('tab', { selected: true });
+  const bar = hero.getByRole('tab', { selected: true });
+  const pagerBox = (await hero.getByRole('tablist').boundingBox())!;
+  expect((await pause.boundingBox())!.x).toBeLessThan(pagerBox.x);
   await page.keyboard.press('ArrowRight');
   await expect(hero.getByRole('button', { name: 'More info' })).toBeFocused();
   await page.keyboard.press('ArrowRight');
   await expect(pause).toBeFocused();
   await page.keyboard.press('ArrowRight');
-  await expect(pill).toBeFocused();
-  await expect(pill).toHaveAttribute('aria-label', /^Show /);
-  // The first title's pill: Left leaves the pills (no wrapping round to the last) and comes back to Pause.
+  await expect(bar).toBeFocused();
+  await expect(bar).toHaveAttribute('aria-label', /^Show /);
+  // The first title's bar: Left leaves the bars (no wrapping round to the last) and comes back to Pause.
   await page.keyboard.press('ArrowLeft');
   await expect(pause).toBeFocused();
 
-  // Every title's pill in turn; past the last, Right goes nowhere (no wrapping round to the first). Then back the same
+  // Every title's bar in turn; past the last, Right goes nowhere (no wrapping round to the first). Then back the same
   // way to Pause, More info and Play.
-  const pills = hero.getByRole('tab');
-  const count = await pills.count();
+  const bars = hero.getByRole('tab');
+  const count = await bars.count();
   expect(count).toBeGreaterThan(1);
   for (let i = 0; i < count; i++) {
     await page.keyboard.press('ArrowRight');
-    await expect(pills.nth(i)).toBeFocused();
-    await expect(pills.nth(i)).toHaveAttribute('aria-selected', 'true');
+    await expect(bars.nth(i)).toBeFocused();
+    await expect(bars.nth(i)).toHaveAttribute('aria-selected', 'true');
   }
   await page.keyboard.press('ArrowRight');
-  await expect(pills.nth(count - 1)).toBeFocused();
+  await expect(bars.nth(count - 1)).toBeFocused();
   for (let i = count - 2; i >= 0; i--) {
     await page.keyboard.press('ArrowLeft');
-    await expect(pills.nth(i)).toBeFocused();
+    await expect(bars.nth(i)).toBeFocused();
   }
   await page.keyboard.press('ArrowLeft');
   await expect(pause).toBeFocused();

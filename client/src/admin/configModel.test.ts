@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { LumenConfig, SectionDef } from './adminApi';
+import type { LumenConfig, SectionDef, SectionParamDef, SectionTypeDef } from './adminApi';
 import {
+  canAdd,
   getParam,
+  isRepeatable,
   moveSection,
   newSection,
   normalizeConfig,
@@ -83,5 +85,38 @@ describe('configModel', () => {
   it('normalizes ids for comparison', () => {
     expect(normalizeId('AB-CD')).toBe('abcd');
     expect(normalizeId(null)).toBe('');
+  });
+
+  describe('section types on the home screen more than once', () => {
+    const param = (Kind: string): SectionParamDef => ({
+      Name: 'p',
+      Label: 'P',
+      Kind,
+      Required: false,
+      DefaultValue: null,
+      Min: null,
+      Max: null,
+    });
+    const type = (Type: string, ...kinds: string[]): SectionTypeDef => ({
+      Type,
+      DisplayName: Type,
+      Parameters: kinds.map(param),
+    });
+
+    it('are the ones that pick a source: a library, collection, playlist or tag', () => {
+      expect(isRepeatable(type('RecentlyAdded', 'Library'))).toBe(true);
+      expect(isRepeatable(type('Curated', 'Collection', 'Playlist', 'Text'))).toBe(true);
+      expect(isRepeatable(type('Playlisted', 'Playlist'))).toBe(true);
+      expect(isRepeatable(type('NextUp'))).toBe(false);
+      expect(isRepeatable(type('Genre', 'Integer'))).toBe(false);
+    });
+
+    it('can be added again; any other type only while it is not in the list', () => {
+      const sections = [section('a')]; // NextUp
+      expect(canAdd(type('NextUp'), sections)).toBe(false);
+      expect(canAdd(type('NextUp'), [])).toBe(true);
+      expect(canAdd(type('Trending', 'Integer'), sections)).toBe(true);
+      expect(canAdd(type('NextUp', 'Library'), sections)).toBe(true);
+    });
   });
 });

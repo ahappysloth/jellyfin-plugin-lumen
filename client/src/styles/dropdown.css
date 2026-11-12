@@ -123,6 +123,10 @@
   color: #fff;
   font-weight: 600;
 }
+.lmn-dropdown__option[aria-disabled='true'] {
+  color: var(--lmn-text-3, #8a8a8a);
+  cursor: default;
+}
 .lmn-dropdown__check {
   color: var(--lmn-accent, #e30b17);
 }

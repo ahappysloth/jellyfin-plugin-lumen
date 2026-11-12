@@ -199,7 +199,6 @@
   color: inherit;
   text-align: left;
   cursor: pointer;
-  scroll-snap-align: start;
 }
 .lmn-person__photo {
   display: block;

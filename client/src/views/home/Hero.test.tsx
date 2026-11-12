@@ -208,14 +208,14 @@ describe('Hero', () => {
     const fills = (container: Element) => [...container.querySelectorAll<HTMLElement>('.lmn-hero__fill')];
     const pager = (container: Element) => container.querySelector('.lmn-hero__pager')!;
 
-    it("widens the current slide's pill and fills it over the slide's interval", () => {
+    it("widens the current slide's bar and fills it over the slide's interval", () => {
       const { container } = renderHero();
 
       expect(tabs()[0]).toHaveClass('is-active');
       expect(tabs()[0]).toHaveAttribute('aria-selected', 'true');
       expect(tabs()[1]).not.toHaveClass('is-active');
       expect(tabs()[1]).toHaveAttribute('aria-selected', 'false');
-      // One fill, in the current pill, running for as long as the timer.
+      // One fill, in the current bar, running for as long as the timer.
       expect(fills(container)).toHaveLength(1);
       expect(tabs()[0]).toContainElement(fills(container)[0]!);
       expect(fills(container)[0]!.style.animationDuration).toBe('8s');
@@ -231,7 +231,7 @@ describe('Hero', () => {
       const { container } = renderHero();
 
       advance(8000);
-      expect(tabs()[1]).toHaveClass('is-active'); // the pill moves on as the slide starts to
+      expect(tabs()[1]).toHaveClass('is-active'); // the bar moves on as the slide starts to
       expect(pager(container)).toHaveClass('is-paused');
       advance(SLIDE);
       expect(pager(container)).not.toHaveClass('is-paused');
@@ -280,7 +280,7 @@ describe('Hero', () => {
       hidden.mockRestore();
     });
 
-    it('goes to the slide whose pill is clicked, and starts its fill and timer over', () => {
+    it('goes to the slide whose bar is clicked, and starts its fill and timer over', () => {
       const { container } = renderHero();
 
       advance(6000);
@@ -305,15 +305,30 @@ describe('Hero', () => {
       expect(fills(container)[0]).not.toBe(first); // a new element: its animation runs from empty
     });
 
-    it('puts Pause first, then the pills, along a row the D-pad keeps Left and Right in', () => {
+    it('puts Pause after the bars, in Tab order as on screen, along a row the D-pad keeps Left and Right in', () => {
       const { container } = renderHero();
       const pause = screen.getByRole('button', { name: 'Pause slideshow' });
 
       expect(container.querySelector('.lmn-hero')).toHaveClass('focuscontainer-x');
-      expect(pause.compareDocumentPosition(pager(container)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(pause.compareDocumentPosition(screen.getByRole('button', { name: 'More info' }))).toBe(
-        Node.DOCUMENT_POSITION_PRECEDING,
-      );
+      expect(pause.compareDocumentPosition(pager(container)) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+      expect(pause.parentElement!.lastElementChild).toBe(pause);
+    });
+
+    it('puts Pause first on a TV, so the D-pad reaches it from the slide before the bars', () => {
+      document.documentElement.classList.add('layout-tv');
+      try {
+        const { container } = renderHero();
+        const pause = screen.getByRole('button', { name: 'Pause slideshow' });
+
+        expect(
+          pause.compareDocumentPosition(pager(container)) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        expect(pause.compareDocumentPosition(screen.getByRole('button', { name: 'More info' }))).toBe(
+          Node.DOCUMENT_POSITION_PRECEDING,
+        );
+      } finally {
+        document.documentElement.classList.remove('layout-tv');
+      }
     });
 
     it('wraps round with the arrow keys, but on a TV lets the D-pad move on past either end', () => {
@@ -339,7 +354,7 @@ describe('Hero', () => {
       }
     });
 
-    it('names each pill after its title and follows the arrow keys', () => {
+    it('names each bar after its title and follows the arrow keys', () => {
       renderHero();
       expect(tabs().map((tab) => tab.getAttribute('aria-label'))).toEqual(['Show Alpha', 'Show Beta']);
 
