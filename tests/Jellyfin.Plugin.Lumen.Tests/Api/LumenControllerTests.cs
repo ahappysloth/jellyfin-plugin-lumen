@@ -185,7 +185,20 @@ public class LumenControllerTests
         Assert.Equal("#123456", dto.AccentColor);
         Assert.Equal(9, dto.HeroIntervalSeconds);
         Assert.True(dto.HeroWaitForTrailer);
+        Assert.False(dto.Requests);
         Assert.Equal(_assets.BuildHash, dto.BuildHash);
+    }
+
+    [Theory]
+    [InlineData(true, "http://seerr:5055", "key", true)]
+    [InlineData(false, "http://seerr:5055", "key", false)]
+    [InlineData(true, "http://seerr:5055", null, false)]
+    [InlineData(true, null, "key", false)]
+    public void ClientConfig_SaysWhetherSeerrIsSetUp_WithoutItsAddressOrKey(bool enabled, string? url, string? key, bool expected)
+    {
+        _config.Current.Returns(new PluginConfiguration { RequestsEnabled = enabled, SeerrUrl = url, SeerrApiKey = key });
+
+        Assert.Equal(expected, Create().GetClientConfig().Value!.Requests);
     }
 
     [Fact]

@@ -4,6 +4,7 @@ import type {
   CatalogMediaType,
   CatalogSearch,
   CatalogTitle,
+  MyRequests,
   ClientConfig,
   HomeResponse,
   ItemsResult,
@@ -219,6 +220,16 @@ export class LumenApi {
 
   getCatalogTitle(mediaType: CatalogMediaType, tmdbId: number): Promise<CatalogTitle> {
     return this.get(`Lumen/Requests/Title/${mediaType}/${tmdbId}`);
+  }
+
+  /** The user's own requested titles with their progress. Rejects with the Response (404: no request features). */
+  getMyRequests(): Promise<MyRequests> {
+    return this.get('Lumen/Requests/Mine');
+  }
+
+  /** These requests' "ready to watch" pop-up has been shown: no other device shows it again. */
+  markRequestsAnnounced(ids: number[]): Promise<void> {
+    return this.send('POST', 'Lumen/Requests/Announced', undefined, { RequestIds: ids });
   }
 
   /** Files a request in Seerr as the signed-in user. Seasons: TV only; omitted means all. */

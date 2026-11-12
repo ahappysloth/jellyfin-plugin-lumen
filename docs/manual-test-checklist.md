@@ -53,6 +53,28 @@ Add Top 10 Movies and Top 10 Shows under Home sections first.
 - [ ] TV layout: the arrows reach every card, and Down from an unowned card reaches its Request button. A screen reader
       reads each card as "1, Title", not the numeral on its own.
 
+## Request progress (a real Seerr connected to Radarr/Sonarr)
+
+Automated tests use a stub Seerr; only a real one shows Radarr's and Sonarr's queues as Seerr passes them on.
+
+- [ ] Request a movie as a user whose requests are auto-approved: its card, the title page and My requests (account
+      menu, or the Me tab on a phone) say Queued, then Downloading with a bar, a percentage and the time left once
+      Radarr grabs it (Seerr syncs every minute), then Processing, then Ready. The title page moves on by itself every
+      ~10 s while it downloads; it then offers Open in library.
+- [ ] A season pack and a show downloading episode by episode: the progress reads "N of M episodes" and doesn't go
+      backwards as episodes are imported.
+- [ ] As a user who needs approval: Requested, then (after an admin approves in Seerr) Queued. Decline one in Seerr:
+      it says Declined. A request Radarr couldn't add says Failed.
+- [ ] When something requested is ready, a pop-up says "<title> is ready to watch" with Open, once: not again after a
+      reload, nor on another browser or phone signed in as the same user.
+- [ ] Another user's request for the same title shows only as the card's plain state (no bar, no time left), and
+      their requests never appear in this user's My requests.
+- [ ] With nothing in flight, the browser's network panel shows one GET /Lumen/Requests/Mine per page load and no
+      more. With a request in flight, one about every 45 s (10 s on its title page or My requests while it
+      downloads), and none while the tab is in the background.
+- [ ] Seerr without Radarr/Sonarr connected: the statuses show without a bar or time left.
+- [ ] TV layout: from the account menu, Down reaches My requests; on it the arrows reach every request.
+
 ## Home-screen app (iPhone Safari, Android Chrome)
 
 Automated tests check the page's tags, the manifest and the icons, and the layout with a simulated status bar; only a

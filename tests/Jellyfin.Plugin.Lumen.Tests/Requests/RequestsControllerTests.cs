@@ -23,6 +23,8 @@ public sealed class RequestsControllerTests : IDisposable
     private readonly ISeerrClient _seerr = Substitute.For<ISeerrClient>();
     private readonly IUserManager _userManager = Substitute.For<IUserManager>();
     private readonly ILibraryManager _library = Substitute.For<ILibraryManager>();
+    private readonly IRequestProgressService _progress = Substitute.For<IRequestProgressService>();
+    private readonly IReadyAnnouncements _announcements = Substitute.For<IReadyAnnouncements>();
     private readonly HomeCache _home = new(Substitute.For<IUserDataManager>(), Substitute.For<ILibraryManager>(), TimeProvider.System);
     private readonly Jellyfin.Database.Implementations.Entities.User _jellyfinUser = TestData.User();
     private readonly Guid _user;
@@ -447,6 +449,67 @@ public sealed class RequestsControllerTests : IDisposable
         Assert.Equal(before, _home.Stamp(_user));
     }
 
+    [Fact]
+    public async Task Mine_IsNotFound_WithoutCatalogAccess()
+    {
+        _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(RequestAccess.None);
+
+        Assert.IsType<NotFoundResult>((await Create().GetMine(CancellationToken.None)).Result);
+        await _progress.DidNotReceiveWithAnyArgs().GetAsync(default, default, default!, default, default);
+    }
+
+    [Fact]
+    public async Task Mine_IsTheSignedInUsersOwn()
+    {
+        _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, true, true, 9, Endpoint));
+        var mine = new MyRequestsDto([]);
+        _progress.GetAsync(_user, _jellyfinUser, Endpoint, 9, Arg.Any<CancellationToken>()).Returns(mine);
+
+        Assert.Same(mine, (await Create().GetMine(CancellationToken.None)).Value);
+    }
+
+    [Fact]
+    public async Task Mine_IsABadGateway_WhenSeerrFails()
+    {
+        _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, true, true, 9, Endpoint));
+        _progress.GetAsync(default, default, default!, default, default).ThrowsAsyncForAnyArgs(new SeerrException("down"));
+
+        Assert.Equal(StatusCodes.Status502BadGateway, Assert.IsType<ObjectResult>((await Create().GetMine(CancellationToken.None)).Result).StatusCode);
+    }
+
+    [Fact]
+    public async Task Announced_MarksTheSignedInUsersOwnList()
+    {
+        GrantAccess();
+
+        Assert.IsType<NoContentResult>(await Create().MarkAnnounced(new AnnouncedDto([4, 5]), CancellationToken.None));
+        _announcements.Received(1).MarkAnnounced(_user, "http://seerr:5055/", Arg.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new List<int> { 4, 5 })));
+    }
+
+    [Fact]
+    public async Task Announced_ValidatesTheIds()
+    {
+        GrantAccess();
+
+        Assert.IsType<BadRequestObjectResult>(await Create().MarkAnnounced(new AnnouncedDto([]), CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await Create().MarkAnnounced(new AnnouncedDto([0]), CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await Create().MarkAnnounced(new AnnouncedDto(null), CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await Create().MarkAnnounced(null, CancellationToken.None));
+        _announcements.DidNotReceiveWithAnyArgs().MarkAnnounced(default, default!, default!);
+    }
+
+    [Fact]
+    public async Task ANewRequest_IsWatchedForItsPopUp_AndShowsOnTheNextCheck()
+    {
+        _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, true, true, 9, Endpoint));
+        _seerr.CreateRequestAsync(Endpoint, 9, "movie", 603, null, Arg.Any<CancellationToken>()).Returns(new SeerrRequestResult(12, 2, 3));
+
+        await Create().CreateRequest(new CatalogRequestDto("movie", 603, null), CancellationToken.None);
+
+        _progress.Received(1).Invalidate(Endpoint, 9);
+        _announcements.Received(1).Update(_user, "http://seerr:5055/", Arg.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new List<int> { 12 })), Arg.Any<IEnumerable<int>>(), Arg.Any<IEnumerable<int>>());
+    }
+
     private static void AssertError<T>(ActionResult? result)
         where T : ObjectResult =>
         Assert.IsType<ErrorDto>(Assert.IsType<T>(result).Value);
@@ -454,7 +517,7 @@ public sealed class RequestsControllerTests : IDisposable
     private void GrantAccess() =>
         _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, true, true, 9, Endpoint));
 
-    private RequestsController Create(bool signedIn = true) => new(_users, _images, _seerr, _home, _userManager, new CatalogMapper(_library), NullLogger<RequestsController>.Instance)
+    private RequestsController Create(bool signedIn = true) => new(_users, _images, _seerr, _home, _userManager, new CatalogMapper(_library), _progress, _announcements, NullLogger<RequestsController>.Instance)
     {
         ControllerContext = new ControllerContext
         {

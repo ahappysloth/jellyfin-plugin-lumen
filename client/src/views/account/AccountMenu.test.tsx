@@ -8,6 +8,7 @@ import { resetMultiServer } from '../../compat/jellyfin';
 import { WEB_PLUGIN_KEY } from '../../compat/webPlugin';
 import { resetSessionCaches } from '../../util/sessionCaches';
 import type { ViewContext } from '../context';
+import { refreshRequestProgress, startRequestProgress } from '../catalog/requestProgress';
 import { NO_SYNCPLAY, type SyncPlayState } from '../syncplay/syncPlayState';
 import { AccountMenu, HOVER_CLOSE_MS, HOVER_OPEN_MS } from './AccountMenu';
 
@@ -100,6 +101,47 @@ describe('AccountMenu', () => {
     const { button } = setup({ config: { ...testConfig, HomeTakeover: true, LibraryTakeover: false } });
     const menu = await openByClick(button);
     expect(names(menu)).toEqual(['Settings', 'Profile']);
+  });
+
+  it('adds My requests for a user with request features, once their requests have been looked up', async () => {
+    const config = { ...testConfig, Requests: true };
+    const ctx = makeContext(
+      createFakeClient(
+        routes({
+          'Users/user1': SAM,
+          'QuickConnect/Enabled': false,
+          'Lumen/Requests/Mine': { Requests: [] },
+        }),
+      ),
+      { config },
+    );
+    startRequestProgress(ctx);
+    await act(() => refreshRequestProgress());
+    render(<AccountMenu ctx={ctx} syncPlay={NO_SYNCPLAY} current={false} />);
+
+    const menu = await openByClick(screen.getByRole('button', { name: /^Account/ }));
+    expect(names(menu)).toEqual(['History', 'My requests', 'Settings', 'Profile']);
+    expect(within(menu).getByRole('menuitem', { name: 'My requests' })).toHaveAttribute(
+      'href',
+      '#/home?lumen=requests',
+    );
+  });
+
+  it('leaves My requests out for a user without request features', async () => {
+    const ctx = makeContext(
+      createFakeClient((request) =>
+        request.url.includes('Lumen/Requests/Mine')
+          ? Promise.reject({ status: 404 })
+          : routes({ 'Users/user1': SAM, 'QuickConnect/Enabled': false })(request),
+      ),
+      { config: { ...testConfig, Requests: true } },
+    );
+    startRequestProgress(ctx);
+    await act(() => refreshRequestProgress());
+    render(<AccountMenu ctx={ctx} syncPlay={NO_SYNCPLAY} current={false} />);
+
+    const menu = await openByClick(screen.getByRole('button', { name: /^Account/ }));
+    expect(names(menu)).toEqual(['History', 'Settings', 'Profile']);
   });
 
   it('adds the Dashboard and Metadata manager for administrators only', async () => {

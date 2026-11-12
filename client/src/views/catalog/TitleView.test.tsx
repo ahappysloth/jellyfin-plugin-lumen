@@ -1,10 +1,13 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
-import { makeContext } from '../../../test/viewContext';
+import { makeContext, testConfig } from '../../../test/viewContext';
 import type { CatalogTitle } from '../../api/types';
 import type { AjaxRequest } from '../../compat/jellyfin';
+import { myRequest } from '../../../test/myRequest';
+import type { MyRequest } from '../../api/types';
 import { clearRequestStatus } from './catalog';
+import { refreshRequestProgress, reset, startRequestProgress } from './requestProgress';
 import { TitleView } from './TitleView';
 
 const movie: CatalogTitle = {
@@ -63,6 +66,47 @@ function setup(title: CatalogTitle, post: (r: AjaxRequest) => unknown) {
 
 describe('TitleView', () => {
   afterEach(() => clearRequestStatus());
+
+  it("follows the user's own request live, and links to the library once it's ready", async () => {
+    let answer: MyRequest = myRequest({ Percent: 40, SecondsLeft: 600 });
+    let ready = false;
+    const client = createFakeClient(
+      routes({
+        'Lumen/Requests/Title/movie/603': () =>
+          ready
+            ? { ...movie, State: 'Available', JellyfinItemId: 'abc' }
+            : { ...movie, State: 'Downloading' },
+        'Lumen/Requests/Mine': () => ({ Requests: [answer] }),
+        'Lumen/Requests/Status': {
+          Enabled: true,
+          CanRequestMovies: true,
+          CanRequestTv: true,
+          ImageToken: 't',
+        },
+      }),
+    );
+    const ctx = makeContext(client, { config: { ...testConfig, Requests: true } });
+    startRequestProgress(ctx);
+    await act(() => refreshRequestProgress());
+    render(<TitleView mediaType="movie" tmdbId={603} ctx={ctx} />);
+
+    const bar = await screen.findByRole('progressbar', { name: 'Downloading' });
+    expect(bar).toHaveAttribute('aria-valuenow', '40');
+    expect(bar).toHaveAttribute('aria-valuetext', '40% · 10 min left');
+    // Its progress replaces the plain state.
+    expect(screen.queryByRole('status')).toBeNull();
+
+    answer = myRequest({ Percent: 75, SecondsLeft: 120 });
+    await act(() => refreshRequestProgress());
+    expect(screen.getByRole('progressbar', { name: 'Downloading' })).toHaveAttribute('aria-valuenow', '75');
+
+    ready = true;
+    answer = myRequest({ Status: 'Ready', Percent: null, SecondsLeft: null });
+    await act(() => refreshRequestProgress());
+    expect(await screen.findByRole('button', { name: 'Open in library' })).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    reset();
+  });
 
   it('shows the title with Request, trailer link, cast and recommendations', async () => {
     setup(movie, () => ({}));

@@ -10,7 +10,8 @@ import { FavoritesView } from './browse/FavoritesView';
 import { GenreView } from './browse/GenreView';
 import { LibraryView } from './browse/LibraryView';
 import type { ViewContext } from './context';
-import { LazyTitleView } from './catalog/lazyTitle';
+import { LazyMyRequests, LazyTitleView } from './catalog/lazyTitle';
+import { startRequestProgress } from './catalog/requestProgress';
 import { DetailsView } from './details/DetailsView';
 import { HomeView } from './home/HomeView';
 import { LazyPlayer, loadPlayer } from './player/lazyPlayer';
@@ -26,7 +27,7 @@ function navActive(route: TakeoverRoute): NavActive {
   if (route.kind === 'library') return route.id;
   if (route.kind === 'genre') return route.parentId ?? 'home';
   // The account menu's pages light its button (the Me tab on phones).
-  if (route.kind === 'settings' || route.kind === 'history') return 'profile';
+  if (route.kind === 'settings' || route.kind === 'history' || route.kind === 'requests') return 'profile';
   // A title's own page isn't one of the nav's places (the nav shows there only when the page couldn't load).
   if (route.kind === 'details' || route.kind === 'title') return null;
   return route.kind;
@@ -64,6 +65,8 @@ function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
       return <LazyProfileView ctx={ctx} />;
     case 'history':
       return <LazySecondary ctx={ctx} view={(m) => <m.HistoryView ctx={ctx} />} liftOnLoad />;
+    case 'requests':
+      return <LazyMyRequests ctx={ctx} />;
     case 'settings':
       return <LazySettingsFrame page={route.page} />;
     case 'player':
@@ -95,6 +98,11 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
   // The pages most visits never open come in a file of their own: fetch it as soon as the browser is idle, so they open
   // at once. That's alongside this page's own requests, not after them; measured, it doesn't slow this page.
   useEffect(prefetchSecondary, []);
+  // Where Seerr is set up: follow the user's requests (one check once the page is idle, more only while one is in
+  // flight), for the posters' progress and the "ready to watch" pop-up.
+  useEffect(() => {
+    if (ctx.config.Requests) startRequestProgress(ctx);
+  }, [ctx]);
   // Lumen's own pages are the document's main content (jellyfin-web's, empty, is hidden: base.css). The player and
   // settings pages frame jellyfin-web's, which keep its main and its title.
   const framed = route.kind === 'player' || route.kind === 'settings';

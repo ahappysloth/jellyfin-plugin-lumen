@@ -31,6 +31,8 @@ export type Route =
   | { kind: 'profile' }
   /** Lumen's own: what the user watched lately (no stock page; rides on home, PIGGY_BACKED_PARAMS). */
   | { kind: 'history' }
+  /** Lumen's own: the user's requests and how each is going (request features; rides on home like History). */
+  | { kind: 'requests' }
   /** A stock settings page Lumen restyles and frames with its own nav; the page itself stays jellyfin-web's. */
   | { kind: 'settings'; page: SettingsPage }
   /** jellyfin-web's video player: Lumen draws its controls over it; playback stays jellyfin-web's. */
@@ -79,7 +81,9 @@ export function parseRoute(hash: string): Route {
     // off, DetailsTakeover off, or a failed compatibility check) the link shows stock home: see PIGGY_BACKED_PARAMS.
     const title = TITLE_KEY.exec(query.get(PIGGY_BACKED_PARAMS.catalogTitle) ?? '');
     if (title) return { kind: 'title', mediaType: title[1] as 'movie' | 'tv', tmdbId: Number(title[2]) };
-    if (query.get(PIGGY_BACKED_PARAMS.lumenPage) === 'history') return { kind: 'history' };
+    const lumenPage = query.get(PIGGY_BACKED_PARAMS.lumenPage);
+    if (lumenPage === 'history') return { kind: 'history' };
+    if (lumenPage === 'requests') return { kind: 'requests' };
     if (tab === null || tab === '0') return { kind: 'home' };
     if (tab === '1') return { kind: 'favorites' };
     return { kind: 'other' };

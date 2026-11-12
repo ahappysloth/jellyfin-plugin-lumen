@@ -61,3 +61,27 @@ public sealed record RequestResultDto(string State, bool NeedsApproval);
 
 /// <summary>An error message to show the user.</summary>
 public sealed record ErrorDto(string Error);
+
+/// <summary>
+/// One title the user has requested, with how its request is going (request progress design note, 2026-11-12).
+/// <c>Status</c> is a <see cref="Requests.RequestProgressState"/>. <c>Percent</c> is null without a download to measure;
+/// <c>SecondsLeft</c> is counted from when the response was made (never a time, so a TV's wrong clock doesn't matter);
+/// <c>EpisodesDone</c>/<c>EpisodesTotal</c> are set for a show with more than one episode in the download queue.
+/// <c>Announce</c>: it became ready since Lumen saw it in flight and the user hasn't been told yet (POST Announced).
+/// </summary>
+public sealed record MyRequestDto(
+    IReadOnlyList<int> RequestIds,
+    CatalogItemDto Item,
+    string Status,
+    double? Percent,
+    int? SecondsLeft,
+    int? EpisodesDone,
+    int? EpisodesTotal,
+    DateTimeOffset? RequestedAt,
+    bool Announce);
+
+/// <summary>Response of GET /Lumen/Requests/Mine: the user's requested titles, newest first.</summary>
+public sealed record MyRequestsDto(IReadOnlyList<MyRequestDto> Requests);
+
+/// <summary>Body of POST /Lumen/Requests/Announced: requests whose "ready" pop-up has been shown.</summary>
+public sealed record AnnouncedDto(IReadOnlyList<int>? RequestIds);

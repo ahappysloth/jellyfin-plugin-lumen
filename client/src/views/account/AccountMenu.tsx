@@ -4,6 +4,7 @@ import {
   appActions,
   HISTORY_HASH,
   isBackKey,
+  MY_REQUESTS_HASH,
   PREFERENCES_HASH,
   selectServer,
   SETTINGS_HASHES,
@@ -17,6 +18,7 @@ import type { ViewContext } from '../context';
 import { initials } from '../details/CastRow';
 import type { SyncPlayState } from '../syncplay/syncPlayState';
 import { openWatchTogether } from '../secondary/lazySecondary';
+import { useMyRequests } from '../catalog/requestProgress';
 import { type Account, accountAccess, avatarUrl, loadAccount } from './account';
 
 /**
@@ -48,12 +50,16 @@ export function accountItems(
   syncPlay: SyncPlayState,
   onWatchTogether: () => void,
   win: Window = window,
+  /** The user has request features (requestProgress.ts found their requests list). */
+  myRequests = false,
 ): Item[][] {
   const access = accountAccess(account, win);
   const mine: Item[] = [];
   // Its link rides on home: where Lumen doesn't draw History, it would open jellyfin-web's home instead.
   if (routeEnabled('history', ctx.config))
     mine.push({ key: 'history', label: strings.history, icon: 'history', href: HISTORY_HASH });
+  if (myRequests && routeEnabled('requests', ctx.config))
+    mine.push({ key: 'requests', label: strings.myRequests, icon: 'download', href: MY_REQUESTS_HASH });
   if (syncPlay.available)
     mine.push({
       key: 'watchTogether',
@@ -191,10 +197,18 @@ export function AccountMenu({
     setOpen(null);
   };
 
-  const items = accountItems(ctx, account, syncPlay, () => {
-    close(true);
-    if (button.current) void openWatchTogether(ctx, syncPlay, button.current);
-  });
+  const myRequests = useMyRequests().available === true;
+  const items = accountItems(
+    ctx,
+    account,
+    syncPlay,
+    () => {
+      close(true);
+      if (button.current) void openWatchTogether(ctx, syncPlay, button.current);
+    },
+    window,
+    myRequests,
+  );
   const flat = ([] as Item[]).concat(...items);
   const itemEls = (): HTMLElement[] =>
     Array.from(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);

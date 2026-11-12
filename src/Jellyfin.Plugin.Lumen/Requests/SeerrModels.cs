@@ -175,6 +175,12 @@ public sealed class SeerrUserRequest
     /// <summary>"movie" or "tv".</summary>
     public string? Type { get; init; }
 
+    /// <summary>A 4K request: its download is in the media's <see cref="SeerrRequestMedia.DownloadStatus4k"/>.</summary>
+    public bool Is4k { get; init; }
+
+    /// <summary>The requested seasons (TV), each with a request status (5 = completed: that season is available).</summary>
+    public IReadOnlyList<SeerrSeasonStatus>? Seasons { get; init; }
+
     public SeerrRequestMedia? Media { get; init; }
 }
 
@@ -188,5 +194,59 @@ public sealed class SeerrRequestMedia
     /// <summary>Seerr's MediaStatus (1 Unknown … 7 Deleted).</summary>
     public int? Status { get; init; }
 
+    /// <summary>
+    /// The same for the title's 4K copy: Seerr keeps both on one media row (<c>status</c> and <c>status4k</c> in its
+    /// <c>server/entity/Media.ts</c>), so HD on the server says nothing about a 4K request.
+    /// </summary>
+    public int? Status4k { get; init; }
+
     public string? JellyfinMediaId { get; init; }
+
+    /// <summary>
+    /// The title's entries in Radarr's or Sonarr's download queue, as Seerr last saw them (its download sync runs every
+    /// minute). Empty when nothing is downloading, or when Seerr isn't connected to Radarr/Sonarr.
+    /// </summary>
+    public IReadOnlyList<SeerrDownload>? DownloadStatus { get; init; }
+
+    /// <summary>The same for the title's 4K server.</summary>
+    public IReadOnlyList<SeerrDownload>? DownloadStatus4k { get; init; }
+}
+
+/// <summary>
+/// One entry of Radarr's or Sonarr's download queue, as Seerr passes it on (<c>DownloadingItem</c> in Seerr's
+/// <c>server/lib/downloadtracker.ts</c>). Sonarr lists a season pack once per episode, each with the whole pack's
+/// <see cref="Size"/> and <see cref="SizeLeft"/> and the same <see cref="DownloadId"/>.
+/// </summary>
+public sealed class SeerrDownload
+{
+    /// <summary>Bytes in the download.</summary>
+    public double Size { get; init; }
+
+    /// <summary>Bytes still to download.</summary>
+    public double SizeLeft { get; init; }
+
+    /// <summary>
+    /// The queue's status: queued, paused, downloading, completed (waiting to be imported), failed, warning or delay.
+    /// "failed" is this release, not the request: Radarr and Sonarr blocklist it and look for another.
+    /// </summary>
+    public string? Status { get; init; }
+
+    /// <summary>When the download client expects it to finish; null (or long past) when it doesn't know.</summary>
+    public DateTimeOffset? EstimatedCompletionTime { get; init; }
+
+    public string? DownloadId { get; init; }
+
+    /// <summary>The release's name, which identifies a download when the download client gave no id.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>The episode this entry is for (Sonarr only).</summary>
+    public SeerrEpisode? Episode { get; init; }
+}
+
+/// <summary>A queued episode's place in its show.</summary>
+public sealed class SeerrEpisode
+{
+    public int SeasonNumber { get; init; }
+
+    public int EpisodeNumber { get; init; }
 }

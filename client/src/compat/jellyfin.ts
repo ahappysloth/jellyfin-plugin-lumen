@@ -264,6 +264,8 @@ export const SEARCH_HASH = `#${STOCK_ROUTES.search}`;
 export const PREFERENCES_HASH = `#${STOCK_ROUTES.preferencesMenu}`;
 /** Lumen's watch history: a page jellyfin-web doesn't have, so it rides on home (PIGGY_BACKED_PARAMS). */
 export const HISTORY_HASH = `#${STOCK_ROUTES.home}?${PIGGY_BACKED_PARAMS.lumenPage}=history`;
+/** Lumen's list of the user's requests and their progress (request features only), on home like History. */
+export const MY_REQUESTS_HASH = `#${STOCK_ROUTES.home}?${PIGGY_BACKED_PARAMS.lumenPage}=requests`;
 
 /** The server's display name for the nav, or null. */
 export async function getServerName(client: JellyfinApiClient): Promise<string | null> {

@@ -5,6 +5,7 @@ import { strings } from '../../strings';
 import { titleHash } from '../../takeover/routes';
 import { registerSessionCache } from '../../util/sessionCaches';
 import type { ViewContext } from '../context';
+import { refreshRequestProgress } from './requestProgress';
 
 export type CatalogImageSize = 'w185' | 'w300' | 'w780' | 'w1280';
 
@@ -98,6 +99,8 @@ const listeners = new Set<() => void>();
 export function setCatalogState(key: string, state: CatalogState): void {
   stateOverrides.set(key, state);
   listeners.forEach((l) => l());
+  // A request was just filed: follow its progress from now on.
+  void refreshRequestProgress();
 }
 
 /** Fresh state from Seerr for this title (its page just loaded): it replaces this session's optimistic one. */

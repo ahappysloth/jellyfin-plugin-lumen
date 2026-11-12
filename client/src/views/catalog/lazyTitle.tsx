@@ -8,6 +8,7 @@ import { reloadIfReachable } from '../../util/reloadPage';
 import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import { liftVeil } from '../../veil/veil';
 import type { ViewContext } from '../context';
+import { PageError } from '../pageError';
 import { goBack } from '../details/useItemActions';
 
 type TitleModule = typeof import('./TitleView');
@@ -129,4 +130,46 @@ export function LazyQuickRequest(props: { item: CatalogItem; ctx: ViewContext; o
     };
   }, []);
   return module ? <module.QuickRequest {...props} /> : null;
+}
+
+/**
+ * My requests (MyRequestsView), whose code comes with the title page's: only users with request features open it. The
+ * same empty page until it's in; if it can't load, the page's own error with Try again.
+ */
+export function LazyMyRequests({ ctx }: { ctx: ViewContext }) {
+  const [module, setModule] = useState<TitleModule | null>(loaded);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    if (module) return;
+    let cancelled = false;
+    setFailed(false);
+    withTimeout(loadTitle(), VIEW_TIMEOUT_MS).then(
+      (m) => !cancelled && setModule(m),
+      () => {
+        if (cancelled) return;
+        const fail = (): void => {
+          setFailed(true);
+          liftVeil();
+        };
+        if (attempt) void reloadIfReachable().then((reloaded) => !reloaded && !cancelled && fail());
+        else fail();
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [attempt]);
+
+  if (module) return <module.MyRequestsView ctx={ctx} />;
+  if (failed)
+    return (
+      <PageError
+        ctx={ctx}
+        title={strings.pageFailedTitle}
+        message={strings.loadFailed}
+        onRetry={() => setAttempt((n) => n + 1)}
+      />
+    );
+  return <div class="lmn-browse lmn-browse__pending" aria-busy="true" />;
 }

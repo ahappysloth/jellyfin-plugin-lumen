@@ -13,13 +13,16 @@
 .lmn-toast-host .lmn-toast {
   display: flex;
   align-items: center;
-  gap: 12px;
   margin: 0;
   padding: 10px 10px 10px 16px;
   box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.8);
   color: var(--lmn-text);
   pointer-events: auto;
   animation: lmn-toast-in 0.24s var(--lmn-ease);
+}
+/* Margins, not flex gap: Chromium 68 (webOS 5) and Safari 13 have no gap on flex containers. */
+.lmn-toast-host .lmn-toast > * + * {
+  margin-left: 12px;
 }
 .lmn-toast__close {
   display: inline-grid;
@@ -92,4 +95,21 @@
 }
 .lmn-page-error .lmn-browse__error {
   padding: 8px 0 0;
+}
+/* A toast's button ("Open", for a request that's ready): the accent, so it reads as the thing to do. */
+.lmn-toast__action {
+  flex: none;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--lmn-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lmn-toast__action:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }

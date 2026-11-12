@@ -44,8 +44,13 @@ public interface ISeerrClient
     /// <summary>A later page of a discover list (cached like <see cref="DiscoverAsync"/>, which is page 1).</summary>
     Task<SeerrPage> DiscoverPageAsync(SeerrEndpoint endpoint, int seerrUserId, SeerrDiscoverList list, int page, CancellationToken cancellationToken);
 
-    /// <summary>The user's 20 most recent requests, newest first (no title or art; see <see cref="GetTitleSummaryAsync"/>).</summary>
-    Task<IReadOnlyList<SeerrUserRequest>> GetUserRequestsAsync(SeerrEndpoint endpoint, int seerrUserId, CancellationToken cancellationToken);
+    /// <summary>
+    /// The user's <paramref name="take"/> most recent requests, newest first, with their media's download queue (no title
+    /// or art; see <see cref="GetTitleSummaryAsync"/>). Through the circuit breaker, but only Seerr being unreachable or
+    /// too slow counts against it: a 5xx for one user's requests may be down to that user's data, and shouldn't pause
+    /// request features for everyone.
+    /// </summary>
+    Task<IReadOnlyList<SeerrUserRequest>> GetUserRequestsAsync(SeerrEndpoint endpoint, int seerrUserId, CancellationToken cancellationToken, int take = SeerrClient.RequestsTake);
 
     /// <summary>
     /// A title's details for a card (title, year, art, rating, genres), cached for 10 minutes per title and shared like
