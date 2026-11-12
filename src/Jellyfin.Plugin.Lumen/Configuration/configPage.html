@@ -4,5 +4,22 @@
       <div id="lmn-admin-root">Loading Lumen settings…</div>
     </div>
   </div>
-  <script src="../Lumen/Assets/lumen-admin.js"></script>
+  <script>
+    // Loads the settings page's script with Lumen's version in its address, as lumen.js and lumen.css are. Without it a
+    // cache in front of Jellyfin that sets its own expiry on .js files (Nginx Proxy Manager's "Cache Assets") kept the
+    // last version's settings page after an update. The version: the lumen-version meta tag, else lumen.js's own, else
+    // the hour (still at most an hour stale).
+    (function () {
+      var meta = document.querySelector('meta[name="lumen-version"]');
+      var lumenJs = document.querySelector('script[src*="Lumen/Assets/lumen.js?v="]');
+      var version = meta
+        ? meta.getAttribute('content')
+        : lumenJs
+          ? lumenJs.getAttribute('src').split('?v=')[1]
+          : 'h' + Math.floor(Date.now() / 3600000);
+      var script = document.createElement('script');
+      script.src = '../Lumen/Assets/lumen-admin.js?v=' + String(version).replace(/[^\w.~%-]/g, '');
+      document.head.appendChild(script);
+    })();
+  </script>
 </div>

@@ -2,13 +2,25 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { ADMIN, BASE_URL, loadState, resetLumen } from '../support/api';
 import { login } from '../support/login';
 
-test('the Lumen dashboard page loads its settings', async ({ page }) => {
+test('the Lumen dashboard page loads its settings, its script addressed by Lumen’s version', { tag: '@smoke' }, async ({
+  page,
+}) => {
   await login(page, ADMIN);
+  const scripts: string[] = [];
+  page.on('request', (r) => {
+    if (r.url().includes('/Lumen/Assets/lumen-admin.js')) scripts.push(r.url());
+  });
 
   await page.goto('/web/#/configurationpage?name=Lumen');
 
   await expect(page.getByRole('group', { name: 'Home sections' })).toBeVisible();
   await expect(page.getByRole('button', { name: /Move Continue Watching down/ })).toBeVisible();
+  // With the version in its address, a cache in front of Jellyfin can't keep an old settings page past an update; the
+  // version is the one lumen.js is loaded with.
+  const version = await page.locator('meta[name="lumen-version"]').getAttribute('content');
+  expect(version).toBeTruthy();
+  expect(scripts).toContain(new URL(`/Lumen/Assets/lumen-admin.js?v=${version}`, BASE_URL).toString());
+  await expect(page.locator('[id="lmn-admin-root"]')).toHaveCount(1);
 });
 
 test('the save bar comes up with a change, wherever the page is scrolled, and goes after saving', { tag: '@smoke' }, async ({
