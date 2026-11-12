@@ -3,9 +3,11 @@ import { type MenuEntry, openContextMenu } from '../../components/ContextMenu';
 import { showToast } from '../../components/Toast';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
+import { SECONDARY_ICONS } from '../secondary/secondaryIcons';
 import type { SyncPlayState } from './syncPlayState';
+import { secondaryStrings } from '../secondary/secondaryStrings';
 
-const failed = (): void => showToast(strings.syncPlayFailed);
+const failed = (): void => showToast(secondaryStrings.syncPlayFailed);
 
 /**
  * Opens the Watch together menu under `from`: the user's group and its actions, or the groups to join. Closing it
@@ -25,18 +27,18 @@ export async function openWatchTogether(
     const entries: MenuEntry[] = [];
     if (state.canStart && manager)
       entries.push({
-        label: strings.startGroupPlayback,
+        label: secondaryStrings.startGroupPlayback,
         icon: 'play',
         onSelect: () => manager.resumeGroupPlayback(ctx.client),
       });
     if (state.canStop && manager)
       entries.push({
-        label: strings.stopGroupPlayback,
-        icon: 'stop',
+        label: secondaryStrings.stopGroupPlayback,
+        icon: SECONDARY_ICONS.stop,
         onSelect: () => manager.haltGroupPlayback(ctx.client),
       });
     entries.push({
-      label: strings.leaveGroup,
+      label: secondaryStrings.leaveGroup,
       icon: 'logout',
       onSelect: () => void ctx.api.leaveSyncPlayGroup().catch(failed),
     });
@@ -60,16 +62,18 @@ export async function openWatchTogether(
   if (state.canCreate) {
     const name = state.self;
     entries.push({
-      label: strings.newGroup,
+      label: secondaryStrings.newGroup,
       icon: 'plus',
       onSelect: () =>
-        void ctx.api.createSyncPlayGroup(strings.groupName(name ?? strings.watchTogether)).catch(failed),
+        void ctx.api
+          .createSyncPlayGroup(secondaryStrings.groupName(name ?? strings.watchTogether))
+          .catch(failed),
     });
   }
   openContextMenu({
     ...at,
     title: strings.watchTogether,
-    subtitle: groups.length === 0 ? `${strings.syncPlay} · ${strings.noGroups}` : strings.syncPlay,
+    subtitle: groups.length === 0 ? `${strings.syncPlay} · ${secondaryStrings.noGroups}` : strings.syncPlay,
     entries,
   });
 }

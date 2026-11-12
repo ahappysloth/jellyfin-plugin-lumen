@@ -12,13 +12,12 @@ import { LibraryView } from './browse/LibraryView';
 import type { ViewContext } from './context';
 import { LazyTitleView } from './catalog/lazyTitle';
 import { DetailsView } from './details/DetailsView';
-import { HistoryView } from './history/HistoryView';
 import { HomeView } from './home/HomeView';
 import { LazyPlayer, loadPlayer } from './player/lazyPlayer';
 import { LoadingScreen } from './player/LoadingScreen';
 import { clearStarting, useStarting } from '../playback/starting';
 import { LazyProfileView, LazySettingsFrame } from './profile/lazyProfile';
-import { SearchView } from './search/SearchView';
+import { LazySecondary, prefetchSecondary } from './secondary/lazySecondary';
 import { Nav, type NavActive } from './Nav';
 import { PageError, useFailedPage } from './pageError';
 import { usePageChange } from './usePageChange';
@@ -60,11 +59,11 @@ function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
         />
       );
     case 'search':
-      return <SearchView initialQuery={route.query} ctx={ctx} />;
+      return <LazySecondary ctx={ctx} view={(m) => <m.SearchView initialQuery={route.query} ctx={ctx} />} />;
     case 'profile':
       return <LazyProfileView ctx={ctx} />;
     case 'history':
-      return <HistoryView ctx={ctx} />;
+      return <LazySecondary ctx={ctx} view={(m) => <m.HistoryView ctx={ctx} />} liftOnLoad />;
     case 'settings':
       return <LazySettingsFrame page={route.page} />;
     case 'player':
@@ -89,16 +88,12 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
   // Lumen giving the page back (e.g. its player controls are off) ends a loading screen still up from a Play click.
   useEffect(() => clearStarting, []);
   // Home and details lift the veil when their data lands, a genre once it's known to be Lumen's; the library pages
-  // draw their header at once.
+  // draw their header at once (History once its file is in: views/secondary).
   useEffect(() => {
-    if (
-      route.kind === 'library' ||
-      route.kind === 'favorites' ||
-      route.kind === 'notFound' ||
-      route.kind === 'history'
-    )
-      liftVeil();
+    if (route.kind === 'library' || route.kind === 'favorites' || route.kind === 'notFound') liftVeil();
   }, [route.kind]);
+  // The pages most visits never open come in a file of their own: fetch it once this one is up, so they open at once.
+  useEffect(prefetchSecondary, []);
   // Lumen's own pages are the document's main content (jellyfin-web's, empty, is hidden: base.css). The player and
   // settings pages frame jellyfin-web's, which keep its main and its title.
   const framed = route.kind === 'player' || route.kind === 'settings';

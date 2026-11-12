@@ -40,6 +40,10 @@
   background: var(--lmn-fill-3);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--lmn-accent) 18%, transparent);
 }
+.layout-tv .lmn-search__input:focus {
+  outline: 3px solid var(--lmn-focus);
+  outline-offset: 3px;
+}
 .lmn-search__clear {
   position: absolute;
   right: 12px;
@@ -59,9 +63,8 @@
 .lmn-search__section {
   margin-bottom: 40px;
 }
-/* Sections sit inside the page gutter already. */
-.lmn-search__section .lmn-row__title,
-.lmn-profile .lmn-row__title {
+/* Sections sit inside the page gutter already (the profile page's too: profile.css). */
+.lmn-search__section .lmn-row__title {
   margin-right: 0;
   margin-left: 0;
 }

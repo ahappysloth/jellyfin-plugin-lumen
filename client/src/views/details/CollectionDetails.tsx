@@ -8,6 +8,7 @@ import { useItemMenu } from '../itemMenu/lazyItemMenu';
 import type { DetailsProps } from './DetailsView';
 import { DetailsHeader } from './DetailsHeader';
 import { goBack, useItemActions } from './useItemActions';
+import { secondaryStrings } from '../secondary/secondaryStrings';
 
 /** A collection (box set): the details header (Play plays it in order) over its titles, oldest first. */
 export function CollectionDetails({ item, ctx, reload }: DetailsProps & { item: BaseItem }) {
@@ -50,16 +51,16 @@ export function CollectionDetails({ item, ctx, reload }: DetailsProps & { item: 
         more={more}
         {...actions}
       />
-      <section class="lmn-details__section" aria-label={strings.inCollection}>
-        <h2 class="lmn-row__title">{strings.inCollection}</h2>
+      <section class="lmn-details__section" aria-label={secondaryStrings.inCollection}>
+        <h2 class="lmn-row__title">{secondaryStrings.inCollection}</h2>
         <BrowseGrid
           state={state}
           client={ctx.client}
           variant="poster"
-          label={strings.inCollection}
+          label={secondaryStrings.inCollection}
           onSelect={select}
           onMenu={onMenu}
-          empty={<p>{strings.emptyCollection}</p>}
+          empty={<p>{secondaryStrings.emptyCollection}</p>}
         />
       </section>
     </article>

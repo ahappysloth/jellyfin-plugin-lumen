@@ -1,0 +1,5 @@
+/* The pages in views/secondary's file (views/secondary/SecondaryViews.ts): built on its own (vite.styles.config.ts →
+   lumen-secondary.css) and linked with that file (lazySecondary.tsx), which waits for it, so they never show unstyled.
+   It loads after lumen.css, so its rules win ties with lumen.css's; keep them to the pages' own classes. */
+@import './search.css';
+@import './collection-person.css';

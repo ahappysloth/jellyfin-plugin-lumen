@@ -7,9 +7,8 @@ import { strings } from '../../strings';
 import { rememberEdit } from '../itemChanges';
 import { liftVeil } from '../../veil/veil';
 import { PageError } from '../pageError';
-import { CollectionDetails } from './CollectionDetails';
+import { LazySecondary } from '../secondary/lazySecondary';
 import { EpisodeDetails } from './EpisodeDetails';
-import { PersonDetails } from './PersonDetails';
 import { MovieDetails } from './MovieDetails';
 import { SeriesDetails } from './SeriesDetails';
 import { goBack } from './useItemActions';
@@ -77,6 +76,9 @@ const FAILURE_MESSAGES: Record<Exclude<LoadFailure, 'notFound'>, string> = {
   offline: strings.pageFailed,
 };
 
+/** The item types whose pages are in views/secondary's file. */
+const LAZY_TYPES = ['BoxSet', 'Person'];
+
 /** What a details page is given besides its item. */
 export interface DetailsProps {
   ctx: ViewContext;
@@ -120,9 +122,11 @@ export function DetailsView({ id, ctx }: { id: string; ctx: ViewContext }) {
   }, [id, attempt, version]);
   const reload = (): void => setVersion((v) => v + 1);
 
+  // A person's or a collection's page is in a file of its own (views/secondary): it lifts the veil once that's in.
+  const lazy = resolved !== null && LAZY_TYPES.includes(resolved.item.Type);
   useEffect(() => {
-    if (resolved || failure) liftVeil();
-  }, [resolved !== null, failure]);
+    if ((resolved && !lazy) || failure) liftVeil();
+  }, [resolved !== null, lazy, failure]);
 
   if (failure === 'notFound')
     return (
@@ -153,14 +157,31 @@ export function DetailsView({ id, ctx }: { id: string; ctx: ViewContext }) {
         onBack={() => goBack(ctx)}
       />
     );
-  if (!resolved) return <div class="lmn-details lmn-details--loading" aria-busy="true" />;
+  const loading = <div class="lmn-details lmn-details--loading" aria-busy="true" />;
+  if (!resolved) return loading;
   switch (resolved.item.Type) {
     case 'Movie':
       return <MovieDetails item={resolved.item} ctx={ctx} reload={reload} />;
     case 'BoxSet':
-      return <CollectionDetails item={resolved.item} ctx={ctx} reload={reload} />;
+      return (
+        <LazySecondary
+          ctx={ctx}
+          pending={loading}
+          liftOnLoad
+          onBack={() => goBack(ctx)}
+          view={(m) => <m.CollectionDetails item={resolved.item} ctx={ctx} reload={reload} />}
+        />
+      );
     case 'Person':
-      return <PersonDetails item={resolved.item} ctx={ctx} />;
+      return (
+        <LazySecondary
+          ctx={ctx}
+          pending={loading}
+          liftOnLoad
+          onBack={() => goBack(ctx)}
+          view={(m) => <m.PersonDetails item={resolved.item} ctx={ctx} />}
+        />
+      );
     case 'Episode':
       return <EpisodeDetails key={resolved.item.Id} episode={resolved.item} ctx={ctx} reload={reload} />;
     default:

@@ -10,6 +10,7 @@ import { useGridPage } from '../browse/useGridPage';
 import type { ViewContext } from '../context';
 import { initials } from './CastRow';
 import { goBack } from './useItemActions';
+import { secondaryStrings } from '../secondary/secondaryStrings';
 
 /** A biography longer than this gets a Read more toggle. */
 const LONG_BIO = 420;
@@ -88,8 +89,8 @@ export function PersonDetails({ item, ctx }: { item: BaseItem; ctx: ViewContext 
             <h1 class="lmn-person-page__name">{item.Name}</h1>
             {(born || died) && (
               <p class="lmn-meta lmn-person-page__dates">
-                {born && <span>{strings.born(born, item.ProductionLocations?.[0])}</span>}
-                {died && <span>{strings.died(died)}</span>}
+                {born && <span>{secondaryStrings.born(born, item.ProductionLocations?.[0])}</span>}
+                {died && <span>{secondaryStrings.died(died)}</span>}
               </p>
             )}
             {bio && (
@@ -102,7 +103,7 @@ export function PersonDetails({ item, ctx }: { item: BaseItem; ctx: ViewContext 
                     aria-expanded={expanded}
                     onClick={() => setExpanded((e) => !e)}
                   >
-                    {expanded ? strings.readLess : strings.readMore}
+                    {expanded ? secondaryStrings.readLess : secondaryStrings.readMore}
                   </button>
                 )}
               </>
@@ -110,19 +111,19 @@ export function PersonDetails({ item, ctx }: { item: BaseItem; ctx: ViewContext 
           </div>
         </div>
       </header>
-      <section class="lmn-details__section" aria-label={strings.knownFor}>
+      <section class="lmn-details__section" aria-label={secondaryStrings.knownFor}>
         <h2 class="lmn-row__title">
-          {strings.knownFor}
+          {secondaryStrings.knownFor}
           {state.total ? <span class="lmn-row__count">{formatNumber(state.total)}</span> : null}
         </h2>
         <BrowseGrid
           state={state}
           client={ctx.client}
           variant="poster"
-          label={strings.knownFor}
+          label={secondaryStrings.knownFor}
           onSelect={select}
           onMenu={onMenu}
-          empty={<p>{strings.noPersonTitles}</p>}
+          empty={<p>{secondaryStrings.noPersonTitles}</p>}
         />
       </section>
     </article>

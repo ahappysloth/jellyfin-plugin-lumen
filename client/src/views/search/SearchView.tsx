@@ -14,6 +14,7 @@ import { type CardMenuHandler, infoHash, useCardMenu } from '../cardMenu';
 import type { ViewContext } from '../context';
 import { initials } from '../details/CastRow';
 import { captionFor } from '../home/Row';
+import { secondaryStrings } from '../secondary/secondaryStrings';
 
 const DEBOUNCE_MS = 250;
 const MIN_QUERY = 2;
@@ -156,10 +157,10 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
   const status = !searching
     ? ''
     : pending
-      ? strings.searching
+      ? secondaryStrings.searching
       : failed
         ? '' // the error block announces itself
-        : strings.resultCount(count);
+        : secondaryStrings.resultCount(count);
 
   return (
     <div class="lmn-browse lmn-search">
@@ -179,7 +180,7 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
           enterKeyHint="search"
           autoComplete="off"
           spellcheck={false}
-          placeholder={strings.searchPlaceholder}
+          placeholder={secondaryStrings.searchPlaceholder}
           aria-label={strings.search}
           value={input}
           onInput={(e) => setInput(e.currentTarget.value)}
@@ -188,7 +189,7 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
           <button
             type="button"
             class="lmn-search__clear"
-            aria-label={strings.clearSearch}
+            aria-label={secondaryStrings.clearSearch}
             onClick={() => {
               setInput('');
               field.current?.focus();
@@ -206,7 +207,7 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
       <div ref={resultsRef} aria-busy={pending}>
         {!searching && explore && explore.length > 0 && (
           <ResultSection
-            title={strings.explore}
+            title={secondaryStrings.explore}
             variant="poster"
             items={visible(explore)}
             ctx={ctx}
@@ -215,7 +216,7 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
         )}
         {failed && (
           <LoadError
-            message={strings.searchFailed}
+            message={secondaryStrings.searchFailed}
             onRetry={() => {
               setResults(null);
               setAttempt((n) => n + 1);
@@ -224,8 +225,8 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
         )}
         {empty && (
           <div class="lmn-browse__empty">
-            <p class="lmn-browse__empty-title">{strings.noResults(query)}</p>
-            <p>{strings.noResultsHint}</p>
+            <p class="lmn-browse__empty-title">{secondaryStrings.noResults(query)}</p>
+            <p>{secondaryStrings.noResultsHint}</p>
           </div>
         )}
         {shown?.sections.map((section) => (
@@ -239,8 +240,8 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
           />
         ))}
         {shown && shown.people.length > 0 && (
-          <section class="lmn-search__section" aria-label={strings.people}>
-            <h2 class="lmn-row__title">{strings.people}</h2>
+          <section class="lmn-search__section" aria-label={secondaryStrings.people}>
+            <h2 class="lmn-row__title">{secondaryStrings.people}</h2>
             <div class="lmn-search__people">
               {shown.people.map((person) => (
                 <button key={person.Id} type="button" class="lmn-person" onClick={() => open(person)}>
@@ -261,12 +262,12 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
           </section>
         )}
         {shown && shown.catalog.length > 0 && (
-          <section class="lmn-search__section" aria-label={strings.moreToRequest}>
-            <h2 class="lmn-row__title">{strings.moreToRequest}</h2>
+          <section class="lmn-search__section" aria-label={secondaryStrings.moreToRequest}>
+            <h2 class="lmn-row__title">{secondaryStrings.moreToRequest}</h2>
             <div
               class="lmn-browse-grid lmn-browse-grid--poster"
               role="list"
-              aria-label={strings.moreToRequest}
+              aria-label={secondaryStrings.moreToRequest}
             >
               {shown.catalog.map((item) => (
                 <div role="listitem" key={item.Key} class="lmn-browse-grid__cell">

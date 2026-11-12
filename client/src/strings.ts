@@ -6,7 +6,8 @@ import { formatNumber } from './util/locale';
  *
  * This object downloads at startup whole, used or not, so strings only a lazily loaded view shows live beside it, in a
  * module only that view's chunk imports: views/player/playerStrings.ts, views/catalog/titleStrings.ts,
- * views/profile/profileStrings.ts and views/itemMenu/itemMenuStrings.ts. A string the core needs too belongs here.
+ * views/profile/profileStrings.ts, views/itemMenu/itemMenuStrings.ts and views/secondary/secondaryStrings.ts. A string
+ * the core needs too belongs here.
  */
 export const strings = {
   play: 'Play',
@@ -100,14 +101,6 @@ export const strings = {
   },
   all: 'All',
   genrePage: 'Genre',
-  born: (date: string, place?: string) => (place ? `Born ${date} in ${place}` : `Born ${date}`),
-  died: (date: string) => `Died ${date}`,
-  knownFor: 'Known for',
-  inCollection: 'In this collection',
-  readMore: 'Read more',
-  readLess: 'Show less',
-  noPersonTitles: 'Nothing with this person in your library.',
-  emptyCollection: 'This collection is empty.',
   emptyGenre: 'Nothing in this genre yet.',
   studioPage: 'Studio',
   emptyStudio: 'Nothing from this studio yet.',
@@ -129,31 +122,7 @@ export const strings = {
   noEpisodes: 'No episodes yet.',
   watchTogether: 'Watch together',
   syncPlay: 'SyncPlay',
-  newGroup: 'New group',
-  leaveGroup: 'Leave group',
-  startGroupPlayback: 'Start group playback',
-  stopGroupPlayback: 'Stop group playback',
-  noGroups: 'No groups yet',
-  groupName: (user: string) => `${user}'s group`,
   inGroup: (name: string) => `In ${name}`,
-  syncPlayFailed: "Couldn't update the group. Try again.",
-  noSuggestions: 'No suggestions yet. Watch something and check back.',
-  noUpcoming: 'No upcoming episodes.',
-  continueWatching: 'Continue watching',
-  nextUp: 'Next up',
-  latestMovies: 'Latest movies',
-  latestEpisodes: 'Latest episodes',
-  today: 'Today',
-  tomorrow: 'Tomorrow',
-  yesterday: 'Yesterday',
-  recommendation: (type: string, name: string | undefined): string => {
-    if (!name) return 'Recommended';
-    if (type === 'SimilarToRecentlyPlayed') return `Because you watched ${name}`;
-    if (type === 'SimilarToLikedItem') return `Because you liked ${name}`;
-    if (type === 'HasDirectorFromRecentlyPlayed' || type === 'HasLikedDirector') return `Directed by ${name}`;
-    if (type === 'HasActorFromRecentlyPlayed' || type === 'HasLikedActor') return `Starring ${name}`;
-    return 'Recommended';
-  },
   titleCount: (n: number) => (n === 1 ? '1 title' : `${formatNumber(n)} titles`),
   genreCount: (n: number) => (n === 1 ? '1 genre' : `${formatNumber(n)} genres`),
   studioCount: (n: number) => (n === 1 ? '1 studio' : `${formatNumber(n)} studios`),
@@ -173,22 +142,10 @@ export const strings = {
   emptyLibrary: 'This library is empty.',
   noFavorites: 'No favorites yet',
   noFavoritesHint: 'Tap the heart on any movie, show or episode to keep it here.',
-  searchPlaceholder: 'Search movies, shows and people',
-  clearSearch: 'Clear search',
-  explore: 'Explore your library',
-  people: 'People',
-  noResults: (q: string) => `No results for “${q}”`,
-  noResultsHint: 'Check the spelling, or try a title, an actor or a director.',
-  searching: 'Searching…',
-  searchFailed: "Couldn't search right now.",
-  resultCount: (n: number) => (n === 1 ? '1 result' : `${formatNumber(n)} results`),
   settingsMenu: 'Settings',
   account: 'Account',
   accountInGroup: (group: string) => `Account: In ${group}`,
   history: 'History',
-  noHistory: 'Nothing watched yet',
-  noHistoryHint: 'Movies and episodes you play show up here, newest first.',
-  episodeCount: (n: number) => `${formatNumber(n)} episodes`,
   selectServer: 'Select server',
   exitApp: 'Exit app',
   clientSettings: 'Client settings',
@@ -212,7 +169,6 @@ export const strings = {
   partlyAvailable: 'Partly available',
   /** A catalog card's state tab: a phone poster has no room for the long one. */
   partlyAvailableShort: 'Partial',
-  moreToRequest: 'More to request',
   badges: {
     RecentlyAdded: 'Recently added',
     NewEpisode: 'New episode',
