@@ -266,17 +266,25 @@ const CLIENT_HEADER = 'MediaBrowser Client="Lumen E2E", Device="Playwright", Dev
 
 test('the Storage report is for admins only: a user (kid) and a visitor get nothing from it', async () => {
   const { kid } = loadState();
+  const call = (method: string, path: string, token?: string) =>
+    fetch(new URL(path, `${BASE_URL.replace(/\/$/, '')}/`), {
+      method,
+      headers: { Authorization: token ? `${CLIENT_HEADER}, Token="${token}"` : CLIENT_HEADER },
+    });
+
+  // The kid's token works, so a 403 below is the endpoint refusing a signed-in user, not an expired session.
+  expect((await call('GET', 'Users/Me', kid.token)).status).toBe(200);
+
   for (const [method, path] of [
     ['GET', 'Lumen/Admin/Storage'],
     ['POST', 'Lumen/Admin/Storage/Refresh'],
   ] as const) {
-    for (const token of [kid.token, undefined]) {
-      const response = await fetch(new URL(path, `${BASE_URL.replace(/\/$/, '')}/`), {
-        method,
-        headers: { Authorization: token ? `${CLIENT_HEADER}, Token="${token}"` : CLIENT_HEADER },
-      });
-      expect(response.ok, `${method} ${path} as ${token ? 'kid' : 'nobody'}`).toBe(false);
-      expect([400, 401, 403]).toContain(response.status);
+    for (const [who, token, status] of [
+      ['kid', kid.token, 403],
+      ['nobody', undefined, 401],
+    ] as const) {
+      const response = await call(method, path, token);
+      expect(response.status, `${method} ${path} as ${who}`).toBe(status);
       const body = await response.text();
       // No titles, sizes or paths in an error body either.
       expect(body).not.toMatch(/Lumen Alpha|\/media|BiggestMovies|Totals/);
