@@ -8,10 +8,14 @@ import type { AjaxRequest } from '../../compat/jellyfin';
 import { ToastHost } from '../../components/Toast';
 import {
   FAST_MS,
+  MAX_RETRY_MS,
   NORMAL_MS,
+  RETRY_MS,
   progressDetail,
+  refreshIfOlder,
   refreshRequestProgress,
   reset,
+  retryDelay,
   secondsLeft,
   startRequestProgress,
   useMyRequests,
@@ -21,7 +25,11 @@ import {
 
 let answers: (MyRequests | { status: number })[];
 let client: FakeClient;
+/** When each GET /Lumen/Requests/Mine was made (Date.now(), faked). */
+let mineTimes: number[];
 const mineCalls = (): AjaxRequest[] => client.requests.filter((r) => r.url.includes('Lumen/Requests/Mine'));
+/** The time between one check and the next. */
+const spacing = (): number[] => mineTimes.slice(1).map((t, i) => t - mineTimes[i]!);
 const announcedCalls = (): AjaxRequest[] =>
   client.requests.filter((r) => r.url.includes('Lumen/Requests/Announced'));
 
@@ -45,8 +53,10 @@ function start(): ReturnType<typeof makeContext> {
 beforeEach(() => {
   vi.useFakeTimers();
   answers = [];
+  mineTimes = [];
   client = createFakeClient((request) => {
     if (request.url.includes('Lumen/Requests/Mine')) {
+      mineTimes.push(Date.now());
       const answer = answers.length > 1 ? answers.shift()! : answers[0];
       return answer && 'status' in answer ? Promise.reject(answer) : answer;
     }
@@ -57,6 +67,7 @@ beforeEach(() => {
 afterEach(() => {
   reset();
   setHidden(false);
+  vi.restoreAllMocks();
   vi.useRealTimers();
 });
 
@@ -107,6 +118,29 @@ describe('request progress', () => {
     expect(mineCalls()).toHaveLength(3);
   });
 
+  it('keeps the fast pace working after a sign-out while a title page was open', async () => {
+    answers = [{ Requests: [myRequest()] }];
+    function Page() {
+      usePollFast(true);
+      return null;
+    }
+    start();
+    await advance(1000);
+    const first = render(<Page />);
+    reset();
+    start();
+    await advance(1000);
+    first.unmount();
+    await advance(0);
+    expect(mineCalls()).toHaveLength(2);
+
+    const second = render(<Page />);
+    await advance(FAST_MS);
+    expect(mineCalls()).toHaveLength(3);
+    second.unmount();
+    await advance(100); // Preact cleans an unmounted page's effects up after the next frame
+  });
+
   it('stays at the normal pace for a fast page when nothing is downloading', async () => {
     answers = [{ Requests: [myRequest({ Status: 'Requested', Percent: null, SecondsLeft: null })] }];
     function Page() {
@@ -115,11 +149,13 @@ describe('request progress', () => {
     }
     start();
     await advance(1000);
-    render(<Page />);
+    const { unmount } = render(<Page />);
     await advance(FAST_MS * 2);
     expect(mineCalls()).toHaveLength(1);
     await advance(NORMAL_MS);
     expect(mineCalls()).toHaveLength(2);
+    unmount();
+    await advance(100); // Preact cleans an unmounted page's effects up after the next frame
   });
 
   it('keeps the first check and its answer when the user moves on to another page meanwhile', async () => {
@@ -176,13 +212,100 @@ describe('request progress', () => {
     expect(mineCalls()).toHaveLength(1);
   });
 
-  it('tries a failed first check again a couple of times, then stops', async () => {
+  it('tries a failed first check again a couple of times, later each time, then stops', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(1);
     answers = [{ status: 502 }];
     start();
     await advance(1000);
     await advance(10 * NORMAL_MS);
 
     expect(mineCalls()).toHaveLength(3);
+    expect(spacing()).toEqual([RETRY_MS, 2 * RETRY_MS]);
+  });
+
+  it('backs off when checks fail after an answer, instead of asking again at once', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(1);
+    answers = [{ Requests: [myRequest()] }, { status: 503 }];
+    start();
+    await advance(1000);
+    await advance(NORMAL_MS);
+    expect(mineCalls()).toHaveLength(2); // the failed one
+
+    // Nothing more in the next moments (it used to ask again with no wait, over and over).
+    await advance(RETRY_MS - 1);
+    expect(mineCalls()).toHaveLength(2);
+
+    await advance(30 * 60_000);
+    expect(spacing().slice(0, 7)).toEqual([
+      NORMAL_MS,
+      RETRY_MS,
+      2 * RETRY_MS,
+      4 * RETRY_MS,
+      8 * RETRY_MS,
+      16 * RETRY_MS,
+      MAX_RETRY_MS,
+    ]);
+    // Then every 5 minutes at most: 7 checks in the last half hour, not one per round trip.
+    expect(spacing().slice(6)).toEqual(Array(spacing().length - 6).fill(MAX_RETRY_MS));
+    expect(mineCalls()).toHaveLength(11);
+  });
+
+  it('keeps backing off while the page is hidden and shown again', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(1);
+    answers = [{ Requests: [myRequest()] }, { status: 503 }];
+    start();
+    await advance(1000);
+    await advance(NORMAL_MS);
+    setHidden(true);
+    setHidden(false);
+    await advance(RETRY_MS - 1);
+
+    expect(mineCalls()).toHaveLength(2);
+  });
+
+  it('goes back to the normal pace once a check works again, and starts the back-off over', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(1);
+    answers = [
+      { Requests: [myRequest()] },
+      { status: 503 },
+      { status: 503 },
+      { Requests: [myRequest()] },
+      { Requests: [myRequest()] },
+      { status: 503 },
+      { Requests: [myRequest()] },
+    ];
+    start();
+    await advance(1000);
+    await advance(10 * NORMAL_MS);
+
+    expect(spacing().slice(0, 6)).toEqual([
+      NORMAL_MS,
+      RETRY_MS,
+      2 * RETRY_MS,
+      NORMAL_MS,
+      NORMAL_MS,
+      RETRY_MS,
+    ]);
+  });
+
+  it('spreads the retries out, so tabs that saw the same outage come back at different times', () => {
+    expect(retryDelay(1, 0)).toBe(RETRY_MS / 2);
+    expect(retryDelay(1, 1)).toBe(RETRY_MS);
+    expect(retryDelay(3, 0.5)).toBe(3 * RETRY_MS);
+    expect(retryDelay(20, 0)).toBe(MAX_RETRY_MS / 2);
+    expect(retryDelay(20, 1)).toBe(MAX_RETRY_MS);
+  });
+
+  it('waits out a back-off when My requests asks for fresh progress', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(1);
+    answers = [{ Requests: [myRequest()] }, { status: 503 }];
+    start();
+    await advance(1000);
+    await advance(NORMAL_MS);
+    refreshIfOlder(FAST_MS);
+    await advance(0);
+
+    expect(mineCalls()).toHaveLength(2);
   });
 
   it('checks at once when the user files a request', async () => {
@@ -216,6 +339,32 @@ describe('request progress', () => {
     // The server still says so (another device's check raced this one's): not again here.
     await act(() => refreshRequestProgress());
     expect(screen.getByRole('alert')).toBeEmptyDOMElement();
+    expect(announcedCalls()).toHaveLength(1);
+  });
+
+  it('pops up when the page shows again, for a request that became ready while it was hidden', async () => {
+    let answer: (value: MyRequests) => void = () => undefined;
+    client.respond = (request) =>
+      request.url.includes('Lumen/Requests/Mine')
+        ? new Promise<MyRequests>((resolve) => (answer = resolve))
+        : undefined;
+    render(<ToastHost />);
+    start();
+    await advance(1000);
+    setHidden(true);
+    answer({ Requests: [myRequest({ Status: 'Ready', Announce: true, RequestIds: [7] })] });
+    await advance(0);
+    expect(screen.getByRole('alert')).toBeEmptyDOMElement();
+
+    // Nothing in flight, so no further check: the answer it has is enough.
+    await act(async () => setHidden(false));
+    expect(screen.getByRole('alert')).toHaveTextContent('The Matrix is ready to watch');
+    expect(announcedCalls()).toHaveLength(1);
+
+    await act(async () => {
+      setHidden(true);
+      setHidden(false);
+    });
     expect(announcedCalls()).toHaveLength(1);
   });
 

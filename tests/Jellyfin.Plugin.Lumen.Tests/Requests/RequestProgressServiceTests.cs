@@ -112,13 +112,63 @@ public class RequestProgressServiceTests
     }
 
     [Fact]
-    public async Task AFailure_IsNotCached()
+    public async Task AFailure_IsCachedBriefly_SoOneUserCantKeepSeerrBusy()
+    {
+        _seerr.GetUserRequestsAsync(Endpoint, 7, Arg.Any<CancellationToken>(), Arg.Any<int>()).ThrowsAsync(new SeerrException("down"));
+        await Assert.ThrowsAsync<SeerrException>(() => Get(7));
+
+        // Another tab (or device) a moment later gets the same failure, without a Seerr call.
+        Requests(7, Request());
+        _time.Advance(RequestProgressService.FailureTtl - TimeSpan.FromSeconds(1));
+        await Assert.ThrowsAsync<SeerrException>(() => Get(7));
+        await _seerr.Received(1).GetUserRequestsAsync(Endpoint, 7, Arg.Any<CancellationToken>(), Arg.Any<int>());
+
+        // Not another user's.
+        Requests(8, Request());
+        Assert.Single((await Get(8)).Requests);
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        Assert.Single((await Get(7)).Requests);
+    }
+
+    [Fact]
+    public async Task AFailure_IsForgotten_WhenTheUserFilesARequest()
     {
         _seerr.GetUserRequestsAsync(Endpoint, 7, Arg.Any<CancellationToken>(), Arg.Any<int>()).ThrowsAsync(new SeerrException("down"));
         await Assert.ThrowsAsync<SeerrException>(() => Get(7));
 
         Requests(7, Request());
+        _service.Invalidate(Endpoint, 7);
         Assert.Single((await Get(7)).Requests);
+    }
+
+    [Fact]
+    public async Task ATitleRemovedFromTheServer_IsLeftOut_NotShownReady()
+    {
+        Requests(7, Request(SeerrRequestStatus.Completed, mediaStatus: 7, id: 1, tmdbId: 601), Request(SeerrRequestStatus.Completed, mediaStatus: 5, id: 2, tmdbId: 602));
+
+        var mine = await Get(7);
+
+        Assert.Equal(["movie-602"], mine.Requests.Select(r => r.Item.Key));
+        _announcements.Received().Update(_alice, Arg.Any<string>(), Arg.Any<IEnumerable<int>>(), Arg.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new List<int> { 2 })), Arg.Any<IEnumerable<int>>());
+    }
+
+    [Fact]
+    public async Task AShowWithTwoSeasonRequestsInFlight_ShowsBoth_AndNotOtherSeasons()
+    {
+        var downloads = new List<SeerrDownload>
+        {
+            Download(1000, 0, "downloading", null, "s1", 1, 1),
+            Download(1000, 500, "downloading", null, "s2", 2, 1),
+            Download(1000, 1000, "queued", null, "s3", 3, 1),
+        };
+        Requests(7, Season(6, 3, downloads), Season(5, 2, downloads));
+
+        var title = Assert.Single((await Get(7)).Requests);
+
+        Assert.Equal([6, 5], title.RequestIds);
+        Assert.Equal(25, title.Percent); // seasons 2 and 3: 500 of 2000
+        Assert.Equal((0, 2), (title.EpisodesDone, title.EpisodesTotal));
     }
 
     [Fact]
@@ -185,6 +235,12 @@ public class RequestProgressServiceTests
         _seerr.GetTitleSummaryAsync(Endpoint, 7, "movie", 602, Arg.Any<CancellationToken>()).ThrowsAsync(new SeerrException("404"));
 
         Assert.Equal(["movie-601"], (await Get(7)).Requests.Select(r => r.Item.Key));
+    }
+
+    private static SeerrUserRequest Season(int id, int season, IReadOnlyList<SeerrDownload> downloads)
+    {
+        var request = Request(downloads: downloads, id: id, tmdbId: 1399, type: "tv");
+        return new SeerrUserRequest { Id = id, Status = request.Status, Type = "tv", CreatedAt = request.CreatedAt, Seasons = [new SeerrSeasonStatus { SeasonNumber = season }], Media = request.Media };
     }
 
     private void Requests(int seerrUserId, params SeerrUserRequest[] requests) =>

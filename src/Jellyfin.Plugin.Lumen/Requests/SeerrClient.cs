@@ -137,7 +137,9 @@ public sealed class SeerrClient : ISeerrClient
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(take, 1);
         var path = string.Create(CultureInfo.InvariantCulture, $"api/v1/user/{seerrUserId}/requests?take={take}&skip=0&sort=added");
-        var page = await GetAsync<SeerrUserRequestPage>(endpoint, path, seerrUserId, cancellationToken).ConfigureAwait(false) ?? throw Unexpected();
+
+        // Per user: a 5xx here may be this user's data, so it doesn't pause request features for everyone (see SendAsync).
+        var page = await SendAsync<SeerrUserRequestPage>(endpoint, HttpMethod.Get, path, seerrUserId, null, true, cancellationToken, userScoped: true).ConfigureAwait(false) ?? throw Unexpected();
         return page.Results ?? [];
     }
 
@@ -231,6 +233,12 @@ public sealed class SeerrClient : ISeerrClient
     /// <summary>Whether a failed call counts against the breaker: Seerr unreachable, too slow, a 5xx, or not JSON.</summary>
     private static bool IsOutage(SeerrException e) => e.Status is null || (int)e.Status >= 500;
 
+    /// <summary>
+    /// Whether a failed per-user call counts against the breaker: only Seerr being unreachable or too slow, which no
+    /// user's data causes. A 5xx or an answer Lumen can't read may be down to that one user's requests.
+    /// </summary>
+    private static bool IsUserScopedOutage(SeerrException e) => e.Status is null && e.InnerException is not JsonException;
+
     private async Task<SeerrUser?> LookUpUserAsync(SeerrEndpoint endpoint, Guid jellyfinUserId, bool guarded, CancellationToken cancellationToken)
     {
         var path = "api/v1/user/jellyfin/" + jellyfinUserId.ToString("N", CultureInfo.InvariantCulture);
@@ -289,10 +297,13 @@ public sealed class SeerrClient : ISeerrClient
     }
 
     /// <summary>
-    /// One Seerr call, through the endpoint's breaker when <paramref name="guarded"/>. Error statuses (and 202 to a POST,
-    /// Seerr's "nothing to request") become a <see cref="SeerrException"/> carrying Seerr's <c>message</c>.
+    /// One Seerr call, through the endpoint's breaker when <paramref name="guarded"/>. A <paramref name="userScoped"/> call
+    /// (one user's own data) counts against the breaker only when Seerr is unreachable or too slow; another failure is
+    /// left out of the count, neither failure nor success, since a proxy's 502 for a down Seerr shouldn't close it either.
+    /// Error statuses (and 202 to a POST, Seerr's "nothing to request") become a <see cref="SeerrException"/> carrying
+    /// Seerr's <c>message</c>.
     /// </summary>
-    private async Task<T?> SendAsync<T>(SeerrEndpoint endpoint, HttpMethod method, string path, int? actAsUser, JsonNode? body, bool guarded, CancellationToken cancellationToken)
+    private async Task<T?> SendAsync<T>(SeerrEndpoint endpoint, HttpMethod method, string path, int? actAsUser, JsonNode? body, bool guarded, CancellationToken cancellationToken, bool userScoped = false)
     {
         if (!guarded)
         {
@@ -313,10 +324,15 @@ public sealed class SeerrClient : ISeerrClient
             reported = true;
             return result;
         }
-        catch (SeerrException e) when (IsOutage(e))
+        catch (SeerrException e) when (userScoped ? IsUserScopedOutage(e) : IsOutage(e))
         {
             breaker.RecordFailure(generation);
             reported = true;
+            throw;
+        }
+        catch (SeerrException e) when (userScoped && IsOutage(e))
+        {
+            // Left to the finally's Abandon: says nothing either way about Seerr as a whole.
             throw;
         }
         catch (SeerrException)

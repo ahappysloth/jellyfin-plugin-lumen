@@ -194,6 +194,12 @@ public sealed class SeerrRequestMedia
     /// <summary>Seerr's MediaStatus (1 Unknown … 7 Deleted).</summary>
     public int? Status { get; init; }
 
+    /// <summary>
+    /// The same for the title's 4K copy: Seerr keeps both on one media row (<c>status</c> and <c>status4k</c> in its
+    /// <c>server/entity/Media.ts</c>), so HD on the server says nothing about a 4K request.
+    /// </summary>
+    public int? Status4k { get; init; }
+
     public string? JellyfinMediaId { get; init; }
 
     /// <summary>
@@ -219,13 +225,19 @@ public sealed class SeerrDownload
     /// <summary>Bytes still to download.</summary>
     public double SizeLeft { get; init; }
 
-    /// <summary>The queue's status: queued, paused, downloading, completed (waiting to be imported), failed, warning or delay.</summary>
+    /// <summary>
+    /// The queue's status: queued, paused, downloading, completed (waiting to be imported), failed, warning or delay.
+    /// "failed" is this release, not the request: Radarr and Sonarr blocklist it and look for another.
+    /// </summary>
     public string? Status { get; init; }
 
     /// <summary>When the download client expects it to finish; null (or long past) when it doesn't know.</summary>
     public DateTimeOffset? EstimatedCompletionTime { get; init; }
 
     public string? DownloadId { get; init; }
+
+    /// <summary>The release's name, which identifies a download when the download client gave no id.</summary>
+    public string? Title { get; init; }
 
     /// <summary>The episode this entry is for (Sonarr only).</summary>
     public SeerrEpisode? Episode { get; init; }

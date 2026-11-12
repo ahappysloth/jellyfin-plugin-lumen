@@ -27,10 +27,12 @@ public interface IRequestProgressService
 /// (<c>X-Api-User</c>, keyed by their Seerr id): nobody ever gets another user's requests. Saving Lumen's settings
 /// starts the cache over, as it does the home cache.</item>
 /// <item>Titles and art come from the shared 10-minute title cache (<see cref="ISeerrClient.GetTitleSummaryAsync"/>).</item>
-/// <item>What each request's downloads looked like before (<see cref="DownloadMemory"/>) is kept in memory, so a show's
-/// progress doesn't go backwards as its episodes are imported.</item>
+/// <item>What each requested title's queue looked like before (<see cref="DownloadMemory"/>) is kept in memory, so a
+/// show's progress doesn't go backwards as its episodes are imported.</item>
 /// </list>
-/// Seerr calls go through its circuit breaker like every other user-facing call.
+/// Seerr calls go through its circuit breaker like every other user-facing call, except that a 5xx from this per-user
+/// call doesn't count (see <see cref="ISeerrClient.GetUserRequestsAsync"/>); a failure is cached for
+/// <see cref="FailureTtl"/>.
 /// </summary>
 public sealed class RequestProgressService : IRequestProgressService
 {
@@ -40,6 +42,12 @@ public sealed class RequestProgressService : IRequestProgressService
     public const int MaxConcurrentDetails = 6;
 
     public static readonly TimeSpan Ttl = TimeSpan.FromSeconds(8);
+
+    /// <summary>
+    /// How long a user's failed Seerr call is answered from the cache: one user's polling can't keep a failing Seerr
+    /// call going (the client backs off too).
+    /// </summary>
+    public static readonly TimeSpan FailureTtl = TimeSpan.FromSeconds(15);
 
     /// <summary>More requests than this remembered and the memory starts over (it only refines progress).</summary>
     private const int MaxMemories = 20_000;
@@ -51,7 +59,7 @@ public sealed class RequestProgressService : IRequestProgressService
     private static readonly TimeSpan DetailsBudget = TimeSpan.FromSeconds(4);
 
     private readonly ConcurrentDictionary<(string Endpoint, int User, int ConfigVersion), CacheEntry> _cache = new();
-    private readonly Dictionary<(string Endpoint, int Request), DownloadMemory> _memories = [];
+    private readonly Dictionary<(string Endpoint, int User, string Title, bool Is4k), DownloadMemory> _memories = [];
     private readonly Lock _memoryLock = new();
     private readonly ISeerrClient _seerr;
     private readonly ILumenConfigReader _config;
@@ -70,16 +78,8 @@ public sealed class RequestProgressService : IRequestProgressService
 
     public async Task<MyRequestsDto> GetAsync(Guid jellyfinUserId, User? user, SeerrEndpoint endpoint, int seerrUserId, CancellationToken cancellationToken)
     {
-        var tracked = await GetTrackedAsync(endpoint, seerrUserId, cancellationToken).ConfigureAwait(false);
-
-        // One entry per title (a show's seasons are often separate requests): the request still in flight if any, else
-        // the newest. The downloads are the title's, so they're the same for each.
-        var titles = tracked
-            .GroupBy(t => t.Key)
-            .Select(g => (Primary: g.OrderByDescending(t => RequestProgressState.IsInFlight(t.Progress.State)).ThenByDescending(t => t.Request.Id).First(), All: g.ToList()))
-            .OrderByDescending(t => t.All.Max(r => r.Request.CreatedAt ?? DateTimeOffset.MinValue))
-            .ThenByDescending(t => t.All.Max(r => r.Request.Id))
-            .ToList();
+        var titles = await GetTrackedAsync(endpoint, seerrUserId, cancellationToken).ConfigureAwait(false);
+        var tracked = titles.SelectMany(t => t.All).ToList();
 
         var scope = endpoint.BaseUrl.ToString();
         var announce = _announcements.Update(
@@ -106,18 +106,18 @@ public sealed class RequestProgressService : IRequestProgressService
                 continue;
             }
 
-            var (primary, requests) = titles[i];
-            var progress = primary.Progress;
+            var title = titles[i];
+            var progress = title.Shown;
             result.Add(new MyRequestDto(
-                requests.Select(r => r.Request.Id).ToList(),
+                title.All.Select(r => r.Request.Id).ToList(),
                 item,
                 progress.State,
                 progress.Percent,
                 progress.SecondsLeftAt(now),
                 progress.EpisodesDone,
                 progress.EpisodesTotal,
-                requests.Min(r => r.Request.CreatedAt),
-                progress.State == RequestProgressState.Ready && requests.Any(r => announce.Contains(r.Request.Id))));
+                title.All.Min(r => r.Request.CreatedAt),
+                progress.State == RequestProgressState.Ready && title.All.Any(r => announce.Contains(r.Request.Id))));
         }
 
         return new MyRequestsDto(result);
@@ -125,25 +125,21 @@ public sealed class RequestProgressService : IRequestProgressService
 
     public void Invalidate(SeerrEndpoint endpoint, int seerrUserId) => _cache.TryRemove(CacheKey(endpoint, seerrUserId), out _);
 
-    /// <summary>The user's requests with their progress: cached for <see cref="Ttl"/>, one Seerr call at a time per user.</summary>
-    internal async Task<IReadOnlyList<Tracked>> GetTrackedAsync(SeerrEndpoint endpoint, int seerrUserId, CancellationToken cancellationToken)
+    /// <summary>
+    /// The user's requested titles with their progress: cached for <see cref="Ttl"/> (a failure for
+    /// <see cref="FailureTtl"/>), one Seerr call at a time per user.
+    /// </summary>
+    internal async Task<IReadOnlyList<TrackedTitle>> GetTrackedAsync(SeerrEndpoint endpoint, int seerrUserId, CancellationToken cancellationToken)
     {
         var key = CacheKey(endpoint, seerrUserId);
         var now = _time.GetUtcNow();
         while (true)
         {
-            if (_cache.TryGetValue(key, out var entry) && (entry.Pending || entry.Fetched + Ttl > now))
+            if (_cache.TryGetValue(key, out var entry) && entry.IsFresh(now))
             {
-                try
-                {
-                    return await entry.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
-                }
-                catch (Exception) when (entry.Task.IsFaulted)
-                {
-                    // Every caller waiting on it gets the failure; the next call asks Seerr again.
-                    _cache.TryRemove(new KeyValuePair<(string, int, int), CacheEntry>(key, entry));
-                    throw;
-                }
+                // A failure is kept too (every caller meanwhile gets it), so one user's devices and tabs can't keep
+                // Seerr busy with a call that fails.
+                return await entry.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
             }
 
             if (_cache.Count >= MaxCached)
@@ -163,11 +159,18 @@ public sealed class RequestProgressService : IRequestProgressService
     private (string Endpoint, int User, int ConfigVersion) CacheKey(SeerrEndpoint endpoint, int seerrUserId) =>
         (endpoint.CacheKey, seerrUserId, _config.Current.ConfigVersion);
 
-    private async Task<IReadOnlyList<Tracked>> FetchAsync(SeerrEndpoint endpoint, int seerrUserId)
+    private async Task<IReadOnlyList<TrackedTitle>> FetchAsync(SeerrEndpoint endpoint, int seerrUserId)
     {
         var requests = await _seerr.GetUserRequestsAsync(endpoint, seerrUserId, CancellationToken.None, Take).ConfigureAwait(false);
         var now = _time.GetUtcNow();
-        var tracked = new List<Tracked>(requests.Count);
+
+        // Requests for a title Seerr can describe; not those it calls Completed because the title was removed.
+        var valid = requests
+            .Select(r => (Request: r, MediaType: r.Type ?? r.Media?.MediaType))
+            .Where(r => r.Request.Media is { TmdbId: > 0 } && CatalogMediaType.IsValid(r.MediaType) && !RequestProgress.IsRemoved(r.Request))
+            .Select(r => (r.Request, MediaType: r.MediaType!, Key: r.MediaType + "-" + r.Request.Media!.TmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+            .ToList();
+
         lock (_memoryLock)
         {
             if (_memories.Count >= MaxMemories)
@@ -175,34 +178,55 @@ public sealed class RequestProgressService : IRequestProgressService
                 _memories.Clear();
             }
 
-            foreach (var request in requests)
+            // Each title's queue (per quality) once: a show's season requests share it.
+            var memories = new Dictionary<(string Key, bool Is4k), DownloadMemory?>();
+            foreach (var queue in valid.GroupBy(v => (v.Key, v.Request.Is4k)))
             {
-                var mediaType = request.Type ?? request.Media?.MediaType;
-                if (request.Media is not { TmdbId: > 0 } media || !CatalogMediaType.IsValid(mediaType))
-                {
-                    continue;
-                }
-
-                var downloads = RequestProgress.Downloads(request);
-                var memoryKey = (endpoint.CacheKey, request.Id);
+                var downloads = RequestProgress.Downloads(queue.First().Request);
+                var memoryKey = (endpoint.CacheKey, seerrUserId, queue.Key.Key, queue.Key.Is4k);
                 _memories.TryGetValue(memoryKey, out var memory);
                 if (downloads.Count > 0)
                 {
                     memory ??= _memories[memoryKey] = new DownloadMemory();
-                    memory.Observe(downloads, now);
                 }
 
-                var progress = RequestProgress.Map(request, now, memory);
-                if (!RequestProgressState.IsInFlight(progress.State))
-                {
-                    _memories.Remove(memoryKey);
-                }
-
-                tracked.Add(new Tracked(mediaType + "-" + media.TmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture), mediaType!, request, progress));
+                memory?.Observe(downloads, now);
+                memories[queue.Key] = memory;
             }
-        }
 
-        return tracked;
+            var tracked = valid.Select(v => new Tracked(v.Key, v.MediaType, v.Request, RequestProgress.Map(v.Request, now, memories[(v.Key, v.Request.Is4k)]))).ToList();
+
+            // A title's queue with nothing in flight any more is forgotten.
+            foreach (var (key, is4k) in memories.Keys)
+            {
+                if (!tracked.Any(t => t.Key == key && t.Request.Is4k == is4k && RequestProgressState.IsInFlight(t.Progress.State)))
+                {
+                    _memories.Remove((endpoint.CacheKey, seerrUserId, key, is4k));
+                }
+            }
+
+            // One entry per title (a show's seasons are often separate requests): the request still in flight if any, else
+            // the newest. A show with several season requests in flight shows the progress of all of them.
+            return tracked
+                .GroupBy(t => t.Key)
+                .Select(g =>
+                {
+                    var all = g.ToList();
+                    var primary = all.OrderByDescending(t => RequestProgressState.IsInFlight(t.Progress.State)).ThenByDescending(t => t.Request.Id).First();
+                    var together = all.Where(t => t.Request.Is4k == primary.Request.Is4k && RequestProgressState.IsInFlight(t.Progress.State)).ToList();
+                    var shown = primary.Progress;
+                    if (together.Count > 1 && together.All(t => RequestProgress.SeasonsOf(t.Request) is not null))
+                    {
+                        var seasons = together.SelectMany(t => RequestProgress.SeasonsOf(t.Request)!).ToHashSet();
+                        shown = RequestProgress.Map(primary.Request, now, memories[(primary.Key, primary.Request.Is4k)], seasons);
+                    }
+
+                    return new TrackedTitle(primary, all, shown);
+                })
+                .OrderByDescending(t => t.All.Max(r => r.Request.CreatedAt ?? DateTimeOffset.MinValue))
+                .ThenByDescending(t => t.All.Max(r => r.Request.Id))
+                .ToList();
+        }
     }
 
     /// <summary>The card for one requested title, or null if Seerr couldn't give its details.</summary>
@@ -246,10 +270,13 @@ public sealed class RequestProgressService : IRequestProgressService
     /// <summary>One of the user's requests, its title's key ("movie-603") and its progress when Seerr answered.</summary>
     internal sealed record Tracked(string Key, string MediaType, SeerrUserRequest Request, RequestProgressInfo Progress);
 
+    /// <summary>A requested title: the request it shows (<see cref="Primary"/>), all of the user's for it, and its progress.</summary>
+    internal sealed record TrackedTitle(Tracked Primary, IReadOnlyList<Tracked> All, RequestProgressInfo Shown);
+
     /// <summary>A user's Seerr answer: on its way (<see cref="Pending"/>) or fetched at <see cref="Fetched"/>.</summary>
     private sealed class CacheEntry
     {
-        private readonly TaskCompletionSource<IReadOnlyList<Tracked>> _source = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<IReadOnlyList<TrackedTitle>> _source = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private long _fetched;
 
         public CacheEntry(DateTimeOffset started)
@@ -257,14 +284,17 @@ public sealed class RequestProgressService : IRequestProgressService
             _fetched = started.UtcTicks;
         }
 
-        public Task<IReadOnlyList<Tracked>> Task => _source.Task;
+        public Task<IReadOnlyList<TrackedTitle>> Task => _source.Task;
 
         public bool Pending => !_source.Task.IsCompleted;
 
         /// <summary>Gets when the answer arrived (the cache's age counts from then, not from when it was asked for).</summary>
         public DateTimeOffset Fetched => new(Interlocked.Read(ref _fetched), TimeSpan.Zero);
 
-        public void Start(Task<IReadOnlyList<Tracked>> fetch, TimeProvider time) =>
+        /// <summary>Whether to answer from this entry: on its way, or an answer (or a failure) that's young enough.</summary>
+        public bool IsFresh(DateTimeOffset now) => Pending || Fetched + (_source.Task.IsFaulted ? FailureTtl : Ttl) > now;
+
+        public void Start(Task<IReadOnlyList<TrackedTitle>> fetch, TimeProvider time) =>
             fetch.ContinueWith(
                 t =>
                 {

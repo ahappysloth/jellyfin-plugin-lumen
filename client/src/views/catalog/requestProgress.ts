@@ -14,11 +14,17 @@ import { catalogHash } from './catalog';
  * - once per page load, after the first page is up (only where Seerr is set up: ClientConfig.Requests);
  * - then only while the page is visible and something is in flight: every NORMAL_MS, or FAST_MS while a title page or
  *   My requests shows a download in progress (usePollFast);
- * - with nothing in flight, never again, until the user files a request (refreshRequestProgress) or opens My requests.
+ * - with nothing in flight, never again, until the user files a request (refreshRequestProgress) or opens My requests;
+ * - after a failed check, later and later (RETRY_MS doubling up to MAX_RETRY_MS, each wait between half and all of
+ *   that, so the tabs and devices that saw an outage don't all come back at once), until one works.
  * A 404 means the user has no request features: nothing more this session.
  */
 export const NORMAL_MS = 45_000;
 export const FAST_MS = 10_000;
+export const RETRY_MS = 15_000;
+export const MAX_RETRY_MS = 5 * 60_000;
+/** Failed checks before any answer after which there are no more until the page reloads. */
+const FIRST_TRIES = 3;
 
 const IN_FLIGHT: RequestProgressStatus[] = ['Requested', 'Queued', 'Downloading', 'Processing'];
 export const isInFlight = (status: RequestProgressStatus): boolean => IN_FLIGHT.indexOf(status) >= 0;
@@ -39,11 +45,14 @@ let receivedAt = 0;
 /** null: not asked yet; false: no request features for this user (404). */
 let available: boolean | null = null;
 let failed = false;
-/** Checks in a row that failed before any answer: a few retries, then none until the page reloads. */
+/** Checks in a row that failed (before any answer: a few retries, then none until the page reloads). */
 let failures = 0;
+/** After a failed check, when the next may be (Date.now()); set once per failure, so showing the page again keeps it. */
+let retryAt = 0;
 let timer: number | undefined;
 let checking: Promise<void> | null = null;
-let fastDemand = 0;
+/** The mounted pages that want the fast pace (usePollFast): per page, so a reset can't throw the count off. */
+const fastPages = new Set<object>();
 /** Requests whose pop-up this page has shown (in case telling the server failed). */
 const announced = new Set<number>();
 const listeners = new Set<() => void>();
@@ -60,12 +69,21 @@ function schedule(): void {
   clear();
   if (!ctx || available === false || document.hidden) return;
   const list = requests ?? [];
-  const fast = fastDemand > 0 && list.some((r) => isMoving(r.Status));
-  // A failed check is tried again at the normal pace, as long as there was something to follow.
-  const follow = requests === null ? failures > 0 && failures < 3 : list.some((r) => isInFlight(r.Status));
+  const fast = fastPages.size > 0 && list.some((r) => isMoving(r.Status));
+  // A failed check is tried again, backing off: until one works once there's been an answer (the failed one may have
+  // been for a request just filed), a few times before that.
+  const follow = failed
+    ? requests !== null || failures < FIRST_TRIES
+    : list.some((r) => isInFlight(r.Status));
   if (!fast && !follow) return;
-  const wait = (fast ? FAST_MS : NORMAL_MS) - (Date.now() - receivedAt);
+  const wait = failed ? retryAt - Date.now() : (fast ? FAST_MS : NORMAL_MS) - (Date.now() - receivedAt);
   timer = window.setTimeout(() => void check(), Math.max(0, wait));
+}
+
+/** How long to wait after the `n`th failed check in a row: doubling from RETRY_MS, between half and all of it. */
+export function retryDelay(n: number, random: number = Math.random()): number {
+  const ceiling = Math.min(MAX_RETRY_MS, RETRY_MS * Math.pow(2, Math.max(0, n - 1)));
+  return Math.round(ceiling / 2 + (ceiling / 2) * random);
 }
 
 function announce(list: MyRequest[], current: Ctx): void {
@@ -95,6 +113,7 @@ function check(): Promise<void> {
         available = true;
         failed = false;
         failures = 0;
+        retryAt = 0;
         requests = mine.Requests;
         receivedAt = Date.now();
         const next = new Map<string, MyRequest>();
@@ -108,6 +127,7 @@ function check(): Promise<void> {
         else {
           failed = true;
           failures++;
+          retryAt = Date.now() + retryDelay(failures);
         }
       },
     )
@@ -121,8 +141,13 @@ function check(): Promise<void> {
 }
 
 function onVisibility(): void {
-  if (document.hidden) clear();
-  else schedule();
+  if (document.hidden) {
+    clear();
+    return;
+  }
+  // A request that became ready while the page was hidden pops up now (announce skips what this page has shown).
+  if (ctx && requests) announce(requests, ctx);
+  schedule();
 }
 
 /**
@@ -161,8 +186,9 @@ export function refreshRequestProgress(): Promise<void> {
   return check();
 }
 
-/** Checks now unless the last answer is younger than `maxAgeMs`. */
+/** Checks now unless the last answer is younger than `maxAgeMs`, or a failed check says to wait. */
 export function refreshIfOlder(maxAgeMs: number): void {
+  if (failed && Date.now() < retryAt) return;
   if (Date.now() - receivedAt >= maxAgeMs) void refreshRequestProgress();
 }
 
@@ -177,8 +203,9 @@ export function reset(): void {
   available = null;
   failed = false;
   failures = 0;
+  retryAt = 0;
   checking = null;
-  fastDemand = 0;
+  // fastPages stays: it's the pages mounted now, which remove themselves as they unmount.
   announced.clear();
   notify();
 }
@@ -230,10 +257,11 @@ export function useMyRequests(): {
 export function usePollFast(fast: boolean): void {
   useEffect(() => {
     if (!fast) return undefined;
-    fastDemand++;
+    const page = {};
+    fastPages.add(page);
     schedule();
     return () => {
-      fastDemand--;
+      fastPages.delete(page);
       schedule();
     };
   }, [fast]);

@@ -102,5 +102,18 @@ public sealed class ReadyAnnouncementsTests : IDisposable
         Assert.Equal([ReadyAnnouncements.MaxPerUser + 10], store.Update(_alice, Scope, [], [ReadyAnnouncements.MaxPerUser + 10], []));
     }
 
+    [Fact]
+    public void UsersJellyfinNoLongerHas_AreDroppedWhenTheFileIsRead()
+    {
+        var store = Create();
+        store.Update(_alice, Scope, [1], [], []);
+        store.Update(_bob, Scope, [2], [], []);
+
+        // Bob's account was deleted meanwhile.
+        var reloaded = new ReadyAnnouncements(FilePath, NullLogger<ReadyAnnouncements>.Instance, id => id != _bob);
+        Assert.Equal([1], reloaded.Update(_alice, Scope, [], [1], []));
+        Assert.Empty(reloaded.Update(_bob, Scope, [], [2], []));
+    }
+
     private ReadyAnnouncements Create() => new(FilePath, NullLogger<ReadyAnnouncements>.Instance);
 }

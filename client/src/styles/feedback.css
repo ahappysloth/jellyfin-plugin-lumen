@@ -13,13 +13,16 @@
 .lmn-toast-host .lmn-toast {
   display: flex;
   align-items: center;
-  gap: 12px;
   margin: 0;
   padding: 10px 10px 10px 16px;
   box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.8);
   color: var(--lmn-text);
   pointer-events: auto;
   animation: lmn-toast-in 0.24s var(--lmn-ease);
+}
+/* Margins, not flex gap: Chromium 68 (webOS 5) and Safari 13 have no gap on flex containers. */
+.lmn-toast-host .lmn-toast > * + * {
+  margin-left: 12px;
 }
 .lmn-toast__close {
   display: inline-grid;

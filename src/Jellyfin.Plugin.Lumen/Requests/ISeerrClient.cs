@@ -46,7 +46,9 @@ public interface ISeerrClient
 
     /// <summary>
     /// The user's <paramref name="take"/> most recent requests, newest first, with their media's download queue (no title
-    /// or art; see <see cref="GetTitleSummaryAsync"/>).
+    /// or art; see <see cref="GetTitleSummaryAsync"/>). Through the circuit breaker, but only Seerr being unreachable or
+    /// too slow counts against it: a 5xx for one user's requests may be down to that user's data, and shouldn't pause
+    /// request features for everyone.
     /// </summary>
     Task<IReadOnlyList<SeerrUserRequest>> GetUserRequestsAsync(SeerrEndpoint endpoint, int seerrUserId, CancellationToken cancellationToken, int take = SeerrClient.RequestsTake);
 

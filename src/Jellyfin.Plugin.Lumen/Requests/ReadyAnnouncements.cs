@@ -1,5 +1,6 @@
 using System.Text.Json;
 using MediaBrowser.Common.Configuration;
+using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.Lumen.Requests;
@@ -23,7 +24,8 @@ public interface IReadyAnnouncements
 /// flight are announced: a request that was ready before Lumen first looked (or before this feature) never pops up.
 /// <para>
 /// <c>scope</c> is the Seerr address: request ids are Seerr's, so pointing Lumen at another Seerr starts the user's list
-/// over. Each user keeps at most <see cref="MaxPerUser"/> ids (the newest).
+/// over. Each user keeps at most <see cref="MaxPerUser"/> ids (the newest), and users Jellyfin no longer has are left
+/// out when the file is read.
 /// </para>
 /// </summary>
 public sealed class ReadyAnnouncements : IReadyAnnouncements
@@ -34,17 +36,19 @@ public sealed class ReadyAnnouncements : IReadyAnnouncements
     private readonly Lock _lock = new();
     private readonly string _path;
     private readonly ILogger<ReadyAnnouncements> _logger;
+    private readonly Func<Guid, bool> _userExists;
     private Dictionary<string, UserEntry>? _users;
 
-    public ReadyAnnouncements(IApplicationPaths paths, ILogger<ReadyAnnouncements> logger)
-        : this(Path.Combine(paths.DataPath, "lumen", "ready-announcements.json"), logger)
+    public ReadyAnnouncements(IApplicationPaths paths, IUserManager users, ILogger<ReadyAnnouncements> logger)
+        : this(Path.Combine(paths.DataPath, "lumen", "ready-announcements.json"), logger, id => users.GetUserById(id) is not null)
     {
     }
 
-    internal ReadyAnnouncements(string path, ILogger<ReadyAnnouncements> logger)
+    internal ReadyAnnouncements(string path, ILogger<ReadyAnnouncements> logger, Func<Guid, bool>? userExists = null)
     {
         _path = path;
         _logger = logger;
+        _userExists = userExists ?? (_ => true);
     }
 
     public IReadOnlySet<int> Update(Guid userId, string scope, IEnumerable<int> inFlight, IEnumerable<int> ready, IEnumerable<int> dropped)
@@ -118,7 +122,10 @@ public sealed class ReadyAnnouncements : IReadyAnnouncements
                 var file = JsonSerializer.Deserialize<Dictionary<string, UserEntry>>(File.ReadAllText(_path), Json);
                 if (file is not null)
                 {
-                    return file;
+                    // Users deleted since are dropped (written out with the next change).
+                    return file
+                        .Where(u => Guid.TryParseExact(u.Key, "N", out var id) && _userExists(id))
+                        .ToDictionary(u => u.Key, u => u.Value, StringComparer.Ordinal);
                 }
             }
         }
@@ -137,7 +144,14 @@ public sealed class ReadyAnnouncements : IReadyAnnouncements
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
             var temp = _path + ".tmp";
-            File.WriteAllText(temp, JsonSerializer.Serialize(_users, Json));
+            using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                JsonSerializer.Serialize(stream, _users, Json);
+
+                // On the disk before the move: a power cut then can't leave an empty file in place of the old one.
+                stream.Flush(true);
+            }
+
             File.Move(temp, _path, true);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)

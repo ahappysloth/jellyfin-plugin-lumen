@@ -67,6 +67,13 @@ async function enableTop10({ trakt, seerr }: { trakt: boolean; seerr: boolean })
       ],
     },
   });
+  if (seerr) {
+    // Lumen keeps Seerr's titles 10 minutes, so The Matrix an earlier test requested would still say Requested (the
+    // stub has it so, as Seerr does), whatever the stub's reset. Filing a request through Lumen starts that cache over;
+    // the stub then forgets the request.
+    await api('/Lumen/Requests', { method: 'POST', token: admin.token, body: { MediaType: 'movie', TmdbId: 799 } });
+    await fetch(`${STUB_SEERR}/__stub/reset`, { method: 'POST' });
+  }
 }
 
 /** The big numerals of a Top 10 row, in order. */

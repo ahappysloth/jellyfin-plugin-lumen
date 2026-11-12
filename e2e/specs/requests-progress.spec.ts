@@ -126,6 +126,21 @@ test('posters show the progress of the user’s own request: its status, a bar a
   await expect(page.getByRole('button', { name: /^The Matrix, Downloading, 40%/ })).toBeVisible();
 });
 
+test('a downloading movie’s title page shows its progress, and no Request button', { tag: '@smoke' }, async ({ page }) => {
+  await enableSeerr();
+  // No media status given: the stub has it as Seerr does, PROCESSING once the request is approved.
+  await request(603, { downloads: [{ size: 1000, sizeLeft: 550, etaSeconds: 600 }] });
+  await login(page, ADMIN);
+  await page.goto('/web/#/home?title=movie-603');
+
+  await expect(page.getByRole('heading', { name: 'The Matrix', level: 1 })).toBeVisible();
+  await expect(page.getByRole('progressbar', { name: 'Downloading' })).toHaveAttribute('aria-valuenow', '45', {
+    timeout: 10_000,
+  });
+  await expect(page.locator('.lmn-request-progress__status')).toContainText(/45% · (9|10) min left/);
+  await expect(page.getByRole('button', { name: 'Request', exact: true })).toHaveCount(0);
+});
+
 test('the title page follows a download as it moves', async ({ page }) => {
   test.setTimeout(90_000);
   await enableSeerr();

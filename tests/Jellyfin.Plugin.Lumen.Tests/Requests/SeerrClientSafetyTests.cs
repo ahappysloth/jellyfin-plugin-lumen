@@ -136,6 +136,54 @@ public sealed class SeerrClientSafetyTests : IDisposable
         Assert.False(_client.BreakerFor(Endpoint).IsOpen);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    public async Task OneUsersRequests_FailingWithA5xx_DontTripTheBreakerForEveryone(HttpStatusCode status)
+    {
+        _http.Respond = _ => new HttpResponseMessage(status);
+
+        for (var i = 0; i < SeerrCircuitBreaker.Threshold + 2; i++)
+        {
+            await Assert.ThrowsAsync<SeerrException>(() => _client.GetUserRequestsAsync(Endpoint, 7, CancellationToken.None));
+        }
+
+        Assert.False(_client.BreakerFor(Endpoint).IsOpen);
+    }
+
+    [Fact]
+    public async Task OneUsersRequests_A5xx_NeitherCountsNorResetsTheCount()
+    {
+        // Two shared calls fail, then a per-user 5xx (which may be a proxy in front of a Seerr that's down): the next
+        // shared failure still trips it.
+        _http.Respond = _ => throw new HttpRequestException("down");
+        for (var i = 0; i < SeerrCircuitBreaker.Threshold - 1; i++)
+        {
+            await Assert.ThrowsAsync<SeerrException>(() => _client.SearchAsync(Endpoint, 7, "x", 1, CancellationToken.None));
+        }
+
+        _http.Respond = _ => new HttpResponseMessage(HttpStatusCode.BadGateway);
+        await Assert.ThrowsAsync<SeerrException>(() => _client.GetUserRequestsAsync(Endpoint, 7, CancellationToken.None));
+        Assert.False(_client.BreakerFor(Endpoint).IsOpen);
+
+        _http.Respond = _ => throw new HttpRequestException("down");
+        await Assert.ThrowsAsync<SeerrException>(() => _client.SearchAsync(Endpoint, 7, "x", 1, CancellationToken.None));
+        Assert.True(_client.BreakerFor(Endpoint).IsOpen);
+    }
+
+    [Fact]
+    public async Task OneUsersRequests_SeerrUnreachable_StillTripsTheBreaker()
+    {
+        _http.Respond = _ => throw new HttpRequestException("down");
+
+        for (var i = 0; i < SeerrCircuitBreaker.Threshold; i++)
+        {
+            await Assert.ThrowsAsync<SeerrException>(() => _client.GetUserRequestsAsync(Endpoint, 7, CancellationToken.None));
+        }
+
+        Assert.True(_client.BreakerFor(Endpoint).IsOpen);
+    }
+
     [Fact]
     public async Task TheBreaker_IsPerEndpoint()
     {

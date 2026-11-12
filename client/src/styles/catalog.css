@@ -218,14 +218,18 @@ a.lmn-button {
   margin-top: 18px;
   max-width: 420px;
 }
+/* Margins, not flex gap: Chromium 68 (webOS 5) and Safari 13 have no gap on flex containers. The top margin takes
+   back the first row's spacing. */
 .lmn-request-progress__status {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 10px;
-  margin: 0;
+  margin: -4px 0 0;
   color: var(--lmn-text-2);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
+}
+.lmn-request-progress__status > * {
+  margin: 4px 10px 0 0;
 }
 .lmn-request-progress__status strong {
   color: #fff;
@@ -253,6 +257,7 @@ a.lmn-button {
   color: var(--lmn-text-3);
   font-size: 13px;
 }
+/* A grid's gap is fine: Chromium 66 and Safari 12 have it (only flex gap is newer). */
 .lmn-requests {
   display: grid;
   gap: 8px;
@@ -264,12 +269,15 @@ a.lmn-button {
 .lmn-request {
   display: flex;
   align-items: center;
-  gap: 16px;
   padding: 10px 14px 10px 10px;
   border-radius: 14px;
   background: var(--lmn-fill);
   color: inherit;
   text-decoration: none;
+}
+/* Margins, not flex gap (Chromium 68, Safari 13). */
+.lmn-request > * + * {
+  margin-left: 16px;
 }
 .lmn-request:hover,
 .lmn-request:focus-visible {
@@ -330,8 +338,10 @@ a.lmn-button {
 /* Phones: a smaller poster, so the words keep most of the row. */
 @media (max-width: 480px) {
   .lmn-request {
-    gap: 12px;
     padding: 8px 10px 8px 8px;
+  }
+  .lmn-request > * + * {
+    margin-left: 12px;
   }
   .lmn-request__art {
     width: 48px;
