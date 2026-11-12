@@ -1,7 +1,8 @@
 // Fails when what every page loads (lumen.js, the chunks it loads at startup, lumen.css), or one of the chunks loaded
 // when they're needed (the player, the trailer preview, the restart banner, the catalog title page, the profile pages,
-// the item menu, the secondary views), or one of the stylesheets linked where they're used, exceeds its gzipped budget.
-import { readdirSync, readFileSync } from 'node:fs';
+// the item menu, the secondary views), or one of the stylesheets linked where they're used, exceeds its gzipped budget,
+// or Lumen's fonts exceed theirs.
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 
 const gz = (f) => gzipSync(readFileSync(f)).length;
@@ -105,6 +106,23 @@ console.log(`lumen stock pages: ${kb(stock)} gzipped (budget ${STOCK_BUDGET / 10
 const DASHBOARD_BUDGET = 8 * 1024;
 const dashboard = gz('dist/lumen-dashboard.css');
 console.log(`lumen dashboard: ${kb(dashboard)} gzipped (budget ${DASHBOARD_BUDGET / 1024} KB)`);
+// Inter's three weights (styles/fonts.css), fetched only where the system font isn't Apple's, as Lumen's first text
+// shows, then cached for good. Already compressed (woff2), so counted as they are. About 54 KB: Latin with
+// Latin Extended-A (scripts/subset-inter.sh).
+const FONTS_BUDGET = 80 * 1024;
+const fontFiles = readdirSync('dist').filter((f) => f.startsWith('lumen-font-') && f.endsWith('.woff2'));
+for (const weight of [400, 500, 600]) {
+  if (fontFiles.filter((f) => f.startsWith(`lumen-font-inter-${weight}-`)).length !== 1) {
+    console.error(`expected one Inter ${weight} font, found: ${fontFiles.join(', ') || 'none'}`);
+    process.exit(1);
+  }
+}
+if (fontFiles.length !== 3) {
+  console.error(`unexpected fonts: ${fontFiles.join(', ')}`);
+  process.exit(1);
+}
+const fonts = fontFiles.reduce((sum, f) => sum + statSync(`dist/${f}`).size, 0);
+console.log(`lumen fonts: ${kb(fonts)} (budget ${FONTS_BUDGET / 1024} KB): ${fontFiles.join(', ')}`);
 if (
   total > BUDGET ||
   player > PLAYER_BUDGET ||
@@ -116,7 +134,8 @@ if (
   secondary > SECONDARY_BUDGET ||
   guard > GUARD_BUDGET ||
   stock > STOCK_BUDGET ||
-  dashboard > DASHBOARD_BUDGET
+  dashboard > DASHBOARD_BUDGET ||
+  fonts > FONTS_BUDGET
 ) {
   process.exit(1);
 }

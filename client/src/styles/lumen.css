@@ -2,6 +2,7 @@
    rules; the order below is the cascade order, so keep it (later files win ties).
    Chromium 68 (LG webOS 5) drops any declaration with min(), max(), clamp() or env(): give each a plain one of the
    same property before it (styles/safe-area.test.ts checks; base.css shows the way for a custom property). */
+@import './fonts.css';
 @import './base.css';
 @import './nav.css';
 @import './buttons.css';

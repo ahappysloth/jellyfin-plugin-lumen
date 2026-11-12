@@ -13,6 +13,8 @@
   max-width: 920px;
   margin: 0 auto;
   padding: 8px 0 96px;
+  /* Lumen's type (lumen.css, on every page), not the Dashboard's, whether or not the stock pages are restyled. */
+  font-family: var(--lmn-font, inherit);
   font-size: 14px;
   line-height: 1.5;
 }
