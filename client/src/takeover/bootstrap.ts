@@ -21,7 +21,7 @@ import { VIEW_TIMEOUT_MS, withTimeout } from '../util/withTimeout';
 import { onNavigate } from './navigation';
 import { parseRoute, type Route, type TakeoverRoute } from './routes';
 import { applyDashboardSkin, applySignInSkin, isSignInRoute } from '../veil/skin';
-import { liftVeil, PENDING_CLASS, rememberVeilName, SAFETY_TIMER_KEY } from '../veil/veil';
+import { liftVeil, liftVeilNow, PENDING_CLASS, rememberVeilName, SAFETY_TIMER_KEY } from '../veil/veil';
 import { resetSessionCaches } from '../util/sessionCaches';
 import { createPluginsButton } from './pluginsButton';
 import { createRestartWatch } from './restartWatch';
@@ -50,7 +50,7 @@ function forThisServer(route: Route, client: JellyfinApiClient | null): Route {
   return current && current.toLowerCase() !== route.serverId.toLowerCase() ? { kind: 'other' } : route;
 }
 
-/** How long a taken-over page may keep the veil down while it loads. */
+/** How long a taken-over page may keep the veil down while it loads. A fallback: it lifts without waiting for fonts. */
 const VEIL_FALLBACK_MS = 4000;
 /**
  * Replaces the inline guard's 8 s safety net once lumen.js runs, so a slow server doesn't lift the veil onto the stock
@@ -108,7 +108,7 @@ export function startLumen(options: BootstrapOptions): () => void {
   // lumen.js is running: it decides when the veil lifts. Its own safety net only lifts a veil nothing has claimed.
   win.clearTimeout((win as unknown as Record<string, number | undefined>)[SAFETY_TIMER_KEY]);
   const safety = win.setTimeout(() => {
-    if (!doc.documentElement.classList.contains('lmn-active')) liftVeil(doc);
+    if (!doc.documentElement.classList.contains('lmn-active')) liftVeilNow(doc);
   }, LUMEN_SAFETY_MS);
 
   const createSession = async (client: JellyfinApiClient, userId: string): Promise<Session> => {
@@ -226,10 +226,11 @@ export function startLumen(options: BootstrapOptions): () => void {
     // The compatibility check is being retried: the veil and lmn-pending stay up until the takeover calls back.
     if (session?.takeover?.handle(route) === 'waiting') return;
     // The inline guard hid the stock chrome and showed the veil while this was undecided. If Lumen now owns the page,
-    // its view lifts the veil once its content is ready (with a fallback here); otherwise lift it right away.
+    // its view lifts the veil once its content is ready (with a fallback here); otherwise lift it now (once the stock
+    // page's fonts are in, at most FONT_WAIT_MS: veil.ts).
     if (doc.documentElement.classList.contains('lmn-active')) {
       doc.documentElement.classList.remove(PENDING_CLASS);
-      win.setTimeout(() => liftVeil(doc), VEIL_FALLBACK_MS);
+      win.setTimeout(() => liftVeilNow(doc), VEIL_FALLBACK_MS);
     } else {
       liftVeil(doc);
     }

@@ -7,7 +7,7 @@
 import { MARK_SVG } from '../brand/mark';
 import { applyDashboardSkin, applySignInSkin } from './skin';
 import { applySkinCss } from './skinCss';
-import { liftVeil, PENDING_CLASS, SAFETY_TIMER_KEY, shouldVeil, showVeil } from './veil';
+import { liftVeilNow, PENDING_CLASS, SAFETY_TIMER_KEY, shouldVeil, showVeil } from './veil';
 
 export { SAFETY_TIMER_KEY };
 
@@ -37,7 +37,7 @@ export function runGuard(win: Window, doc: Document): void {
     doc.documentElement.classList.add(PENDING_CLASS);
     showVeil(doc, MARK_SVG);
     (win as unknown as Record<string, number>)[SAFETY_TIMER_KEY] = win.setTimeout(
-      () => liftVeil(doc),
+      () => liftVeilNow(doc),
       SAFETY_MS,
     );
   }

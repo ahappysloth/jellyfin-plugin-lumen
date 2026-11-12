@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes, type FakeClient } from '../../test/fakeClient';
+import { showVeil, VEIL_ID } from '../veil/veil';
 import { startLumen } from './bootstrap';
 
 const clientConfig = {
@@ -290,6 +291,28 @@ describe('startLumen', () => {
     const calls = getUser.mock.calls.length;
     await new Promise((r) => setTimeout(r, 400));
     expect(getUser.mock.calls.length).toBe(calls);
+  });
+
+  it("lifts the veil on its fallback without waiting for fonts, when a taken-over page never says it's ready", async () => {
+    vi.useFakeTimers();
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: { ready: new Promise(() => undefined) },
+    });
+    try {
+      const veil = showVeil(document, '<svg></svg>');
+      const { mount } = start();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(mount).toHaveBeenCalled();
+      expect(veil).not.toHaveClass('is-lifting');
+
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(veil).toHaveClass('is-lifting');
+    } finally {
+      Reflect.deleteProperty(document, 'fonts');
+      document.getElementById(VEIL_ID)?.remove();
+      vi.useRealTimers();
+    }
   });
 
   it("takes the veil's safety net over from the inline guard", async () => {

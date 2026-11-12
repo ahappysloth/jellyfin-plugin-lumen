@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { runGuard, SAFETY_TIMER_KEY } from './runGuard';
+import { runGuard, SAFETY_MS, SAFETY_TIMER_KEY } from './runGuard';
 import { DASHBOARD_CLASS, SIGN_IN_CLASS } from './skin';
 import { VEIL_ID } from './veil';
 
@@ -84,5 +84,19 @@ describe('inline guard', () => {
 
     vi.advanceTimersByTime(8000);
     expect(document.documentElement.classList.contains('lmn-pending')).toBe(false);
+  });
+
+  it('lifts the veil on its safety timer without waiting for fonts (lumen.js never came)', () => {
+    vi.useFakeTimers();
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: { ready: new Promise(() => undefined) },
+    });
+    history.replaceState(null, '', '#/home');
+    runGuard(window, document);
+
+    vi.advanceTimersByTime(SAFETY_MS);
+    expect(document.getElementById(VEIL_ID)).toHaveClass('is-lifting');
+    Reflect.deleteProperty(document, 'fonts');
   });
 });

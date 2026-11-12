@@ -15,6 +15,13 @@ export const SAFETY_TIMER_KEY = '__lmnVeilSafety';
 const NAME_KEY = 'lmn-server-name';
 const LIFT_MS = 900;
 /**
+ * The most the veil waits for Lumen's fonts once the page is ready (liftVeil): Inter on a cold load over a slow
+ * connection. After that the page shows in the stand-in font and swaps to Inter when it's in.
+ */
+export const FONT_WAIT_MS = 800;
+/** On the veil while liftVeil waits for the fonts: on the element, as the guard and lumen.js each have this module. */
+const FONT_WAIT_ATTR = 'data-lmn-font-wait';
+/**
  * How long the veil waits before saying it's slow and offering Try again (the server may be down). Just past the
  * guard's SAFETY_MS (runGuard.ts): if lumen.js never loads, the guard lifts the veil first and the message never
  * flashes (or takes focus) on the way out; once lumen.js runs, it clears that timer and the message can show.
@@ -81,7 +88,8 @@ export function showVeil(doc: Document, markSvg: string): HTMLElement {
  * hands the page to jellyfin-web.
  */
 function showSlow(doc: Document, veil: HTMLElement): void {
-  if (!veil.isConnected || veil.classList.contains('is-lifting')) return;
+  // Lumen's page is ready and the veil only waits for its fonts: not slow.
+  if (!veil.isConnected || veil.classList.contains('is-lifting') || veil.hasAttribute(FONT_WAIT_ATTR)) return;
   veil.removeAttribute('aria-hidden');
   const slow = doc.createElement('div');
   slow.className = 'lmn-veil__slow';
@@ -98,8 +106,47 @@ function showSlow(doc: Document, veil: HTMLElement): void {
   retry.focus();
 }
 
-/** Raises the veil (or fades it, for reduced motion) and removes it. Safe to call more than once or with no veil. */
+/**
+ * Lumen's page is ready: lifts the veil once the fonts its text uses are in (styles/fonts.css), so the page shows in
+ * Inter rather than swapping to it as the veil rises, but never more than FONT_WAIT_MS later. It waits on
+ * `document.fonts.ready`, not on loading Inter: that waits only for the fonts the page is already fetching, so a
+ * device that doesn't use Inter (Apple's keep San Francisco) fetches nothing and lifts at once, as does a repeat
+ * visit with Inter cached. Browsers without `document.fonts` lift at once. Safe to call more than once or with no
+ * veil: a second call while it waits changes nothing, and liftVeilNow (the safety timers) doesn't wait for it.
+ */
 export function liftVeil(doc: Document = document): void {
+  const veil = doc.getElementById(VEIL_ID);
+  // Optional: TV browsers and old ones may not have it (lib.dom says they all do).
+  const fonts = veil ? (doc.fonts as FontFaceSet | undefined) : undefined;
+  if (!veil || !fonts) {
+    liftVeilNow(doc);
+    return;
+  }
+  // The stock chrome may show now (Lumen's page or the stock page is up under the veil) and start its fonts too.
+  doc.documentElement.classList.remove(PENDING_CLASS);
+  if (veil.hasAttribute(FONT_WAIT_ATTR) || veil.classList.contains('is-lifting')) return;
+  veil.setAttribute(FONT_WAIT_ATTR, '');
+  const cap = setTimeout(() => liftVeilNow(doc), FONT_WAIT_MS);
+  const done = (): void => {
+    clearTimeout(cap);
+    liftVeilNow(doc);
+  };
+  try {
+    // Lay the page out first, so the fonts its text needs have started loading and `ready` waits for them (Chromium
+    // does this itself when `ready` is read; older engines may not).
+    void doc.documentElement.offsetHeight;
+    fonts.ready.then(done, done);
+  } catch {
+    // A partial FontFaceSet without `ready`.
+    done();
+  }
+}
+
+/**
+ * Raises the veil (or fades it, for reduced motion) and removes it, now. Safe to call more than once or with no veil.
+ * The safety timers use it: they never wait for fonts.
+ */
+export function liftVeilNow(doc: Document = document): void {
   doc.documentElement.classList.remove(PENDING_CLASS);
   const veil = doc.getElementById(VEIL_ID);
   if (!veil || veil.classList.contains('is-lifting')) return;

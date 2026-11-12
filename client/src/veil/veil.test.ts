@@ -1,6 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SAFETY_MS } from './runGuard';
-import { liftVeil, rememberVeilName, shouldVeil, showVeil, SLOW_MS, VEIL_ID } from './veil';
+import {
+  FONT_WAIT_MS,
+  liftVeil,
+  liftVeilNow,
+  rememberVeilName,
+  shouldVeil,
+  showVeil,
+  SLOW_MS,
+  VEIL_ID,
+} from './veil';
 
 describe('veil', () => {
   afterEach(() => {
@@ -107,5 +116,147 @@ describe('veil', () => {
 
   it('falls back to "Jellyfin" when no name is stored', () => {
     expect(showVeil(document, '').textContent).toBe('Jellyfin');
+  });
+});
+
+describe("the veil waits for Lumen's fonts", () => {
+  /** document.fonts as a browser has it, with `ready` as given (jsdom has none). */
+  const fonts = (ready: Promise<unknown>) =>
+    Object.defineProperty(document, 'fonts', { configurable: true, value: { ready } });
+  const pending = () => {
+    let resolve!: () => void;
+    return { ready: new Promise<void>((r) => (resolve = r)), resolve: () => resolve() };
+  };
+  const lifting = (veil: HTMLElement) => veil.classList.contains('is-lifting');
+  /** How many times the veil was lifted: each lift listens once for the end of its transition. */
+  const lifts = (veil: HTMLElement) => {
+    const listen = vi.spyOn(veil, 'addEventListener');
+    return () => listen.mock.calls.filter(([type]) => type === 'transitionend').length;
+  };
+
+  afterEach(() => {
+    Reflect.deleteProperty(document, 'fonts');
+    document.getElementById(VEIL_ID)?.remove();
+    document.documentElement.className = '';
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('lifts once the fonts the page is fetching are in, and shows the page under it meanwhile', async () => {
+    vi.useFakeTimers();
+    const fetching = pending();
+    fonts(fetching.ready);
+    document.documentElement.classList.add('lmn-pending');
+    const veil = showVeil(document, '<svg></svg>');
+
+    liftVeil(document);
+    expect(document.documentElement).not.toHaveClass('lmn-pending');
+    await vi.advanceTimersByTimeAsync(FONT_WAIT_MS - 100);
+    expect(lifting(veil)).toBe(false);
+
+    fetching.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lifting(veil)).toBe(true);
+  });
+
+  it('lifts at once when nothing is loading (a device that uses no Inter, or has it cached)', async () => {
+    vi.useFakeTimers();
+    fonts(Promise.resolve());
+    const veil = showVeil(document, '<svg></svg>');
+
+    liftVeil(document);
+    await Promise.resolve();
+    expect(lifting(veil)).toBe(true);
+  });
+
+  it(`never waits more than ${FONT_WAIT_MS} ms`, async () => {
+    vi.useFakeTimers();
+    fonts(new Promise(() => undefined));
+    const veil = showVeil(document, '<svg></svg>');
+    const count = lifts(veil);
+
+    liftVeil(document);
+    await vi.advanceTimersByTimeAsync(FONT_WAIT_MS - 1);
+    expect(lifting(veil)).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(lifting(veil)).toBe(true);
+    expect(count()).toBe(1);
+  });
+
+  it("lifts when the fonts can't load", async () => {
+    vi.useFakeTimers();
+    fonts(Promise.reject(new Error('offline')));
+    const veil = showVeil(document, '<svg></svg>');
+
+    liftVeil(document);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lifting(veil)).toBe(true);
+  });
+
+  it('lifts once: a second call while it waits starts no second wait, and the cap after a lift does nothing', async () => {
+    vi.useFakeTimers();
+    const fetching = pending();
+    fonts(fetching.ready);
+    const veil = showVeil(document, '<svg></svg>');
+    const count = lifts(veil);
+
+    liftVeil(document);
+    await vi.advanceTimersByTimeAsync(FONT_WAIT_MS / 2);
+    liftVeil(document);
+    fetching.resolve();
+    await vi.advanceTimersByTimeAsync(FONT_WAIT_MS * 2);
+    expect(count()).toBe(1);
+  });
+
+  it("doesn't hold up a safety timer: liftVeilNow lifts at once, and the fonts arriving later change nothing", async () => {
+    vi.useFakeTimers();
+    const fetching = pending();
+    fonts(fetching.ready);
+    const veil = showVeil(document, '<svg></svg>');
+    const count = lifts(veil);
+
+    liftVeil(document);
+    liftVeilNow(document);
+    expect(lifting(veil)).toBe(true);
+    fetching.resolve();
+    await vi.advanceTimersByTimeAsync(FONT_WAIT_MS);
+    expect(count()).toBe(1);
+  });
+
+  it("doesn't say it's slow while it only waits for the fonts", async () => {
+    vi.useFakeTimers();
+    fonts(new Promise(() => undefined));
+    const veil = showVeil(document, '<svg></svg>');
+    await vi.advanceTimersByTimeAsync(SLOW_MS - 100);
+
+    liftVeil(document);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(veil.querySelector('.lmn-veil__slow')).toBeNull();
+  });
+
+  it("doesn't touch document.fonts, or lay the page out, when there's no veil (every later navigation)", () => {
+    const read = vi.fn(() => ({ ready: Promise.resolve() }));
+    Object.defineProperty(document, 'fonts', { configurable: true, get: read });
+    document.documentElement.classList.add('lmn-pending');
+
+    liftVeil(document);
+    expect(read).not.toHaveBeenCalled();
+    expect(document.documentElement).not.toHaveClass('lmn-pending');
+  });
+
+  it('lifts at once with a document.fonts that has no ready', () => {
+    Object.defineProperty(document, 'fonts', { configurable: true, value: {} });
+    const veil = showVeil(document, '<svg></svg>');
+
+    liftVeil(document);
+    expect(lifting(veil)).toBe(true);
+  });
+
+  it('lifts at once in a browser without document.fonts', () => {
+    expect('fonts' in document).toBe(false);
+    const veil = showVeil(document, '<svg></svg>');
+
+    liftVeil(document);
+    expect(lifting(veil)).toBe(true);
   });
 });
