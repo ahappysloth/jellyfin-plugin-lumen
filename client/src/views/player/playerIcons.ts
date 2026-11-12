@@ -1,8 +1,4 @@
-import { defineIcons } from '../../components/icons';
-
-/** The speaker of the volume icons, which add one wave per level (components/icons.tsx volumeHigh has all three). */
-const SPEAKER =
-  'M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298ZM14.18 8.82a4.5 4.5 0 0 1 0 6.36';
+import { defineIcons, SPEAKER, WAVES } from '../../components/icons';
 
 /** Icons only the player shows, so they download with it (components/icons.tsx). */
 export const PLAYER_ICONS = defineIcons({
@@ -19,6 +15,6 @@ export const PLAYER_ICONS = defineIcons({
   quality:
     'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996Z',
   skipNext: 'M21 4v16M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432Z',
-  volumeLow: SPEAKER,
-  volumeMid: `${SPEAKER}M16.66 6.34a8 8 0 0 1 0 11.31`,
+  volumeLow: SPEAKER + WAVES[0],
+  volumeMid: SPEAKER + WAVES[0] + WAVES[1],
 });

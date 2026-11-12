@@ -16,6 +16,14 @@ import type { JSX } from 'preact';
 const HEART =
   'M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5';
 const CHEVRON_LEFT = 'M15 18l-6-6 6-6';
+/** The volume icons' speaker, and its sound waves from the inside out: the player shows one per level. */
+export const SPEAKER =
+  'M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298Z';
+export const WAVES = [
+  'M14.18 8.82a4.5 4.5 0 0 1 0 6.36',
+  'M16.66 6.34a8 8 0 0 1 0 11.31',
+  'M19.55 4.3a11.5 11.5 0 0 1 0 15.39',
+];
 
 const PATHS = {
   play: '*M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19Z',
@@ -64,11 +72,9 @@ const PATHS = {
   back: CHEVRON_LEFT,
   chevronRight: 'M9 18l6-6-6-6',
   chevronLeft: CHEVRON_LEFT,
-  volumeOff:
-    'M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298ZM16 9l6 6M22 9l-6 6',
+  volumeOff: `${SPEAKER}M16 9l6 6M22 9l-6 6`,
   /** The speaker with all three of the player's volume waves (views/player/playerIcons.ts has one and two). */
-  volumeHigh:
-    'M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298ZM14.18 8.82a4.5 4.5 0 0 1 0 6.36M16.66 6.34a8 8 0 0 1 0 11.31M19.55 4.3a11.5 11.5 0 0 1 0 15.39',
+  volumeHigh: SPEAKER + WAVES.join(''),
 } as const;
 
 export type IconName = keyof typeof PATHS;
