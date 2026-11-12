@@ -20,6 +20,7 @@ import { type MenuEntry, openContextMenu } from '../../components/ContextMenu';
 import type { IconRef } from '../../components/icons';
 import { showToast } from '../../components/Toast';
 import { strings } from '../../strings';
+import { whenStockCss } from '../../veil/stockCss';
 import type { ViewContext } from '../context';
 import { downloadUrl, nativeDownload } from '../details/download';
 import { forgetItem, rememberEdit } from '../itemChanges';
@@ -215,6 +216,10 @@ async function run(
     // What had focus as the menu closed (its button or card), for when the dialog closes: jellyfin-web puts focus back
     // only in the TV layout, and not always. (Refresh resolves once its dialog has closed: compat/itemMenu.ts.)
     const from = document.activeElement;
+    // The dialog is jellyfin-web's, restyled by lumen-stock.css, which loads beside Lumen's pages without holding them
+    // up (on a slow network, after them): have it in first (up to a few seconds) rather than restyle the dialog as it
+    // shows.
+    await whenStockCss();
     const result = await openItemDialog(item, user, command);
     if ((!document.activeElement || document.activeElement === document.body) && from instanceof HTMLElement)
       from.focus({ preventScroll: true });

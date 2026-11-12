@@ -106,6 +106,25 @@ describe('the item menu', () => {
     expect(onDeleted).not.toHaveBeenCalled();
   });
 
+  it("opens jellyfin-web's dialog once its stylesheet is in, so it doesn't restyle as it shows", async () => {
+    const open = vi.spyOn(dialogs, 'openItemDialog').mockResolvedValue({ updated: false, deleted: false });
+    // The guard's link, still on its way.
+    const link = document.createElement('link');
+    link.setAttribute('data-lmn-css', 'lumen-stock.css');
+    document.head.append(link);
+    const { ctx } = context();
+    render(<ContextMenuHost />);
+    const menu = await prepareItemMenu(ctx, card, {});
+    act(() => menu.open({ x: 0, y: 0, returnFocus: null }));
+
+    choose('Edit metadata');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(open).not.toHaveBeenCalled();
+    link.dispatchEvent(new Event('load'));
+    await waitFor(() => expect(open).toHaveBeenCalled());
+    link.remove();
+  });
+
   it('leaves the page after a deletion', async () => {
     vi.spyOn(dialogs, 'openItemDialog').mockResolvedValue({ updated: true, deleted: true });
     const { ctx } = context();

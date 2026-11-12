@@ -54,6 +54,26 @@ describe('inline guard', () => {
     expect(document.documentElement.classList.contains(SIGN_IN_CLASS)).toBe(false);
   });
 
+  it('writes stylesheets into the page only on its first run, never from a navigation event during the parse', () => {
+    document.head.replaceChildren(); // what earlier tests linked
+    vi.spyOn(document, 'readyState', 'get').mockReturnValue('loading');
+    vi.spyOn(document, 'currentScript', 'get').mockReturnValue(document.createElement('script'));
+    const write = vi.spyOn(document, 'write').mockImplementation(() => undefined);
+    history.replaceState(null, '', '#/login');
+    runGuard(window, document);
+    expect(write).toHaveBeenCalledTimes(1);
+
+    // As if the browser ran these between two chunks of the page (the parse window): from an event handler,
+    // document.write would wipe the page.
+    history.replaceState(null, '', '#/dashboard');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('link[data-lmn-css="lumen-dashboard.css"]')).not.toBeNull();
+    vi.restoreAllMocks();
+    document.head.replaceChildren();
+  });
+
   it('veils a route Lumen may own and leaves its safety timer for lumen.js to clear', () => {
     vi.useFakeTimers();
     history.replaceState(null, '', '#/home');
