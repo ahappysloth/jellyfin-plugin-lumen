@@ -119,7 +119,7 @@ export function LazySecondary({
       <PageError
         ctx={ctx}
         title={strings.pageFailedTitle}
-        message={strings.loadFailed}
+        message={strings.pageFailed}
         onRetry={retry}
         retrying={retrying}
         onBack={onBack}

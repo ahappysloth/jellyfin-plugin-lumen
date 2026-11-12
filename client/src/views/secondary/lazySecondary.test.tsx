@@ -80,7 +80,7 @@ describe('LazySecondary', () => {
     );
 
     expect(await screen.findByRole('heading', { name: "Couldn't load this page" })).toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveTextContent(/couldn.t load/i);
+    expect(screen.getByRole('alert')).toHaveTextContent(/server didn.t answer/i);
     // The veil doesn't stay over the error.
     expect(veiled()).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
