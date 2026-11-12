@@ -9,6 +9,7 @@ import {
   normalizeConfig,
   normalizeId,
   removeSection,
+  sameConfig,
   setParam,
 } from './configModel';
 
@@ -118,5 +119,85 @@ describe('configModel', () => {
       expect(canAdd(type('Trending', 'Integer'), sections)).toBe(true);
       expect(canAdd(type('NextUp', 'Library'), sections)).toBe(true);
     });
+  });
+});
+
+describe('sameConfig', () => {
+  const loaded = (): LumenConfig =>
+    ({
+      ConfigVersion: 3,
+      Enabled: true,
+      AccentColor: '#E30B17',
+      HeroSource: 'RecentlyAdded',
+      HeroCollectionId: null,
+      SeerrUrl: null,
+      SeerrApiKeySet: true,
+      TraktClientIdSet: true,
+      ClearTraktClientId: false,
+      Sections: [
+        {
+          Id: 'a',
+          Type: 'RecentlyAdded',
+          Enabled: true,
+          Title: null,
+          Params: [
+            { Name: 'libraryId', Value: '0F3A1C2B-4D5E-6F70-8192-A3B4C5D6E7F8' },
+            { Name: 'limit', Value: '20' },
+          ],
+        },
+        section('b'),
+      ],
+    }) as unknown as LumenConfig;
+
+  it('sees a real change', () => {
+    expect(sameConfig(loaded(), { ...loaded(), Enabled: false })).toBe(false);
+    expect(sameConfig(loaded(), { ...loaded(), SeerrUrl: 'http://seerr:5055' })).toBe(false);
+    expect(sameConfig(loaded(), { ...loaded(), SeerrApiKey: 'new-key' })).toBe(false);
+    expect(sameConfig(loaded(), { ...loaded(), TraktClientId: 'new-id' })).toBe(false);
+    expect(sameConfig(loaded(), { ...loaded(), TraktClientId: '', ClearTraktClientId: true })).toBe(false);
+    expect(sameConfig(loaded(), { ...loaded(), AccentColor: '#00a4dc' })).toBe(false);
+    const sections = loaded().Sections;
+    expect(sameConfig(loaded(), { ...loaded(), Sections: moveSection(sections, 0, 1) })).toBe(false);
+    expect(
+      sameConfig(loaded(), { ...loaded(), Sections: [setParam(sections[0]!, 'limit', '30'), sections[1]!] }),
+    ).toBe(false);
+  });
+
+  it('a switch turned on and off again, or a section moved down and back up, is no change', () => {
+    const twice = { ...loaded(), Enabled: false };
+    expect(sameConfig(loaded(), { ...twice, Enabled: true })).toBe(true);
+    const sections = moveSection(moveSection(loaded().Sections, 0, 1), 1, -1);
+    expect(sameConfig(loaded(), { ...loaded(), Sections: sections })).toBe(true);
+  });
+
+  it('a value typed and deleted again is no change: empty, null and absent are the same', () => {
+    expect(sameConfig(loaded(), { ...loaded(), SeerrUrl: '' })).toBe(true);
+    expect(sameConfig(loaded(), { ...loaded(), HeroCollectionId: '' })).toBe(true);
+    const titled = { ...loaded().Sections[1]!, Title: '' };
+    expect(sameConfig(loaded(), { ...loaded(), Sections: [loaded().Sections[0]!, titled] })).toBe(true);
+  });
+
+  it('a key typed into its field and cleared again is no change', () => {
+    // The server never sends a key, only whether one is saved; the field sends '' once typed into.
+    expect(sameConfig(loaded(), { ...loaded(), SeerrApiKey: '' })).toBe(true);
+    expect(sameConfig(loaded(), { ...loaded(), TraktClientId: '', ClearTraktClientId: false })).toBe(true);
+    const noFlag = { ...loaded() };
+    delete noFlag.ClearTraktClientId;
+    expect(sameConfig(noFlag, { ...loaded(), TraktClientId: '' })).toBe(true);
+  });
+
+  it('compares a parameter set changed and changed back regardless of order, and ids and colours regardless of case', () => {
+    const [first, second] = loaded().Sections;
+    const edited = setParam(
+      setParam(first!, 'libraryId', 'x'),
+      'libraryId',
+      '0f3a1c2b4d5e6f708192a3b4c5d6e7f8',
+    );
+    // setParam moves the edited parameter to the end.
+    expect(edited.Params.map((p) => p.Name)).toEqual(['limit', 'libraryId']);
+    expect(sameConfig(loaded(), { ...loaded(), Sections: [edited, second!] })).toBe(true);
+    expect(sameConfig(loaded(), { ...loaded(), AccentColor: '#e30b17' })).toBe(true);
+    // As the server may send it: the hero source as a number.
+    expect(sameConfig(loaded(), { ...loaded(), HeroSource: 0 })).toBe(true);
   });
 });

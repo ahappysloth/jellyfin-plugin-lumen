@@ -83,6 +83,129 @@ test('Discard in the save bar drops unsaved changes, and nothing reaches the ser
   }
 });
 
+test('a change undone by hand takes the save bar away again', { tag: '@smoke' }, async ({ page }) => {
+  await login(page, ADMIN);
+  await page.goto('/web/#/configurationpage?name=Lumen');
+  const root = page.locator('[id="lmn-admin-root"]:visible');
+  const bar = root.locator('.lmna-savebar');
+  const toggle = root.getByRole('switch', { name: 'Replace the home screen' });
+  await expect(toggle).toBeVisible();
+  const loaded = await toggle.isChecked();
+
+  await toggle.click();
+  await expect(toggle).toBeChecked({ checked: !loaded });
+  await expect(bar).toContainText('Unsaved changes');
+  await expect(bar).toBeVisible();
+  await toggle.click();
+  await expect(toggle).toBeChecked({ checked: loaded });
+  await expect(bar).toBeHidden();
+  await expect(root.getByRole('status')).toHaveText('');
+});
+
+test('Settings and Storage are tabs: Storage loads when first opened, and the tab is kept across a reload', { tag: '@smoke' }, async ({
+  page,
+}) => {
+  await login(page, ADMIN);
+  const storageCalls: string[] = [];
+  page.on('request', (r) => {
+    if (/\/Lumen\/Admin\/Storage/.test(r.url())) storageCalls.push(r.url());
+  });
+  await page.goto('/web/#/configurationpage?name=Lumen');
+  const root = page.locator('[id="lmn-admin-root"]:visible');
+  const tabs = root.getByRole('tablist', { name: 'Lumen' });
+  const settings = tabs.getByRole('tab', { name: 'Settings' });
+  const storage = tabs.getByRole('tab', { name: 'Storage' });
+  await expect(settings).toHaveAttribute('aria-selected', 'true');
+  await expect(root.getByRole('group', { name: 'Home sections' })).toBeVisible();
+  // The strip Lumen gives the Dashboard's tabs: framed, the open tab filled.
+  await expect(tabs).toHaveCSS('border-top-left-radius', '12px');
+  await expect(settings).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(storage).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  // Opening the page for a setting doesn't measure storage.
+  await expect(root.getByRole('group', { name: 'Storage' })).toHaveCount(0);
+  expect(storageCalls).toEqual([]);
+
+  try {
+    // A change made first is kept, with the bar, on the Storage tab.
+    await root.getByRole('button', { name: /Move Continue Watching down/ }).click();
+    await storage.click();
+    await expect(storage).toHaveAttribute('aria-selected', 'true');
+    // Not in the URL: jellyfin-web keeps a page it has left by its exact URL (see the Back check below).
+    await expect(page).toHaveURL(/configurationpage\?name=Lumen$/);
+    await expect(root.getByRole('group', { name: 'Storage' })).toBeVisible();
+    await expect.poll(() => storageCalls.length).toBeGreaterThan(0);
+    await expect(root.getByRole('group', { name: 'Home sections' })).toBeHidden();
+    await expect(root.getByRole('button', { name: 'Reset to defaults' })).toBeHidden();
+    const bar = root.locator('.lmna-savebar');
+    await expect(bar).toBeVisible();
+    await expect(bar).toContainText('Unsaved changes on the Settings tab');
+
+    // From the keyboard: arrows move between the tabs.
+    await storage.focus();
+    await page.keyboard.press('ArrowLeft');
+    await expect(settings).toBeFocused();
+    await expect(settings).toHaveAttribute('aria-selected', 'true');
+    await expect(root.getByRole('button', { name: /Move Continue Watching up/ })).toBeEnabled();
+    await page.keyboard.press('ArrowRight');
+    await expect(storage).toBeFocused();
+
+    // Leaving for another page and coming Back finds the page as it was: the change, the bar and the tab.
+    await page.evaluate(() => (window.location.hash = '#/dashboard'));
+    await expect(page).toHaveURL(/#\/dashboard$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/configurationpage\?name=Lumen$/);
+    await expect(root.getByRole('tab', { name: 'Storage' })).toHaveAttribute('aria-selected', 'true');
+    await expect(bar).toBeVisible();
+    await expect(bar).toContainText('Unsaved changes on the Settings tab');
+    await bar.getByRole('button', { name: 'Discard' }).click();
+    await expect(bar).toBeHidden();
+
+    // One copy of the page, and a reload comes back to the tab.
+    await expect(page.locator('[id="lmn-admin-root"]')).toHaveCount(1);
+    await page.reload();
+    await expect(root.getByRole('tab', { name: 'Storage' })).toHaveAttribute('aria-selected', 'true');
+    await expect(root.getByRole('group', { name: 'Storage' })).toBeVisible();
+    await root.getByRole('tab', { name: 'Settings' }).click();
+    await expect(root.getByRole('group', { name: 'Home sections' })).toBeVisible();
+  } finally {
+    await resetLumen();
+  }
+});
+
+test('TV layout: the D-pad reaches Lumen’s settings tabs and moves between them', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('layout', 'tv'));
+  await login(page, ADMIN);
+  await expect(page.locator('html')).toHaveClass(/\blayout-tv\b/);
+  await page.goto('/web/#/configurationpage?name=Lumen');
+  const root = page.locator('[id="lmn-admin-root"]:visible');
+  const settings = root.getByRole('tab', { name: 'Settings' });
+  const storage = root.getByRole('tab', { name: 'Storage' });
+  await expect(settings).toBeVisible();
+
+  // Down from the header's Back button, to the open tab.
+  await page.getByRole('button', { name: 'Back', exact: true }).first().focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(settings).toBeFocused();
+  await expect(settings).toHaveCSS('outline-style', 'solid');
+  // The strip holds Left and Right (a focuscontainer-x): Left from the first tab stays, rather than going to the drawer.
+  await page.keyboard.press('ArrowLeft');
+  await expect(settings).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(storage).toBeFocused();
+  await expect(storage).toHaveAttribute('aria-selected', 'true');
+  // Not round from the end: Right again stays on Storage.
+  await page.keyboard.press('ArrowRight');
+  await expect(storage).toBeFocused();
+  await expect(storage).toHaveAttribute('aria-selected', 'true');
+  // Down into the tab, and Up back to it.
+  const card = root.getByRole('group', { name: 'Storage' });
+  await expect(card.getByText(/^Computed /)).toBeVisible({ timeout: 30_000 });
+  await page.keyboard.press('ArrowDown');
+  await expect.poll(() => card.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press('ArrowUp');
+  await expect(storage).toBeFocused();
+});
+
 test('the Dashboard wears Lumen’s look, and only on admin pages', async ({ page, isMobile }) => {
   await login(page, ADMIN);
   const html = page.locator('html');
@@ -216,11 +339,10 @@ test('the Dashboard’s dialogs use Lumen’s fields', async ({ page }) => {
   await expect(dialog).toBeHidden();
 });
 
-/** Lumen's settings page with a fresh storage report: the cached one may be from before this run's library scan. */
+/** Lumen's Storage tab with a fresh storage report: the cached one may be from before this run's library scan. */
 async function openStorage(page: Page): Promise<Locator> {
-  await page.goto('/web/#/configurationpage?name=Lumen');
+  await page.goto('/web/#/configurationpage?name=Lumen&tab=storage');
   const card = page.locator('[id="lmn-admin-root"]:visible').getByRole('group', { name: 'Storage' });
-  await card.scrollIntoViewIfNeeded();
   const refresh = card.getByRole('button', { name: 'Refresh' });
   await expect(refresh).toBeEnabled({ timeout: 30_000 });
   await refresh.click();
@@ -272,6 +394,39 @@ test('the Storage card shows space by library, codec and resolution, and links t
   await alpha.click();
   await expect(page).toHaveURL(new RegExp(`#/details\\?id=${items['Lumen Alpha']}`));
   await expect(page.locator('#lmn-root')).toContainText('Lumen Alpha');
+});
+
+test('a storage bar’s part shows its numbers in a tooltip, inside the window', { tag: '@smoke' }, async ({ page, isMobile }) => {
+  await login(page, ADMIN);
+  const card = await openStorage(page);
+  const bar = card.getByRole('img', { name: /^Movies by codec: Other [\d.]+ [KM]B, 8 files$/ });
+  const tip = card.locator('.lmna-tip');
+  await expect(tip).toHaveCount(0);
+
+  // A mouse points at it; a finger taps it.
+  if (isMobile) await bar.tap();
+  else await bar.hover();
+  await expect(tip).toBeVisible();
+  await expect(tip).toHaveText(/^Other · [\d.]+ [KM]B · 8 files · 100% of Movies$/);
+  // For the eye only: the bar's name already reads it out.
+  await expect(tip).toHaveAttribute('aria-hidden', 'true');
+  const box = (await tip.boundingBox())!;
+  const width = await page.evaluate(() => document.documentElement.clientWidth);
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(width);
+
+  // Gone with the pointer, or with a tap elsewhere.
+  if (isMobile) await card.getByRole('heading', { name: 'Libraries' }).tap();
+  else await page.mouse.move(0, 0);
+  await expect(tip).toHaveCount(0);
+
+  if (!isMobile) {
+    // From the keyboard, the bar is a Tab stop and shows its first part.
+    await bar.focus();
+    await expect(tip).toHaveText(/^Other · /);
+    await page.keyboard.press('Escape');
+    await expect(tip).toHaveCount(0);
+  }
 });
 
 test('TV layout: the Storage card’s Refresh and titles are reached with the D-pad, and OK opens a title', async ({ page }) => {

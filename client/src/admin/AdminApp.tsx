@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { getLayout } from '../compat/jellyfin';
 import { Icon } from '../components/icons';
 import { LumenMark } from '../components/LumenMark';
 import { newUuid } from '../util/uuid';
 import type { AdminApi } from './adminApi';
+import { ADMIN_TABS, type AdminTab, initialTab, rememberTab, TAB_LABELS } from './adminTabs';
 import { DiagnosticsSettings } from './DiagnosticsSettings';
 import { GeneralSettings } from './GeneralSettings';
 import { HeroSettings } from './HeroSettings';
@@ -18,13 +20,21 @@ interface AdminAppProps {
   api: AdminApi;
   newId?: () => string;
   confirm?: (message: string) => boolean;
-  /** The page's URL hash: `?check=updates` (from Jellyfin's Plugins page) checks for updates on open. */
+  /**
+   * The page's URL hash: `?check=updates` (from Jellyfin's Plugins page) checks for updates on open, and `?tab=storage`
+   * opens the Storage tab.
+   */
   hash?: string;
+  /** Keeps the open tab across a reload (in the URL). */
+  onTab?: (tab: AdminTab) => void;
   /** Reloads the page once Jellyfin is back from a restart. */
   reload?: () => void;
   /** How long "Settings saved." shows before the save bar slides away. */
   savedFor?: number;
 }
+
+/** Each copy of the page (jellyfin-web keeps the ones it has left) gets its own ids for its tabs and panels. */
+let pageCount = 0;
 
 /** Where the settings column is on screen: the save bar is fixed to the viewport but lines up with it. */
 interface Column {
@@ -37,6 +47,7 @@ export function AdminApp({
   newId = newUuid,
   confirm = (m) => window.confirm(m),
   hash = window.location.hash,
+  onTab = rememberTab,
   reload,
   savedFor = 2000,
 }: AdminAppProps) {
@@ -46,6 +57,45 @@ export function AdminApp({
   const formRef = useRef<HTMLFormElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
+
+  // Settings, or Storage. Storage starts measuring only once its tab is first opened (it can take a while on a big
+  // library, and most visits are for a setting), then stays mounted, so going back to it doesn't measure again.
+  const [tab, setTab] = useState<AdminTab>(() => initialTab(hash));
+  const [storageOpened, setStorageOpened] = useState(tab === 'storage');
+  const [ids] = useState(() => `lmna-page-${++pageCount}`);
+  const tabRefs = useRef<Partial<Record<AdminTab, HTMLButtonElement | null>>>({});
+  const choose = (next: AdminTab): void => {
+    if (next === 'storage') setStorageOpened(true);
+    if (next === tab) return;
+    setTab(next);
+    onTab(next);
+  };
+  // A tablist's keys: arrows (round from either end), Home and End pick a tab and focus it. On a TV a D-pad isn't kept
+  // in here past either end; jellyfin-web's own navigation has those keys (and keeps focus in the strip, a
+  // focuscontainer-x, as it would anywhere).
+  const onTabKey = (e: KeyboardEvent): void => {
+    const at = ADMIN_TABS.indexOf(tab);
+    const count = ADMIN_TABS.length;
+    let next =
+      e.key === 'ArrowRight'
+        ? at + 1
+        : e.key === 'ArrowLeft'
+          ? at - 1
+          : e.key === 'Home'
+            ? 0
+            : e.key === 'End'
+              ? count - 1
+              : null;
+    if (next === null || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (next < 0 || next >= count) {
+      if (getLayout() === 'tv') return;
+      next = (next + count) % count;
+    }
+    e.preventDefault();
+    const target = ADMIN_TABS[next]!;
+    choose(target);
+    tabRefs.current[target]?.focus();
+  };
 
   // "Settings saved." shows for a moment, then the bar slides away. Reset on every status change, so the next save
   // shows it again.
@@ -133,7 +183,10 @@ export function AdminApp({
           : status === 'saved'
             ? 'Settings saved.'
             : dirty
-              ? 'Unsaved changes'
+              ? // Not lost on the Storage tab: kept, and the bar says where they are.
+                tab === 'settings'
+                ? 'Unsaved changes'
+                : 'Unsaved changes on the Settings tab'
               : '';
   // A failed reset leaves the status as it was, which may still be 'saved': the failure comes first.
   const tone = failed ? 'error' : status === 'saved' ? 'ok' : dirty && !busy ? 'dirty' : '';
@@ -169,6 +222,31 @@ export function AdminApp({
         </div>
       </header>
 
+      {/* Settings, and Storage on a tab of its own. The save bar and Reset belong to Settings, but unsaved changes
+          aren't lost on the way to Storage: they stay, and so does the bar, saying where they are. */}
+      <div class="lmna-tabs focuscontainer-x" role="tablist" aria-label="Lumen" onKeyDown={onTabKey}>
+        {ADMIN_TABS.map((t) => (
+          <button
+            key={t}
+            ref={(el) => {
+              tabRefs.current[t] = el;
+            }}
+            type="button"
+            role="tab"
+            id={`${ids}-tab-${t}`}
+            aria-controls={`${ids}-panel-${t}`}
+            aria-selected={t === tab}
+            // Roving focus: Tab reaches the open tab, arrows the other.
+            tabIndex={t === tab ? 0 : -1}
+            class={`lmna-tab${t === tab ? ' is-active' : ''}`}
+            onClick={() => choose(t)}
+          >
+            {TAB_LABELS[t]}
+          </button>
+        ))}
+      </div>
+
+      {/* A failed save's problems show on either tab: Save is in the bar on both. */}
       {errors.length > 0 && (
         <div
           class="lmna-callout lmna-callout--error lmn-admin__errors"
@@ -183,41 +261,59 @@ export function AdminApp({
           </ul>
         </div>
       )}
-      {warnings.map((w) => (
-        <div key={w} class="lmna-callout lmna-callout--warn" role="note" style={{ marginBottom: '16px' }}>
-          <p>{w}</p>
+
+      <div
+        role="tabpanel"
+        id={`${ids}-panel-settings`}
+        aria-labelledby={`${ids}-tab-settings`}
+        class="lmna-tabpanel"
+        hidden={tab !== 'settings'}
+      >
+        {warnings.map((w) => (
+          <div key={w} class="lmna-callout lmna-callout--warn" role="note" style={{ marginBottom: '16px' }}>
+            <p>{w}</p>
+          </div>
+        ))}
+
+        <UpdatesSettings api={api} autoCheck={wantsCheck(hash)} confirm={confirm} reload={reload} />
+        <GeneralSettings key={`general-${revision}`} config={config} update={update} />
+        <HeroSettings key={`hero-${revision}`} config={config} lookups={admin.lookups} update={update} />
+        <HomeSectionsSettings
+          key={`sections-${revision}`}
+          config={config}
+          types={admin.types}
+          lookups={admin.lookups}
+          newId={newId}
+          update={update}
+        />
+        <RequestsSettings
+          key={`requests-${revision}`}
+          api={api}
+          config={config}
+          savedUrl={admin.savedUrl}
+          update={update}
+        />
+        <Top10Settings key={`top10-${revision}`} api={api} config={config} update={update} />
+        <DiagnosticsSettings diagnostics={admin.diagnostics} />
+
+        {/* Reset isn't in the save bar: it doesn't depend on unsaved changes, so it has to be there while the bar is
+            hidden, and it's kept away from Save. */}
+        <div class="lmna-reset">
+          <button type="button" class="lmna-btn" disabled={busy} onClick={reset}>
+            {status === 'resetting' ? 'Resetting…' : 'Reset to defaults'}
+          </button>
+          {resetFailed && <p class="lmna-reset__error">{RESET_FAILED}</p>}
         </div>
-      ))}
+      </div>
 
-      <UpdatesSettings api={api} autoCheck={wantsCheck(hash)} confirm={confirm} reload={reload} />
-      <GeneralSettings key={`general-${revision}`} config={config} update={update} />
-      <HeroSettings key={`hero-${revision}`} config={config} lookups={admin.lookups} update={update} />
-      <HomeSectionsSettings
-        key={`sections-${revision}`}
-        config={config}
-        types={admin.types}
-        lookups={admin.lookups}
-        newId={newId}
-        update={update}
-      />
-      <RequestsSettings
-        key={`requests-${revision}`}
-        api={api}
-        config={config}
-        savedUrl={admin.savedUrl}
-        update={update}
-      />
-      <Top10Settings key={`top10-${revision}`} api={api} config={config} update={update} />
-      <StorageSettings api={api} />
-      <DiagnosticsSettings diagnostics={admin.diagnostics} />
-
-      {/* Reset isn't in the save bar: it doesn't depend on unsaved changes, so it has to be there while the bar is
-          hidden, and it's kept away from Save. */}
-      <div class="lmna-reset">
-        <button type="button" class="lmna-btn" disabled={busy} onClick={reset}>
-          {status === 'resetting' ? 'Resetting…' : 'Reset to defaults'}
-        </button>
-        {resetFailed && <p class="lmna-reset__error">{RESET_FAILED}</p>}
+      <div
+        role="tabpanel"
+        id={`${ids}-panel-storage`}
+        aria-labelledby={`${ids}-tab-storage`}
+        class="lmna-tabpanel"
+        hidden={tab !== 'storage'}
+      >
+        {storageOpened && <StorageSettings api={api} />}
       </div>
 
       {/* The save bar's polite live region, outside the bar: a live region that appears together with its text (the

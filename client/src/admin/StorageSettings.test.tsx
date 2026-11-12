@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdminApi, StorageBreakdown, StorageBucket, StorageReport, StorageStatus } from './adminApi';
 import { StorageSettings } from './StorageSettings';
 import { codecMix, fileCodecLabel, formatBitrate, formatBytes, formatFiles, shares } from './storageFormat';
@@ -300,31 +300,175 @@ describe('StorageSettings', () => {
     }
   });
 
-  it('waits until the card is near the screen before asking', async () => {
-    let seen: ((entries: { isIntersecting: boolean }[]) => void) | undefined;
-    const observe = vi.fn();
-    vi.stubGlobal(
-      'IntersectionObserver',
-      class {
-        constructor(callback: typeof seen) {
-          seen = callback;
-        }
-        observe = observe;
-        disconnect = vi.fn();
-      },
-    );
+  it('asks for the report as soon as it is shown (its tab is opened)', async () => {
+    const api = fakeApi();
+    render(<StorageSettings api={api} />);
+    expect(api.getStorage).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('330 GB')).toBeInTheDocument();
+  });
+
+  it('shows the headline figures in the text colour, and only what follows them dimmed', async () => {
+    render(<StorageSettings api={fakeApi()} />);
+    const total = await screen.findByText('330 GB');
+    // Dimmed text is .lmna-storage__files (admin.css); a figure inside a dimmed line would be dimmed too.
+    expect(total.closest('.lmna-storage__files')).toBeNull();
+    expect(total.nextElementSibling).toHaveClass('lmna-storage__files');
+    expect(total.nextElementSibling).toHaveTextContent('in 40 files');
+    const tiles = document.querySelectorAll('.lmna-storage__tile dd strong');
+    expect(Array.from(tiles, (t) => t.textContent)).toEqual(['180 GB', '90 GB']);
+    for (const figure of Array.from(tiles)) {
+      expect(figure.closest('dd')).not.toHaveClass('lmna-storage__files');
+      expect(figure.nextElementSibling).toHaveClass('lmna-storage__files');
+    }
+  });
+
+  it('dims no headline figure in admin.css', async () => {
+    const css = (await import('./admin.css?raw')).default;
+    const rule = (selector: string) => {
+      const start = css.indexOf(`${selector} {`);
+      expect(start, selector).toBeGreaterThanOrEqual(0);
+      return css.slice(start, css.indexOf('}', start));
+    };
+    expect(rule('.lmn-admin .lmna-storage__total')).not.toMatch(/color:/);
+    expect(rule('.lmn-admin .lmna-storage__tile dd')).not.toMatch(/color:/);
+    expect(rule('.lmn-admin .lmna-storage__files')).toMatch(/color:\s*var\(--a-dim\)/);
+  });
+});
+
+describe('Storage bar tooltips', () => {
+  // layOut replaces jsdom's own (always 0) sizes; each test gets them back afterwards.
+  const proto = HTMLElement.prototype;
+  const sizes = ['offsetWidth', 'offsetHeight'].map(
+    (name) => [name, Object.getOwnPropertyDescriptor(proto, name)!] as const,
+  );
+  afterEach(() => {
+    for (const [name, descriptor] of sizes) Object.defineProperty(proto, name, descriptor);
+    Reflect.deleteProperty(document.documentElement, 'clientWidth');
+  });
+
+  /** jsdom has no layout: lay a bar's parts out side by side, 100px each from `left`, in a window `width` wide. */
+  function layOut(bar: HTMLElement, { left = 100, top = 300, width = 1000, tip = 200 } = {}): void {
+    const rect = (l: number, r: number, t: number) =>
+      ({ left: l, right: r, top: t, bottom: t + 8, width: r - l, height: 8, x: l, y: t }) as DOMRect;
+    const parts = Array.from(bar.children) as HTMLElement[];
+    parts.forEach((seg, i) => {
+      seg.getBoundingClientRect = () => rect(left + i * 100, left + i * 100 + 98, top);
+    });
+    bar.parentElement!.getBoundingClientRect = () => rect(0, width, top - 6);
+    Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, value: width });
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get: () => tip });
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get: () => 30 });
+  }
+  const tip = (): HTMLElement | null => document.querySelector('.lmna-tip');
+  const codecBar = async (): Promise<HTMLElement> => screen.findByRole('img', { name: /^Movies by codec:/ });
+
+  it('shows a part’s name, size, files and share where the mouse points, and goes when it leaves', async () => {
+    render(<StorageSettings api={fakeApi()} />);
+    const bar = await codecBar();
+    layOut(bar);
+    const wrap = bar.parentElement!;
+
+    fireEvent.pointerMove(wrap, { pointerType: 'mouse', clientX: 250 });
+    expect(tip()).toHaveTextContent('HEVC · 100 GB · 8 files · 30% of Movies');
+    expect(tip()).toHaveAttribute('aria-hidden', 'true');
+    expect(bar.children[1]).toHaveClass('is-active');
+    expect(wrap).toHaveClass('is-pointing');
+
+    // In a gap between parts: the nearest.
+    fireEvent.pointerMove(wrap, { pointerType: 'mouse', clientX: 199 });
+    expect(tip()).toHaveTextContent(/^H\.264 · 200 GB · 30 files · 61% of Movies$/);
+
+    fireEvent.pointerLeave(wrap, { pointerType: 'mouse' });
+    expect(tip()).toBeNull();
+    // No native tooltip besides the styled one.
+    expect(bar.querySelector('[title]')).toBeNull();
+  });
+
+  it('on a touch screen, a tap shows it, the same tap again or a tap elsewhere hides it', async () => {
+    render(<StorageSettings api={fakeApi()} />);
+    const bar = await codecBar();
+    layOut(bar);
+    const wrap = bar.parentElement!;
+    const tap = (clientX: number): void => {
+      fireEvent.pointerDown(wrap, { pointerType: 'touch', clientX });
+      fireEvent.pointerUp(wrap, { pointerType: 'touch', clientX });
+    };
+
+    tap(320);
+    expect(tip()).toHaveTextContent('Other · 30 GB · 2 files · 9% of Movies');
+    // A touch's move (scrolling) doesn't change it.
+    fireEvent.pointerMove(wrap, { pointerType: 'touch', clientX: 120 });
+    expect(tip()).toHaveTextContent(/^Other/);
+    tap(320);
+    expect(tip()).toBeNull();
+
+    // A swipe that starts on the bar becomes a scroll (pointercancel, no pointerup): no tooltip.
+    fireEvent.pointerDown(wrap, { pointerType: 'touch', clientX: 120 });
+    fireEvent.pointerCancel(wrap, { pointerType: 'touch', clientX: 120 });
+    expect(tip()).toBeNull();
+
+    tap(120);
+    expect(tip()).toHaveTextContent(/^H\.264/);
+    fireEvent.pointerDown(document.body, { pointerType: 'touch' });
+    expect(tip()).toBeNull();
+  });
+
+  it('from the keyboard: one Tab stop per bar, its arrows go part to part, Escape or leaving hides it', async () => {
+    render(<StorageSettings api={fakeApi()} />);
+    const bar = await codecBar();
+    layOut(bar);
+    expect(bar).toHaveAttribute('tabindex', '0');
+    // The parts aren't stops (or names) of their own: the bar's name reads them all, once.
+    expect(bar.querySelectorAll('[tabindex], [role], [aria-label]')).toHaveLength(0);
+
+    fireEvent.focus(bar);
+    expect(tip()).toHaveTextContent(/^H\.264/);
+    fireEvent.keyDown(bar, { key: 'ArrowRight' });
+    expect(tip()).toHaveTextContent(/^HEVC/);
+    fireEvent.keyDown(bar, { key: 'End' });
+    expect(tip()).toHaveTextContent(/^Other/);
+    fireEvent.keyDown(bar, { key: 'ArrowRight' });
+    expect(tip()).toHaveTextContent(/^Other/);
+    fireEvent.keyDown(bar, { key: 'Home' });
+    expect(tip()).toHaveTextContent(/^H\.264/);
+    expect(fireEvent.keyDown(bar, { key: 'Escape' })).toBe(false);
+    expect(tip()).toBeNull();
+    // Escape with nothing showing is left to the page.
+    expect(fireEvent.keyDown(bar, { key: 'Escape' })).toBe(true);
+
+    fireEvent.keyDown(bar, { key: 'ArrowRight' });
+    expect(tip()).not.toBeNull();
+    fireEvent.blur(bar);
+    expect(tip()).toBeNull();
+  });
+
+  it('keeps inside the window: shifted in from an edge, its arrow still on the part, and under the bar near the top', async () => {
+    render(<StorageSettings api={fakeApi()} />);
+    const bar = await codecBar();
+    const wrap = bar.parentElement!;
+
+    // The last part ends at the window's right edge: a 200px tooltip centred on it would overflow.
+    layOut(bar, { left: 702, width: 1000 });
+    fireEvent.pointerMove(wrap, { pointerType: 'mouse', clientX: 960 });
+    expect(tip()!.style.left).toBe(`${1000 - 8 - 200}px`);
+    expect(tip()!.style.getPropertyValue('--tip-arrow')).toBe(`${951 - 792}px`);
+    expect(tip()).not.toHaveClass('is-below');
+    fireEvent.pointerLeave(wrap, { pointerType: 'mouse' });
+
+    // The first part at the left edge, the bar at the top of the window.
+    layOut(bar, { left: 0, top: 20 });
+    fireEvent.pointerMove(wrap, { pointerType: 'mouse', clientX: 5 });
+    expect(tip()!.style.left).toBe('8px');
+    expect(tip()).toHaveClass('is-below');
+  });
+
+  it('isn’t a Tab stop in the TV layout, where the library is the D-pad stop', async () => {
+    document.documentElement.classList.add('layout-tv');
     try {
-      const api = fakeApi();
-      render(<StorageSettings api={api} />);
-      expect(observe).toHaveBeenCalled();
-      expect(api.getStorage).not.toHaveBeenCalled();
-
-      seen!([{ isIntersecting: true }]);
-
-      expect(await screen.findByText('330 GB')).toBeInTheDocument();
-      expect(api.getStorage).toHaveBeenCalledTimes(1);
+      render(<StorageSettings api={fakeApi()} />);
+      expect(await codecBar()).not.toHaveAttribute('tabindex');
     } finally {
-      vi.unstubAllGlobals();
+      document.documentElement.classList.remove('layout-tv');
     }
   });
 });
