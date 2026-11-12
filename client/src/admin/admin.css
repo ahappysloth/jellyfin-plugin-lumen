@@ -18,6 +18,18 @@
   font-size: 14px;
   line-height: 1.5;
 }
+/* Chromium 68 (webOS 5) and Safari 13 have no color-mix: a property using one of these would be dropped (invalid at
+   computed-value time, so a plain declaration before it can't stand in), leaving rows, buttons and the switches' track
+   with no border or background. Greys that read on light and dark alike stand in. (--a-dim's text falls back to the
+   full text colour.) */
+@supports not (color: color-mix(in srgb, red, red)) {
+  .lmn-admin {
+    --a-surface: rgba(128, 128, 128, 0.08);
+    --a-surface-2: rgba(128, 128, 128, 0.14);
+    --a-line: rgba(128, 128, 128, 0.24);
+    --a-line-strong: rgba(128, 128, 128, 0.45);
+  }
+}
 .lmn-admin *,
 .lmn-admin *::before,
 .lmn-admin *::after {
@@ -329,12 +341,13 @@ html.layout-tv .lmn-admin .lmna-tab:focus {
   line-height: 1;
   cursor: pointer;
 }
-.lmn-admin .lmna-icon-btn:hover:not(:disabled) {
+.lmn-admin .lmna-icon-btn:hover:not(:disabled):not([aria-disabled='true']) {
   border-color: var(--a-line);
   background: var(--a-surface-2);
   color: inherit;
 }
-.lmn-admin .lmna-icon-btn:disabled {
+.lmn-admin .lmna-icon-btn:disabled,
+.lmn-admin .lmna-icon-btn[aria-disabled='true'] {
   cursor: default;
   opacity: 0.25;
 }
@@ -408,6 +421,13 @@ html.layout-tv .lmn-admin .lmna-tab:focus {
   box-shadow: 0 0 8px color-mix(in srgb, var(--a-accent) 60%, transparent);
   pointer-events: none;
 }
+/* No color-mix (Chromium 68, Safari 13): a smaller glow in the accent itself. (A plain box-shadow before the one above
+   wouldn't do: with var() in it, that one is only found invalid once computed, and wins anyway.) */
+@supports not (color: color-mix(in srgb, red, red)) {
+  .lmn-admin .lmna-sections__drop {
+    box-shadow: 0 0 5px var(--a-accent);
+  }
+}
 .lmn-admin .lmna-sections__drop::before {
   content: '';
   position: absolute;
@@ -457,6 +477,11 @@ html.lmna-dragging * {
 }
 .lmn-admin .lmna-section__handle[aria-pressed='true'] {
   color: var(--a-accent);
+}
+/* A save is in flight: rows don't move till it's done. */
+.lmn-admin .lmna-section__handle[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.45;
 }
 .lmn-admin .lmna-section__steps {
   display: inline-flex;

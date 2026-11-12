@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/preact';
 import { useState } from 'preact/hooks';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LumenConfig, SectionDef, SectionTypeDef } from './adminApi';
 import { HomeSectionsSettings } from './HomeSectionsSettings';
 
@@ -36,18 +36,35 @@ const sections = (): SectionDef[] => [
   { Id: 's3', Type: 'Genre', Enabled: true, Title: 'Moods', Params: [{ Name: 'genreCount', Value: '3' }] },
 ];
 
-/** The card with the configuration kept as AdminApp keeps it, every change recorded. */
+/**
+ * The card with the configuration kept as AdminApp keeps it, every change recorded: `update` takes none while a save is
+ * in flight, and Discard puts the saved list back and remounts the card.
+ */
 function renderCard(start: SectionDef[] = sections()) {
   const changes: SectionDef[][] = [];
+  const controls: { setBusy: (busy: boolean) => void; discard: () => void } = {
+    setBusy: () => {},
+    discard: () => {},
+  };
   function Harness() {
     const [config, setConfig] = useState({ Sections: start } as LumenConfig);
+    const [busy, setBusy] = useState(false);
+    const [revision, setRevision] = useState(0);
+    controls.setBusy = setBusy;
+    controls.discard = () => {
+      setConfig({ Sections: start } as LumenConfig);
+      setRevision((r) => r + 1);
+    };
     return (
       <HomeSectionsSettings
+        key={`sections-${revision}`}
         config={config}
         types={types}
         lookups={{ Library: [], Collection: [], Playlist: [] }}
         newId={() => 'new1'}
+        busy={busy}
         update={(patch) => {
+          if (busy) return;
           changes.push(patch.Sections!);
           setConfig((c) => ({ ...c, ...patch }));
         }}
@@ -57,12 +74,44 @@ function renderCard(start: SectionDef[] = sections()) {
   const view = render(<Harness />);
   const names = () => [...view.container.querySelectorAll('.lmna-section__label')].map((n) => n.textContent);
   const announced = () => view.container.querySelector('[aria-live="assertive"]')!.textContent;
-  return { ...view, changes, names, announced };
+  const setBusy = (busy: boolean) => act(() => controls.setBusy(busy));
+  const discard = () => act(() => controls.discard());
+  return { ...view, changes, names, announced, setBusy, discard };
+}
+
+/**
+ * Rows laid out as a browser would (jsdom lays nothing out): 40px tall, 50px apart, the first 100px down the list (its
+ * wrapper at the top of the window).
+ */
+function layRowsOut() {
+  vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get').mockImplementation(function (this: HTMLElement) {
+    return this.classList.contains('lmna-section')
+      ? 100 + [...this.parentElement!.children].indexOf(this) * 50
+      : 0;
+  });
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+    return this.classList.contains('lmna-section') ? 40 : 0;
+  });
+}
+
+const MOUSE = { pointerId: 1, pointerType: 'mouse', button: 0, buttons: 1 };
+
+/** A mouse drag by `name`'s handle, from `fromY` to `toY` (not let go). */
+function dragBy(name: string, fromY: number, toY: number) {
+  const handle = screen.getByRole('button', { name: `Move ${name}` });
+  fireEvent.pointerDown(handle, { ...MOUSE, clientY: fromY });
+  fireEvent.pointerMove(window, { ...MOUSE, clientY: (fromY + toY) / 2 });
+  fireEvent.pointerMove(window, { ...MOUSE, clientY: toY });
+  return handle;
 }
 
 const last = <T,>(list: T[]): T => list[list.length - 1]!;
 
 describe('HomeSectionsSettings', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('shows one compact row per section: its name, the type under a title of its own, and its controls', () => {
     const { container, names } = renderCard();
     expect(names()).toEqual(['Continue Watching', 'Next Up', 'Moods']);
@@ -129,6 +178,25 @@ describe('HomeSectionsSettings', () => {
     fireEvent.click(info, { detail: 0 });
     expect(tip).toBeVisible();
     fireEvent.blur(info);
+    expect(tip).not.toBeVisible();
+  });
+
+  it('toggles the tooltip with Enter after a mouse click on the ⓘ', () => {
+    renderCard();
+    const info = screen.getByRole('button', { name: 'About Next Up' });
+    const tip = document.getElementById(info.getAttribute('aria-describedby')!)!;
+    // Clicked with a mouse (and pointed away): the click doesn't toggle it, and focus stays.
+    fireEvent.pointerEnter(info, { pointerType: 'mouse' });
+    fireEvent.pointerDown(info, { pointerType: 'mouse' });
+    fireEvent.click(info, { detail: 1 });
+    fireEvent.pointerLeave(info, { pointerType: 'mouse' });
+    expect(tip).not.toBeVisible();
+    // Then Enter: a key, and its click with no pointer behind it.
+    fireEvent.keyDown(info, { key: 'Enter' });
+    fireEvent.click(info, { detail: 0 });
+    expect(tip).toBeVisible();
+    fireEvent.keyDown(info, { key: ' ' });
+    fireEvent.click(info, { detail: 0 });
     expect(tip).not.toBeVisible();
   });
 
@@ -202,7 +270,8 @@ describe('HomeSectionsSettings', () => {
     fireEvent.keyDown(handle, { key: 'ArrowDown' });
     expect(names()).toEqual(['Next Up', 'Continue Watching', 'Moods']);
     expect(announced()).toBe('Continue Watching moved to position 2 of 3.');
-    // Still the handle that has focus, after the row moved.
+    // Still the handle that has focus, after the row moved. (Moving down, it's the row after that's taken out and put
+    // back; moving up, below, this one.)
     expect(screen.getByRole('button', { name: 'Move Continue Watching' })).toHaveFocus();
 
     fireEvent.keyDown(document.activeElement!, { key: 'End' });
@@ -219,6 +288,143 @@ describe('HomeSectionsSettings', () => {
     // Put down, the arrows don't move it any more.
     fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp' });
     expect(names()).toEqual(['Next Up', 'Moods', 'Continue Watching']);
+  });
+
+  it('keeps focus on a row’s handle as it moves up, the row itself taken out of the page and put back', () => {
+    const { names } = renderCard();
+    const handle = screen.getByRole('button', { name: 'Move Moods' });
+    handle.focus();
+    fireEvent.click(handle);
+    fireEvent.keyDown(handle, { key: 'Home' });
+    expect(names()).toEqual(['Moods', 'Continue Watching', 'Next Up']);
+    expect(screen.getByRole('button', { name: 'Move Moods' })).toHaveFocus();
+    // And from its ↓ button, down past the row it moved up past.
+    fireEvent.click(screen.getByRole('button', { name: 'Move Moods down' }));
+    expect(names()).toEqual(['Continue Watching', 'Moods', 'Next Up']);
+    expect(screen.getByRole('button', { name: 'Move Moods down' })).toHaveFocus();
+  });
+
+  it('doesn’t move rows while a save is in flight, or say they moved', () => {
+    const { names, announced, changes, setBusy } = renderCard();
+    const handle = screen.getByRole('button', { name: 'Move Next Up' });
+    handle.focus();
+    fireEvent.click(handle);
+    fireEvent.keyDown(handle, { key: 'ArrowUp' });
+    expect(names()).toEqual(['Next Up', 'Continue Watching', 'Moods']);
+    const count = changes.length;
+    setBusy(true);
+    // Its move controls say so, and stay where they are for the keyboard.
+    expect(handle).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('button', { name: 'Move Next Up down' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    fireEvent.keyDown(handle, { key: 'ArrowDown' });
+    fireEvent.click(screen.getByRole('button', { name: 'Move Next Up down' }));
+    expect(names()).toEqual(['Next Up', 'Continue Watching', 'Moods']);
+    expect(changes.length).toBe(count);
+    expect(announced()).toBe('Next Up moved to position 1 of 3.');
+    // Escape can't put it back: it's put down where it is.
+    fireEvent.keyDown(handle, { key: 'Escape' });
+    expect(announced()).toBe('Next Up put down at position 1 of 3.');
+    expect(handle).toHaveAttribute('aria-pressed', 'false');
+    // Nor picked up again, nor dragged.
+    fireEvent.click(handle);
+    expect(handle).toHaveAttribute('aria-pressed', 'false');
+    layRowsOut();
+    dragBy('Moods', 220, 110);
+    expect(document.documentElement).not.toHaveClass('lmna-dragging');
+    fireEvent.pointerUp(window, { ...MOUSE, buttons: 0, clientY: 110 });
+    expect(names()).toEqual(['Next Up', 'Continue Watching', 'Moods']);
+    setBusy(false);
+    expect(handle).not.toHaveAttribute('aria-disabled');
+  });
+
+  it('drops a row dragged with the mouse where the line is, focus on its handle', () => {
+    layRowsOut();
+    const { names, announced, container } = renderCard();
+    // Moods (100 + 2 × 50 = 200 to 240), grabbed 20px down, over the top half of the first row.
+    dragBy('Moods', 220, 110);
+    expect(document.documentElement).toHaveClass('lmna-dragging');
+    expect(container.querySelector('.lmna-sections__drop')).toBeInTheDocument();
+    fireEvent.pointerUp(window, { ...MOUSE, buttons: 0, clientY: 110 });
+    expect(names()).toEqual(['Moods', 'Continue Watching', 'Next Up']);
+    expect(announced()).toBe('Moods moved to position 1 of 3.');
+    expect(screen.getByRole('button', { name: 'Move Moods' })).toHaveFocus();
+    expect(document.documentElement).not.toHaveClass('lmna-dragging');
+    expect(container.querySelector('.lmna-sections__drop')).toBeNull();
+  });
+
+  it('cancels a mouse drag the window lost the release of (a button let go elsewhere, alt-tab, a context menu)', () => {
+    layRowsOut();
+    const { names, announced, changes } = renderCard();
+    const lose: Array<() => void> = [
+      // Let go outside the window: it moves on with no button down.
+      () => fireEvent.pointerMove(window, { ...MOUSE, buttons: 0, clientY: 105 }),
+      () => fireEvent.blur(window),
+      () => fireEvent.contextMenu(window),
+    ];
+    for (const lost of lose) {
+      const handle = dragBy('Moods', 220, 110);
+      lost();
+      expect(document.documentElement).not.toHaveClass('lmna-dragging');
+      expect(announced()).toBe('Move cancelled. Moods is back at position 3 of 3.');
+      // The row doesn't follow the pointer any more, and the next click elsewhere drops nothing.
+      const row = handle.closest<HTMLElement>('.lmna-section')!;
+      fireEvent.pointerMove(window, { ...MOUSE, buttons: 0, clientY: 150 });
+      expect(row.style.transform).toBe('');
+      const other = screen.getByRole('button', { name: 'Move Continue Watching' });
+      fireEvent.pointerDown(other, { ...MOUSE, clientY: 120 });
+      fireEvent.pointerUp(window, { ...MOUSE, buttons: 0, clientY: 120 });
+      fireEvent.click(other);
+      expect(names()).toEqual(['Continue Watching', 'Next Up', 'Moods']);
+      expect(changes).toEqual([]);
+      // That click was a click: it picked its row up. Put it back down for the next round.
+      expect(other).toHaveAttribute('aria-pressed', 'true');
+      fireEvent.click(other);
+    }
+  });
+
+  it('doesn’t pick a row up when a drag cancelled with Escape is let go over its handle', async () => {
+    layRowsOut();
+    const { names, announced } = renderCard();
+    const handle = dragBy('Moods', 220, 110);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(announced()).toBe('Move cancelled. Moods is back at position 3 of 3.');
+    // A moment later, back over its own handle, it's let go: the click that follows isn't a click on the handle.
+    await act(() => new Promise((resolve) => setTimeout(resolve)));
+    fireEvent.pointerMove(window, { ...MOUSE, clientY: 220 });
+    fireEvent.pointerUp(window, { ...MOUSE, buttons: 0, clientY: 220 });
+    fireEvent.click(handle);
+    expect(handle).toHaveAttribute('aria-pressed', 'false');
+    expect(names()).toEqual(['Continue Watching', 'Next Up', 'Moods']);
+    // A click of its own, later, is one.
+    await act(() => new Promise((resolve) => setTimeout(resolve)));
+    fireEvent.pointerDown(handle, { ...MOUSE, clientY: 220 });
+    fireEvent.pointerUp(window, { ...MOUSE, buttons: 0, clientY: 220 });
+    fireEvent.click(handle);
+    expect(handle).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('takes a drag down when Discard remounts the card mid-drag: letting go brings nothing back', () => {
+    layRowsOut();
+    const { names, changes, discard } = renderCard();
+    // A change to discard: Next Up to the top.
+    const nextUp = screen.getByRole('button', { name: 'Move Next Up' });
+    fireEvent.click(nextUp);
+    fireEvent.click(screen.getByRole('button', { name: 'Move Next Up up' }));
+    fireEvent.click(nextUp);
+    expect(names()).toEqual(['Next Up', 'Continue Watching', 'Moods']);
+    const count = changes.length;
+    // Moods dragged to the top; another finger taps Discard.
+    dragBy('Moods', 220, 110);
+    discard();
+    expect(names()).toEqual(['Continue Watching', 'Next Up', 'Moods']);
+    expect(document.documentElement).not.toHaveClass('lmna-dragging');
+    fireEvent.pointerMove(window, { ...MOUSE, clientY: 105 });
+    fireEvent.pointerUp(window, { ...MOUSE, buttons: 0, clientY: 105 });
+    expect(names()).toEqual(['Continue Watching', 'Next Up', 'Moods']);
+    expect(changes.length).toBe(count);
   });
 
   it('puts a picked-up section back where it was with Escape, and a TV remote’s Back', () => {

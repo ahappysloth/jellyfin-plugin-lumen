@@ -220,6 +220,9 @@ export function InfoTip({ label, text }: { label: string; text: string }) {
           setShown(false);
         }}
         onKeyDown={(e) => {
+          // A key after a click: the click's pointer is behind it no more, so Enter or Space (a click with no pointer)
+          // toggles the tooltip.
+          pointer.current = '';
           if (e.key !== 'Escape' || !shown) return;
           // The tooltip goes, and Escape goes no further (a dialog round the page would close).
           e.preventDefault();

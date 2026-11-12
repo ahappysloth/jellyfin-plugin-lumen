@@ -244,6 +244,49 @@ test('a finger drags a Home section by its handle, and the page doesn’t scroll
   }
 });
 
+test('a mouse drag the window loses (alt-tab) is cancelled, and one cancelled with Escape picks nothing up when let go', async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, 'a mouse drag');
+  await login(page, ADMIN);
+  const { card, names, announced, handle, row } = await openSections(page);
+  await card.evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 80));
+  const loaded = await names();
+  const name = loaded[2]!;
+  const box = (await handle(name).boundingBox())!;
+  const x = box.x + box.width / 2;
+  const start = async () => {
+    await page.mouse.move(x, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(x, await pointOver(card.locator('.lmna-section').first(), 0.25), { steps: 8 });
+    await expect(row(name)).toHaveClass(/\bis-dragging\b/);
+  };
+
+  // The window loses focus mid-drag (alt-tab, the release then lands elsewhere): back where it was, and moving the
+  // mouse after drags nothing.
+  await start();
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await expect(row(name)).not.toHaveClass(/\bis-dragging\b/);
+  await expect(announced).toHaveText(`Move cancelled. ${name} is back at position 3 of ${loaded.length}.`);
+  await page.mouse.move(x, box.y - 60, { steps: 4 });
+  await expect(card.locator('.lmna-sections__drop')).toHaveCount(0);
+  await page.mouse.up();
+  expect(await names()).toEqual(loaded);
+
+  // Escape, then back over its own handle and let go: the click that ends it doesn't pick the row up.
+  await start();
+  await page.keyboard.press('Escape');
+  await page.mouse.move(x, box.y + box.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await expect(handle(name)).toHaveAttribute('aria-pressed', 'false');
+  expect(await names()).toEqual(loaded);
+  // A click of its own does.
+  await handle(name).click();
+  await expect(handle(name)).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
+});
+
 test('dragging a Home section near the window’s bottom edge scrolls the page', async ({ page, isMobile }) => {
   test.skip(isMobile, 'a mouse drag');
   await page.setViewportSize({ width: 1280, height: 560 });

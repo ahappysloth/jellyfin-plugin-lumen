@@ -285,6 +285,7 @@ export function AdminApp({
           lookups={admin.lookups}
           newId={newId}
           update={update}
+          busy={busy}
         />
         <RequestsSettings
           key={`requests-${revision}`}

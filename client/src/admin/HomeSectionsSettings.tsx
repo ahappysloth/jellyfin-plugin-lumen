@@ -57,7 +57,8 @@ let cardCount = 0;
  * Order: drag a row by its handle (mouse, pen or touch: pointer events). From the keyboard or a TV remote, Enter on the
  * handle picks the row up; the up and down arrows (or the ↑ ↓ buttons that show, for a tap or a screen reader) move it,
  * Enter puts it down, Escape (or Back) puts it back where it was. Each step is announced. Every change goes through
- * `update`, so the save bar and Discard see a row dragged away and back again as no change at all.
+ * `update`, so the save bar and Discard see a row dragged away and back again as no change at all. While a save is in
+ * flight (`busy`) `update` takes no changes, so rows don't move then: their move controls say so (aria-disabled).
  */
 export function HomeSectionsSettings({
   config,
@@ -65,12 +66,14 @@ export function HomeSectionsSettings({
   lookups,
   newId,
   update,
+  busy = false,
 }: {
   config: LumenConfig;
   types: SectionTypeDef[];
   lookups: Lookups;
   newId: () => string;
   update: (patch: Partial<LumenConfig>) => void;
+  busy?: boolean;
 }) {
   const sections = config.Sections;
   const [ids] = useState(() => `lmna-sections-${++cardCount}`);
@@ -87,8 +90,21 @@ export function HomeSectionsSettings({
   latest.current = sections;
   const movingRef = useRef(moving);
   movingRef.current = moving;
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   // The section whose handle a drag just ended on: the click that follows isn't a click on the handle.
   const dragged = useRef('');
+  // The drag in progress (its pointer still down, moved or not): how to end it, and how to only take it down.
+  const dragging = useRef<{ finish: (commit: boolean) => void; teardown: () => void } | null>(null);
+
+  // Unmounted mid-drag (Discard remounts the card): its window listeners go, and with them any way for it to change
+  // the list. Its list is from before; dropped now, it would bring back what was discarded.
+  useEffect(
+    () => () => {
+      dragging.current?.teardown();
+    },
+    [],
+  );
 
   const typeOf = (section: SectionDef): SectionTypeDef | undefined =>
     types.find((t) => t.Type === section.Type);
@@ -120,6 +136,8 @@ export function HomeSectionsSettings({
   }, [moving?.id]);
 
   const moveTo = (id: string, to: number, focus: PendingFocus['control']): void => {
+    // Saving: the move wouldn't happen, so it isn't announced either.
+    if (busy) return;
     const from = sections.findIndex((s) => s.Id === id);
     if (from < 0) return;
     const section = sections[from]!;
@@ -136,6 +154,7 @@ export function HomeSectionsSettings({
   };
 
   const pickUp = (index: number): void => {
+    if (busy) return;
     const section = sections[index]!;
     setMoving({ id: section.Id, from: index });
     setMessage(
@@ -162,6 +181,11 @@ export function HomeSectionsSettings({
     const section = sections[index];
     setMoving(null);
     if (!section) return;
+    // Saving, it can't go back: it's put down where it is (and saved there).
+    if (busy) {
+      setMessage(`${labelOf(section)} put down at ${position(index)}.`);
+      return;
+    }
     if (index !== moving.from) {
       pendingFocus.current = { id: section.Id, control: 'handle' };
       update({ Sections: moveSectionTo(sections, index, moving.from) });
@@ -171,20 +195,25 @@ export function HomeSectionsSettings({
 
   /**
    * A pointer went down on a row's handle. Once it has moved a few pixels this is a drag: the row follows the pointer,
-   * a line shows where it would land, and the page scrolls near the window's edges. Letting go puts it there; Escape or
-   * a cancelled pointer (the browser taking over the gesture) leaves the list as it was.
+   * a line shows where it would land, and the page scrolls near the window's edges. Letting go puts it there; Escape, a
+   * cancelled pointer (the browser taking over the gesture) or the window losing the pointer (a mouse button let go
+   * elsewhere: another window, a context menu) leaves the list as it was.
    */
   const startDrag = (e: PointerEvent, id: string): void => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (busy) return;
     const wrap = wrapRef.current;
     const row = (e.currentTarget as HTMLElement).closest<HTMLElement>('.lmna-section');
     if (!wrap || !row) return;
+    // One drag at a time: a second finger on another handle ends the first, as it was.
+    dragging.current?.finish(false);
     const from = latest.current.findIndex((s) => s.Id === id);
     const startY = e.clientY;
     // Where on the row it was grabbed, so the row keeps that point under the pointer.
     const grab = e.clientY - row.getBoundingClientRect().top;
     let y = e.clientY;
     let started = false;
+    let done = false;
     let current: Drag = { id, from, to: from, line: 0 };
     let frame = 0;
 
@@ -244,6 +273,12 @@ export function HomeSectionsSettings({
 
     const onMove = (ev: PointerEvent): void => {
       if (ev.pointerId !== e.pointerId) return;
+      // A mouse moving with no button down was let go where this window couldn't see it (alt-tab, a context menu
+      // taking the release): the drag is over, as it was. Otherwise it would follow the pointer until the next click.
+      if (ev.pointerType === 'mouse' && ev.buttons === 0) {
+        finish(false);
+        return;
+      }
       y = ev.clientY;
       if (!started) {
         if (Math.abs(y - startY) < DRAG_THRESHOLD) return;
@@ -256,21 +291,30 @@ export function HomeSectionsSettings({
       if (!frame) frame = requestAnimationFrame(tick);
     };
 
-    const finish = (commit: boolean): void => {
+    /** Takes the drag down without touching the list: its listeners, its frame, the rows' offsets. */
+    const teardown = (): void => {
+      if (done) return;
+      done = true;
+      if (dragging.current?.teardown === teardown) dragging.current = null;
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onCancel);
       window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('blur', onLost);
+      window.removeEventListener('contextmenu', onLost);
       cancelAnimationFrame(frame);
       if (!started) return;
-      // The click a drag ends with (dispatched straight after pointerup) isn't a click on the handle.
-      dragged.current = id;
-      setTimeout(() => {
-        dragged.current = '';
-      });
       document.documentElement.classList.remove('lmna-dragging');
       row.style.transform = '';
       for (const r of others()) r.style.transform = '';
+    };
+
+    /** Ends the drag: `commit`, it lands where the line is (unless a save has started since); otherwise as it was. */
+    const finish = (commit: boolean, released = false): void => {
+      if (done) return;
+      teardown();
+      if (!started) return;
+      suppressClick(id, released ? null : e.pointerId);
       setDrag(null);
       const list = latest.current;
       const index = list.findIndex((s) => s.Id === id);
@@ -280,29 +324,65 @@ export function HomeSectionsSettings({
         section,
         types.find((t) => t.Type === section.Type),
       );
-      if (commit && current.to !== index) {
+      // Saving, `update` would take no change: it's put back rather than said to have moved.
+      if (commit && !busyRef.current && current.to !== index) {
+        // Moved, the row is taken out of the page and put back: focus goes back to its handle, as from the keyboard.
+        pendingFocus.current = { id, control: 'handle' };
         update({ Sections: moveSectionTo(list, index, current.to) });
         setMessage(`${label} moved to position ${current.to + 1} of ${list.length}.`);
-      } else if (!commit) {
+      } else if (!commit || current.to !== index) {
         setMessage(`Move cancelled. ${label} is back at position ${index + 1} of ${list.length}.`);
       }
     };
     const onUp = (ev: PointerEvent): void => {
-      if (ev.pointerId === e.pointerId) finish(true);
+      if (ev.pointerId === e.pointerId) finish(true, true);
     };
     const onCancel = (ev: PointerEvent): void => {
-      if (ev.pointerId === e.pointerId) finish(false);
+      if (ev.pointerId === e.pointerId) finish(false, true);
     };
+    const onLost = (): void => finish(false);
     const onKey = (ev: KeyboardEvent): void => {
       if (!started || !isBackKey(ev)) return;
       ev.preventDefault();
       ev.stopPropagation();
       finish(false);
     };
+    dragging.current = { finish, teardown };
     window.addEventListener('pointermove', onMove, { passive: false });
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onCancel);
     window.addEventListener('keydown', onKey, true);
+    // The window losing focus (alt-tab) takes the pointer with it. So does a mouse's context menu; a long press of a
+    // finger may bring one too, but there it's the drag's own gesture.
+    window.addEventListener('blur', onLost);
+    if (e.pointerType === 'mouse') window.addEventListener('contextmenu', onLost);
+  };
+
+  /**
+   * After a drag (dropped or cancelled), the click its pointer ends with isn't a click on the handle: it would pick the
+   * row up. `pointerId` null: the pointer is up already, and the click is dispatched straight after. Otherwise (Escape,
+   * the window losing the pointer) it's ignored until that pointer goes up, or another one goes down.
+   */
+  const suppressClick = (id: string, pointerId: number | null): void => {
+    dragged.current = id;
+    const clear = (): void => {
+      setTimeout(() => {
+        if (dragged.current === id) dragged.current = '';
+      });
+    };
+    if (pointerId === null) {
+      clear();
+      return;
+    }
+    const onEnd = (ev: PointerEvent): void => {
+      if (ev.type === 'pointerup' && ev.pointerId !== pointerId) return;
+      window.removeEventListener('pointerup', onEnd, true);
+      window.removeEventListener('pointerdown', onEnd, true);
+      if (ev.type === 'pointerdown') dragged.current = '';
+      else clear();
+    };
+    window.addEventListener('pointerup', onEnd, true);
+    window.addEventListener('pointerdown', onEnd, true);
   };
 
   const remove = (index: number): void => {
@@ -338,6 +418,7 @@ export function HomeSectionsSettings({
               open={!!open[section.Id]}
               moving={moving?.id === section.Id}
               dragging={drag?.id === section.Id}
+              busy={busy}
               onToggleOpen={() => setOpen((o) => ({ ...o, [section.Id]: !o[section.Id] }))}
               onChange={(s) => update({ Sections: sections.map((x) => (x.Id === s.Id ? s : x)) })}
               onRemove={() => remove(index)}
@@ -400,6 +481,8 @@ function SectionRow(props: {
   open: boolean;
   moving: boolean;
   dragging: boolean;
+  /** A save is in flight: the row can't be moved (its move controls are aria-disabled, still focusable). */
+  busy: boolean;
   onToggleOpen: () => void;
   onChange: (section: SectionDef) => void;
   onRemove: () => void;
@@ -456,6 +539,7 @@ function SectionRow(props: {
           aria-label={`Move ${label}`}
           aria-describedby={props.hintId}
           aria-pressed={moving}
+          aria-disabled={props.busy || undefined}
           title="Drag to move, or press Enter"
           onPointerDown={props.onPointerDown}
           onClick={props.onHandleClick}
@@ -472,6 +556,7 @@ function SectionRow(props: {
               aria-label={`Move ${label} up`}
               title="Move up"
               disabled={index === 0}
+              aria-disabled={props.busy || undefined}
               onClick={() => props.onMove(index - 1, 'up')}
               onKeyDown={(e) => onMoveKey(e, 'up')}
             >
@@ -484,6 +569,7 @@ function SectionRow(props: {
               aria-label={`Move ${label} down`}
               title="Move down"
               disabled={index === count - 1}
+              aria-disabled={props.busy || undefined}
               onClick={() => props.onMove(index + 1, 'down')}
               onKeyDown={(e) => onMoveKey(e, 'down')}
             >

@@ -280,6 +280,8 @@ html[data-lmn-skin] .dialogContainer .emby-button.raised.button-delete {
  * left, the answers at the bottom right, Cancel grey and Delete filled in Lumen's red. jellyfin-web fills the screen
  * with it below 80em × 45em (.dialog-fullscreen-lowres) and on a TV (.dialog-fullscreen), both with !important, hence
  * these. dialog.js is the only one that centres a .formDialog's content (.align-items-center), so nothing else changes.
+ * It backs every dialog.show() too: one answer (alert()), two (Delete's Cancel and Delete), three (Live TV's Keep
+ * recording, Stop or Cancel recording, Cancel series), and answers with a line under each (.formDialogFooter-vertical).
  */
 html[data-lmn-skin] .dialog.formDialog.align-items-center {
   position: relative !important;
@@ -331,35 +333,62 @@ html[data-lmn-skin] .dialog.formDialog.align-items-center .text {
   font-size: 15px;
   line-height: 1.5;
 }
+/* The answers wrap rather than run out of the panel: those that don't fit go on a line of their own. Each has 5px
+   round it and the footer takes 5px back, so they're 10px apart on a line and between lines alike (no flex gap in
+   Chromium 68). */
 html[data-lmn-skin] .dialog.formDialog.align-items-center .formDialogFooter {
   position: static;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   width: auto;
-  margin: 0 !important;
+  margin: -5px !important;
   padding: 0;
   background: none !important;
 }
-/* Lumen's buttons (.lmn-button): 44px, 8px corners; a margin between them, not gap (Chromium 68). */
-html[data-lmn-skin] .dialog.formDialog.align-items-center .formDialogFooterItem {
+/* Lumen's buttons (.lmn-button): 44px, 8px corners. A long answer's label may take two lines rather than spill out. */
+html[data-lmn-skin] .dialog.formDialog.align-items-center .formDialogFooter .btnOption {
   flex: none;
   justify-content: center;
-  min-width: 0;
-  max-width: none;
-  height: 44px;
+  max-width: calc(100% - 10px);
+  height: auto;
   min-height: 44px;
-  margin: 0 !important;
-  padding: 0 22px;
+  margin: 5px !important;
+  padding: 10px 22px;
   text-align: center;
   border: 0;
   border-radius: 8px !important;
   font-size: 15px;
   font-weight: 600;
-  line-height: 1;
+  line-height: 1.2;
 }
-html[data-lmn-skin] .dialog.formDialog.align-items-center .formDialogFooterItem + .formDialogFooterItem {
-  margin-left: 10px !important;
+/* Three answers or more (Live TV's cancel-recording prompt), or a line under each: one under the other, full width, in
+   jellyfin-web's order (its first is the safe one, and focused). */
+html[data-lmn-skin]
+  .dialog.formDialog.align-items-center
+  .formDialogFooter
+  .btnOption:first-child:nth-last-child(n + 3),
+html[data-lmn-skin]
+  .dialog.formDialog.align-items-center
+  .formDialogFooter
+  .btnOption:first-child:nth-last-child(n + 3)
+  ~ .btnOption {
+  flex: 1 1 100%;
+}
+html[data-lmn-skin] .dialog.formDialog.align-items-center .formDialogFooter-vertical {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  width: auto !important;
+}
+html[data-lmn-skin] .dialog.formDialog.align-items-center .formDialogFooter-vertical .btnOption {
+  width: auto;
+  max-width: none !important;
+}
+html[data-lmn-skin] .dialog.formDialog.align-items-center .formDialogFooter-vertical .fieldDescription {
+  margin: 0 5px 12px !important;
+  color: var(--lmn-text-2);
+  text-align: left;
 }
 html[data-lmn-skin] .dialog.formDialog.align-items-center .emby-button.button-cancel {
   background: rgba(109, 109, 110, 0.7) !important;
@@ -389,13 +418,14 @@ html[data-lmn-skin] .dialog.formDialog.align-items-center .emby-button:focus-vis
 html.layout-tv[data-lmn-skin] .dialog.formDialog.align-items-center .emby-button:focus {
   transform: none;
 }
-/* Phones: the two answers share the row, each easy to hit. */
+/* Phones: two answers share the row, each easy to hit, and each as wide as its label at least (one too long for that
+   goes on a line of its own, full width). */
 @media (max-width: 480px) {
   html[data-lmn-skin] .dialog.formDialog.align-items-center {
     padding: 24px 20px 20px;
   }
-  html[data-lmn-skin] .dialog.formDialog.align-items-center .formDialogFooterItem {
-    flex: 1 1 0;
+  html[data-lmn-skin] .dialog.formDialog.align-items-center .formDialogFooter .btnOption {
+    flex: 1 1 auto;
   }
 }
 
