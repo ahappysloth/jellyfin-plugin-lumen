@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { CatalogMediaType } from '../../api/types';
+import type { CatalogItem, CatalogMediaType } from '../../api/types';
 import { LoadError } from '../../components/LoadError';
+import { showToast } from '../../components/Toast';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { strings } from '../../strings';
 import { reloadIfReachable } from '../../util/reloadPage';
@@ -104,4 +105,28 @@ export function LazyTitleView(props: Props) {
     );
   }
   return <div class="lmn-details lmn-details--loading" aria-busy="true" />;
+}
+
+/**
+ * A card's request dialog (QuickRequest), whose code comes with the title page's. Nothing shows until it's in (it's
+ * usually prefetched by then); if it can't load, a toast says so and the dialog closes.
+ */
+export function LazyQuickRequest(props: { item: CatalogItem; ctx: ViewContext; onClose: () => void }) {
+  const [module, setModule] = useState<TitleModule | null>(loaded);
+  useEffect(() => {
+    if (module) return;
+    let cancelled = false;
+    withTimeout(loadTitle(), VIEW_TIMEOUT_MS).then(
+      (m) => !cancelled && setModule(m),
+      () => {
+        if (cancelled) return;
+        showToast(strings.loadFailed);
+        props.onClose();
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return module ? <module.QuickRequest {...props} /> : null;
 }

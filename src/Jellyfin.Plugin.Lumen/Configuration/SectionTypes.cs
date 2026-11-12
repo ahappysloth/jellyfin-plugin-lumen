@@ -16,4 +16,6 @@ public static class SectionTypes
     public const string CatalogPopularShows = "CatalogPopularShows";
     public const string CatalogUpcoming = "CatalogUpcoming";
     public const string MyRequests = "MyRequests";
+    public const string Top10Movies = "Top10Movies";
+    public const string Top10Shows = "Top10Shows";
 }

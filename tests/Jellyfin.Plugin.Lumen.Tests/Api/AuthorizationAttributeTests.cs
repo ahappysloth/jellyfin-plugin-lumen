@@ -34,6 +34,14 @@ public class AuthorizationAttributeTests
     }
 
     [Fact]
+    public void TraktAdminController_RequiresElevation()
+    {
+        var attribute = Assert.Single(typeof(TraktAdminController).GetCustomAttributes<AuthorizeAttribute>());
+
+        Assert.Equal(Policies.RequiresElevation, attribute.Policy);
+    }
+
+    [Fact]
     public void HomeController_RequiresAuthentication()
     {
         var attribute = Assert.Single(typeof(HomeController).GetCustomAttributes<AuthorizeAttribute>());

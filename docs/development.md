@@ -63,7 +63,7 @@ Day to day:
 
 ## Seerr in tests
 
-The request features talk to Seerr. End-to-end tests never use a real one: Playwright starts `e2e/support/stub-seerr.mjs` on port 5055, which fakes the few Seerr endpoints Lumen calls and TMDB's image CDN. The Jellyfin server reaches it at `LUMEN_E2E_SEERR_URL` (`host.docker.internal:5055` when Jellyfin runs in Docker), and `LUMEN_TMDB_IMAGE_BASE` points Lumen's image proxy at it. `docker-dev.sh e2e` and `e2e-local.sh` set both, and `docker-dev.sh` restarts the server without the image override afterwards. Port 5055 must be free while the tests run, or set `LUMEN_STUB_SEERR_PORT` to run the stub on another port (and point `LUMEN_E2E_SEERR_URL` and `LUMEN_TMDB_IMAGE_BASE` at it).
+The request features talk to Seerr. End-to-end tests never use a real one: Playwright starts `e2e/support/stub-seerr.mjs` on port 5055, which fakes the few Seerr endpoints Lumen calls and TMDB's image CDN. The Jellyfin server reaches it at `LUMEN_E2E_SEERR_URL` (`host.docker.internal:5055` when Jellyfin runs in Docker), and `LUMEN_TMDB_IMAGE_BASE` points Lumen's image proxy at it. The stub also stands in for Trakt's weekly lists behind the Top 10 rows (`/trakt/…`), where `LUMEN_TRAKT_API_BASE` points Lumen's Trakt client. `docker-dev.sh e2e` and `e2e-local.sh` set all three, and `docker-dev.sh` restarts the server without the image and Trakt overrides afterwards. Port 5055 must be free while the tests run, or set `LUMEN_STUB_SEERR_PORT` to run the stub on another port (and point `LUMEN_E2E_SEERR_URL`, `LUMEN_TMDB_IMAGE_BASE` and `LUMEN_TRAKT_API_BASE` at it).
 
 ## jellyfin-web internals
 

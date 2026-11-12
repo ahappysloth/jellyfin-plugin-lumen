@@ -7,6 +7,7 @@ using Jellyfin.Plugin.Lumen.Home.Providers;
 using Jellyfin.Plugin.Lumen.Injection;
 using Jellyfin.Plugin.Lumen.Requests;
 using Jellyfin.Plugin.Lumen.Storage;
+using Jellyfin.Plugin.Lumen.Top10;
 using Jellyfin.Plugin.Lumen.Updates;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
@@ -19,7 +20,7 @@ namespace Jellyfin.Plugin.Lumen;
 /// <summary>Registers Lumen services with Jellyfin's web host container.</summary>
 public sealed class ServiceRegistrator : IPluginServiceRegistrator
 {
-    /// <summary>Sent with every Seerr and TMDB call, so their logs show who is calling.</summary>
+    /// <summary>Sent with every Seerr, TMDB and Trakt call, so their logs show who is calling.</summary>
     internal static readonly ProductInfoHeaderValue UserAgent =
         new("Jellyfin-Plugin-Lumen", typeof(LumenPlugin).Assembly.GetName().Version?.ToString(3) ?? "0");
 
@@ -62,6 +63,12 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<CatalogMapper>();
         serviceCollection.AddSingleton<CatalogRowAccess>();
 
+        // Trakt's key is a custom header too, so the same rule: no redirects (TraktClient reports one as an error).
+        serviceCollection.AddHttpClient(TraktClient.HttpClientName, client => client.DefaultRequestHeaders.UserAgent.Add(UserAgent))
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false });
+        serviceCollection.AddSingleton<ITraktClient, TraktClient>();
+        serviceCollection.AddSingleton<ITop10Lists, Top10Lists>();
+
         serviceCollection.AddSingleton<IHomeSectionProvider, ContinueWatchingProvider>();
         serviceCollection.AddSingleton<IHomeSectionProvider, NextUpProvider>();
         serviceCollection.AddSingleton<IHomeSectionProvider, RecentlyAddedProvider>();
@@ -75,5 +82,7 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IHomeSectionProvider, CatalogPopularShowsProvider>();
         serviceCollection.AddSingleton<IHomeSectionProvider, CatalogUpcomingProvider>();
         serviceCollection.AddSingleton<IHomeSectionProvider, MyRequestsProvider>();
+        serviceCollection.AddSingleton<IHomeSectionProvider, Top10MoviesProvider>();
+        serviceCollection.AddSingleton<IHomeSectionProvider, Top10ShowsProvider>();
     }
 }

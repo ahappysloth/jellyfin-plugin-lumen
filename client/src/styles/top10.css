@@ -1,0 +1,124 @@
+/* ---- Top 10 rows (views/home/Top10Item.tsx) --------------------------------------------------------------------- */
+/* Each poster stands beside its rank: a tall numeral lit from above, bright at the top and falling off into a faint
+   silhouette at the poster's foot, the way light falls off a lit surface. Focus or hover on the card lets the light
+   run down into the accent. The numeral is decoration (aria-hidden); the card's name carries the rank. (No outline
+   stroke: system fonts' digits have overlapping contours that a stroke draws.) */
+.lmn-row--top10 {
+  --lmn-top10-w: 172px;
+}
+/* The arrows sit over the posters' art. */
+.lmn-row--top10 .lmn-row__arrow {
+  height: calc(var(--lmn-top10-w) * 1.5);
+}
+.lmn-top10 {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  /* On top of the row's 6px gap, and all of the space where flex gap is missing (Chromium 68, Safari 13): a numeral
+     must not sit against the poster before it. */
+  margin-right: 8px;
+}
+.lmn-top10__rank {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-end;
+  /* As tall as the poster's art, the numeral's foot on the art's foot. */
+  height: calc(var(--lmn-top10-w) * 1.5);
+  margin-right: 2px;
+  font-size: calc(var(--lmn-top10-w) * 0.9);
+  font-weight: 600;
+  letter-spacing: -0.06em;
+  line-height: 0.72;
+  /* Browsers without background-clip: text show a plain, dim numeral. */
+  color: rgba(255, 255, 255, 0.55);
+  /* The light, over the silhouette (both cut to the numeral's shape). */
+  background:
+    linear-gradient(
+        180deg,
+        #fff 0%,
+        rgba(255, 255, 255, 0.82) 30%,
+        rgba(255, 255, 255, 0.16) 72%,
+        rgba(255, 255, 255, 0) 100%
+      )
+      bottom / 100% calc(var(--lmn-top10-w) * 0.66) no-repeat,
+    linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* Two digits share the width of about one and a half. */
+.lmn-top10--wide .lmn-top10__rank {
+  letter-spacing: -0.12em;
+  padding-right: 0.06em;
+}
+.lmn-top10:focus-within .lmn-top10__rank {
+  background-image:
+    linear-gradient(180deg, #fff 0%, rgba(255, 255, 255, 0.85) 30%, var(--lmn-accent) 100%),
+    linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1));
+}
+/* Not on touch screens, where a tapped card would keep its "hover". */
+@media (hover: hover) {
+  .lmn-top10:hover .lmn-top10__rank {
+    background-image:
+      linear-gradient(180deg, #fff 0%, rgba(255, 255, 255, 0.85) 30%, var(--lmn-accent) 100%),
+      linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1));
+  }
+}
+.lmn-top10__card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.lmn-top10 .lmn-card--poster {
+  width: var(--lmn-top10-w);
+}
+/* Under the card, not over its art: the TV's D-pad reaches it with Down from the card. */
+.lmn-top10__request {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  margin: 10px 2px 0;
+  padding: 0 14px 0 10px;
+  border: 1.5px solid rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s;
+}
+.lmn-top10__request > svg {
+  /* Not flex gap: Chromium 68 and Safari 13 don't have it. */
+  margin-right: 6px;
+}
+.lmn-top10__request:hover {
+  border-color: var(--lmn-accent);
+  background: var(--lmn-accent);
+}
+.lmn-top10__request:focus-visible {
+  outline: 2px solid var(--lmn-focus);
+  outline-offset: 2px;
+}
+.layout-tv .lmn-top10__request:focus {
+  border-color: var(--lmn-accent);
+  outline: 3px solid var(--lmn-focus);
+  outline-offset: 3px;
+  background: var(--lmn-accent);
+}
+
+/* Phones: smaller posters, so more than one rank shows at a time. */
+@media (max-width: 720px) {
+  .lmn-row--top10 {
+    --lmn-top10-w: 124px;
+  }
+  .lmn-row--top10 .lmn-row__scroller {
+    gap: 10px;
+  }
+}

@@ -66,10 +66,12 @@ jobs:
           VERSION=$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props)
           mkdir -p "config/plugins/Lumen_$VERSION" cache
           cp plugin/Jellyfin.Plugin.Lumen.dll "config/plugins/Lumen_$VERSION/"
-          # The stub Seerr (started by Playwright on this runner) is reached via host.docker.internal.
+          # The stub Seerr (started by Playwright on this runner), which also stands in for TMDB's images and Trakt, is
+          # reached via host.docker.internal.
           docker run -d --name jellyfin -p 8096:8096 \
             --add-host=host.docker.internal:host-gateway \
             -e LUMEN_TMDB_IMAGE_BASE=http://host.docker.internal:5055/t/p \
+            -e LUMEN_TRAKT_API_BASE=http://host.docker.internal:5055/trakt \
             -v "$PWD/config:/config" -v "$PWD/cache:/cache" -v "$PWD/media:/media:ro" \
             "${{ inputs.jellyfin-image }}"
       - uses: actions/setup-node@v7

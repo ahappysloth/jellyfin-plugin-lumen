@@ -8,6 +8,7 @@ import { imageUrl, resolveImage } from '../../components/images';
 import { strings } from '../../strings';
 import type { CardMenuHandler } from '../cardMenu';
 import { CatalogCard } from '../catalog/CatalogCard';
+import { Top10Items, isTop10Row } from './Top10Item';
 
 export function captionFor(item: BaseItem): string | undefined {
   if (item.Type !== 'Episode') return undefined;
@@ -24,9 +25,13 @@ interface Props {
   onMenu?: CardMenuHandler;
   /** A title from Seerr's catalog (only in catalog rows). */
   onSelectCatalog?: (item: CatalogItem) => void;
+  /** Whether the user may request this catalog title; Top 10 rows then show a Request button that calls onRequest. */
+  canRequest?: (item: CatalogItem) => boolean;
+  onRequest?: (item: CatalogItem) => void;
 }
 
-export function Row({ row, client, catalogImageToken, badges, onSelect, onMenu, onSelectCatalog }: Props) {
+export function Row(props: Props) {
+  const { row, client, catalogImageToken, badges, onSelect, onMenu, onSelectCatalog } = props;
   const scroller = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ start: true, end: true });
   useDragScroll(scroller);
@@ -53,8 +58,15 @@ export function Row({ row, client, catalogImageToken, badges, onSelect, onMenu, 
     el?.scrollBy({ left: direction * el.clientWidth * 0.85, behavior: reduced ? 'auto' : 'smooth' });
   };
   const genres = row.Type === 'Genres';
+  // Top 10 rows rank their cards (Top10Item); the other rows' cards below are left out for them.
+  const top10 = isTop10Row(row);
+  const entries = top10 ? null : row.Entries;
   return (
-    <section class={`lmn-row${genres ? ' lmn-row--genres' : ''}`} aria-label={row.Title} data-row-id={row.Id}>
+    <section
+      class={`lmn-row${genres ? ' lmn-row--genres' : ''}${top10 ? ' lmn-row--top10' : ''}`}
+      aria-label={row.Title}
+      data-row-id={row.Id}
+    >
       <h2 class="lmn-row__title">{row.Title}</h2>
       <div class="lmn-row__viewport">
         <button
@@ -70,8 +82,9 @@ export function Row({ row, client, catalogImageToken, badges, onSelect, onMenu, 
           </span>
         </button>
         <div ref={scroller} class="lmn-row__scroller focuscontainer-x">
-          {row.Entries
-            ? row.Entries.map((entry) =>
+          {top10 && <Top10Items {...props} />}
+          {entries
+            ? entries.map((entry) =>
                 entry.Catalog ? (
                   <CatalogCard
                     key={entry.Catalog.Key}
@@ -94,7 +107,7 @@ export function Row({ row, client, catalogImageToken, badges, onSelect, onMenu, 
                   />
                 ) : null,
               )
-            : row.Items.map((item) =>
+            : (top10 ? [] : row.Items).map((item) =>
                 genres ? (
                   <GenreTile
                     key={item.Id}

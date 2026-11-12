@@ -41,6 +41,9 @@ public interface ISeerrClient
     /// </summary>
     Task<SeerrPage> DiscoverAsync(SeerrEndpoint endpoint, int seerrUserId, SeerrDiscoverList list, CancellationToken cancellationToken);
 
+    /// <summary>A later page of a discover list (cached like <see cref="DiscoverAsync"/>, which is page 1).</summary>
+    Task<SeerrPage> DiscoverPageAsync(SeerrEndpoint endpoint, int seerrUserId, SeerrDiscoverList list, int page, CancellationToken cancellationToken);
+
     /// <summary>The user's 20 most recent requests, newest first (no title or art; see <see cref="GetTitleSummaryAsync"/>).</summary>
     Task<IReadOnlyList<SeerrUserRequest>> GetUserRequestsAsync(SeerrEndpoint endpoint, int seerrUserId, CancellationToken cancellationToken);
 

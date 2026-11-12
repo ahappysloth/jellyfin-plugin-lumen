@@ -37,6 +37,22 @@ Run against the release build on the latest stable Jellyfin.
 - [ ] With an MKV trailer holding H.264: no preview on home; on details it starts promptly (remuxed to MP4, not the
       whole file loaded first).
 
+## Top 10 rows (Trakt and Seerr)
+
+Add Top 10 Movies and Top 10 Shows under Home sections first.
+
+- [ ] With a real Trakt Client ID (trakt.tv/oauth/applications) in Settings → Top 10, Check key names this week's most
+      watched movie; a mistyped key says Trakt rejected it. The field never shows the saved key, only "Saved", and
+      Remove key + Save clears it.
+- [ ] Home shows both rows with big numerals beside the posters, in Trakt's order. Titles the server has open their
+      details page and play; with Seerr, the rest show Request under the card, and Request opens the request dialog on
+      home (a show lists its seasons). After requesting, the card says Requested and the button goes.
+- [ ] Without Seerr, only titles the server has show, numbered 1, 2, 3… with no gaps. Without a Trakt key (but with
+      Seerr), the rows rank Seerr's trending movies and shows. With neither, the rows don't appear.
+- [ ] A user with parental controls or limited library access never sees a library card they can't open.
+- [ ] TV layout: the arrows reach every card, and Down from an unowned card reaches its Request button. A screen reader
+      reads each card as "1, Title", not the numeral on its own.
+
 ## Home-screen app (iPhone Safari, Android Chrome)
 
 Automated tests check the page's tags, the manifest and the icons, and the layout with a simulated status bar; only a

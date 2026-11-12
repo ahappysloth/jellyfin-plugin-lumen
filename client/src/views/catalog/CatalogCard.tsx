@@ -13,17 +13,22 @@ interface Props {
   imageToken: string | null | undefined;
   variant: CardVariant;
   onSelect: (item: CatalogItem) => void;
+  /** A Top 10 card's place, read before its title (the big numeral beside it is decoration). */
+  rank?: number;
+  /** Leaves out the outlined "Request" tab (a Top 10 card has a Request button under it instead). */
+  hideRequestTab?: boolean;
 }
 
 /**
  * A title from Seerr's catalog in Lumen's card style, with a tab for its request state: an outlined "Request", or a
  * filled "Requested" / "Downloading" / "Partial" (partly available).
  */
-export function CatalogCard({ item, client, imageToken, variant, onSelect }: Props) {
+export function CatalogCard({ item, client, imageToken, variant, onSelect, rank, hideRequestTab }: Props) {
   const state = useCatalogState(item);
   // Most open the title page, whose code loads on its own (lazyTitle.tsx): have it ready.
   useEffect(prefetchTitle, []);
-  const label = item.JellyfinItemId ? null : stateLabel(state);
+  // A Top 10 card's Request is the button under it, not the card (which opens the title): its name doesn't say Request.
+  const label = item.JellyfinItemId || (hideRequestTab && state === 'None') ? null : stateLabel(state);
   // The tab has a phone poster's width at most: one short line ("Partly available" wrapped to two). The card's name
   // keeps the full label.
   const tab = state === 'PartlyAvailable' ? strings.partlyAvailableShort : label;
@@ -36,7 +41,9 @@ export function CatalogCard({ item, client, imageToken, variant, onSelect }: Pro
       type="button"
       class={`lmn-card lmn-card--${variant} lmn-card--catalog`}
       data-catalog-key={item.Key}
-      aria-label={label ? `${item.Title}, ${label}` : item.Title}
+      aria-label={
+        (rank === undefined ? '' : strings.rankOf(rank)) + (label ? `${item.Title}, ${label}` : item.Title)
+      }
       onClick={() => onSelect(item)}
     >
       <span class="lmn-card__art">

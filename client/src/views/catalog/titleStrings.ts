@@ -21,6 +21,7 @@ export const titleStrings = {
   requestPending: 'Requested, waiting for approval.',
   requestFailed: "Couldn't send the request. Try again.",
   titleFailed: "Couldn't load this title from Seerr.",
+  loadingTitle: 'Loading…',
   watchTrailer: 'Trailer',
   openInLibrary: 'Open in library',
   runtimeMinutes: (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`),
