@@ -77,11 +77,12 @@ describe('Top 10 rows', () => {
       />,
     );
 
-    // Only the title not yet requested gets the button, and then its card's own "Request" tab is left out.
+    // Only the title not yet requested gets the button, and then its card's own "Request" tab is left out, from its
+    // name too: the card opens the title, and only the button requests it.
     const buttons = screen.getAllByRole('button', { name: /^Request / });
     expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(['Request The Matrix']);
     expect(
-      screen.getByRole('button', { name: '2, The Matrix, Request' }).querySelector('.lmn-card__state'),
+      screen.getByRole('button', { name: '2, The Matrix' }).querySelector('.lmn-card__state'),
     ).toBeNull();
     expect(
       screen.getByRole('button', { name: '3, Reloaded, Requested' }).querySelector('.lmn-card__state'),
@@ -89,7 +90,7 @@ describe('Top 10 rows', () => {
 
     fireEvent.click(buttons[0]!);
     expect(onRequest).toHaveBeenCalledWith(matrix);
-    fireEvent.click(screen.getByRole('button', { name: '2, The Matrix, Request' }));
+    fireEvent.click(screen.getByRole('button', { name: '2, The Matrix' }));
     expect(onSelectCatalog).toHaveBeenCalledWith(matrix);
     fireEvent.click(screen.getByRole('link', { name: '1, Alpha' }));
     expect(onSelect).toHaveBeenCalledWith(top10.Entries![0]!.Item, top10);

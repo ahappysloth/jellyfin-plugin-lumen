@@ -31,6 +31,12 @@ public sealed class TraktAdminController : ControllerBase
             return new TraktTestResultDto(false, null, "Paste a Trakt Client ID first.");
         }
 
+        // Checked before it goes in a header: a pasted key with a line break inside would otherwise fail as a 500.
+        if (!ConfigValidator.IsTraktKey(key))
+        {
+            return new TraktTestResultDto(false, null, "That doesn't look like a Trakt Client ID (trakt.tv/oauth/applications).");
+        }
+
         try
         {
             var titles = await _trakt.GetWeeklyWatchedAsync(key, TraktListKind.Movies, 1, cancellationToken).ConfigureAwait(false);

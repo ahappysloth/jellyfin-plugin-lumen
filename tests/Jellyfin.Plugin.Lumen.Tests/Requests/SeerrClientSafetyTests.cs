@@ -1,5 +1,6 @@
 using System.Net;
 using Jellyfin.Plugin.Lumen.Requests;
+using Jellyfin.Plugin.Lumen.Top10;
 using MediaBrowser.Controller;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -76,6 +77,35 @@ public sealed class SeerrClientSafetyTests : IDisposable
         Assert.Equal(0, elsewhereHits);
         Assert.Null(keySeenElsewhere);
         Assert.StartsWith("Jellyfin-Plugin-Lumen/", userAgent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheRegisteredTraktClient_NeverFollowsARedirect_SoTheKeyStaysWithTrakt()
+    {
+        string? keySeenElsewhere = null;
+        var elsewhereHits = 0;
+        await using var elsewhere = await StartServerAsync(context =>
+        {
+            Interlocked.Increment(ref elsewhereHits);
+            keySeenElsewhere = context.Request.Headers["trakt-api-key"];
+            return context.Response.WriteAsync("[]");
+        });
+        await using var trakt = await StartServerAsync(context =>
+        {
+            context.Response.Redirect(elsewhere.Urls.First() + "/movies/watched/weekly");
+            return Task.CompletedTask;
+        });
+
+        var services = new ServiceCollection().AddLogging();
+        new ServiceRegistrator().RegisterServices(services, Substitute.For<IServerApplicationHost>());
+        await using var provider = services.BuildServiceProvider();
+        var client = new TraktClient(provider.GetRequiredService<IHttpClientFactory>()) { BaseUrl = new Uri(trakt.Urls.First() + "/") };
+
+        var error = await Assert.ThrowsAsync<TraktException>(() => client.GetWeeklyWatchedAsync("secret-client-id", TraktListKind.Movies, 10, CancellationToken.None));
+
+        Assert.Equal(HttpStatusCode.Redirect, error.Status);
+        Assert.Equal(0, elsewhereHits);
+        Assert.Null(keySeenElsewhere);
     }
 
     [Fact]

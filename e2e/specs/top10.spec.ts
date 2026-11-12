@@ -79,7 +79,7 @@ test('Top 10 ranks Trakt’s weekly titles: the ones here open their page, the r
   const movies = page.getByRole('region', { name: 'Top 10 Movies This Week' });
   // In Trakt's order; the title Seerr doesn't know is left out, and the ranks close up.
   await expect(movies.getByRole('link', { name: '1, Lumen Beta' })).toBeVisible();
-  await expect(movies.getByRole('button', { name: '2, The Matrix, Request' })).toBeVisible();
+  await expect(movies.getByRole('button', { name: '2, The Matrix' })).toBeVisible();
   await expect(movies.getByRole('link', { name: '3, Lumen Alpha' })).toBeVisible();
   await expect(movies.getByRole('button', { name: '4, The Matrix Reloaded, Requested' })).toBeVisible();
   expect(await numerals(movies)).toEqual(['1', '2', '3', '4']);
@@ -129,7 +129,7 @@ test('without a Trakt key, Top 10 ranks Seerr’s trending titles instead', asyn
 
   // The stub's trending list: The Matrix, Lumen Saga and a person.
   const movies = page.getByRole('region', { name: 'Top 10 Movies This Week' });
-  await expect(movies.getByRole('button', { name: '1, The Matrix, Request' })).toBeVisible();
+  await expect(movies.getByRole('button', { name: '1, The Matrix' })).toBeVisible();
   expect(await numerals(movies)).toEqual(['1']);
   await expect(
     page.getByRole('region', { name: 'Top 10 Shows This Week' }).getByRole('button', { name: '1, Lumen Saga, Partly available' }),
@@ -187,7 +187,7 @@ test.describe('TV layout', () => {
     expect(unreachable.map((c) => c.name)).toEqual([]);
 
     // Down from the card reaches its Request button, and OK on it opens the dialog.
-    await movies.getByRole('button', { name: '2, The Matrix, Request' }).focus();
+    await movies.getByRole('button', { name: '2, The Matrix' }).focus();
     await page.keyboard.press('ArrowDown');
     await expect(movies.getByRole('button', { name: 'Request The Matrix' })).toBeFocused();
     await page.keyboard.press('Enter');

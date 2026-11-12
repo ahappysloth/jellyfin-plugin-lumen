@@ -153,6 +153,22 @@ public class Top10ProvidersTests
     }
 
     [Fact]
+    public async Task Trakt_SeerrDown_StillShowsOwnedTitlesFromFurtherDown()
+    {
+        // Trakt's top 15 aren't here and Seerr can't describe any of them; #16 and #22 are owned.
+        var sixteenth = Movie("Sixteenth", tmdb: "16");
+        var twentySecond = Movie("Twenty-second", tmdb: "22");
+        _owned = [twentySecond, sixteenth];
+        Trakt(TraktListKind.Movies, Enumerable.Range(1, 40).Select(i => new TraktTitle("T" + i, 2026, i, null)).ToArray());
+        _seerr.GetTitleSummaryAsync(default!, default, default!, default, default)
+            .ReturnsForAnyArgs<SeerrTitle>(_ => throw new SeerrException("down", System.Net.HttpStatusCode.ServiceUnavailable));
+
+        var row = Assert.Single(await Rows(SectionTypes.Top10Movies));
+
+        Assert.Equal([sixteenth, twentySecond], row.Entries!.Select(e => e.Item));
+    }
+
+    [Fact]
     public async Task Trakt_ATitleSeerrKnowsIsHere_IsTheLibraryItem_Once()
     {
         var movie = Movie("No provider ids");

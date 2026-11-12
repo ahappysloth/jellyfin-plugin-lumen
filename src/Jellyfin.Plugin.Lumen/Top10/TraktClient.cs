@@ -121,6 +121,12 @@ public sealed class TraktClient : ITraktClient
         {
             throw new TraktException("Couldn't reach Trakt: " + e.Message, e);
         }
+        catch (IOException e)
+        {
+            // A connection dropped while the body was read (HttpIOException is an IOException, not an
+            // HttpRequestException): a TraktException too, so the caller's back-off and log-once apply to it.
+            throw new TraktException("Trakt's answer was cut off: " + e.Message, e);
+        }
         catch (JsonException e)
         {
             throw new TraktException("Trakt returned something Lumen doesn't understand.", e);

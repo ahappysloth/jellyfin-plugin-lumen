@@ -202,13 +202,31 @@ public abstract class Top10Provider : IHomeSectionProvider
         _ = all.ContinueWith(t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
 
         var seen = new HashSet<Guid>();
-        return lookups
+        var entries = lookups
             .Where(t => t.IsCompletedSuccessfully)
             .Select(t => t.Result)
             .OfType<HomeRowEntry>()
             .Where(e => e.Item is null || seen.Add(e.Item.Id))
             .Take(limit)
             .ToList();
+
+        // Lookups that failed (Seerr down, a title it doesn't know) leave gaps: fill them with owned titles from past the
+        // window, still in Trakt's order (they all rank below it), rather than a short or hidden row.
+        var lastCandidate = candidates.Count > 0 ? candidates[^1] : -1;
+        foreach (var (_, item) in owned.Where(o => o.Key > lastCandidate).OrderBy(o => o.Key))
+        {
+            if (entries.Count >= limit)
+            {
+                break;
+            }
+
+            if (seen.Add(item.Id))
+            {
+                entries.Add(HomeRowEntry.ForItem(item));
+            }
+        }
+
+        return entries;
     }
 
     /// <summary>The card for a title the user can't watch here (yet), or null if Seerr couldn't give its details.</summary>

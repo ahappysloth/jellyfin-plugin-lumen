@@ -27,7 +27,8 @@ export function CatalogCard({ item, client, imageToken, variant, onSelect, rank,
   const state = useCatalogState(item);
   // Most open the title page, whose code loads on its own (lazyTitle.tsx): have it ready.
   useEffect(prefetchTitle, []);
-  const label = item.JellyfinItemId ? null : stateLabel(state);
+  // A Top 10 card's Request is the button under it, not the card (which opens the title): its name doesn't say Request.
+  const label = item.JellyfinItemId || (hideRequestTab && state === 'None') ? null : stateLabel(state);
   // The tab has a phone poster's width at most: one short line ("Partly available" wrapped to two). The card's name
   // keeps the full label.
   const tab = state === 'PartlyAvailable' ? strings.partlyAvailableShort : label;
@@ -56,7 +57,7 @@ export function CatalogCard({ item, client, imageToken, variant, onSelect, rank,
         ) : (
           <span class="lmn-card__placeholder">{item.Title}</span>
         )}
-        {label && !(hideRequestTab && state === 'None') && (
+        {label && (
           <span class={`lmn-card__state${state === 'None' ? '' : ' is-filled'}`} aria-hidden="true">
             {tab}
           </span>

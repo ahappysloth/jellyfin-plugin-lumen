@@ -6,9 +6,6 @@
 .lmn-row--top10 {
   --lmn-top10-w: 172px;
 }
-.lmn-row--top10 .lmn-row__scroller {
-  gap: 14px;
-}
 /* The arrows sit over the posters' art. */
 .lmn-row--top10 .lmn-row__arrow {
   height: calc(var(--lmn-top10-w) * 1.5);
@@ -17,7 +14,9 @@
   display: flex;
   flex: 0 0 auto;
   align-items: flex-start;
-  scroll-snap-align: start;
+  /* On top of the row's 6px gap, and all of the space where flex gap is missing (Chromium 68, Safari 13): a numeral
+     must not sit against the poster before it. */
+  margin-right: 8px;
 }
 .lmn-top10__rank {
   display: flex;
@@ -80,7 +79,6 @@
 .lmn-top10__request {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   height: 32px;
   margin: 10px 2px 0;
   padding: 0 14px 0 10px;
@@ -95,6 +93,10 @@
   transition:
     background-color 0.2s,
     border-color 0.2s;
+}
+.lmn-top10__request > svg {
+  /* Not flex gap: Chromium 68 and Safari 13 don't have it. */
+  margin-right: 6px;
 }
 .lmn-top10__request:hover {
   border-color: var(--lmn-accent);

@@ -69,7 +69,7 @@ public sealed partial class ConfigValidator
         }
 
         // It goes in a request header: printable ASCII only, so it can't break the request. (Trakt's are 64 hex digits.)
-        if (!string.IsNullOrEmpty(config.TraktClientId) && !TraktKey().IsMatch(config.TraktClientId))
+        if (!string.IsNullOrEmpty(config.TraktClientId) && !IsTraktKey(config.TraktClientId))
         {
             errors.Add("The Trakt API key should be the Client ID of a Trakt app (trakt.tv/oauth/applications).");
         }
@@ -127,6 +127,9 @@ public sealed partial class ConfigValidator
 
         return errors;
     }
+
+    /// <summary>Whether <paramref name="key"/> could be a Trakt Client ID: printable ASCII that's safe in a header.</summary>
+    internal static bool IsTraktKey(string key) => TraktKey().IsMatch(key);
 
     private static void ValidateParams(List<string> errors, string label, SectionDefinition section, IHomeSectionProvider provider)
     {

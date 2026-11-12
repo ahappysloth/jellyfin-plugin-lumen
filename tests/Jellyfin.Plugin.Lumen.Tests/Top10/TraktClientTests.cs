@@ -70,6 +70,16 @@ public sealed class TraktClientTests : IDisposable
     }
 
     [Fact]
+    public async Task AConnectionCutOffMidAnswer_IsATraktError()
+    {
+        _http.Respond = _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new CutOffStream()) };
+
+        var error = await Assert.ThrowsAsync<TraktException>(() => Client().GetWeeklyWatchedAsync(Key, TraktListKind.Movies, 10, CancellationToken.None));
+
+        Assert.Contains("cut off", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task NotJson_Unreachable_AndTimeouts_AreTraktErrors()
     {
         _http.Respond = _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html>") };
@@ -117,4 +127,34 @@ public sealed class TraktClientTests : IDisposable
     public void Dispose() => _http.Dispose();
 
     private TraktClient Client() => new(_http.Factory) { BaseUrl = TraktClient.DefaultBaseUrl };
+
+    /// <summary>A body whose connection drops after the first bytes, as a reset mid-response does.</summary>
+    private sealed class CutOffStream : MemoryStream
+    {
+        private bool _sent;
+
+        public CutOffStream()
+            : base("[{ \"movie\": "u8.ToArray())
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => Next(() => base.Read(buffer, offset, count));
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(Next(() => Read(buffer.Span)));
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            Task.FromResult(Next(() => base.Read(buffer, offset, count)));
+
+        private int Next(Func<int> read)
+        {
+            if (_sent)
+            {
+                throw new IOException("The connection was reset.");
+            }
+
+            _sent = true;
+            return read();
+        }
+    }
 }

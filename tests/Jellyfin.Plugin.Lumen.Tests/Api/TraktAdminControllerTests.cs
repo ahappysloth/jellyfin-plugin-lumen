@@ -46,5 +46,17 @@ public class TraktAdminControllerTests
         Assert.Equal(new TraktTestResultDto(false, null, "Trakt rejected the API key."), failed);
     }
 
+    [Fact]
+    public async Task Test_AKeyThatCantGoInAHeader_IsRefusedBeforeAsking()
+    {
+        _config.Current.Returns(new PluginConfiguration());
+
+        var result = (await Controller().Test(new TraktTestRequestDto("0123abcd\r\n4567"), CancellationToken.None)).Value!;
+
+        Assert.False(result.Ok);
+        Assert.Contains("doesn't look like a Trakt Client ID", result.Error, StringComparison.Ordinal);
+        Assert.Empty(_trakt.ReceivedCalls());
+    }
+
     private TraktAdminController Controller() => new(_config, _trakt);
 }
