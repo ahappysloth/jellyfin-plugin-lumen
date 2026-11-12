@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { ADMIN, loadState, resetLumen } from '../support/api';
+import { ADMIN, BASE_URL, loadState, resetLumen } from '../support/api';
 import { login } from '../support/login';
 
 test('the Lumen dashboard page loads its settings', async ({ page }) => {
@@ -204,6 +204,9 @@ test('the Storage card shows space by library, codec and resolution, and links t
   await expect(resolutions.getByRole('row', { name: /^1080p/ })).toContainText(/0 B\s*0\s*0%/);
   // No H.264 to re-encode, and no HDR.
   await expect(card.locator('.lmna-storage__tile--pool')).toContainText('0 B in 0 files');
+  // Outside the TV layout the numbers aren't Tab stops of their own.
+  await expect(codecs).not.toHaveAttribute('tabindex');
+  await expect(card.locator('.lmna-storage .focusable')).toHaveCount(0);
 
   // Per library, with the same split.
   await expect(card.getByRole('img', { name: /^Movies by codec: Other [\d.]+ [KM]B, 8 files$/ })).toBeVisible();
@@ -218,7 +221,8 @@ test('the Storage card shows space by library, codec and resolution, and links t
   await expect(alpha.locator('xpath=ancestor::li')).toContainText('VP9 · SD');
   const show = card.getByRole('region', { name: 'Biggest shows' }).getByRole('link', { name: 'Lumen Show' });
   await expect(show).toHaveAttribute('href', `#/details?id=${items['Lumen Show']}`);
-  await expect(show.locator('xpath=ancestor::li')).toContainText('6 episodes · Other');
+  // An uncommon codec goes by its name, not "Other".
+  await expect(show.locator('xpath=ancestor::li')).toContainText('6 episodes · VP9');
 
   // Nothing wider than the screen, phones included.
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -256,4 +260,26 @@ test('TV layout: the Storage card’s Refresh and titles are reached with the D-
   expect(Object.values(items)).toContain(id);
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(new RegExp(`#/details\\?id=${id}`));
+});
+
+const CLIENT_HEADER = 'MediaBrowser Client="Lumen E2E", Device="Playwright", DeviceId="lumen-e2e-kid", Version="1.0.0"';
+
+test('the Storage report is for admins only: a user (kid) and a visitor get nothing from it', async () => {
+  const { kid } = loadState();
+  for (const [method, path] of [
+    ['GET', 'Lumen/Admin/Storage'],
+    ['POST', 'Lumen/Admin/Storage/Refresh'],
+  ] as const) {
+    for (const token of [kid.token, undefined]) {
+      const response = await fetch(new URL(path, `${BASE_URL.replace(/\/$/, '')}/`), {
+        method,
+        headers: { Authorization: token ? `${CLIENT_HEADER}, Token="${token}"` : CLIENT_HEADER },
+      });
+      expect(response.ok, `${method} ${path} as ${token ? 'kid' : 'nobody'}`).toBe(false);
+      expect([400, 401, 403]).toContain(response.status);
+      const body = await response.text();
+      // No titles, sizes or paths in an error body either.
+      expect(body).not.toMatch(/Lumen Alpha|\/media|BiggestMovies|Totals/);
+    }
+  }
 });

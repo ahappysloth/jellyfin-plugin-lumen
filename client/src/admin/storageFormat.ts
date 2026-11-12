@@ -82,11 +82,19 @@ export function shares(buckets: StorageBucket[]): number[] {
   return floored;
 }
 
-/** A series' codec mix by size, largest first: "H.264 86% · HEVC 14%" (at most three). */
+/**
+ * A series' codec mix by size, largest first: "H.264 86% · VP9 14%" (at most three). Its buckets are the codec keys,
+ * except that an uncommon codec comes as ffprobe names it ("vp9") rather than as Other.
+ */
 export function codecMix(buckets: StorageBucket[]): string {
   const percent = shares(buckets);
   return buckets
-    .map((b, i) => ({ label: codecLabel(b.Key), share: percent[i]! }))
+    .map((b, i) => ({
+      label: Object.prototype.hasOwnProperty.call(CODEC_LABELS, b.Key)
+        ? codecLabel(b.Key)
+        : fileCodecLabel('Other', b.Key),
+      share: percent[i]!,
+    }))
     .filter((b) => b.share > 0)
     .slice(0, 3)
     .map((b) => (buckets.length === 1 ? b.label : `${b.label} ${b.share}%`))
