@@ -8,6 +8,7 @@ import { GeneralSettings } from './GeneralSettings';
 import { HeroSettings } from './HeroSettings';
 import { HomeSectionsSettings } from './HomeSectionsSettings';
 import { RequestsSettings } from './RequestsSettings';
+import { StorageSettings } from './StorageSettings';
 import { UpdatesSettings } from './UpdatesSettings';
 import { wantsCheck } from './updatesLink';
 import { isBusy, RESET_FAILED, useAdminConfig } from './useAdminConfig';
@@ -194,6 +195,7 @@ export function AdminApp({
         update={update}
       />
       <RequestsSettings api={api} config={config} savedUrl={admin.savedUrl} update={update} />
+      <StorageSettings api={api} />
       <DiagnosticsSettings diagnostics={admin.diagnostics} />
 
       {/* Reset isn't in the save bar: it doesn't depend on unsaved changes, so it has to be there while the bar is
@@ -225,7 +227,15 @@ export function AdminApp({
           {/* Read out by the live region above, except errors (the alert at the top reads those). */}
           <span aria-hidden={failed ? undefined : 'true'}>{statusText}</span>
         </p>
-        <button type="submit" class="lmna-btn lmna-btn--primary" disabled={busy}>
+        {/* Out of the TV layout's D-pad while hidden: jellyfin-web's arrow-key navigation counts any button with a
+            box, and this one waits just below the window, so Down from a control above it would pick it and go
+            nowhere. */}
+        <button
+          type="submit"
+          class="lmna-btn lmna-btn--primary"
+          disabled={busy}
+          tabIndex={shown ? undefined : -1}
+        >
           Save
         </button>
       </div>

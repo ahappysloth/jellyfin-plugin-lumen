@@ -671,3 +671,314 @@
     transform: rotate(360deg);
   }
 }
+
+/* ---- Storage (StorageSettings.tsx) --------------------------------------------------------------------------- */
+/* Codecs are categories (fixed hues; H.264, the re-encode pool, first); resolutions are ordered (one violet ramp, light
+   for more pixels), so the two bars never share a colour. Checked for colour-blind separation against the dark
+   surface; the legend and the tables carry every number, so colour is never the only cue. "Not probed" is hatched. */
+.lmn-admin .lmna-storage {
+  --seg-codec-H264: #3987e5;
+  --seg-codec-HEVC: #d95926;
+  --seg-codec-AV1: #199e70;
+  --seg-codec-Other: #c98500;
+  --seg-res-SD: #4a3eab;
+  --seg-res-720p: #6a5bd8;
+  --seg-res-1080p: #9a90ec;
+  --seg-res-4K: #cdc8f7;
+  --seg-unknown: repeating-linear-gradient(135deg, var(--a-line-strong) 0 3px, transparent 3px 6px);
+  min-width: 0;
+}
+.lmn-admin .lmna-seg--codec-H264 {
+  background: var(--seg-codec-H264);
+}
+.lmn-admin .lmna-seg--codec-HEVC {
+  background: var(--seg-codec-HEVC);
+}
+.lmn-admin .lmna-seg--codec-AV1 {
+  background: var(--seg-codec-AV1);
+}
+.lmn-admin .lmna-seg--codec-Other {
+  background: var(--seg-codec-Other);
+}
+.lmn-admin .lmna-seg--res-SD {
+  background: var(--seg-res-SD);
+}
+.lmn-admin .lmna-seg--res-720p {
+  background: var(--seg-res-720p);
+}
+.lmn-admin .lmna-seg--res-1080p {
+  background: var(--seg-res-1080p);
+}
+.lmn-admin .lmna-seg--res-4K {
+  background: var(--seg-res-4K);
+}
+.lmn-admin .lmna-seg--codec-Unknown,
+.lmn-admin .lmna-seg--res-Unknown {
+  background: var(--seg-unknown);
+  box-shadow: inset 0 0 0 1px var(--a-line-strong);
+}
+
+.lmn-admin .lmna-storage__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin: 0 0 12px;
+}
+.lmn-admin .lmna-storage__summary {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.lmn-admin .lmna-storage__total {
+  margin: 0;
+  color: var(--a-dim);
+}
+.lmn-admin .lmna-storage__total strong {
+  margin-right: 4px;
+  color: var(--a-fg);
+  font-size: 28px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.lmn-admin .lmna-storage__when {
+  margin: 2px 0 0;
+  color: var(--a-dim);
+  font-size: 12.5px;
+}
+.lmn-admin .lmna-storage__note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: var(--a-dim);
+}
+.lmn-admin .lmna-storage .lmn-admin__updates-error {
+  margin: 0 0 12px;
+}
+
+/* The headline numbers. */
+.lmn-admin .lmna-storage__tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin: 4px 0 20px;
+}
+.lmn-admin .lmna-storage__tile {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--a-line);
+  border-radius: 10px;
+  background: var(--a-surface);
+}
+/* The one number the card is for: the accent marks it, sparingly. */
+.lmn-admin .lmna-storage__tile--pool {
+  border-left: 3px solid var(--a-accent);
+}
+.lmn-admin .lmna-storage__tile dt {
+  color: var(--a-dim);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.lmn-admin .lmna-storage__tile dd {
+  margin: 2px 0 0;
+  color: var(--a-dim);
+}
+.lmn-admin .lmna-storage__tile dd strong {
+  color: var(--a-fg);
+  font-size: 18px;
+  font-weight: 650;
+}
+.lmn-admin .lmna-storage__tile .lmna-storage__hint {
+  font-size: 12.5px;
+}
+
+/* Codec and resolution tables: side by side when there's room, stacked on a phone. */
+.lmn-admin .lmna-storage__split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px 24px;
+  margin: 0 0 20px;
+}
+.lmn-admin .lmna-storage__table caption {
+  padding: 0 0 6px;
+  font-weight: 650;
+  text-align: left;
+}
+.lmn-admin .lmna-storage__table th[scope='row'] {
+  font-weight: 500;
+  white-space: nowrap;
+}
+.lmn-admin .lmna-storage__table td {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.lmn-admin .lmna-storage__table thead th:not(:first-child) {
+  text-align: right;
+}
+.lmn-admin .lmna-storage__table th,
+.lmn-admin .lmna-storage__table td {
+  padding: 7px 8px;
+}
+.lmn-admin .lmna-storage__table th:first-child {
+  padding-left: 0;
+}
+.lmn-admin .lmna-storage__table td:last-child,
+.lmn-admin .lmna-storage__table th:last-child {
+  padding-right: 0;
+}
+.lmn-admin .lmna-swatch {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border-radius: 3px;
+  vertical-align: -1px;
+}
+
+.lmn-admin .lmna-storage__section {
+  margin: 0 0 20px;
+}
+.lmn-admin .lmna-storage__section:last-child {
+  margin-bottom: 0;
+}
+.lmn-admin .lmna-storage__section h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+/* One library: its total, then a thin bar each for codecs and resolutions. */
+.lmn-admin .lmna-storage__library {
+  padding: 10px 0 12px;
+  border-top: 1px solid var(--a-line);
+}
+.lmn-admin .lmna-storage__library-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 12px;
+  margin: 0 0 8px;
+}
+.lmn-admin .lmna-storage__library-head span {
+  color: var(--a-dim);
+  font-variant-numeric: tabular-nums;
+}
+.lmn-admin .lmna-storage__bar-row + .lmna-storage__bar-row {
+  margin-top: 10px;
+}
+.lmn-admin .lmna-bar {
+  display: flex;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+}
+/* A 2px gap between parts (a margin: Chromium 68 has no gap in flexbox); a sliver still shows. */
+.lmn-admin .lmna-bar__seg {
+  flex: none;
+  min-width: 3px;
+  height: 100%;
+}
+.lmn-admin .lmna-bar__seg + .lmna-bar__seg {
+  margin-left: 2px;
+}
+.lmn-admin .lmna-legend {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 6px 0 0;
+  padding: 0;
+  color: var(--a-dim);
+  font-size: 12.5px;
+  list-style: none;
+}
+.lmn-admin .lmna-legend li {
+  display: inline-flex;
+  color: var(--a-fg);
+  align-items: center;
+  margin: 0 14px 2px 0;
+  white-space: nowrap;
+}
+.lmn-admin .lmna-legend li span:not(.lmna-swatch) {
+  margin-left: 4px;
+  color: var(--a-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tables and libraries take focus for the D-pad (StorageSettings.tsx); a ring shows where it is. */
+.lmn-admin .lmna-storage__stop {
+  border-radius: 6px;
+}
+.lmn-admin .lmna-storage__stop:focus-visible {
+  outline: 2px solid var(--a-accent);
+  outline-offset: 4px;
+}
+/* No ring for a click; browsers without :focus-visible drop this rule and keep their own ring. */
+.lmn-admin .lmna-storage__stop:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* The biggest titles: title and size on one line, what it is under it. A list, not a table, so a phone shows it whole. */
+.lmn-admin .lmna-top {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: top;
+}
+.lmn-admin .lmna-top__item {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--a-line);
+  counter-increment: top;
+}
+.lmn-admin .lmna-top__item::before {
+  content: counter(top);
+  grid-row: 1 / span 2;
+  color: var(--a-dim);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.lmn-admin .lmna-top__title {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 4px;
+}
+.lmn-admin .lmna-top__title:hover {
+  text-decoration: underline;
+}
+.lmn-admin .lmna-top__title:focus-visible {
+  outline: 2px solid var(--a-accent);
+  outline-offset: 2px;
+}
+.lmn-admin .lmna-top__year {
+  color: var(--a-dim);
+  font-weight: 400;
+}
+.lmn-admin .lmna-top__size {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.lmn-admin .lmna-top__meta {
+  grid-column: 2 / span 2;
+  min-width: 0;
+  color: var(--a-dim);
+  font-size: 12.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lmn-admin .lmn-admin__spinner {
+    animation: none;
+  }
+}

@@ -101,6 +101,75 @@ export interface UpdateStatus {
   RestartPending: boolean;
 }
 
+/** One slice of a storage breakdown (StorageBucketDto). */
+export interface StorageBucket {
+  Key: string;
+  /** Bytes, over the files whose size is known. */
+  Size: number;
+  Files: number;
+  /** Files without a size (.strm and other remote files). */
+  UnknownSizeFiles: number;
+}
+
+/** Sizes and file counts by codec and resolution (StorageBreakdownDto). */
+export interface StorageBreakdown {
+  Size: number;
+  Files: number;
+  UnknownSizeFiles: number;
+  /** H264, HEVC, AV1, Other, Unknown, in that order. */
+  Codecs: StorageBucket[];
+  /** SD, 720p, 1080p, 4K, Unknown, in that order. */
+  Resolutions: StorageBucket[];
+  Hdr: StorageBucket;
+  H264AtLeast1080p: StorageBucket;
+}
+
+export interface StorageMovie {
+  Id: string;
+  Name: string;
+  Year: number | null;
+  Size: number;
+  Files: number;
+  Codec: string;
+  /** ffprobe's name for the codec (vp9), for "Other". */
+  CodecName: string | null;
+  Resolution: string;
+  Width: number | null;
+  Height: number | null;
+  /** Bits per second. */
+  Bitrate: number | null;
+  /** HDR10, HDR10+, Dolby Vision, HLG or HDR; null for SDR. */
+  Hdr: string | null;
+}
+
+export interface StorageSeries {
+  Id: string;
+  Name: string;
+  Episodes: number;
+  Size: number;
+  Files: number;
+  /** Largest first; only the codecs it has. */
+  Codecs: StorageBucket[];
+}
+
+/** Where the space goes (StorageReportDto). */
+export interface StorageReport {
+  ComputedAt: string;
+  Seconds: number;
+  Totals: StorageBreakdown;
+  Libraries: { Id: string; Name: string; CollectionType: string | null; Storage: StorageBreakdown }[];
+  BiggestMovies: StorageMovie[];
+  BiggestSeries: StorageSeries[];
+}
+
+/** The storage report, or where its scan has got to (StorageStatusDto). */
+export interface StorageStatus {
+  /** Computing: a scan is running, and Report is the previous one (if any). */
+  State: 'Ready' | 'Computing' | 'Failed';
+  Report: StorageReport | null;
+  Error: string | null;
+}
+
 export type SaveResult = { ok: true } | { ok: false; errors: string[] };
 
 export interface AdminApi {
@@ -117,6 +186,10 @@ export interface AdminApi {
   checkForUpdates(): Promise<UpdateStatus>;
   installUpdate(version: string): Promise<UpdateStatus>;
   restartServer(): Promise<void>;
+  /** The cached storage report; the server starts a scan when there's none or it's stale. */
+  getStorage(): Promise<StorageStatus>;
+  /** Scans again now (unless a scan is running). */
+  refreshStorage(): Promise<StorageStatus>;
   /**
    * Where a restart has got to: 'down' while Jellyfin doesn't answer; 'up' when it answers, with whether it still has
    * a restart pending (it does until it has actually restarted).
@@ -192,6 +265,13 @@ export function createAdminApi(client: JellyfinApiClient): AdminApi {
         dataType: 'json',
       })) as UpdateStatus,
     restartServer: () => restartServer(client),
+    getStorage: () => getJson('Lumen/Admin/Storage'),
+    refreshStorage: async () =>
+      (await client.ajax({
+        type: 'POST',
+        url: client.getUrl('Lumen/Admin/Storage/Refresh'),
+        dataType: 'json',
+      })) as StorageStatus,
     serverState: () => serverState(client),
   };
 }
