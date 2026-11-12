@@ -77,6 +77,8 @@ At runtime, Lumen reports what it couldn't find to the admin Diagnostics page: a
 
 When writing E2E assertions about stock elements Lumen hides, use `expectPresentButHidden` (`e2e/support/stock.ts`), not a bare `toBeHidden()`. `toBeHidden()` also passes when nothing matches, so a renamed selector would go unnoticed.
 
+`login(page, user)` (`e2e/support/login.ts`) signs each user in through jellyfin-web's form once per run, then reuses that sign-in: later tests share its device and Jellyfin session. A test that needs a session of its own (a second viewer, Cast's other browser, or one that joins a SyncPlay group, which the shared session would still be in next test) uses `signIn(page, user)`, which fills in the form. Tests of the sign-in page itself go to `#/login` without either. Wait for what a test is waiting on (`expect`'s retrying assertions, `expect.poll`, a request or response) rather than with `waitForTimeout`. Keep a fixed wait only to show something doesn't happen, as short as shows it, with a comment saying why.
+
 ## Unit tests, lint and formatting
 
 ```sh

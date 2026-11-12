@@ -57,7 +57,8 @@ test('TV layout: D-pad Right moves from an episode row to its details link and b
   await expect(series.locator('.lmn-details__header .lmn-button--primary')).toBeFocused();
   const row = series.locator('.lmn-episode').first();
   await expect(row).toBeVisible();
-  // Start from the first episode row once focus put there stays there (nothing else takes it back mid-test).
+  // Start from the first episode row once focus put there stays there for a moment (nothing else takes it back
+  // mid-test; nothing on the page says the page is done with focus).
   await expect(async () => {
     await row.focus();
     await page.waitForTimeout(300);

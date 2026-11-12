@@ -1,6 +1,6 @@
 import { devices, expect, test, type Page } from '@playwright/test';
 import { ADMIN, api, loadState } from '../support/api';
-import { login } from '../support/login';
+import { login, signIn } from '../support/login';
 import { forgetPlayback } from '../support/playback';
 
 // A phone, by touch: real taps in Chromium and WebKit, and (through Chromium's CDP) real touch drags. Firefox has no
@@ -18,9 +18,10 @@ const dragsOnly = 'touch drags go through Chromium (CDP)';
 // Each test plays Lumen Alpha: off the admin's History and Continue watching again afterwards.
 test.afterEach(async ({ page }) => forgetPlayback(page, [loadState().items['Lumen Alpha']!]));
 
-async function play(page: Page): Promise<void> {
+/** `ownSession`: signs in as a new device, for a test that changes its Jellyfin session (support/login.ts). */
+async function play(page: Page, { ownSession = false } = {}): Promise<void> {
   const { items } = loadState();
-  await login(page, ADMIN);
+  await (ownSession ? signIn : login)(page, ADMIN);
   await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
   await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).first().click();
   const video = page.locator('video.htmlvideoplayer');
@@ -86,7 +87,8 @@ for (const [way, viewport, short] of [
 
       await page.touchscreen.tap(viewport.width / 2, viewport.height / 2);
       await expect(osd).not.toHaveClass(/is-idle/);
-      await page.waitForTimeout(400); // apart, so not a double tap (which skips at the sides)
+      // Apart (past DOUBLE_TAP_MS, 300 ms), so not a double tap (which skips at the sides).
+      await page.waitForTimeout(400);
       // The middle of the picture, where the bottom bar's shading lies in landscape: still the picture's.
       await page.touchscreen.tap(viewport.width / 2, viewport.height / 2);
       // At once: well before the controls would go by themselves (3 s).
@@ -125,7 +127,7 @@ for (const [way, viewport, short] of [
         await expect(osd).toHaveClass(/is-idle/, { timeout: 6000 });
         await tapOn(page, page.locator('#lmn-root').getByRole('button', { name, exact: true }));
         await expect(osd).not.toHaveClass(/is-idle/);
-        await page.waitForTimeout(400); // for a click that would have come late
+        await page.waitForTimeout(400); // proving nothing's pressed: time for a click that would have come late
         await expect(page.locator('video.htmlvideoplayer')).toBeVisible(); // still in the player
         expect(await paused(page)).toBe(false);
         await expect(page.getByRole('dialog', { name: 'Quality' })).toHaveCount(0);
@@ -198,7 +200,8 @@ test.describe('a short phone in landscape, watching together', () => {
     test(`Playback info sits below the group's line under the title, and above the time and the seek bar${what}`, async ({
       page,
     }) => {
-      await play(page);
+      // Its own session: the group it makes is left through the API's (afterEach), not the shared one's.
+      await play(page, { ownSession: true });
       if (style) await page.addStyleTag({ content: style });
       await showControls(page);
       await tapOn(page, page.getByRole('button', { name: 'Settings' }));

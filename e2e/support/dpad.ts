@@ -27,20 +27,25 @@ export interface DpadWalk {
   unreachable: Control[];
 }
 
-/** Numbers every focusable element in the page that hasn't one yet (data-dpad), so the walk can name where focus is. */
-const tagFocusables = (page: Page) =>
-  page.evaluate((query) => {
-    const w = window as unknown as { __dpadNext?: number };
-    for (const el of document.querySelectorAll(query)) {
-      if (!el.hasAttribute('data-dpad')) el.setAttribute('data-dpad', String((w.__dpadNext = (w.__dpadNext ?? 0) + 1)));
-    }
-  }, FOCUSABLE);
-
-const focusedId = (page: Page) =>
-  page.evaluate(() => {
-    const id = document.activeElement?.getAttribute('data-dpad');
-    return id == null ? null : Number(id);
-  });
+/**
+ * Numbers every focusable element in the page that hasn't one yet (data-dpad), so the walk can name where focus is, and
+ * says where focus is. `settle`: first gives anything Lumen renders after a key press a couple of frames (the controls
+ * it numbers then include those rendered since: lazy rows, an opened menu). One trip to the page, as the walk makes one
+ * per press.
+ */
+const tagFocusables = (page: Page, settle = false) =>
+  page.evaluate(
+    async ([query, wait]) => {
+      if (wait) await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const w = window as unknown as { __dpadNext?: number };
+      for (const el of document.querySelectorAll(query)) {
+        if (!el.hasAttribute('data-dpad')) el.setAttribute('data-dpad', String((w.__dpadNext = (w.__dpadNext ?? 0) + 1)));
+      }
+      const id = document.activeElement?.getAttribute('data-dpad');
+      return id == null ? null : Number(id);
+    },
+    [FOCUSABLE, settle] as const,
+  );
 
 /**
  * Walks jellyfin-web's TV-layout D-pad navigation from `start`: from every control reached so far, presses each arrow
@@ -49,8 +54,7 @@ const focusedId = (page: Page) =>
  */
 export async function walkDpad(page: Page, start: Locator): Promise<DpadWalk> {
   await start.focus();
-  await tagFocusables(page);
-  const first = await focusedId(page);
+  const first = await tagFocusables(page);
   if (first == null) throw new Error('the start control could not take focus');
   const url = page.url();
 
@@ -72,11 +76,12 @@ export async function walkDpad(page: Page, start: Locator): Promise<DpadWalk> {
         }, from);
         if (!focused) break; // gone, hidden or inert since it was reached
         await page.keyboard.press(key);
-        // focusManager moves focus on keydown; give anything Lumen renders in response a couple of frames.
-        await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+        // focusManager moves focus on keydown.
+        const to = await tagFocusables(page, true).catch((error: unknown) => {
+          if (page.url() !== url) return null; // a page load: said below
+          throw error;
+        });
         if (page.url() !== url) throw new Error(`${key} from control ${from} navigated to ${page.url()}`);
-        await tagFocusables(page); // controls rendered since (lazy rows, an opened menu)
-        const to = await focusedId(page);
         if (to != null && !seen.has(to)) {
           seen.add(to);
           queue.push(to);

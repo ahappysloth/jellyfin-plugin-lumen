@@ -1,14 +1,14 @@
 import { type Browser, expect, type Page, test } from '@playwright/test';
 import { ADMIN, api, KID, loadState } from '../support/api';
 import { CANNOT_PLAY, cannotPlay } from '../support/browsers';
-import { login } from '../support/login';
+import { signIn } from '../support/login';
 import { accountButton, accountMenu } from '../support/nav';
 
-/** A second viewer: its own browser context, so its own device id and Jellyfin session. */
+/** A viewer: its own browser context and sign-in, so its own device id and Jellyfin session. */
 async function viewer(browser: Browser, user: { name: string; password: string }): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
   opened.push(page);
-  await login(page, user);
+  await signIn(page, user);
   await expect(page.locator('#lmn-root')).toBeVisible();
   return page;
 }
@@ -64,7 +64,11 @@ test('two viewers watch together: create, join, leave and rejoin, play for both'
   // jellyfin-web's "SyncPlay enabled" toast drops in below the nav, never over its tabs.
   const toast = a.locator('.toastContainer .toast.toastVisible').first();
   await expect(toast).toBeVisible();
-  await a.waitForTimeout(400); // its drop-in transition
+  // Where it lands: once its drop-in transition has finished.
+  await toast.evaluate(async (el) => {
+    const transitions = el.getAnimations({ subtree: true });
+    await Promise.all(transitions.map((transition) => transition.finished.catch(() => undefined)));
+  });
   const pill = (await a.locator('#lmn-root .lmn-nav__pill').boundingBox())!;
   expect((await toast.boundingBox())!.y).toBeGreaterThanOrEqual(pill.y + pill.height);
 

@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { ADMIN, loadState } from '../support/api';
 import { CANNOT_PLAY, cannotPlay } from '../support/browsers';
-import { login } from '../support/login';
+import { login, signIn } from '../support/login';
 import { endPlayback, forgetPlayback } from '../support/playback';
 import { expectPresentButHidden } from '../support/stock';
 
@@ -59,9 +59,9 @@ test("the scroll wheel shows Lumen's volume pill, not jellyfin-web's card or the
   await expect(pill).toHaveClass(/is-shown/);
   await expect(pill).toContainText(/\d+%|Muted/);
   await expect(page.locator('.lmn-osd')).toHaveClass(/is-idle/);
-  // jellyfin-web fades its own card in over ~0.3 s and hides it itself after 3 s, so check once, while it would be
-  // up (an auto-retrying toBeHidden() would just wait for that).
-  await page.waitForTimeout(800);
+  // jellyfin-web shows its own card (taking its `hide` class off) and hides it itself after 3 s, so check once, while
+  // it would be up (an auto-retrying toBeHidden() would just wait for that).
+  await expect(page.locator('.volumeOsd:not(.hide)')).toBeAttached();
   expect(await page.locator('.volumeOsd').isVisible()).toBe(false);
   await expect(pill).not.toHaveClass(/is-shown/, { timeout: 4000 });
 });
@@ -87,6 +87,7 @@ test("the volume slider's arrow keys change the volume, not the position", async
 
   // The player's own shortcut would have gone back 10 s, to the start.
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.volume)).toBeLessThan(before);
+  // Proving the position stays put: nothing says a skip isn't coming, so give one time to land.
   await page.waitForTimeout(500);
   expect(await video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeCloseTo(8, 0);
   await expect(volume).toBeFocused();
@@ -256,6 +257,7 @@ test('the seek bar stays where you click and shows trickplay thumbnails', async 
   const duration = Number(await seek.getAttribute('aria-valuemax'));
   await page.mouse.click(box.x + box.width * 0.75, box.y + box.height / 2);
   const target = duration * 0.75;
+  // Sampled over a second: while the seek lands, and after, when a stale position would show.
   for (let i = 0; i < 10; i++) {
     expect(Number(await seek.getAttribute('aria-valuenow'))).toBeGreaterThanOrEqual(Math.floor(target) - 1);
     await page.waitForTimeout(100);
@@ -381,10 +383,10 @@ test('the player says when it ends, repeats, and shows playback info', async ({ 
 
 test('Cast moves what is playing to another Jellyfin session', async ({ page, browser }) => {
   const { items } = loadState();
-  // A second browser (its own device id): a Jellyfin web session that takes remote control.
+  // A second browser (its own sign-in and device id): a Jellyfin web session that takes remote control.
   const tv = await browser.newContext();
   const tvPage = await tv.newPage();
-  await login(tvPage, ADMIN);
+  await signIn(tvPage, ADMIN);
 
   await login(page, ADMIN);
   await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);

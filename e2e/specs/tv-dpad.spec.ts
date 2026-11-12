@@ -102,7 +102,8 @@ test('TV layout: every control on a series page is reachable with the D-pad', as
   const series = page.locator('#lmn-root .lmn-details--series');
   const start = series.locator('.lmn-autofocus');
   await expect(series.locator('.lmn-episode')).toHaveCount(3);
-  // The page moves focus to its own default once it has loaded: start once that has happened, i.e. focus stays put.
+  // The page moves focus to its own default once it has loaded: start once that has happened, i.e. focus stays put
+  // (for a moment: nothing on the page says the page is done with focus).
   await expect(async () => {
     await start.focus();
     await page.waitForTimeout(300);

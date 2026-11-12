@@ -82,8 +82,17 @@ test('a server without Seerr never downloads the catalog title page', async ({ p
   await page.getByRole('searchbox', { name: 'Search' }).fill('matrix');
   await expect(page.getByText('No results for “matrix”')).toBeVisible();
 
-  // Past the moment catalog cards would have fetched it (lazyTitle.tsx prefetches within 3 s).
-  await page.waitForTimeout(3500);
+  // Past the moment catalog cards would have fetched it: lazyTitle.tsx prefetches in an idle callback (within 3 s), or
+  // 1 s on, where there are none (Safari). One queued now runs after any it queued.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        if (typeof window.requestIdleCallback !== 'function') setTimeout(resolve, 1000);
+        else window.requestIdleCallback(() => resolve(), { timeout: 3000 });
+      }),
+  );
+  // And for the request it would have made to reach the test.
+  await page.waitForTimeout(250);
   expect(titleCodeRequested()).toBe(false);
 });
 

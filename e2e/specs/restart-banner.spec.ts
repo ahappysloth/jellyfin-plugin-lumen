@@ -70,7 +70,8 @@ test('a pending restart shows the banner on the admin pages, and Restart Jellyfi
   await expect(banner).toContainText('Restart Jellyfin now?');
   expect(server.restarts()).toBe(0);
   await page.evaluate(() => ((window as unknown as { beforeRestart?: boolean }).beforeRestart = true));
-  // Clicks in the question's first half second are ignored, so a double-click on Restart Jellyfin can't confirm it.
+  // Clicks in the question's first half second are ignored, so a double-click on Restart Jellyfin can't confirm it. A
+  // timer, with nothing on the page to wait for: past it (CONFIRM_GUARD_MS, 500 ms).
   await page.waitForTimeout(600);
   await banner.getByRole('button', { name: 'Restart now' }).click();
   await expect(banner).toContainText('Restarting Jellyfin');
@@ -95,10 +96,13 @@ test('a dismissed restart banner stays away on the admin pages until coming back
 
   await banner.getByRole('button', { name: 'Dismiss' }).click();
   await expect(page.locator('#lmn-restart')).toHaveCount(0);
+  // Each admin page checks System/Info for a pending restart; a banner it brought back would be in the page soon after.
+  const checked = page.waitForResponse(/\/System\/Info(\?|$)/);
   await page.evaluate(() => (location.hash = '#/dashboard/users'));
   await expect(page).toHaveURL(/dashboard\/users/);
-  // It would have come back by now: the check is quick, and the banner slides in in 250 ms.
-  await page.waitForTimeout(1500);
+  await checked;
+  // Proving it doesn't come back: long enough for its /Plugins request and the banner going in after the check.
+  await page.waitForTimeout(500);
   await expect(page.locator('#lmn-restart')).toHaveCount(0);
 
   await page.evaluate(() => (location.hash = '#/home'));
