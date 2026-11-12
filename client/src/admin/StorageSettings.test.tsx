@@ -133,6 +133,29 @@ describe('StorageSettings', () => {
     expect(show.closest('li')).toHaveTextContent('64 episodes · H.264 86% · HEVC 14%');
   });
 
+  it('says why the libraries add up to more than the total when they share files', async () => {
+    const hint = /in more than one library, so these add up to more than the total/;
+    const { unmount } = render(<StorageSettings api={fakeApi()} />);
+    await screen.findByText('330 GB');
+    expect(screen.queryByText(hint)).toBeNull();
+    unmount();
+
+    const shared = report({
+      Libraries: [
+        { Id: 'lib-a', Name: 'Films', CollectionType: 'movies', Storage: breakdown() },
+        {
+          Id: 'lib-b',
+          Name: 'All video',
+          CollectionType: 'movies',
+          Storage: breakdown({ Size: 30 * GB, Files: 2 }),
+        },
+      ],
+    });
+    render(<StorageSettings api={fakeApi({ getStorage: vi.fn(async () => ready(shared)) })} />);
+    const libraries = await screen.findByRole('region', { name: 'Libraries' });
+    expect(within(libraries).getByText(hint)).toBeInTheDocument();
+  });
+
   it('says when sizes are unknown (.strm and remote files)', async () => {
     const r = report({ Totals: breakdown({ UnknownSizeFiles: 12 }) });
     render(<StorageSettings api={fakeApi({ getStorage: vi.fn(async () => ready(r)) })} />);

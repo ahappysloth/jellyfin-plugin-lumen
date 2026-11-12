@@ -71,6 +71,7 @@ public sealed class StorageScanner : IStorageScanner
             HasOwnerId = false,
         });
 
+        HashSet<Guid>? scanned = null;
         for (var start = 0; start < ids.Count; start += BatchSize)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -80,8 +81,12 @@ public sealed class StorageScanner : IStorageScanner
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
+                // A merged version is added with its title, as one of the title's media sources, unless the title is
+                // outside the libraries: then the scan never reaches it, so the version counts on its own.
+                var primaryOutside = item is Video { PrimaryVersionId: { } primary } && !(scanned ??= [.. ids]).Contains(primary);
+
                 // Checked before reading its media sources: for a channel's video those cost the channel's own I/O.
-                if (!StorageAggregator.Counts(item))
+                if (!StorageAggregator.Counts(item, primaryOutside))
                 {
                     continue;
                 }
@@ -92,7 +97,8 @@ public sealed class StorageScanner : IStorageScanner
                     continue;
                 }
 
-                aggregator.Add(item, Sources(item), inLibraries, Parts(item));
+                var sources = Sources(item);
+                aggregator.Add(item, sources, inLibraries, Parts(item), SourceLibraries(item, sources, libraries), primaryOutside);
             }
         }
 
@@ -129,6 +135,29 @@ public sealed class StorageScanner : IStorageScanner
         }
 
         return parts;
+    }
+
+    /// <summary>
+    /// The libraries of each media source's own item, where that isn't the title itself: a media source's id is its
+    /// version's item id, and a version merged in from another library sits in that library's folder, not the title's.
+    /// Null when every source is the title's own (the usual case: one file, one version), so it costs nothing more then.
+    /// A source whose item can't be found goes with the title.
+    /// </summary>
+    private List<IEnumerable<Guid>?>? SourceLibraries(BaseItem item, IReadOnlyList<MediaSourceInfo> sources, List<Folder> libraries)
+    {
+        List<IEnumerable<Guid>?>? result = null;
+        for (var i = 0; i < sources.Count; i++)
+        {
+            if (!Guid.TryParse(sources[i].Id, out var id) || id == item.Id || _libraryManager.GetItemById(id) is not { } version)
+            {
+                continue;
+            }
+
+            result ??= [.. Enumerable.Repeat<IEnumerable<Guid>?>(null, sources.Count)];
+            result[i] = _libraryManager.GetCollectionFolders(version, libraries).Select(f => f.Id).ToList();
+        }
+
+        return result;
     }
 
     private IReadOnlyList<MediaSourceInfo> Sources(BaseItem item)

@@ -8,10 +8,12 @@ namespace Jellyfin.Plugin.Lumen.Storage;
 
 /// <summary>
 /// Adds up video files into a <see cref="StorageReportDto"/>. Each version of a title (each of its media sources) and
-/// each further part of a stacked one (cd1, cd2) is a file; a file is counted once however many items or libraries reach
-/// it, and only files in a library count, so the libraries add up to the total. Pure: the scan hands it items and their
-/// media sources, and the tests do the same with fakes. It never reads the disk: a file Jellyfin has no size for is
-/// counted as "size unknown" (a stat on an offline network share can block for a long time, or for good).
+/// each further part of a stacked one (cd1, cd2) is a file. A file goes to the libraries its own folder is in, which
+/// for a version merged in from another library aren't the title's. Only files in a library count, and the total
+/// counts each once however many items reach it; a library counts every file in its folders, so two libraries sharing
+/// a folder both count the files there and the libraries can add up to more than the total. Pure: the scan hands it
+/// items and their media sources, and the tests do the same with fakes. It never reads the disk: a file Jellyfin has
+/// no size for is counted as "size unknown" (a stat on an offline network share can block for a long time, or for good).
 /// </summary>
 internal sealed class StorageAggregator
 {
@@ -31,8 +33,10 @@ internal sealed class StorageAggregator
 
     /// <summary>Whether an item is a video file of its own: not a trailer or other extra, not a missing episode, not a
     /// channel plugin's video, not a part of a stacked movie (the movie adds its parts) and not an alternate version (its
-    /// primary's media sources include it).</summary>
-    public static bool Counts(BaseItem item) =>
+    /// primary's media sources include it), unless <paramref name="primaryOutside"/>.</summary>
+    /// <param name="item">The item.</param>
+    /// <param name="primaryOutside">It's a version merged into a title outside the libraries: nothing else adds it.</param>
+    public static bool Counts(BaseItem item, bool primaryOutside = false) =>
         item is Video video
         && item is not Trailer
         && item.ExtraType is null
@@ -40,7 +44,7 @@ internal sealed class StorageAggregator
         && item.ChannelId == Guid.Empty
         && !item.IsVirtualItem
         && !item.IsFolder
-        && video.PrimaryVersionId is null;
+        && (video.PrimaryVersionId is null || primaryOutside);
 
     public void AddLibrary(Guid id, string name, string? collectionType)
     {
@@ -56,47 +60,51 @@ internal sealed class StorageAggregator
 
     /// <param name="item">A movie, episode or other video (see <see cref="Counts"/>; others are skipped).</param>
     /// <param name="sources">Its media sources: one per version.</param>
-    /// <param name="libraryIds">The libraries it's in (usually one; overlapping folders can make it more). An item in
-    /// none of the libraries added with <see cref="AddLibrary"/> isn't counted at all.</param>
+    /// <param name="libraryIds">The libraries it's in (usually one; overlapping folders can make it more). Its files go
+    /// to these unless <paramref name="sourceLibraryIds"/> says otherwise; a file in none of the libraries added with
+    /// <see cref="AddLibrary"/> isn't counted at all.</param>
     /// <param name="parts">The further parts of a stacked video (cd2, cd3…) with their own media sources: Jellyfin keeps
-    /// them as items of their own that the video's media sources leave out.</param>
+    /// them as items of their own that the video's media sources leave out. They sit beside it, in its libraries.</param>
+    /// <param name="sourceLibraryIds">The libraries of each media source's own item, by index; null (or a null entry)
+    /// for the item's own. A version merged in from another library has its own, and its file goes to those.</param>
+    /// <param name="primaryOutside">See <see cref="Counts"/>.</param>
     public void Add(
         BaseItem item,
         IReadOnlyList<MediaSourceInfo> sources,
         IEnumerable<Guid> libraryIds,
-        IReadOnlyList<(BaseItem Part, IReadOnlyList<MediaSourceInfo> Sources)>? parts = null)
+        IReadOnlyList<(BaseItem Part, IReadOnlyList<MediaSourceInfo> Sources)>? parts = null,
+        IReadOnlyList<IEnumerable<Guid>?>? sourceLibraryIds = null,
+        bool primaryOutside = false)
     {
-        if (!Counts(item))
+        if (!Counts(item, primaryOutside) || !_seenItems.Add(item.Id))
         {
             return;
         }
 
-        var libraries = libraryIds.Distinct().Select(id => _librariesById.GetValueOrDefault(id)).OfType<Library>().ToList();
-        if (libraries.Count == 0 || !_seenItems.Add(item.Id))
-        {
-            return;
-        }
-
-        var all = Files(item, sources);
+        var libraries = Libraries(libraryIds);
+        var all = Files(item, sources).Select((file, i) =>
+            (File: file, Libraries: i < sources.Count && sourceLibraryIds?.ElementAtOrDefault(i) is { } ids ? Libraries(ids) : libraries));
         foreach (var (part, partSources) in parts ?? [])
         {
-            all = all.Concat(Files(part, partSources));
+            all = all.Concat(Files(part, partSources).Select(file => (File: file, Libraries: libraries)));
         }
 
-        var files = all.Where(f => _seenFiles.Add(f.Key)).ToList();
-        if (files.Count == 0)
+        var counted = all.Where(f => f.Libraries.Count > 0 && _seenFiles.Add(f.File.Key)).ToList();
+        if (counted.Count == 0)
         {
             return;
         }
 
-        foreach (var file in files)
+        foreach (var (file, fileLibraries) in counted)
         {
             _all.Add(file);
-            foreach (var library in libraries)
+            foreach (var library in fileLibraries)
             {
                 library.Tally.Add(file);
             }
         }
+
+        var files = counted.Select(f => f.File).ToList();
 
         var size = files.Sum(f => f.Size ?? 0);
         if (item is Movie)
@@ -234,6 +242,9 @@ internal sealed class StorageAggregator
             rate,
             StorageClassifier.Hdr(video));
     }
+
+    private List<Library> Libraries(IEnumerable<Guid> ids) =>
+        ids.Distinct().Select(id => _librariesById.GetValueOrDefault(id)).OfType<Library>().ToList();
 
     private sealed record FileFacts(
         string Key,

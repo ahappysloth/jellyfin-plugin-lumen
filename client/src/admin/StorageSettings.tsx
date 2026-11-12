@@ -164,6 +164,13 @@ export function StorageSettings({ api, pollMs = POLL_MS }: { api: AdminApi; poll
   );
 }
 
+/** Two libraries sharing a folder both count its files, so the libraries add up to more than the total. */
+function overlaps({ Libraries: libraries, Totals: totals }: StorageReport): boolean {
+  const sum = (pick: (s: StorageReport['Totals']) => number) =>
+    libraries.reduce((n, l) => n + pick(l.Storage), 0);
+  return sum((s) => s.Size) > totals.Size || sum((s) => s.Files) > totals.Files;
+}
+
 function Report({ report, tv }: { report: StorageReport; tv: boolean }) {
   const { Totals: totals } = report;
   return (
@@ -211,6 +218,11 @@ function Report({ report, tv }: { report: StorageReport; tv: boolean }) {
       {report.Libraries.length > 0 && (
         <section class="lmna-storage__section" aria-label="Libraries">
           <h3>Libraries</h3>
+          {overlaps(report) && (
+            <p class="lmna-storage__overlap">
+              Some files are in more than one library, so these add up to more than the total.
+            </p>
+          )}
           {report.Libraries.map((library) => (
             <Library key={library.Id} name={library.Name} storage={library.Storage} tv={tv} />
           ))}
