@@ -30,8 +30,9 @@ The **Storage** card on Lumen's page shows where the space goes, to help decide 
 or a Radarr/Sonarr profile change would save the most: the total size and file count, each library, the split by video
 codec (H.264, HEVC, AV1, other) and resolution (SD, 720p, 1080p, 4K), HDR, the 15 biggest movies and series, and the
 usual re-encode pool, "H.264 at 1080p and above". It only reads Jellyfin's library database and never changes a file.
-Every version of a title counts; trailers and extras don't; .strm and remote files are counted as "size unknown". The
-numbers are computed in the background and kept for 10 minutes (**Refresh** recomputes them).
+Every version of a title and every part of a multi-part one (cd1, cd2) counts; trailers, extras and videos outside the
+libraries (channel plugins) don't; .strm and remote files, and files Jellyfin hasn't measured yet, are counted as "size
+unknown". The numbers are computed in the background and kept for 10 minutes (**Refresh** recomputes them).
 
 ## Where Lumen appears
 

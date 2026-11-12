@@ -126,7 +126,7 @@ describe('StorageSettings', () => {
     const movie = screen.getByRole('link', { name: 'Big Film (2019)' });
     expect(movie).toHaveAttribute('href', '#/details?id=movie1');
     expect(movie.closest('li')).toHaveTextContent('62.4 GB');
-    expect(movie.closest('li')).toHaveTextContent('HEVC · 4K · 58.3 Mb/s · Dolby Vision · 2 versions');
+    expect(movie.closest('li')).toHaveTextContent('HEVC · 4K · 58.3 Mb/s · Dolby Vision · 2 files');
 
     const show = screen.getByRole('link', { name: 'Long Show' });
     expect(show).toHaveAttribute('href', '#/details?id=series1');
@@ -208,6 +208,75 @@ describe('StorageSettings', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Database locked.');
   });
 
+  it('says there’s no report yet when a scan stopped before it finished', async () => {
+    // Jellyfin shutting down mid-scan leaves Ready with no report.
+    const getStorage = vi.fn(async (): Promise<StorageStatus> => ({
+      State: 'Ready',
+      Report: null,
+      Error: null,
+    }));
+    render(<StorageSettings api={fakeApi({ getStorage })} />);
+
+    expect(await screen.findByText('No storage report yet. Refresh to compute one.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled();
+  });
+
+  it('announces an error once: as an alert, outside the polite live region', async () => {
+    const { container } = render(
+      <StorageSettings api={fakeApi({ getStorage: vi.fn(async () => Promise.reject(new Error('500'))) })} />,
+    );
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.closest('[aria-live]')).toBeNull();
+    expect(container.querySelectorAll('[aria-live] [role="alert"]')).toHaveLength(0);
+  });
+
+  it('stops asking while the page is hidden, and asks again once it’s shown', async () => {
+    const computing: StorageStatus = { State: 'Computing', Report: null, Error: null };
+    const getStorage = vi
+      .fn<() => Promise<StorageStatus>>()
+      .mockResolvedValueOnce(computing)
+      .mockResolvedValueOnce(ready());
+    let hidden = true;
+    const spy = vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+    try {
+      render(<StorageSettings api={fakeApi({ getStorage })} pollMs={10} />);
+      expect(await screen.findByText(/Computing… on a big library/)).toBeInTheDocument();
+
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      expect(getStorage).toHaveBeenCalledTimes(1);
+
+      hidden = false;
+      document.dispatchEvent(new Event('visibilitychange'));
+
+      expect(await screen.findByText('330 GB')).toBeInTheDocument();
+      expect(getStorage).toHaveBeenCalledTimes(2);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('makes the tables and libraries focus stops only in the TV layout', async () => {
+    const { unmount } = render(<StorageSettings api={fakeApi()} />);
+    await screen.findByText('330 GB');
+    expect(screen.getByRole('table', { name: 'By codec' })).not.toHaveAttribute('tabindex');
+    expect(screen.getByRole('group', { name: 'Movies' })).not.toHaveAttribute('tabindex');
+    expect(document.querySelectorAll('.lmna-storage .focusable')).toHaveLength(0);
+    unmount();
+
+    document.documentElement.classList.add('layout-tv');
+    try {
+      render(<StorageSettings api={fakeApi()} />);
+      await screen.findByText('330 GB');
+      expect(screen.getByRole('table', { name: 'By codec' })).toHaveAttribute('tabindex', '0');
+      expect(screen.getByRole('table', { name: 'By codec' })).toHaveClass('focusable');
+      expect(screen.getByRole('group', { name: 'Movies' })).toHaveAttribute('tabindex', '0');
+      expect(screen.getByRole('group', { name: 'Movies' })).toHaveClass('focusable');
+    } finally {
+      document.documentElement.classList.remove('layout-tv');
+    }
+  });
+
   it('waits until the card is near the screen before asking', async () => {
     let seen: ((entries: { isIntersecting: boolean }[]) => void) | undefined;
     const observe = vi.fn();
@@ -272,5 +341,10 @@ describe('storage formatting', () => {
   it('writes a series’ codec mix', () => {
     expect(codecMix([bucket('HEVC', 5 * GB, 10)])).toBe('HEVC');
     expect(codecMix([bucket('H264', 3 * GB, 1), bucket('AV1', 1 * GB, 1)])).toBe('H.264 75% · AV1 25%');
+    // An uncommon codec comes by its own name.
+    expect(codecMix([bucket('vp9', 3 * GB, 2)])).toBe('VP9');
+    expect(codecMix([bucket('H264', 3 * GB, 1), bucket('mpeg2video', 1 * GB, 1)])).toBe(
+      'H.264 75% · MPEG-2 25%',
+    );
   });
 });

@@ -19,7 +19,7 @@ public static class StorageState
 /// <param name="Seconds">How long it took.</param>
 /// <param name="Totals">Every video file in every library, counted once.</param>
 /// <param name="Libraries">Each library with video in it, in the server's order.</param>
-/// <param name="BiggestMovies">The largest movies, all their versions together.</param>
+/// <param name="BiggestMovies">The largest movies, all their versions and parts together.</param>
 /// <param name="BiggestSeries">The largest series, all their episodes together.</param>
 public sealed record StorageReportDto(
     DateTimeOffset ComputedAt,
@@ -31,8 +31,9 @@ public sealed record StorageReportDto(
 
 /// <summary>Sizes and file counts, split by video codec and resolution.</summary>
 /// <param name="Size">Bytes, over the files whose size is known.</param>
-/// <param name="Files">Video files (each version of a title is a file).</param>
-/// <param name="UnknownSizeFiles">Files without a size (.strm and other remote files), counted but not sized.</param>
+/// <param name="Files">Video files (each version of a title, and each part of a multi-part one, is a file).</param>
+/// <param name="UnknownSizeFiles">Files without a size (.strm and other remote files, and local files Jellyfin
+/// hasn't measured), counted but not sized.</param>
 /// <param name="Codecs">Keyed H264, HEVC, AV1, Other, Unknown (no video stream info), always in that order.</param>
 /// <param name="Resolutions">Keyed SD, 720p, 1080p, 4K, Unknown, always in that order.</param>
 /// <param name="Hdr">HDR10, HDR10+, Dolby Vision and HLG files.</param>
@@ -51,12 +52,12 @@ public sealed record StorageBucketDto(string Key, long Size, int Files, int Unkn
 
 public sealed record StorageLibraryDto(Guid Id, string Name, string? CollectionType, StorageBreakdownDto Storage);
 
-/// <summary>A movie, all its versions together; codec, resolution, bitrate and HDR are its largest version's.</summary>
+/// <summary>A movie, all its versions and parts together; codec, resolution, bitrate and HDR are its largest file's.</summary>
 /// <param name="Id">The movie's item id (its details page).</param>
 /// <param name="Name">Its title.</param>
 /// <param name="Year">Its production year.</param>
-/// <param name="Size">Bytes, all versions together.</param>
-/// <param name="Files">Its versions.</param>
+/// <param name="Size">Bytes, all versions and parts together.</param>
+/// <param name="Files">Its files: its versions, and the parts of a multi-part one (cd1, cd2).</param>
 /// <param name="Codec">The codec bucket (see <see cref="StorageBreakdownDto.Codecs"/>).</param>
 /// <param name="CodecName">The codec as ffprobe names it (<c>vp9</c>), so "Other" can say which.</param>
 /// <param name="Resolution">The resolution bucket (see <see cref="StorageBreakdownDto.Resolutions"/>).</param>
@@ -84,5 +85,6 @@ public sealed record StorageMovieDto(
 /// <param name="Episodes">Episodes with a file.</param>
 /// <param name="Size">Bytes, all episodes together.</param>
 /// <param name="Files">Episode files (more than episodes when some have several versions).</param>
-/// <param name="Codecs">Its codecs by size, largest first; only those it has.</param>
+/// <param name="Codecs">Its codecs by size, largest first; only those it has. Keyed like
+/// <see cref="StorageBreakdownDto.Codecs"/>, except that an Other codec is keyed by its ffprobe name (<c>vp9</c>).</param>
 public sealed record StorageSeriesDto(Guid Id, string Name, int Episodes, long Size, int Files, IReadOnlyList<StorageBucketDto> Codecs);

@@ -112,44 +112,111 @@ public class StorageAggregatorTests
     }
 
     [Fact]
-    public void StrmAndRemoteFiles_AreCountedWithAnUnknownSize_NotAsZero()
+    public void StrmAndRemoteFiles_AreCountedWithAnUnknownSize_NotAtTheirTextFilesSize()
     {
-        var aggregator = new StorageAggregator(_ => null);
-        aggregator.AddLibrary(Movies, "Movies", "movies");
-        var strm = Source("https://cdn.example/film.mp4", null, "h264", 1920, 1080);
+        var aggregator = Aggregator();
+
+        // What Jellyfin 12.4 sends for a .strm: its URL, marked remote, with the size of the little text file (34 B).
+        var strm = Source("https://cdn.example/film.mp4", 34, "h264", 1920, 1080);
         strm.Protocol = MediaProtocol.Http;
         strm.IsRemote = true;
         aggregator.Add(TestData.Movie("Streamed"), [strm], [Movies]);
+
+        // A .strm that points at a local file keeps its own path: still the text file's size, not the video's.
+        aggregator.Add(TestData.Movie("Shortcut"), [Source("/m/shortcut.strm", 41, "h264", 1920, 1080)], [Movies]);
+
+        // A source on a remote protocol that isn't marked remote.
+        var http = Source("http://nas.local/x.mkv", 5 * Gb, "h264", 1920, 1080);
+        http.Protocol = MediaProtocol.Http;
+        aggregator.Add(TestData.Movie("Http"), [http], [Movies]);
         aggregator.Add(TestData.Movie("Local"), [Source("/m/local.mkv", 3 * Gb, "h264", 1920, 1080)], [Movies]);
 
         var report = aggregator.Build(TestData.Now, 0);
 
-        Assert.Equal((3 * Gb, 2, 1), (report.Totals.Size, report.Totals.Files, report.Totals.UnknownSizeFiles));
+        Assert.Equal((3 * Gb, 4, 3), (report.Totals.Size, report.Totals.Files, report.Totals.UnknownSizeFiles));
         var h264 = report.Totals.Codecs.Single(b => b.Key == "H264");
-        Assert.Equal((3 * Gb, 2, 1), (h264.Size, h264.Files, h264.UnknownSizeFiles));
+        Assert.Equal((3 * Gb, 4, 3), (h264.Size, h264.Files, h264.UnknownSizeFiles));
 
         // A title of unknown size isn't one of the biggest.
         Assert.Equal(["Local"], report.BiggestMovies.Select(m => m.Name));
     }
 
     [Fact]
-    public void ALocalFileJellyfinHasNoSizeFor_IsSizedFromDisk_AndARemoteOneNeverIs()
+    public void ALocalFileJellyfinHasNoSizeFor_IsUnknown_AndTheDiskIsNeverRead()
     {
-        var asked = new List<string>();
-        var aggregator = new StorageAggregator(path =>
+        // A real 4 KB file: were its size read from disk, it would show up in the total.
+        var path = System.IO.Path.GetTempFileName();
+        try
         {
-            asked.Add(path);
-            return 7 * Gb;
-        });
-        aggregator.Add(TestData.Movie("Unsized"), [Source("/m/unsized.mkv", null, "h264", 1920, 1080)], []);
-        var remote = Source("https://cdn.example/x.mp4", null, "h264", 1920, 1080);
-        remote.Protocol = MediaProtocol.Http;
-        aggregator.Add(TestData.Movie("Remote"), [remote], []);
+            File.WriteAllBytes(path, new byte[4096]);
+            var aggregator = Aggregator();
+            aggregator.Add(TestData.Movie("Unsized"), [Source(path, null, "h264", 1920, 1080)], [Movies]);
+            var unprobed = TestData.Movie("Unprobed");
+            unprobed.Path = path + ".2";
+            aggregator.Add(unprobed, [], [Movies]);
 
-        var totals = aggregator.Build(TestData.Now, 0).Totals;
+            // A DVD or Blu-ray folder rip: its path is a folder, with no size of its own.
+            var dvd = TestData.Movie("DVD");
+            dvd.Path = System.IO.Path.GetTempPath();
+            aggregator.Add(dvd, [], [Movies]);
 
-        Assert.Equal(["/m/unsized.mkv"], asked);
-        Assert.Equal((7 * Gb, 1), (totals.Size, totals.UnknownSizeFiles));
+            var totals = aggregator.Build(TestData.Now, 0).Totals;
+
+            Assert.Equal((0L, 3, 3), (totals.Size, totals.Files, totals.UnknownSizeFiles));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void AStackedMovie_CountsEachPart_AsOneTitle()
+    {
+        var aggregator = Aggregator();
+        var movie = TestData.Movie("Stacked");
+        var cd2 = new Video { Id = Guid.NewGuid(), Name = "Stacked", OwnerId = movie.Id };
+        aggregator.Add(
+            movie,
+            [Source("/m/Stacked/Stacked - cd1.mkv", 972_679, "h264", 1920, 1080)],
+            [Movies],
+            [(cd2, [Source("/m/Stacked/Stacked - cd2.mkv", 956_740, "h264", 1920, 1080)])]);
+
+        // The part on its own (were it listed) adds nothing: the movie counts it.
+        aggregator.Add(cd2, [Source("/m/Stacked/Stacked - cd2.mkv", 956_740, "h264", 1920, 1080)], [Movies]);
+
+        var report = aggregator.Build(TestData.Now, 0);
+
+        Assert.Equal((1_929_419L, 2), (report.Totals.Size, report.Totals.Files));
+        Assert.Equal((1_929_419L, 2), (report.Libraries[0].Storage.Size, report.Libraries[0].Storage.Files));
+        var top = Assert.Single(report.BiggestMovies);
+        Assert.Equal(("Stacked", 1_929_419L, 2), (top.Name, top.Size, top.Files));
+    }
+
+    [Fact]
+    public void AStackedMoviesPart_WithoutMediaSources_IsTheFileItself()
+    {
+        var aggregator = Aggregator();
+        var movie = TestData.Movie("Stacked");
+        var cd2 = new Video { Id = Guid.NewGuid(), Name = "Stacked", OwnerId = movie.Id, Path = "/m/Stacked/cd2.mkv", Size = 5 * Gb };
+        aggregator.Add(movie, [Source("/m/Stacked/cd1.mkv", 6 * Gb, "h264", 1920, 1080)], [Movies], [(cd2, [])]);
+
+        Assert.Equal((11 * Gb, 2), (aggregator.Build(TestData.Now, 0).Totals.Size, aggregator.Build(TestData.Now, 0).Totals.Files));
+    }
+
+    [Fact]
+    public void AVideoInNoLibrary_IsNotCounted_SoTheLibrariesAddUpToTheTotal()
+    {
+        var aggregator = Aggregator();
+        aggregator.Add(TestData.Movie("In a library"), [Source("/m/a.mkv", 10, "h264", 1920, 1080)], [Movies]);
+        aggregator.Add(TestData.Movie("Orphan"), [Source("/old/b.mkv", 1000, "h264", 1920, 1080)], []);
+        aggregator.Add(TestData.Movie("Unknown library"), [Source("/x/c.mkv", 1000, "h264", 1920, 1080)], [Guid.NewGuid()]);
+
+        var report = aggregator.Build(TestData.Now, 0);
+
+        Assert.Equal((10L, 1), (report.Totals.Size, report.Totals.Files));
+        Assert.Equal(report.Totals.Size, report.Libraries.Sum(l => l.Storage.Size));
+        Assert.Equal(["In a library"], report.BiggestMovies.Select(m => m.Name));
     }
 
     [Fact]
@@ -169,14 +236,15 @@ public class StorageAggregatorTests
     }
 
     [Fact]
-    public void TrailersExtrasAndMissingEpisodesAreLeftOut()
+    public void TrailersExtrasMissingEpisodesAndChannelVideosAreLeftOut()
     {
         var aggregator = Aggregator();
         var trailer = new Trailer { Id = Guid.NewGuid(), Name = "Trailer" };
         var extra = new Video { Id = Guid.NewGuid(), Name = "Behind the scenes", ExtraType = ExtraType.BehindTheScenes, OwnerId = Guid.NewGuid() };
         var missing = TestData.Episode(TestData.Series("Show"), 1, 9);
         missing.IsVirtualItem = true;
-        foreach (var item in new BaseItem[] { trailer, extra, missing })
+        var channel = new Video { Id = Guid.NewGuid(), Name = "A channel's video", ChannelId = Guid.NewGuid() };
+        foreach (var item in new BaseItem[] { trailer, extra, missing, channel })
         {
             aggregator.Add(item, [Source($"/x/{item.Name}.mkv", Gb, "h264", 1920, 1080)], [Movies]);
         }
@@ -217,6 +285,23 @@ public class StorageAggregatorTests
         Assert.Equal([("Big", 3, 7 * Gb), ("Small", 1, 2 * Gb)], report.BiggestSeries.Select(s => (s.Name, s.Episodes, s.Size)));
         Assert.Equal(big.Id, report.BiggestSeries[0].Id);
         Assert.Equal([("H264", 6 * Gb), ("HEVC", 1 * Gb)], report.BiggestSeries[0].Codecs.Select(c => (c.Key, c.Size)));
+    }
+
+    [Fact]
+    public void ASeriesCodecMix_NamesAnUncommonCodec_RatherThanOther()
+    {
+        var aggregator = Aggregator();
+        var show = TestData.Series("Show");
+        aggregator.Add(TestData.Episode(show, 1, 1), [Source("/tv/1.mkv", 3 * Gb, "VP9", 1920, 1080)], [Shows]);
+        aggregator.Add(TestData.Episode(show, 1, 2), [Source("/tv/2.mkv", 2 * Gb, "vp9", 1920, 1080)], [Shows]);
+        aggregator.Add(TestData.Episode(show, 1, 3), [Source("/tv/3.mkv", 1 * Gb, "h264", 1920, 1080)], [Shows]);
+
+        var report = aggregator.Build(TestData.Now, 0);
+
+        Assert.Equal([("vp9", 5 * Gb), ("H264", 1 * Gb)], report.BiggestSeries[0].Codecs.Select(c => (c.Key, c.Size)));
+
+        // The totals keep the fixed buckets.
+        Assert.Equal(5 * Gb, report.Totals.Codecs.Single(c => c.Key == "Other").Size);
     }
 
     [Fact]
@@ -261,7 +346,7 @@ public class StorageAggregatorTests
 
     private static StorageAggregator Aggregator()
     {
-        var aggregator = new StorageAggregator(_ => throw new InvalidOperationException("Sized files never touch the disk."));
+        var aggregator = new StorageAggregator();
         aggregator.AddLibrary(Movies, "Movies", "movies");
         aggregator.AddLibrary(Shows, "Shows", "tvshows");
         return aggregator;

@@ -7,9 +7,11 @@ using MediaBrowser.Model.MediaInfo;
 namespace Jellyfin.Plugin.Lumen.Storage;
 
 /// <summary>
-/// Adds up video files into a <see cref="StorageReportDto"/>. Each version of a title (each of its media sources) is a
-/// file; a file is counted once however many items or libraries reach it. Pure: the scan hands it items and their media
-/// sources, and the tests do the same with fakes.
+/// Adds up video files into a <see cref="StorageReportDto"/>. Each version of a title (each of its media sources) and
+/// each further part of a stacked one (cd1, cd2) is a file; a file is counted once however many items or libraries reach
+/// it, and only files in a library count, so the libraries add up to the total. Pure: the scan hands it items and their
+/// media sources, and the tests do the same with fakes. It never reads the disk: a file Jellyfin has no size for is
+/// counted as "size unknown" (a stat on an offline network share can block for a long time, or for good).
 /// </summary>
 internal sealed class StorageAggregator
 {
@@ -19,7 +21,6 @@ internal sealed class StorageAggregator
     /// <summary>Library types that hold video; others show only when video turns up in them anyway (mixed folders).</summary>
     private static readonly HashSet<string> VideoLibraryTypes = new(StringComparer.OrdinalIgnoreCase) { "movies", "tvshows" };
 
-    private readonly Func<string, long?> _sizeOnDisk;
     private readonly Tally _all = new();
     private readonly List<Library> _libraries = [];
     private readonly Dictionary<Guid, Library> _librariesById = [];
@@ -28,19 +29,15 @@ internal sealed class StorageAggregator
     private readonly List<StorageMovieDto> _movies = [];
     private readonly Dictionary<Guid, SeriesTally> _series = [];
 
-    /// <param name="sizeOnDisk">The size of a local file Jellyfin has no size for (null when it can't be read).</param>
-    public StorageAggregator(Func<string, long?>? sizeOnDisk = null)
-    {
-        _sizeOnDisk = sizeOnDisk ?? (_ => null);
-    }
-
-    /// <summary>Whether an item is a video file of its own: not a trailer or other extra, not a missing episode, and not
-    /// an alternate version (its primary's media sources include it).</summary>
+    /// <summary>Whether an item is a video file of its own: not a trailer or other extra, not a missing episode, not a
+    /// channel plugin's video, not a part of a stacked movie (the movie adds its parts) and not an alternate version (its
+    /// primary's media sources include it).</summary>
     public static bool Counts(BaseItem item) =>
         item is Video video
         && item is not Trailer
         && item.ExtraType is null
         && item.OwnerId == Guid.Empty
+        && item.ChannelId == Guid.Empty
         && !item.IsVirtualItem
         && !item.IsFolder
         && video.PrimaryVersionId is null;
@@ -59,21 +56,39 @@ internal sealed class StorageAggregator
 
     /// <param name="item">A movie, episode or other video (see <see cref="Counts"/>; others are skipped).</param>
     /// <param name="sources">Its media sources: one per version.</param>
-    /// <param name="libraryIds">The libraries it's in (usually one; overlapping folders can make it more).</param>
-    public void Add(BaseItem item, IReadOnlyList<MediaSourceInfo> sources, IEnumerable<Guid> libraryIds)
+    /// <param name="libraryIds">The libraries it's in (usually one; overlapping folders can make it more). An item in
+    /// none of the libraries added with <see cref="AddLibrary"/> isn't counted at all.</param>
+    /// <param name="parts">The further parts of a stacked video (cd2, cd3…) with their own media sources: Jellyfin keeps
+    /// them as items of their own that the video's media sources leave out.</param>
+    public void Add(
+        BaseItem item,
+        IReadOnlyList<MediaSourceInfo> sources,
+        IEnumerable<Guid> libraryIds,
+        IReadOnlyList<(BaseItem Part, IReadOnlyList<MediaSourceInfo> Sources)>? parts = null)
     {
-        if (!Counts(item) || !_seenItems.Add(item.Id))
-        {
-            return;
-        }
-
-        var files = Files(item, sources).Where(f => _seenFiles.Add(f.Key)).ToList();
-        if (files.Count == 0)
+        if (!Counts(item))
         {
             return;
         }
 
         var libraries = libraryIds.Distinct().Select(id => _librariesById.GetValueOrDefault(id)).OfType<Library>().ToList();
+        if (libraries.Count == 0 || !_seenItems.Add(item.Id))
+        {
+            return;
+        }
+
+        var all = Files(item, sources);
+        foreach (var (part, partSources) in parts ?? [])
+        {
+            all = all.Concat(Files(part, partSources));
+        }
+
+        var files = all.Where(f => _seenFiles.Add(f.Key)).ToList();
+        if (files.Count == 0)
+        {
+            return;
+        }
+
         foreach (var file in files)
         {
             _all.Add(file);
@@ -86,7 +101,7 @@ internal sealed class StorageAggregator
         var size = files.Sum(f => f.Size ?? 0);
         if (item is Movie)
         {
-            // The largest version describes the movie (its other versions are usually smaller copies).
+            // The largest file describes the movie (its other versions are usually smaller copies; its parts alike).
             var main = files.OrderByDescending(f => f.Size ?? 0).First();
             _movies.Add(new StorageMovieDto(
                 item.Id,
@@ -147,13 +162,13 @@ internal sealed class StorageAggregator
             .ToList());
 
     /// <summary>The item's files: one per media source, or the item itself when Jellyfin lists none.</summary>
-    private IEnumerable<FileFacts> Files(BaseItem item, IReadOnlyList<MediaSourceInfo> sources)
+    private static IEnumerable<FileFacts> Files(BaseItem item, IReadOnlyList<MediaSourceInfo> sources)
     {
         if (sources.Count == 0)
         {
-            // A .strm (a shortcut) points at a URL; any other rooted path is a local file.
-            var localFile = !item.IsShortcut && !string.IsNullOrEmpty(item.Path) && System.IO.Path.IsPathRooted(item.Path);
-            yield return Facts(item.Path ?? item.Id.ToString("N"), item.Size, localFile, item.Path, null, item.Width, item.Height, null, item.RunTimeTicks);
+            // A .strm (a shortcut) points elsewhere; any other rooted path is a local file.
+            var localFile = !item.IsShortcut && !IsStrm(item.Path) && !string.IsNullOrEmpty(item.Path) && System.IO.Path.IsPathRooted(item.Path);
+            yield return Facts(item.Path ?? item.Id.ToString("N"), item.Size, localFile, null, item.Width, item.Height, null, item.RunTimeTicks);
             yield break;
         }
 
@@ -164,12 +179,11 @@ internal sealed class StorageAggregator
             // The item's own width and height stand in for its first source's when that has no video stream info.
             var own = i == 0;
             var key = string.IsNullOrEmpty(source.Path) ? (source.Id ?? $"{item.Id:N}/{i}") : source.Path;
-            var local = source.Protocol == MediaProtocol.File && !source.IsRemote;
+            var local = source.Protocol == MediaProtocol.File && !source.IsRemote && !IsStrm(source.Path);
             yield return Facts(
                 key,
                 source.Size,
                 local,
-                source.Path,
                 source.VideoStream,
                 own ? item.Width : 0,
                 own ? item.Height : 0,
@@ -178,24 +192,22 @@ internal sealed class StorageAggregator
         }
     }
 
-    private FileFacts Facts(
+    private static bool IsStrm(string? path) => path?.EndsWith(".strm", StringComparison.OrdinalIgnoreCase) == true;
+
+    private static FileFacts Facts(
         string key,
         long? size,
         bool local,
-        string? path,
         MediaBrowser.Model.Entities.MediaStream? video,
         int itemWidth,
         int itemHeight,
         int? bitrate,
         long? runTimeTicks)
     {
-        // .strm files and other remote sources have no size of their own; a local file Jellyfin hasn't sized is read
-        // from disk.
-        long? known = size > 0 ? size : null;
-        if (known is null && local && !string.IsNullOrEmpty(path))
-        {
-            known = _sizeOnDisk(path) is > 0 and var onDisk ? onDisk : null;
-        }
+        // Only a local file's size is the video's: a .strm's source reports the few bytes of the text file itself, and
+        // other remote sources have none. A local file Jellyfin hasn't sized (not probed yet, a DVD or Blu-ray folder)
+        // stays unknown rather than being read from disk.
+        long? known = local && size > 0 ? size : null;
 
         var width = video?.Width ?? 0;
         var height = video?.Height ?? 0;
@@ -321,10 +333,13 @@ internal sealed class StorageAggregator
         {
             Files++;
             Size += file.Size ?? 0;
-            if (!Codecs.TryGetValue(file.Codec, out var bucket))
+
+            // An uncommon codec goes by its own name (vp9), so the mix can say which rather than "Other".
+            var key = file.Codec == StorageClassifier.Other && file.CodecName is { } name ? name.ToLowerInvariant() : file.Codec;
+            if (!Codecs.TryGetValue(key, out var bucket))
             {
-                bucket = new Bucket(file.Codec);
-                Codecs[file.Codec] = bucket;
+                bucket = new Bucket(key);
+                Codecs[key] = bucket;
             }
 
             bucket.Add(file.Size);

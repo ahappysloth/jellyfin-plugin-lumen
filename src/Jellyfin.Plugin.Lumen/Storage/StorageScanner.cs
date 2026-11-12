@@ -15,10 +15,12 @@ public interface IStorageScanner
 }
 
 /// <summary>
-/// Scans Jellyfin's database, never the files themselves (except to size a local file Jellyfin has no size for). It
-/// reads the ids of every movie, episode and video in one query, then loads them in batches without images or user
-/// data, so a library of tens of thousands of episodes is read a page at a time. Each item's media sources (its
-/// versions, with their size and video stream) come from Jellyfin's own <see cref="BaseItem.GetMediaSources"/>.
+/// Scans Jellyfin's database, never the files themselves: a file Jellyfin has no size for is "size unknown", since
+/// reading it from an offline network share could hang the scan. It reads the ids of every movie, episode and video in
+/// the libraries in one query, then loads them in batches without images or user data, so a library of tens of
+/// thousands of episodes is read a page at a time. Each item's media sources (its versions, with their size and video
+/// stream) come from Jellyfin's own <see cref="BaseItem.GetMediaSources"/>; a stacked movie's further parts (cd2…) are
+/// items of their own that those leave out, so they're read alongside.
 /// </summary>
 public sealed class StorageScanner : IStorageScanner
 {
@@ -40,7 +42,7 @@ public sealed class StorageScanner : IStorageScanner
     public StorageReportDto Scan(CancellationToken cancellationToken)
     {
         var started = Stopwatch.GetTimestamp();
-        var aggregator = new StorageAggregator(SizeOnDisk);
+        var aggregator = new StorageAggregator();
 
         var libraries = new List<Folder>();
         foreach (var folder in _libraryManager.GetVirtualFolders())
@@ -52,11 +54,21 @@ public sealed class StorageScanner : IStorageScanner
             }
         }
 
-        var ids = _libraryManager.GetItemIds(new InternalItemsQuery
+        // No libraries, nothing to count (and an empty TopParentIds would mean "everywhere").
+        IReadOnlyList<Guid> ids = libraries.Count == 0 ? [] : _libraryManager.GetItemIds(new InternalItemsQuery
         {
             IncludeItemTypes = VideoKinds,
             Recursive = true,
             IsVirtualItem = false,
+
+            // Only the libraries: a channel plugin's videos and Live TV recordings kept outside them sit under other
+            // top folders, and would make the total more than the libraries add up to. An item's top parent is the
+            // folder of the library's path it's in, so a library is asked for by those, as Jellyfin's own views are.
+            TopParentIds = libraries.SelectMany(TopParentIds).Distinct().ToArray(),
+
+            // Nothing another item owns: extras, a stacked movie's further parts and local alternate versions. The
+            // title they belong to adds its parts and versions; extras aren't counted.
+            HasOwnerId = false,
         });
 
         for (var start = 0; start < ids.Count; start += BatchSize)
@@ -67,13 +79,20 @@ public sealed class StorageScanner : IStorageScanner
             foreach (var item in items)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+
+                // Checked before reading its media sources: for a channel's video those cost the channel's own I/O.
                 if (!StorageAggregator.Counts(item))
                 {
                     continue;
                 }
 
-                var inLibraries = _libraryManager.GetCollectionFolders(item, libraries).Select(f => f.Id);
-                aggregator.Add(item, Sources(item), inLibraries);
+                var inLibraries = _libraryManager.GetCollectionFolders(item, libraries).Select(f => f.Id).ToList();
+                if (inLibraries.Count == 0)
+                {
+                    continue;
+                }
+
+                aggregator.Add(item, Sources(item), inLibraries, Parts(item));
             }
         }
 
@@ -86,17 +105,30 @@ public sealed class StorageScanner : IStorageScanner
         return aggregator.Build(_time.GetUtcNow(), Math.Round(seconds, 1));
     }
 
-    private static long? SizeOnDisk(string path)
+    /// <summary>The top parent ids a library's items carry: the folders of its paths (and its own, for anything
+    /// that isn't a collection folder).</summary>
+    private static IEnumerable<Guid> TopParentIds(Folder library) =>
+        library is CollectionFolder collection ? collection.PhysicalFolderIds.Append(library.Id) : [library.Id];
+
+    /// <summary>A stacked video's further parts (cd2, cd3…), found the way Jellyfin's own
+    /// <see cref="Video.GetAdditionalParts"/> finds them, through the injected library manager.</summary>
+    private List<(BaseItem Part, IReadOnlyList<MediaSourceInfo> Sources)>? Parts(BaseItem item)
     {
-        try
-        {
-            var file = new FileInfo(path);
-            return file.Exists ? file.Length : null;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        if (item is not Video { AdditionalParts.Length: > 0 } video)
         {
             return null;
         }
+
+        var parts = new List<(BaseItem, IReadOnlyList<MediaSourceInfo>)>(video.AdditionalParts.Length);
+        foreach (var path in video.AdditionalParts)
+        {
+            if (_libraryManager.GetItemById(_libraryManager.GetNewItemId(path, typeof(Video))) is Video part)
+            {
+                parts.Add((part, Sources(part)));
+            }
+        }
+
+        return parts;
     }
 
     private IReadOnlyList<MediaSourceInfo> Sources(BaseItem item)
