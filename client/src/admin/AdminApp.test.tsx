@@ -76,6 +76,13 @@ function update(overrides: Partial<UpdateStatus> = {}): UpdateStatus {
   };
 }
 
+/** Moves a home section one place, as a tap would: its handle picks it up, then its ↑ or ↓ button moves it. */
+function move(name: string, direction: 'up' | 'down'): void {
+  const handle = screen.getByRole('button', { name: `Move ${name}` });
+  if (handle.getAttribute('aria-pressed') !== 'true') fireEvent.click(handle);
+  fireEvent.click(screen.getByRole('button', { name: `Move ${name} ${direction}` }));
+}
+
 function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
   return {
     getConfig: vi.fn(async () => config()),
@@ -176,7 +183,7 @@ describe('AdminApp', () => {
     expect(key).toHaveAttribute('placeholder', 'Saved (leave blank to keep it)');
     await waitFor(() => expect(key).toHaveAccessibleDescription('Seerr → Settings → General'));
     // Some other change: the key field left blank keeps the saved key.
-    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    move('Continue Watching', 'down');
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(api.saveConfig).toHaveBeenCalledTimes(1));
     expect(vi.mocked(api.saveConfig).mock.calls[0]![0].SeerrApiKey ?? '').toBe('');
@@ -307,7 +314,7 @@ describe('AdminApp', () => {
     render(<AdminApp api={api} />);
 
     await screen.findByText('Genre rows');
-    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    move('Continue Watching', 'down');
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(api.saveConfig).toHaveBeenCalled());
@@ -416,7 +423,7 @@ describe('AdminApp', () => {
     render(<AdminApp api={api} />);
 
     await screen.findByText('Genre rows');
-    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    move('Continue Watching', 'down');
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Accent color must look like #RRGGBB.');
@@ -479,7 +486,7 @@ describe('AdminApp', () => {
       render(<AdminApp api={api} />);
 
       await screen.findByText('Genre rows');
-      fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+      move('Continue Watching', 'down');
       fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
       expect(await screen.findByRole('alert')).toHaveTextContent('Saving failed. Check the server log.');
@@ -493,7 +500,7 @@ describe('AdminApp', () => {
 
       await screen.findByText('Genre rows');
       getConfig.mockRejectedValueOnce(new Error('x'));
-      fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+      move('Continue Watching', 'down');
       fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
       expect(await screen.findByRole('status')).toHaveTextContent('Settings saved.');
@@ -602,7 +609,7 @@ describe('AdminApp save bar', () => {
     // Reset to defaults doesn't need the bar.
     expect(screen.getByRole('button', { name: 'Reset to defaults' })).toBeEnabled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    move('Continue Watching', 'down');
     expectShown(container);
     expect(screen.getByRole('status')).toHaveTextContent('Unsaved changes');
 
@@ -627,7 +634,7 @@ describe('AdminApp save bar', () => {
     });
     const { container } = render(<AdminApp api={api} savedFor={20} />);
     await screen.findByText('Genre rows');
-    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    move('Continue Watching', 'down');
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await screen.findByRole('alert');
@@ -658,7 +665,7 @@ describe('AdminApp save bar', () => {
     const api = fakeApi({ reset: vi.fn(() => Promise.reject(new Error('x'))) });
     const { container } = render(<AdminApp api={api} confirm={() => true} savedFor={10_000} />);
     await screen.findByText('Genre rows');
-    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    move('Continue Watching', 'down');
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByRole('status')).toHaveTextContent('Settings saved.');
 
@@ -674,7 +681,7 @@ describe('AdminApp save bar', () => {
     await screen.findByText('Genre rows');
     const status = screen.getByRole('status');
     expect(bar(container).contains(status)).toBe(false);
-    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    move('Continue Watching', 'down');
     expect(screen.getByRole('status')).toBe(status);
     expect(status).toHaveTextContent('Unsaved changes');
   });
@@ -692,7 +699,7 @@ describe('AdminApp save bar', () => {
   it('puts focus on the heading when the bar goes down with focus in it', async () => {
     const { container } = render(<AdminApp api={fakeApi()} savedFor={20} />);
     await screen.findByText('Genre rows');
-    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    move('Continue Watching', 'down');
     const save = screen.getByRole('button', { name: 'Save' });
     save.focus();
     fireEvent.click(save);
@@ -711,7 +718,7 @@ describe('AdminApp save bar', () => {
     // No Discard with nothing to discard.
     expect(screen.queryByRole('button', { name: 'Discard' })).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    move('Continue Watching', 'down');
     fireEvent.input(screen.getByLabelText('Seerr address'), { target: { value: 'http://typo' } });
     expect(names()).toEqual(['Genre rows', 'Continue Watching']);
     const discard = screen.getByRole('button', { name: 'Discard' });
@@ -743,11 +750,11 @@ describe('AdminApp save bar', () => {
     });
     const { container } = render(<AdminApp api={api} savedFor={10} />);
     await screen.findByText('Genre rows');
-    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    move('Continue Watching', 'down');
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expectHidden(container));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Move Genre rows down' }));
+    move('Genre rows', 'down');
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await screen.findByRole('alert');
     fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
@@ -755,7 +762,10 @@ describe('AdminApp save bar', () => {
     expect(screen.queryByRole('alert')).toBeNull();
     expectHidden(container);
     // The order saved first, not the one loaded at the start.
-    expect(screen.getByRole('button', { name: 'Move Genre rows up' })).toBeDisabled();
+    expect([...container.querySelectorAll('.lmna-section__label')].map((n) => n.textContent)).toEqual([
+      'Genre rows',
+      'Continue Watching',
+    ]);
   });
 
   it('starts sections with state of their own afresh on Discard (a Seerr test result, a section type picked)', async () => {
@@ -791,7 +801,7 @@ describe('AdminApp save bar', () => {
     expect(clean.defaultPrevented).toBe(true); // not the browser's "Save page as"
     expect(api.saveConfig).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    move('Continue Watching', 'down');
     onScreen = false; // another dashboard page is showing
     fireEvent.keyDown(document, { key: 's', ctrlKey: true });
     expect(api.saveConfig).not.toHaveBeenCalled();
@@ -818,9 +828,9 @@ describe('AdminApp unsaved changes', () => {
     expect(shown(container)).toBe(false);
     expect(screen.getByRole('status')).toHaveTextContent('');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    move('Continue Watching', 'down');
     expect(shown(container)).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching up' }));
+    move('Continue Watching', 'up');
     expect(shown(container)).toBe(false);
 
     // The server sent no address at all; the field sends '' once emptied.
@@ -982,7 +992,7 @@ describe('AdminApp tabs', () => {
     const api = fakeApi();
     const { container } = render(<AdminApp api={api} onTab={vi.fn()} />);
     await screen.findByText('Genre rows');
-    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    move('Continue Watching', 'down');
 
     fireEvent.click(tab('Storage'));
     const bar = container.querySelector('.lmna-savebar')!;
@@ -991,7 +1001,10 @@ describe('AdminApp tabs', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Unsaved changes on the Settings tab');
 
     fireEvent.click(tab('Settings'));
-    expect(screen.getByRole('button', { name: 'Move Continue Watching up' })).toBeEnabled();
+    expect([...container.querySelectorAll('.lmna-section__label')].map((n) => n.textContent)).toEqual([
+      'Genre rows',
+      'Continue Watching',
+    ]);
     expect(bar).toHaveTextContent('Unsaved changes');
 
     // Saved from Storage, all the same.

@@ -4,7 +4,7 @@ import {
   canAdd,
   getParam,
   isRepeatable,
-  moveSection,
+  moveSectionTo,
   newSection,
   normalizeConfig,
   normalizeId,
@@ -30,8 +30,12 @@ describe('configModel', () => {
 
   it('moves sections within bounds only, and removes them', () => {
     const list = [section('a'), section('b'), section('c')];
-    expect(moveSection(list, 0, 1).map((s) => s.Id)).toEqual(['b', 'a', 'c']);
-    expect(moveSection(list, 0, -1)).toBe(list);
+    expect(moveSectionTo(list, 0, 1).map((s) => s.Id)).toEqual(['b', 'a', 'c']);
+    expect(moveSectionTo(list, 0, 2).map((s) => s.Id)).toEqual(['b', 'c', 'a']);
+    expect(moveSectionTo(list, 2, 0).map((s) => s.Id)).toEqual(['c', 'a', 'b']);
+    expect(moveSectionTo(list, 0, -1)).toBe(list);
+    expect(moveSectionTo(list, 1, 3)).toBe(list);
+    expect(moveSectionTo(list, 1, 1)).toBe(list);
     expect(removeSection(list, 1).map((s) => s.Id)).toEqual(['a', 'c']);
   });
 
@@ -157,7 +161,7 @@ describe('sameConfig', () => {
     expect(sameConfig(loaded(), { ...loaded(), TraktClientId: '', ClearTraktClientId: true })).toBe(false);
     expect(sameConfig(loaded(), { ...loaded(), AccentColor: '#00a4dc' })).toBe(false);
     const sections = loaded().Sections;
-    expect(sameConfig(loaded(), { ...loaded(), Sections: moveSection(sections, 0, 1) })).toBe(false);
+    expect(sameConfig(loaded(), { ...loaded(), Sections: moveSectionTo(sections, 0, 1) })).toBe(false);
     expect(
       sameConfig(loaded(), { ...loaded(), Sections: [setParam(sections[0]!, 'limit', '30'), sections[1]!] }),
     ).toBe(false);
@@ -166,7 +170,7 @@ describe('sameConfig', () => {
   it('a switch turned on and off again, or a section moved down and back up, is no change', () => {
     const twice = { ...loaded(), Enabled: false };
     expect(sameConfig(loaded(), { ...twice, Enabled: true })).toBe(true);
-    const sections = moveSection(moveSection(loaded().Sections, 0, 1), 1, -1);
+    const sections = moveSectionTo(moveSectionTo(loaded().Sections, 0, 1), 1, 0);
     expect(sameConfig(loaded(), { ...loaded(), Sections: sections })).toBe(true);
   });
 

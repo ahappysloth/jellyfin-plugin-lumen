@@ -50,9 +50,10 @@ const tagFocusables = (page: Page, settle = false) =>
 /**
  * Walks jellyfin-web's TV-layout D-pad navigation from `start`: from every control reached so far, presses each arrow
  * key and records where focus lands, until nothing new turns up (going round again while that finds more). Then lists
- * Lumen's controls it never landed on.
+ * Lumen's controls it never landed on: those in `root` (a selector; Lumen's pages by default, the settings page's
+ * `#lmn-admin-root` or a part of it there).
  */
-export async function walkDpad(page: Page, start: Locator): Promise<DpadWalk> {
+export async function walkDpad(page: Page, start: Locator, root = '#lmn-root'): Promise<DpadWalk> {
   await start.focus();
   const first = await tagFocusables(page);
   if (first == null) throw new Error('the start control could not take focus');
@@ -92,9 +93,10 @@ export async function walkDpad(page: Page, start: Locator): Promise<DpadWalk> {
   }
 
   await tagFocusables(page);
-  const controls = await page.evaluate((query) => {
-    const root = document.querySelector('#lmn-root');
-    return [...(root?.querySelectorAll<HTMLElement>(query) ?? [])]
+  const controls = await page.evaluate(([query, within]) => {
+    // jellyfin-web keeps pages it has left: the one showing.
+    const scope = [...document.querySelectorAll<HTMLElement>(within)].find((el) => el.getClientRects().length > 0);
+    return [...(scope?.querySelectorAll<HTMLElement>(query) ?? [])]
       .filter((el) => {
         const box = el.getBoundingClientRect();
         return (box.width > 0 || box.height > 0) && el.checkVisibility({ visibilityProperty: true }) && !el.closest('[inert]');
@@ -105,6 +107,6 @@ export async function walkDpad(page: Page, start: Locator): Promise<DpadWalk> {
         const name = `${el.tagName.toLowerCase()}.${classes.split(' ')[0]} "${label}"`;
         return { id: Number(el.getAttribute('data-dpad')), name, classes };
       });
-  }, FOCUSABLE);
+  }, [FOCUSABLE, root] as const);
   return { controls, unreachable: controls.filter((c) => !seen.has(c.id)) };
 }

@@ -16,11 +16,12 @@ export function normalizeConfig(config: LumenConfig): LumenConfig {
   return { ...config, HeroSource: source, Sections: config.Sections ?? [] };
 }
 
-export function moveSection(sections: SectionDef[], index: number, delta: -1 | 1): SectionDef[] {
-  const target = index + delta;
-  if (target < 0 || target >= sections.length) return sections;
+/** The list with the section at `from` taken out and put back in at `to` (an index in the list as it ends up). */
+export function moveSectionTo(sections: SectionDef[], from: number, to: number): SectionDef[] {
+  if (from === to || from < 0 || from >= sections.length || to < 0 || to >= sections.length) return sections;
   const next = [...sections];
-  [next[index], next[target]] = [next[target]!, next[index]!];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved!);
   return next;
 }
 

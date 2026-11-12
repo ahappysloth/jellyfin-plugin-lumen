@@ -261,6 +261,158 @@ test("More offers an administrator jellyfin-web's item actions", { tag: '@smoke'
   await expect(more(page)).toBeFocused();
 });
 
+/**
+ * jellyfin-web's Delete confirmation (components/dialog/dialog.js) wears Lumen's confirmation's look: a rounded panel
+ * floating over the page at any size, Cancel grey and Delete filled in Lumen's red. Cancelled: nothing is deleted.
+ */
+async function expectLumenDeleteDialog(page: Page, isMobile: boolean): Promise<void> {
+  const dialog = page.locator('.dialogContainer .dialog.formDialog.align-items-center');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveCSS('border-top-left-radius', '20px');
+  await expect(dialog).toHaveCSS('background-color', 'rgb(24, 24, 24)');
+  // Floating, not jellyfin-web's full screen below 80em × 45em: clear of the window's edges, at most 420px wide.
+  const box = (await dialog.boundingBox())!;
+  const viewport = page.viewportSize()!;
+  expect(box.width).toBeLessThanOrEqual(420);
+  expect(box.x).toBeGreaterThanOrEqual(16);
+  expect(box.y).toBeGreaterThan(0);
+  expect(box.y + box.height).toBeLessThan(viewport.height);
+  await expect(dialog.locator('.formDialogHeaderTitle')).toHaveCSS('text-align', 'left');
+  const cancel = dialog.getByRole('button', { name: 'Cancel' });
+  const remove = dialog.getByRole('button', { name: 'Delete' });
+  await expect(cancel).toHaveCSS('background-color', 'rgba(109, 109, 110, 0.7)');
+  await expect(remove).toHaveCSS('background-color', 'rgb(227, 11, 23)');
+  await expect(remove).toHaveCSS('color', 'rgb(255, 255, 255)');
+  await expect(remove).toHaveCSS('border-top-left-radius', '8px');
+  // The answers side by side at the bottom right, Delete last.
+  const cancelBox = (await cancel.boundingBox())!;
+  const removeBox = (await remove.boundingBox())!;
+  expect(Math.abs(cancelBox.y - removeBox.y)).toBeLessThan(1);
+  expect(removeBox.x).toBeGreaterThan(cancelBox.x);
+  // Lumen's ring from the keyboard. (Safari's Tab skips buttons; there the dialog's focus on Cancel shows it.)
+  if (isMobile) await cancel.focus();
+  else {
+    await remove.focus();
+    await page.keyboard.press('Shift+Tab');
+  }
+  await expect(cancel).toBeFocused();
+  await expect(cancel).toHaveCSS('outline-style', 'solid');
+  await expect(cancel).toHaveCSS('outline-color', 'rgb(255, 255, 255)');
+  await cancel.click();
+  await expect(dialog).toHaveCount(0);
+  // jellyfin-web closes it by going back in history, and takes its backdrop away once that's done: a page opened before
+  // then would see that Back.
+  await expect(page.locator('.dialogBackdrop')).toHaveCount(0);
+}
+
+test('Delete asks in Lumen’s own confirmation, from the details page and from a card’s menu', { tag: '@smoke' }, async ({
+  page,
+  isMobile,
+}) => {
+  const { admin, items, libraries } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await more(page).click();
+  await page.getByRole('menu', { name: 'More actions for Lumen Alpha' }).getByRole('menuitem', { name: 'Delete movie' }).click();
+  await expectLumenDeleteDialog(page, isMobile);
+  await expect(page.locator('#lmn-root .lmn-details__header')).toBeVisible();
+
+  // A card's menu (on the Movies grid) opens the same dialog. (A right-click: on a phone it's the page's More.) Lumen
+  // Gamma, whose card has no trailer preview to start under the pointer.
+  if (!isMobile) {
+    await page.goto(`/web/#/movies?topParentId=${libraries.movies}&collectionType=movies`);
+    await page.getByRole('list', { name: 'Movies' }).getByRole('link', { name: 'Lumen Gamma' }).click({ button: 'right' });
+    await page.getByRole('menu', { name: 'Actions for Lumen Gamma' }).getByRole('menuitem', { name: 'More actions…' }).click();
+    await page.getByRole('menu', { name: 'More actions for Lumen Gamma' }).getByRole('menuitem', { name: 'Delete movie' }).click();
+    await expectLumenDeleteDialog(page, isMobile);
+  }
+  // Still there.
+  for (const name of ['Lumen Alpha', 'Lumen Gamma'])
+    await api(`/Items/${items[name]}`, { token: admin.token, query: { userId: admin.userId } });
+});
+
+/**
+ * Opens jellyfin-web's dialog.js (the Delete confirmation's) with these answers, as Live TV's cancel-recording prompt
+ * does (no recordings here to open it from): its module found in jellyfin-web's webpack bundle by its markup.
+ */
+async function showStockDialog(page: Page, buttons: { name: string; id: string; type?: string }[]): Promise<void> {
+  const shown = await page.evaluate((answers) => {
+    type Loader = ((id: string) => Record<string, unknown>) & { m: Record<string, () => void> };
+    const chunks = (window as unknown as { webpackChunk?: unknown[] }).webpackChunk;
+    const found: Loader[] = [];
+    chunks?.push([[Symbol('lumen-e2e')], {}, (r: Loader) => found.push(r)]);
+    const loader = found[0];
+    if (!loader) return false;
+    const id = Object.keys(loader.m).find((key) => String(loader.m[key]).includes('formDialogFooter-flex'));
+    // Its default export: `{ show }` (or, in another build, show itself).
+    const exported = id ? Object.values(loader(id))[0] : null;
+    const show = typeof exported === 'function' ? exported : (exported as { show?: unknown } | null)?.show;
+    if (typeof show !== 'function') return false;
+    (show as (options: unknown) => Promise<unknown>)({
+      title: 'Cancel recording',
+      text: 'This program is being recorded. What would you like to do?',
+      buttons: answers,
+    }).catch(() => {});
+    return true;
+  }, buttons);
+  expect(shown).toBe(true);
+}
+
+/** Every answer inside the panel, its label inside the answer. */
+async function expectAnswersInside(page: Page): Promise<void> {
+  const dialog = page.locator('.dialogContainer .dialog.formDialog.align-items-center');
+  await expect(dialog).toBeVisible();
+  // Its opening animation done: boxes measured where they stay.
+  await expect(dialog).toHaveCSS('opacity', '1');
+  const panel = (await dialog.boundingBox())!;
+  const answers = dialog.locator('.btnOption');
+  for (let i = 0; i < (await answers.count()); i++) {
+    const box = (await answers.nth(i).boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(panel.x);
+    expect(box.x + box.width).toBeLessThanOrEqual(panel.x + panel.width + 0.5);
+    const spills = await answers.nth(i).evaluate((b) => b.scrollWidth > b.clientWidth || b.scrollHeight > b.clientHeight);
+    expect(spills).toBe(false);
+  }
+}
+
+test("jellyfin-web's other dialogs fit Lumen's panel: three answers one under the other, at any width", async ({ page }) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await expect(page.locator('#lmn-root .lmn-details__header')).toBeVisible();
+  const three = [
+    { name: 'Keep recording', id: 'cancel', type: 'submit' },
+    { name: 'Cancel recording', id: 'canceltimer', type: 'cancel' },
+    { name: 'Cancel series recording', id: 'cancelseriestimer', type: 'cancel' },
+  ];
+  const dialog = page.locator('.dialogContainer .dialog.formDialog.align-items-center');
+  for (const size of [{ width: 1280, height: 720 }, { width: 375, height: 667 }, { width: 320, height: 568 }]) {
+    await page.setViewportSize(size);
+    await showStockDialog(page, three);
+    await expectAnswersInside(page);
+    // One under the other, in jellyfin-web's order, each the panel's width.
+    const boxes = await dialog.locator('.btnOption').evaluateAll((list) => list.map((b) => b.getBoundingClientRect().toJSON() as DOMRect));
+    expect(boxes).toHaveLength(3);
+    for (let i = 1; i < boxes.length; i++) {
+      expect(boxes[i]!.top).toBeGreaterThanOrEqual(boxes[i - 1]!.bottom);
+      expect(Math.abs(boxes[i]!.width - boxes[0]!.width)).toBeLessThan(1);
+    }
+    await dialog.getByRole('button', { name: 'Keep recording' }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator('.dialogBackdrop')).toHaveCount(0);
+
+    // Two long answers: side by side when they fit, else each on a line of its own; never squeezed or spilling out.
+    await showStockDialog(page, [
+      { name: 'Keep the recording', id: 'cancel', type: 'submit' },
+      { name: 'Stop and delete the recording', id: 'stop', type: 'cancel' },
+    ]);
+    await expectAnswersInside(page);
+    await dialog.getByRole('button', { name: 'Keep the recording' }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator('.dialogBackdrop')).toHaveCount(0);
+  }
+});
+
 test('More offers a restricted user only what their policy allows', async ({ page }) => {
   const { items } = loadState();
   // The kid may download and make playlists: no editors, no collections, no Delete.

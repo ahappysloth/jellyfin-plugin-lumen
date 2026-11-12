@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { detailsHash, getLayout } from '../compat/jellyfin';
 import { formatDateTime, formatNumber } from '../util/locale';
 import type { AdminApi, StorageBreakdown, StorageBucket, StorageReport, StorageStatus } from './adminApi';
-import { Card } from './controls';
+import { Card, placeTip } from './controls';
 import {
   codecLabel,
   codecMix,
@@ -351,9 +351,6 @@ function Library({ name, storage, tv }: { name: string; storage: StorageBreakdow
   );
 }
 
-/** How far a bar's tooltip keeps from the window's edges, and from the bar. */
-const TIP_MARGIN = 8;
-
 /**
  * A thin segmented bar (one library's files split by codec or resolution), with a legend that carries the numbers:
  * colour is never the only way to tell the parts apart.
@@ -421,23 +418,12 @@ function Bar({
     return () => document.removeEventListener('pointerdown', onDown, true);
   }, [active !== null]);
 
-  // Over its part, and inside the window: shifted in from an edge (its arrow still points at the part), and under the
-  // bar when there's no room above it.
+  // Over its part, and inside the window (placeTip).
   useLayoutEffect(() => {
     const tip = tipRef.current;
     const seg = active === null ? null : barRef.current?.children[active];
     const wrap = wrapRef.current;
-    if (!tip || !seg || !wrap) return;
-    const box = wrap.getBoundingClientRect();
-    const part = seg.getBoundingClientRect();
-    const width = tip.offsetWidth;
-    const viewport = document.documentElement.clientWidth || window.innerWidth;
-    const centre = (part.left + part.right) / 2;
-    const left = Math.max(TIP_MARGIN, Math.min(centre - width / 2, viewport - TIP_MARGIN - width));
-    tip.style.left = `${left - box.left}px`;
-    tip.style.setProperty('--tip-arrow', `${Math.max(10, Math.min(width - 10, centre - left))}px`);
-    const below = part.top - tip.offsetHeight - TIP_MARGIN < 0;
-    tip.classList.toggle('is-below', below);
+    if (tip && seg && wrap) placeTip(tip, wrap, seg.getBoundingClientRect());
   }, [active, shown?.bucket.Key]);
 
   const onKeyDown = (e: KeyboardEvent): void => {
