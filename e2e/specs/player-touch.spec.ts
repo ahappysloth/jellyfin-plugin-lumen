@@ -94,6 +94,30 @@ for (const [way, viewport, short] of [
       expect(await paused(page)).toBe(false);
     });
 
+    test('a double tap at either side skips 10 s, and says so', async ({ page }) => {
+      await play(page);
+      const video = page.locator('video.htmlvideoplayer');
+      const time = () => video.evaluate((v: HTMLVideoElement) => v.currentTime);
+      await video.evaluate((v: HTMLVideoElement) => {
+        v.pause();
+        v.currentTime = 2;
+      });
+      await expect.poll(time).toBeCloseTo(2, 0);
+      const skipped = page.locator('.lmn-player-skipped');
+      const y = viewport.height / 2;
+
+      await page.touchscreen.tap(viewport.width * 0.85, y);
+      await page.touchscreen.tap(viewport.width * 0.85, y);
+      await expect(skipped).toHaveText('+10 s');
+      await expect.poll(time).toBeCloseTo(12, 0);
+      await expect(skipped).toHaveCount(0);
+
+      await page.touchscreen.tap(viewport.width * 0.15, y);
+      await page.touchscreen.tap(viewport.width * 0.15, y);
+      await expect(skipped).toHaveText('−10 s');
+      await expect.poll(time).toBeCloseTo(2, 0);
+    });
+
     test('a tap that brings the hidden controls back presses nothing under the finger', async ({ page }) => {
       await play(page);
       const osd = page.locator('.lmn-osd');
