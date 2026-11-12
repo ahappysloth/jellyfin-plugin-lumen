@@ -110,6 +110,16 @@ public class LumenConfigStoreTests
     }
 
     [Fact]
+    public void Save_TrimsTheQuickConnectAddress_AndStoresBlankAsNotSet()
+    {
+        var store = CreateStore();
+        Assert.True(store.Save(new PluginConfiguration { QuickConnectAddress = "  https://jf.example.com  " }).Success);
+        Assert.Equal("https://jf.example.com", _persistence.Stored.QuickConnectAddress);
+        Assert.True(store.Save(new PluginConfiguration { QuickConnectAddress = "   " }).Success);
+        Assert.Null(_persistence.Stored.QuickConnectAddress);
+    }
+
+    [Fact]
     public void Save_WithoutATraktKey_KeepsTheStoredOne_AndTheClearFlagRemovesIt()
     {
         var store = CreateStore();

@@ -74,6 +74,33 @@ Add Top 10 Movies and Top 10 Shows under Home sections first.
 - [ ] TV layout: from a Top 10 card, Up reaches See all; on Top charts the arrows reach both switches, every card and
       each Request button (Down from its card), and the next page loads as focus moves down the grid.
 
+## Quick Connect (a TV or a computer, and a phone)
+
+Automated tests run both sides in two browser contexts and decode the QR code with jsQR; only real devices show the
+camera, the home-screen app and a TV across the room.
+
+- [ ] Signed out on a TV (or Display → Layout = TV): "Use Quick Connect" is the sign-in page's main button, in the
+      accent, and doesn't open by itself. OK opens Lumen's screen: the code in large digits ("123 456"), readable from
+      the sofa, a QR code beside it, Cancel focused. The arrows stay on the screen's buttons; Back closes it, focus back
+      on the button.
+- [ ] iPhone camera on the QR code: Safari opens `…/web/#/quickconnect?code=…`. Signed in: the page shows the account,
+      the six digits filled in, "This code came from a link or QR code", and waits for Approve. Signed out: sign in, and
+      it lands on the same page with the code. After Approve the TV signs in by itself and shows home.
+- [ ] The installed home-screen app: account menu → Quick Connect, type the six digits (paste "123 456" works too),
+      Approve. The address bar never keeps the code after the page has read it.
+- [ ] Lumen's settings → General → Public address for QR codes: a LAN or Tailscale address the phone can reach (e.g.
+      `http://tv-box.tailnet.ts.net:8096`) saves, and the TV's QR code opens it; `jellyfin.example.com` (no http) is
+      flagged and refused on save. Empty: the QR code opens the address the TV itself uses.
+- [ ] Leave the TV on its Quick Connect screen for over 30 minutes: it gets a new code twice (every 10 minutes), then
+      says "That code has expired." with "Get a new code". The network panel shows no more Quick Connect requests after
+      Cancel, Back or leaving the page.
+- [ ] As an administrator, "Signs in as" offers every user; picking a child's account signs the TV in as them. A
+      non-administrator has no picker.
+- [ ] Dashboard → General → turn Quick Connect off: the open TV screen says it's turned off; the approve page says so
+      too, with "Turn it on in Dashboard → General" for administrators (not on a TV). The sign-in page has no Quick
+      Connect button (jellyfin-web hides it). Turn it back on.
+- [ ] A wrong code says "isn't valid or has expired"; approving the same code twice says "already been used".
+
 ## Request progress (a real Seerr connected to Radarr/Sonarr)
 
 Automated tests use a stub Seerr; only a real one shows Radarr's and Sonarr's queues as Seerr passes them on.

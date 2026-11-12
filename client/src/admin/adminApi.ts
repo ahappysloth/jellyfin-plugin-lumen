@@ -41,6 +41,11 @@ export interface LumenConfig {
   AccentColor: string;
   /** A home-screen install takes the server's name instead of "Lumen" (absent from older servers: off). */
   AppNameFromServer?: boolean;
+  /**
+   * "Public address for QR codes": where phones reach the server, for Quick Connect's QR code on the sign-in page. Empty
+   * or absent: the address the signing-in device uses.
+   */
+  QuickConnectAddress?: string | null;
   /** Jellyfin may serialize the enum as a name or a number; normalizeConfig converts it to a name. */
   HeroSource: string | number;
   HeroCollectionId: string | null;

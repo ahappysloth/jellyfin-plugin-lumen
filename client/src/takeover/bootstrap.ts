@@ -24,6 +24,7 @@ import { applyDashboardSkin, applySignInSkin, isSignInRoute } from '../veil/skin
 import { liftVeil, liftVeilNow, PENDING_CLASS, rememberVeilName, SAFETY_TIMER_KEY } from '../veil/veil';
 import { resetSessionCaches } from '../util/sessionCaches';
 import { createPluginsButton } from './pluginsButton';
+import { createQuickConnectSignIn } from './quickConnectSignIn';
 import { createRestartWatch } from './restartWatch';
 import { Takeover } from './takeover';
 
@@ -165,6 +166,8 @@ export function startLumen(options: BootstrapOptions): () => void {
    */
   const pluginsButton = createPluginsButton(doc);
   const restartWatch = createRestartWatch(doc, win);
+  // "Use Quick Connect" on the sign-in page opens Lumen's screen (needs no session either).
+  const stopQuickConnect = createQuickConnectSignIn(doc, win);
   const skinStockPages = (): void => {
     applyDashboardSkin(doc, win.location.hash);
     pluginsButton.sync(win.location.hash);
@@ -290,6 +293,7 @@ export function startLumen(options: BootstrapOptions): () => void {
     stopViewportCover();
     pluginsButton.stop();
     restartWatch.stop();
+    stopQuickConnect();
     session?.takeover?.dispose();
   };
 }

@@ -9,6 +9,12 @@ public sealed partial class ConfigValidator
 {
     public const int MaxSections = 30;
 
+    /// <summary>
+    /// The longest Quick Connect address, in UTF-8 bytes: the QR code holds 106 (client/src/views/quickconnect/qr.ts),
+    /// and <c>/web/#/quickconnect?code=123456</c> takes 31 of them.
+    /// </summary>
+    public const int MaxQuickConnectAddressBytes = 75;
+
     private readonly Dictionary<string, IHomeSectionProvider> _providers;
 
     public ConfigValidator(IEnumerable<IHomeSectionProvider> providers)
@@ -31,6 +37,17 @@ public sealed partial class ConfigValidator
         && string.IsNullOrEmpty(uri.UserInfo)
         && string.IsNullOrEmpty(uri.Query)
         && string.IsNullOrEmpty(uri.Fragment);
+
+    /// <summary>
+    /// Whether <paramref name="value"/> may be the public address for Quick Connect's QR codes: empty (not set), or an
+    /// http(s) URL (<see cref="IsHttpUrl"/>, a base path allowed) short enough for the QR code. No <c>?</c> or <c>#</c>,
+    /// even empty ones, which <see cref="Uri"/> drops: the client appends <c>/web/#/quickconnect…</c> to it as text.
+    /// </summary>
+    public static bool IsQuickConnectAddress(string? value) =>
+        string.IsNullOrEmpty(value)
+        || (IsHttpUrl(value)
+            && value.IndexOfAny(['?', '#', '"', '<', '>', ' ']) < 0
+            && System.Text.Encoding.UTF8.GetByteCount(value) <= MaxQuickConnectAddressBytes);
 
     public IReadOnlyList<string> Validate(PluginConfiguration config)
     {
@@ -66,6 +83,13 @@ public sealed partial class ConfigValidator
             {
                 errors.Add("Requests need Seerr's API key (Seerr → Settings → General).");
             }
+        }
+
+        if (!IsQuickConnectAddress(config.QuickConnectAddress))
+        {
+            errors.Add(string.Create(
+                CultureInfo.InvariantCulture,
+                $"The public address for QR codes must be an http(s) address like https://jellyfin.example.com, at most {MaxQuickConnectAddressBytes} characters."));
         }
 
         // It goes in a request header: printable ASCII only, so it can't break the request. (Trakt's are 64 hex digits.)

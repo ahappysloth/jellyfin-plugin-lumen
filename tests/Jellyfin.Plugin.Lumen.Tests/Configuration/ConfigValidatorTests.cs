@@ -48,6 +48,26 @@ public class ConfigValidatorTests
     [InlineData(null, false)]
     public void IsHttpUrl(string? value, bool expected) => Assert.Equal(expected, ConfigValidator.IsHttpUrl(value));
 
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("", true)]
+    [InlineData("https://jellyfin.example.com", true)]
+    [InlineData("http://192.168.1.20:8096", true)]
+    [InlineData("http://tv-box.tail1234.ts.net:8096/jellyfin/", true)]
+    [InlineData("jellyfin.example.com", false)]
+    [InlineData("ftp://jellyfin.example.com", false)]
+    [InlineData("https://user:pass@jellyfin.example.com", false)]
+    [InlineData("https://jellyfin.example.com/?", false)]
+    [InlineData("https://jellyfin.example.com/#", false)]
+    [InlineData("https://jellyfin.example.com/\"><script>", false)]
+    [InlineData("https://a-very-long-host-name-for-a-jellyfin-server.example.com/with/a/long/base", false)]
+    public void QuickConnectAddress_IsAnHttpAddressThatFitsTheQrCode(string? address, bool valid)
+    {
+        Assert.Equal(valid, ConfigValidator.IsQuickConnectAddress(address));
+        var errors = new ConfigValidator([]).Validate(new PluginConfiguration { QuickConnectAddress = address });
+        Assert.Equal(valid, !errors.Any(e => e.Contains("QR codes", StringComparison.Ordinal)));
+    }
+
     [Fact]
     public void ValidConfig_HasNoErrors()
     {

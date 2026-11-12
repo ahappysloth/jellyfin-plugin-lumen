@@ -202,6 +202,9 @@ html.layout-tv .lmn-admin .lmna-tab:focus {
 .lmn-admin input[type='number'] {
   max-width: 140px;
 }
+.lmn-admin input[aria-invalid='true'] {
+  border-color: #ff6b6b;
+}
 .lmn-admin select {
   padding-right: 36px;
   background-image:

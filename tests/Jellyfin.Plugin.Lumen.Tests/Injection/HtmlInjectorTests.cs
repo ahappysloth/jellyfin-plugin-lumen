@@ -102,6 +102,18 @@ public class HtmlInjectorTests
     }
 
     [Fact]
+    public void GivesTheSignInPageTheQuickConnectAddress_OnlyAValidOne_AndOnlyWhenRestyling()
+    {
+        const string Meta = "<meta name=\"lumen-quick-connect-address\" content=\"https://jf.example.com/base\">";
+        Assert.Contains(Meta, HtmlInjector.Inject(Page, "h", "guard()", styleStockPages: true, quickConnectAddress: "https://jf.example.com/base"), StringComparison.Ordinal);
+        Assert.DoesNotContain("lumen-quick-connect-address", HtmlInjector.Inject(Page, "h", "guard()", quickConnectAddress: "https://jf.example.com/base"), StringComparison.Ordinal);
+        Assert.DoesNotContain("lumen-quick-connect-address", HtmlInjector.Inject(Page, "h", "guard()", styleStockPages: true), StringComparison.Ordinal);
+        var bad = HtmlInjector.Inject(Page, "h", "guard()", styleStockPages: true, quickConnectAddress: "https://x\"><script>x()</script>");
+        Assert.DoesNotContain("lumen-quick-connect-address", bad, StringComparison.Ordinal);
+        Assert.DoesNotContain("x()", bad, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InstallsAsLumen_SwappingManifestTouchIconAndThemeColor()
     {
         const string page = "<html><head><meta id=\"themeColor\" name=\"theme-color\" content=\"#202020\">"

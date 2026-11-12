@@ -235,6 +235,24 @@ describe('AdminApp', () => {
     expect(vi.mocked(api.saveConfig).mock.calls[0]![0].AppNameFromServer).toBe(true);
   });
 
+  it("saves the public address for QR codes, and says when it isn't one", async () => {
+    const api = fakeApi();
+    render(<AdminApp api={api} />);
+
+    const field = await screen.findByRole('textbox', { name: 'Public address for QR codes' });
+    expect(field).toHaveValue('');
+    fireEvent.input(field, { target: { value: 'jellyfin.example.com' } });
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+    expect(field).toHaveAccessibleDescription(/http:\/\/ or https:\/\//);
+    fireEvent.input(field, { target: { value: 'http://tv.tail1234.ts.net:8096/jf' } });
+    expect(field).not.toHaveAttribute('aria-invalid');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(api.saveConfig).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(api.saveConfig).mock.calls[0]![0].QuickConnectAddress).toBe(
+      'http://tv.tail1234.ts.net:8096/jf',
+    );
+  });
+
   it('tests the Seerr connection with the typed address and key', async () => {
     const api = fakeApi({
       testSeerr: vi.fn(async () => ({ Ok: false, Version: null, Error: 'Seerr rejected the API key.' })),

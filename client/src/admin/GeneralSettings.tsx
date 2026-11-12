@@ -1,3 +1,4 @@
+import { isPublicAddress } from '../util/publicAddress';
 import type { LumenConfig } from './adminApi';
 import { Card, Field, Switch, inputValue } from './controls';
 
@@ -8,6 +9,8 @@ export function GeneralSettings({
   config: LumenConfig;
   update: (patch: Partial<LumenConfig>) => void;
 }) {
+  const address = config.QuickConnectAddress ?? '';
+  const addressOk = isPublicAddress(address);
   return (
     <Card title="General">
       <Switch
@@ -55,6 +58,26 @@ export function GeneralSettings({
         checked={config.AppNameFromServer ?? false}
         onChange={(v) => update({ AppNameFromServer: v })}
       />
+      <Field
+        label="Public address for QR codes"
+        hint={
+          addressOk
+            ? "Where phones reach this server, like https://jellyfin.example.com (with its base path, if it has one). Quick Connect's QR code on the sign-in page opens it. Leave empty to use the address the TV or computer showing the code uses: set it when that's a LAN address your phones can't reach or aren't signed in at."
+            : 'Enter an http:// or https:// address without a ? or #, like https://jellyfin.example.com, at most 75 characters.'
+        }
+      >
+        <input
+          type="url"
+          name="lumen-quick-connect-address"
+          inputMode="url"
+          autoComplete="off"
+          spellcheck={false}
+          placeholder="https://jellyfin.example.com"
+          aria-invalid={addressOk ? undefined : 'true'}
+          value={address}
+          onInput={(e) => update({ QuickConnectAddress: inputValue(e) })}
+        />
+      </Field>
       <Field label="Accent color" hint="Badges, ratings, progress bars and this page's buttons.">
         <input
           type="color"

@@ -1,6 +1,6 @@
 // Fails when what every page loads (lumen.js, the chunks it loads at startup, lumen.css), or one of the chunks loaded
 // when they're needed (the player, the trailer preview, the restart banner, the catalog title page, the profile pages,
-// the item menu, the secondary views, Top charts), or one of the stylesheets linked where they're used, exceeds its gzipped budget,
+// the item menu, the secondary views, Top charts, Quick Connect), or one of the stylesheets linked where they're used, exceeds its gzipped budget,
 // or Lumen's fonts exceed theirs.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
@@ -20,7 +20,7 @@ const oneChunk = (name) => {
 const coreChunk = oneChunk('main');
 // Loaded when they're needed: views/player/lazyPlayer.tsx, views/home/lazyTrailer.tsx, takeover/restartWatch.ts,
 // views/catalog/lazyTitle.tsx, views/profile/lazyProfile.tsx, views/itemMenu/lazyItemMenu.ts,
-// views/secondary/lazySecondary.tsx, views/charts/lazyCharts.tsx.
+// views/secondary/lazySecondary.tsx, views/charts/lazyCharts.tsx, views/quickconnect/lazyQuickConnect.tsx.
 const playerChunk = oneChunk('PlayerView');
 const trailerChunk = oneChunk('TrailerPreview');
 const restartChunk = oneChunk('RestartBanner');
@@ -29,6 +29,7 @@ const profileChunk = oneChunk('ProfilePages');
 const itemMenuChunk = oneChunk('itemMenu');
 const secondaryChunk = oneChunk('SecondaryViews');
 const chartsChunk = oneChunk('ChartsView');
+const quickConnectChunk = oneChunk('QuickConnect');
 // Startup is lumen.js and the core it imports, which the server preloads with it. Another chunk would be a download
 // the core waits for (vite.config.ts keeps it to one).
 const others = chunks.filter(
@@ -43,6 +44,7 @@ const others = chunks.filter(
       itemMenuChunk,
       secondaryChunk,
       chartsChunk,
+      quickConnectChunk,
     ].includes(f),
 );
 if (others.length) {
@@ -101,6 +103,14 @@ console.log(
 const CHARTS_BUDGET = 5 * 1024;
 const charts = gz(`dist/${chartsChunk}`) + gz('dist/lumen-charts.css');
 console.log(`lumen top charts + styles: ${kb(charts)} gzipped (budget ${CHARTS_BUDGET / 1024} KB)`);
+// Quick Connect's approve page and sign-in screen, with the QR encoder and its stylesheet
+// (views/quickconnect/lazyQuickConnect.tsx): only someone using Quick Connect downloads it, the sign-in page included.
+// A new budget line in 0.5.0, approved by the owner.
+const QUICK_CONNECT_BUDGET = 6 * 1024;
+const quickConnect = gz(`dist/${quickConnectChunk}`) + gz('dist/lumen-quickconnect.css');
+console.log(
+  `lumen quick connect + styles: ${kb(quickConnect)} gzipped (budget ${QUICK_CONNECT_BUDGET / 1024} KB)`,
+);
 // The guard and the web plugin's definer are inlined into every index.html, so they share a small budget.
 const GUARD_BUDGET = 4 * 1024;
 const guard = gz('dist/lumen-guard.js') + gz('dist/lumen-web-plugin.js');
@@ -142,6 +152,7 @@ if (
   itemMenu > ITEM_MENU_BUDGET ||
   secondary > SECONDARY_BUDGET ||
   charts > CHARTS_BUDGET ||
+  quickConnect > QUICK_CONNECT_BUDGET ||
   guard > GUARD_BUDGET ||
   stock > STOCK_BUDGET ||
   dashboard > DASHBOARD_BUDGET ||

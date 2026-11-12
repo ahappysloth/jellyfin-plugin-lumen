@@ -46,6 +46,11 @@ export const STOCK_SELECTORS = {
   upNext: { selector: '.upNextContainer' },
   /** The sign-in form (stock-skin.css restyles it). */
   loginForm: { selector: '.manualLoginForm' },
+  /**
+   * The sign-in page's "Use Quick Connect" (shown while the server has it on): Lumen opens its own Quick Connect screen
+   * instead of jellyfin-web's dialog (takeover/quickConnectSignIn.ts), and on a TV stock-skin.css makes it the main button.
+   */
+  quickConnectButton: { selector: '.btnQuick' },
   submitButton: { selector: '.button-submit' },
   embyInput: { selector: '.emby-input' },
   /** Settings pages' selects (views/profile/stockSelects.tsx puts Lumen's dropdown over them). */
@@ -265,6 +270,33 @@ export const REFRESH_DIALOG = { field: '#selectMetadataRefreshMode', dialog: '.d
  * opened on one item: where Lumen sends an administrator's edit when it can't open jellyfin-web's dialog.
  */
 export const METADATA_ITEM_PARAM = 'id';
+
+/**
+ * Quick Connect (views/quickconnect). Its own export, not in STOCK_ROUTES or SETTINGS_ROUTES, which the inline guard
+ * bundles: the guard's budget has no room, and it needn't know any of this.
+ * - Sign-in: Lumen takes the click on jellyfin-web's "Use Quick Connect" button (STOCK_SELECTORS.quickConnectButton,
+ *   login/index.html) and runs the flow itself, then signs in as jellyfin-web's own dialog does
+ *   (controllers/session/login/index.js): `ApiClient.quickConnect(secret)` (jellyfin-apiclient: trades the secret for a
+ *   sign-in and saves it), `Dashboard.onServerChanged(userId, accessToken, apiClient)` and `Dashboard.navigate(url)`
+ *   (utils/dashboard.js, on `window.Dashboard`, whose comment upstream says it'll go once plugins don't need it). Any of
+ *   them missing, and the click goes through to jellyfin-web's dialog. The page's `url` parameter is where a sign-in
+ *   goes next (components/ConnectionRequired.tsx adds it); `serverid` says which server the page is for.
+ * - Approve: `#/quickconnect` (SETTINGS_ROUTES.quickConnect) reads `?code=` (routes/quickConnect, 12.4: its `userId`
+ *   too, which Lumen ignores). The admin hint for a server with Quick Connect off links to Dashboard → General, where
+ *   jellyfin-web has the switch (apps/dashboard/routes/settings).
+ * - `addressMeta`: Lumen's own, the server's "Public address for QR codes" in index.html (Injection/HtmlInjector.cs).
+ */
+export const QUICK_CONNECT = {
+  route: '/quickconnect',
+  loginRoute: '/login',
+  codeParam: 'code',
+  loginUrlParam: 'url',
+  loginServerParam: 'serverid',
+  apiClientMethod: 'quickConnect',
+  dashboardMethods: ['onServerChanged', 'navigate'],
+  dashboardSettingsRoute: '/dashboard/settings',
+  addressMeta: 'lumen-quick-connect-address',
+} as const;
 
 /** The stock settings pages Lumen restyles and frames (the page itself stays jellyfin-web's). */
 export const SETTINGS_ROUTES = {

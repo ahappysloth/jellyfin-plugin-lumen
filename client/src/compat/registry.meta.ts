@@ -55,6 +55,7 @@ export const STOCK_SELECTOR_META = {
   skipIntro: { probe: null, css: 'player.css' },
   upNext: { probe: null, css: 'player.css' },
   loginForm: { probe: 'login', css: 'stock-skin.css' },
+  quickConnectButton: { probe: 'login', css: 'stock-skin.css' },
   submitButton: { probe: 'login', css: 'stock-skin.css' },
   embyInput: { probe: 'login', css: 'stock-skin.css' },
   embySelect: { probe: 'settings' },
