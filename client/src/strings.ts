@@ -173,6 +173,29 @@ export const strings = {
   partlyAvailable: 'Partly available',
   /** A catalog card's state tab: a phone poster has no room for the long one. */
   partlyAvailableShort: 'Partial',
+  // Request progress (views/catalog/requestProgress.ts): posters, the title page, My requests, the ready pop-up.
+  myRequests: 'My requests',
+  progress: {
+    Requested: 'Requested',
+    Queued: 'Queued',
+    Downloading: 'Downloading',
+    Processing: 'Processing',
+    Ready: 'Ready',
+    Declined: 'Declined',
+    Failed: 'Failed',
+  },
+  processingDetail: 'Adding to your library',
+  episodesOf: (done: number, total: number) => `${formatNumber(done)} of ${formatNumber(total)} episodes`,
+  timeLeft: (s: number) =>
+    s < 60
+      ? 'Less than a minute left'
+      : s < 3600
+        ? `${formatNumber(Math.round(s / 60))} min left`
+        : s < 86400
+          ? `${formatNumber(Math.floor(s / 3600))} hr ${formatNumber(Math.round((s % 3600) / 60))} min left`
+          : `${formatNumber(Math.round(s / 86400))} days left`,
+  readyToWatch: (title: string) => `${title} is ready to watch`,
+  severalReady: (n: number) => `${formatNumber(n)} of your requests are ready to watch`,
   badges: {
     RecentlyAdded: 'Recently added',
     NewEpisode: 'New episode',

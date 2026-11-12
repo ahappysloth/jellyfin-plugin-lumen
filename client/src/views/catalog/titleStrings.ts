@@ -24,5 +24,20 @@ export const titleStrings = {
   loadingTitle: 'Loading…',
   watchTrailer: 'Trailer',
   openInLibrary: 'Open in library',
+  // Request progress (RequestProgressBlock, MyRequestsView).
+  progressNote: {
+    Requested: 'Waiting for approval.',
+    Queued: 'Approved. The download hasn’t started yet.',
+    Downloading: null,
+    Processing: 'Downloaded. It’s being added to your library.',
+    Ready: 'Ready to watch.',
+    Declined: 'Your request was declined.',
+    Failed: 'The download failed. Ask the server owner to look at it.',
+  },
+  noRequests: 'No requests yet',
+  noRequestsHint: 'Search for a movie or show that isn’t here yet and request it.',
+  requestsFailed: "Couldn't load your requests from Seerr.",
+  noRequestFeatures: "Requests aren't available for your account.",
+  requestedOn: (date: string) => `Requested ${date}`,
   runtimeMinutes: (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`),
 } as const;

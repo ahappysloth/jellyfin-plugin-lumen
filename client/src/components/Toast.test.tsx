@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/preact';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { showToast, TOAST_MS, ToastHost } from './Toast';
+import { ACTION_TOAST_MS, showToast, TOAST_MS, ToastHost } from './Toast';
 
 describe('ToastHost', () => {
   afterEach(() => vi.useRealTimers());
@@ -27,6 +27,23 @@ describe('ToastHost', () => {
     render(<ToastHost />);
     act(() => showToast('Oops'));
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.getByRole('alert')).toBeEmptyDOMElement();
+  });
+
+  it('can carry a button, which acts and dismisses it, and stays up longer', () => {
+    vi.useFakeTimers();
+    const onSelect = vi.fn();
+    render(<ToastHost />);
+    act(() => showToast('The Matrix is ready to watch', { label: 'Open', onSelect }));
+
+    act(() => void vi.advanceTimersByTime(TOAST_MS));
+    expect(screen.getByRole('alert')).toHaveTextContent('The Matrix is ready to watch');
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+    expect(onSelect).toHaveBeenCalledOnce();
+    expect(screen.getByRole('alert')).toBeEmptyDOMElement();
+
+    act(() => showToast('Again', { label: 'Open', onSelect }));
+    act(() => void vi.advanceTimersByTime(ACTION_TOAST_MS));
     expect(screen.getByRole('alert')).toBeEmptyDOMElement();
   });
 

@@ -62,6 +62,8 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ITmdbImageCache, TmdbImageCache>();
         serviceCollection.AddSingleton<CatalogMapper>();
         serviceCollection.AddSingleton<CatalogRowAccess>();
+        serviceCollection.AddSingleton<IReadyAnnouncements, ReadyAnnouncements>();
+        serviceCollection.AddSingleton<IRequestProgressService, RequestProgressService>();
 
         // Trakt's key is a custom header too, so the same rule: no redirects (TraktClient reports one as an error).
         serviceCollection.AddHttpClient(TraktClient.HttpClientName, client => client.DefaultRequestHeaders.UserAgent.Add(UserAgent))

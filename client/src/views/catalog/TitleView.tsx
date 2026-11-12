@@ -22,10 +22,14 @@ import {
 } from './catalog';
 import { CatalogCard } from './CatalogCard';
 import { RequestDialog, requestedState } from './RequestDialog';
+import { RequestProgressBlock } from './RequestProgressBlock';
+import { isMoving, usePollFast, useRequestProgress } from './requestProgress';
 import { titleStrings } from './titleStrings';
 
-// The request dialog for a card's Request button (lazyTitle.tsx's LazyQuickRequest) comes in this chunk too.
+// The request dialog for a card's Request button (lazyTitle.tsx's LazyQuickRequest) and My requests come in this chunk
+// too: only users with request features ever need them.
 export { QuickRequest } from './QuickRequest';
+export { MyRequestsView } from './MyRequestsView';
 
 /**
  * A catalog title's page (requests spec §5.3): the details-page header with Request (or the request's state) in place
@@ -47,6 +51,22 @@ export function TitleView({
   const [attempt, setAttempt] = useState(0);
   const rootRef = useRef<HTMLElement>(null);
   useAutoFocus(rootRef, title !== null || failed, ctx.layout);
+  // The user's own request for it, if any: checked every 10 s while it's downloading and this page is visible.
+  const progress = useRequestProgress(title?.Key ?? `${mediaType}-${tmdbId}`);
+  usePollFast(!!progress && isMoving(progress.Status));
+  // Once it's ready, the title (fetched again, quietly) links to the library.
+  const ready = progress?.Status === 'Ready';
+  useEffect(() => {
+    if (!ready || !title || title.JellyfinItemId) return undefined;
+    let cancelled = false;
+    ctx.api.getCatalogTitle(mediaType, tmdbId).then(
+      (t) => !cancelled && setTitle(t),
+      () => undefined,
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, title !== null]);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,6 +183,8 @@ function TitleHeader({
   onRequest: () => void;
 }) {
   const state = useCatalogState(title);
+  // The user's own request shows its progress under the header instead of the state (RequestProgressBlock).
+  const mine = useRequestProgress(title.Key);
   const meta = [
     title.Rating ? title.Rating.toFixed(1) : undefined,
     title.Year?.toString(),
@@ -235,7 +257,7 @@ function TitleHeader({
                 : strings.request}
             </button>
           ) : null}
-          {!owned && label && state !== 'None' && (
+          {!owned && label && state !== 'None' && !mine && (
             <span class="lmn-title__state" role="status">
               <Icon name={state === 'Downloading' ? 'film' : 'check'} size={18} />
               {label}
@@ -254,6 +276,7 @@ function TitleHeader({
             </a>
           )}
         </div>
+        {mine && !owned && <RequestProgressBlock request={mine} />}
         {note && <p class="lmn-title__note">{note}</p>}
       </div>
     </header>

@@ -71,7 +71,8 @@ console.log(`lumen trailer preview: ${kb(trailer)} gzipped (budget ${TRAILER_BUD
 const RESTART_BUDGET = 4 * 1024;
 const restart = gz(`dist/${restartChunk}`);
 console.log(`lumen restart banner: ${kb(restart)} gzipped (budget ${RESTART_BUDGET / 1024} KB)`);
-// Loads on a catalog title's page, or once catalog cards show (only with Seerr): views/catalog/lazyTitle.tsx.
+// Loads on a catalog title's page or My requests, or once catalog cards show (only with Seerr):
+// views/catalog/lazyTitle.tsx.
 const TITLE_BUDGET = 6 * 1024;
 const title = gz(`dist/${titleChunk}`);
 console.log(`lumen catalog title: ${kb(title)} gzipped (budget ${TITLE_BUDGET / 1024} KB)`);

@@ -4,6 +4,7 @@ import {
   appActions,
   getServerName,
   HISTORY_HASH,
+  MY_REQUESTS_HASH,
   selectServer,
   SETTINGS_HASHES,
   signOut,
@@ -16,6 +17,8 @@ import { type Account, accountAccess, avatarUrl, loadAccount } from '../account/
 import type { ViewContext } from '../context';
 import { initials } from '../details/CastRow';
 import { useSyncPlayState } from '../syncplay/syncPlayState';
+import { useMyRequests } from '../catalog/requestProgress';
+import { routeEnabled } from '../../takeover/takeover';
 import { openWatchTogether } from '../secondary/lazySecondary';
 import { PROFILE_ICONS } from './profileIcons';
 import { profileStrings } from './profileStrings';
@@ -51,6 +54,7 @@ export function ProfileView({ ctx }: { ctx: ViewContext }) {
   const [serverName, setServerName] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const syncPlay = useSyncPlayState(ctx);
+  const myRequests = useMyRequests().available === true;
   useAutoFocus(rootRef, account !== null, ctx.layout);
 
   useEffect(() => {
@@ -108,6 +112,14 @@ export function ProfileView({ ctx }: { ctx: ViewContext }) {
             href={HISTORY_HASH}
             autofocus
           />
+          {myRequests && routeEnabled('requests', ctx.config) && (
+            <Row
+              icon="download"
+              label={strings.myRequests}
+              hint={profileStrings.myRequestsHint}
+              href={MY_REQUESTS_HASH}
+            />
+          )}
           {syncPlay.available && (
             <Row
               icon="watchTogether"

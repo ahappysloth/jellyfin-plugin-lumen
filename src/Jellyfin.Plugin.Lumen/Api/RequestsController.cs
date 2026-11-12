@@ -30,6 +30,8 @@ public sealed class RequestsController : ControllerBase
     private readonly HomeCache _home;
     private readonly IUserManager _userManager;
     private readonly CatalogMapper _mapper;
+    private readonly IRequestProgressService _progress;
+    private readonly IReadyAnnouncements _announcements;
     private readonly ILogger<RequestsController> _logger;
 
     public RequestsController(
@@ -39,6 +41,8 @@ public sealed class RequestsController : ControllerBase
         HomeCache home,
         IUserManager userManager,
         CatalogMapper mapper,
+        IRequestProgressService progress,
+        IReadyAnnouncements announcements,
         ILogger<RequestsController> logger)
     {
         _users = users;
@@ -47,6 +51,8 @@ public sealed class RequestsController : ControllerBase
         _home = home;
         _userManager = userManager;
         _mapper = mapper;
+        _progress = progress;
+        _announcements = announcements;
         _logger = logger;
     }
 
@@ -228,8 +234,15 @@ public sealed class RequestsController : ControllerBase
         {
             var result = await _seerr.CreateRequestAsync(caller.Endpoint!, caller.SeerrUserId, body.MediaType!, body.TmdbId, seasons, cancellationToken).ConfigureAwait(false);
 
-            // The cached home (My Requests, catalog rows) still shows the title as requestable.
+            // The cached home (My Requests, catalog rows) still shows the title as requestable, and the cached progress
+            // doesn't have it yet. Lumen saw it in flight: it gets a pop-up when it's ready.
             _home.InvalidateUser(caller.UserId);
+            _progress.Invalidate(caller.Endpoint!, caller.SeerrUserId);
+            if (result.Id > 0)
+            {
+                _announcements.Update(caller.UserId, caller.Endpoint!.BaseUrl.ToString(), [result.Id], [], []);
+            }
+
             var state = result.MediaStatus is { } status ? CatalogMapper.MapStatus(status) : CatalogState.Requested;
             return new RequestResultDto(state == CatalogState.None ? CatalogState.Requested : state, result.RequestStatus == SeerrRequestStatus.Pending);
         }
@@ -249,6 +262,55 @@ public sealed class RequestsController : ControllerBase
         {
             return SeerrUnavailable(e, "request");
         }
+    }
+
+    /// <summary>
+    /// The signed-in user's own requested titles, newest first, each with its status and download progress (request
+    /// progress design note, 2026-11-12). Clients poll it while something is in flight, so it's cached briefly per user.
+    /// </summary>
+    [HttpGet("Mine")]
+    public async Task<ActionResult<MyRequestsDto>> GetMine(CancellationToken cancellationToken)
+    {
+        var caller = await GetCallerAsync(cancellationToken).ConfigureAwait(false);
+        if (caller.Failure is { } failure)
+        {
+            return failure;
+        }
+
+        try
+        {
+            Response.Headers.CacheControl = "no-store";
+            return await _progress.GetAsync(caller.UserId, caller.User, caller.Endpoint!, caller.SeerrUserId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (SeerrException e) when (e.IsCircuitOpen)
+        {
+            // Seerr is known to be down (the breaker logged that once): no warning per poll.
+            return StatusCode(StatusCodes.Status502BadGateway, new ErrorDto(Unavailable));
+        }
+        catch (SeerrException e)
+        {
+            return SeerrUnavailable(e, "requests");
+        }
+    }
+
+    /// <summary>The "ready to watch" pop-up for these of the user's requests has been shown: don't show it again.</summary>
+    [HttpPost("Announced")]
+    public async Task<ActionResult> MarkAnnounced([FromBody] AnnouncedDto? body, CancellationToken cancellationToken)
+    {
+        if (body?.RequestIds is not { Count: > 0 and <= RequestProgressService.Take } ids || ids.Any(id => id <= 0))
+        {
+            return BadRequest(new ErrorDto("Invalid request ids."));
+        }
+
+        var caller = await GetCallerAsync(cancellationToken).ConfigureAwait(false);
+        if (caller.Failure is { } failure)
+        {
+            return failure;
+        }
+
+        // Only ever this user's own list (keyed by their Jellyfin id): another user's ids change nothing of theirs.
+        _announcements.MarkAnnounced(caller.UserId, caller.Endpoint!.BaseUrl.ToString(), ids);
+        return NoContent();
     }
 
     private async Task<IReadOnlyList<CatalogItemDto>> GetRecommendationsAsync(SeerrEndpoint endpoint, Caller caller, string mediaType, int tmdbId, CancellationToken cancellationToken)

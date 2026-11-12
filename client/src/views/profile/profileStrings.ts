@@ -5,6 +5,7 @@
  */
 export const profileStrings = {
   historyHint: 'What you watched, newest first',
+  myRequestsHint: 'What you asked for, and how it’s going',
   clientSettingsHint: "This app's own settings",
   downloadManagerHint: 'Downloads on this device',
   activity: 'Activity',

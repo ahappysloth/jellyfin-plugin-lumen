@@ -133,9 +133,10 @@ public sealed class SeerrClient : ISeerrClient
         return await GetCachedAsync<SeerrPage>(endpoint, resource + "?page=" + page.ToString(CultureInfo.InvariantCulture), seerrUserId, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<IReadOnlyList<SeerrUserRequest>> GetUserRequestsAsync(SeerrEndpoint endpoint, int seerrUserId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<SeerrUserRequest>> GetUserRequestsAsync(SeerrEndpoint endpoint, int seerrUserId, CancellationToken cancellationToken, int take = RequestsTake)
     {
-        var path = string.Create(CultureInfo.InvariantCulture, $"api/v1/user/{seerrUserId}/requests?take={RequestsTake}&skip=0&sort=added");
+        ArgumentOutOfRangeException.ThrowIfLessThan(take, 1);
+        var path = string.Create(CultureInfo.InvariantCulture, $"api/v1/user/{seerrUserId}/requests?take={take}&skip=0&sort=added");
         var page = await GetAsync<SeerrUserRequestPage>(endpoint, path, seerrUserId, cancellationToken).ConfigureAwait(false) ?? throw Unexpected();
         return page.Results ?? [];
     }

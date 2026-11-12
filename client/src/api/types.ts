@@ -165,6 +165,8 @@ export interface ClientConfig {
   TrailerDelaySeconds: number;
   /** A hero slide whose trailer is playing stays until it ends (Hero.tsx). */
   HeroWaitForTrailer: boolean;
+  /** Seerr is set up (whether this user has request features is GET /Lumen/Requests/Status's to say). */
+  Requests?: boolean;
   BuildHash: string;
 }
 
@@ -267,6 +269,31 @@ export interface CatalogSearch {
   Results: CatalogItem[];
   Page: number;
   TotalPages: number;
+}
+
+/** How one of the user's requests is going (request progress design note, 2026-11-12). */
+export type RequestProgressStatus =
+  'Requested' | 'Queued' | 'Downloading' | 'Processing' | 'Ready' | 'Declined' | 'Failed';
+
+/** One title the user requested (GET /Lumen/Requests/Mine). */
+export interface MyRequest {
+  RequestIds: number[];
+  Item: CatalogItem;
+  Status: RequestProgressStatus;
+  /** Null without a download to measure (nothing grabbed yet, or Seerr isn't connected to Radarr/Sonarr). */
+  Percent?: number | null;
+  /** Counted from when the server answered, not a time: a TV's clock may be wrong. */
+  SecondsLeft?: number | null;
+  /** A show with more than one episode in the download queue. */
+  EpisodesDone?: number | null;
+  EpisodesTotal?: number | null;
+  RequestedAt?: string | null;
+  /** It became ready since Lumen saw it in flight, and the user hasn't been told yet. */
+  Announce: boolean;
+}
+
+export interface MyRequests {
+  Requests: MyRequest[];
 }
 
 export interface RequestResult {

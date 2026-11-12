@@ -30,6 +30,12 @@ public sealed class ClientConfigDto
 
     public bool HeroWaitForTrailer { get; init; }
 
+    /// <summary>
+    /// Seerr is set up for request features. Whether this user may use them is GET /Lumen/Requests/Status's to say; this
+    /// only spares servers without Seerr from asking (the request progress check, the account menu's My requests).
+    /// </summary>
+    public bool Requests { get; init; }
+
     public string BuildHash { get; init; } = string.Empty;
 
     public static ClientConfigDto From(PluginConfiguration config, string buildHash) => new()
@@ -45,6 +51,7 @@ public sealed class ClientConfigDto
         TrailerPreview = config.TrailerPreview,
         TrailerDelaySeconds = config.TrailerDelaySeconds,
         HeroWaitForTrailer = config.HeroWaitForTrailer,
+        Requests = config.Enabled && Jellyfin.Plugin.Lumen.Requests.SeerrEndpoint.From(config) is not null,
         BuildHash = buildHash,
     };
 }

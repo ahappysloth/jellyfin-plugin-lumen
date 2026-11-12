@@ -31,6 +31,13 @@
 //   POST /__stub/jellyfin  { name, serverId }                       → sets the linked Jellyfin server (test control)
 //   POST /__stub/library  { tmdbId, jellyfinMediaId }                → makes that title available (mediaInfo status 5,
 //                                                                       jellyfinMediaId) everywhere it appears (test control)
+//   POST /__stub/progress { [tmdbId]: { requestStatus?, mediaStatus?, downloads?: [{ size, sizeLeft, status?,
+//                          etaSeconds?, downloadId?, season?, episode? }], step? } | null }
+//        → how that title's requests stand in GET /user/:id/requests: the request's status, its media's status and
+//          download queue (media.downloadStatus, as Seerr gets it from Radarr/Sonarr). `step` advances every download
+//          by that many bytes on each such call (a download moving between polls); one that reaches 0 is "completed".
+//          null clears it (test control)
+//   Movies 701–799 have details too ("Stub Request 7xx", or the names in REQUEST_TITLES), for requests in each state.
 //   GET  /__stub/requests                                           → [{ user, body }] of requests filed (test control)
 //   POST /__stub/reset                                              → clears the recorded requests and /__stub/library (test control)
 //   GET  /__stub/health
@@ -47,9 +54,12 @@ const PNG = Buffer.from(
 let users = {};
 let jellyfin = { name: 'Stub Jellyfin', serverId: '' };
 let requests = [];
-let nextRequestId = 1;
+// Request ids differ between runs too: Lumen remembers which it saw in flight (its ready pop-ups) across restarts.
+let nextRequestId = (Math.floor(Date.now() / 1000) % 1_000_000) * 100 + 1;
 // tmdbId → jellyfinMediaId, for titles a test has made "available" (POST /__stub/library).
 let library = {};
+// tmdbId → the progress scenario of its requests (POST /__stub/progress).
+let progress = {};
 
 // Seerr permission bits (server/lib/permissions.ts).
 const ADMIN = 2;
@@ -77,6 +87,15 @@ const SAGA = {
 const PERSON = { mediaType: 'person', id: 6384, name: 'Stub Matrix Person', profilePath: '/stubcast1.jpg' };
 const inAYear = new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString().slice(0, 10);
 const FUTURE = movie(605, 'Lumen Future', inAYear);
+const REQUEST_TITLES = {
+  701: 'Stub Queued',
+  702: 'Stub Declined',
+  703: 'Stub Failed',
+  704: 'Stub Processing',
+  705: 'Stub Awaiting Approval',
+  706: 'Stub Ready',
+};
+const requestTitle = (id) => movie(id, REQUEST_TITLES[id] ?? `Stub Request ${id}`, '2020-01-01');
 const details = {
   'movie/603': { ...MATRIX, runtime: 136, genres: [{ id: 28, name: 'Action' }, { id: 878, name: 'Science Fiction' }], credits: { cast }, relatedVideos: trailer },
   'movie/604': { ...RELOADED, runtime: 138, genres: [{ id: 28, name: 'Action' }], credits: { cast }, relatedVideos: trailer },
@@ -112,6 +131,39 @@ const traktWeekly = {
     watched('show', 'Lumen Show', 2010, { tmdb: 900010, imdb: 'tt9000010' }, 2000),
   ],
 };
+// A request's media as Seerr lists it: its status, linked item and download queue (progress scenario, if any).
+const requestMedia = (body) => {
+  const scenario = progress[body.mediaId];
+  const media = {
+    tmdbId: body.mediaId,
+    mediaType: body.mediaType,
+    status: library[body.mediaId] ? 5 : (scenario?.mediaStatus ?? 2),
+    jellyfinMediaId: library[body.mediaId] ?? null,
+    downloadStatus: [],
+    downloadStatus4k: [],
+  };
+  if (!scenario?.downloads || library[body.mediaId]) return media;
+  media.downloadStatus = scenario.downloads.map((d, i) => ({
+    mediaType: body.mediaType,
+    externalId: body.mediaId,
+    size: d.size,
+    sizeLeft: d.sizeLeft,
+    status: d.sizeLeft <= 0 ? 'completed' : (d.status ?? 'downloading'),
+    timeLeft: '00:10:00',
+    estimatedCompletionTime: new Date(Date.now() + (d.etaSeconds ?? 600) * 1000).toISOString(),
+    title: `stub download ${i}`,
+    downloadId: d.downloadId ?? `stub-${body.mediaId}-${i}`,
+    ...(d.season ? { episode: { seasonNumber: d.season, episodeNumber: d.episode, absoluteEpisodeNumber: d.episode, id: i } } : {}),
+  }));
+  return media;
+};
+// One Seerr download sync: every scenario with a `step` moves on.
+const advanceDownloads = () => {
+  for (const scenario of Object.values(progress)) {
+    if (!scenario.step) continue;
+    for (const d of scenario.downloads ?? []) d.sizeLeft = Math.max(0, d.sizeLeft - scenario.step);
+  }
+};
 const page = (results, pageNumber = 1) => ({
   page: pageNumber, totalPages: results.length ? 1 : 0, totalResults: results.length, results,
 });
@@ -145,13 +197,21 @@ createServer((req, res) => {
   if (path === '/__stub/reset' && req.method === 'POST') {
     requests = [];
     library = {};
+    progress = {};
     return json(res, 200, { ok: true });
   }
-  if ((path === '/__stub/users' || path === '/__stub/jellyfin' || path === '/__stub/library') && req.method === 'POST') {
+  const controls = ['/__stub/users', '/__stub/jellyfin', '/__stub/library', '/__stub/progress'];
+  if (controls.includes(path) && req.method === 'POST') {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
     req.on('end', () => {
       if (path === '/__stub/users') users = JSON.parse(body || '{}');
+      else if (path === '/__stub/progress') {
+        for (const [id, scenario] of Object.entries(JSON.parse(body || '{}'))) {
+          if (scenario) progress[Number(id)] = structuredClone(scenario);
+          else delete progress[Number(id)];
+        }
+      }
       else if (path === '/__stub/library') {
         const { tmdbId, jellyfinMediaId } = JSON.parse(body || '{}');
         library[Number(tmdbId)] = String(jellyfinMediaId);
@@ -205,24 +265,23 @@ createServer((req, res) => {
     if (userRequests[1] !== actingUser) return json(res, 403, { message: 'You do not have permission to view these requests.' });
     const take = Number(url.searchParams.get('take') ?? 10);
     const skip = Number(url.searchParams.get('skip') ?? 0);
+    advanceDownloads();
     const mine = requests.filter((r) => r.user === actingUser).reverse();
     const results = mine.slice(skip, skip + take).map((r) => ({
       id: r.id,
-      status: r.status,
+      status: library[r.body.mediaId] ? 5 : (progress[r.body.mediaId]?.requestStatus ?? r.status),
       createdAt: r.createdAt,
       type: r.body.mediaType,
-      media: {
-        tmdbId: r.body.mediaId,
-        mediaType: r.body.mediaType,
-        status: library[r.body.mediaId] ? 5 : 2,
-        jellyfinMediaId: library[r.body.mediaId] ?? null,
-      },
+      is4k: false,
+      seasons: (Array.isArray(r.body.seasons) ? r.body.seasons : []).map((n) => ({ seasonNumber: n, status: 2 })),
+      media: requestMedia(r.body),
     }));
     return json(res, 200, { pageInfo: { pages: Math.ceil(mine.length / take), pageSize: take, results: mine.length, page: 1 + skip / take }, results });
   }
   const title = path.match(/^\/api\/v1\/(movie|tv)\/(\d+)(\/recommendations)?$/);
   if (title && req.method === 'GET') {
-    const found = details[`${title[1]}/${title[2]}`];
+    const id = Number(title[2]);
+    const found = details[`${title[1]}/${title[2]}`] ?? (title[1] === 'movie' && id >= 701 && id <= 799 ? requestTitle(id) : undefined);
     if (!found) return json(res, 404, { message: 'Unable to retrieve media.' });
     return json(res, 200, title[3] ? recommendations : withLibrary(found));
   }
