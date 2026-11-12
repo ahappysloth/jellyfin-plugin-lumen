@@ -103,7 +103,7 @@ test.describe('hero pager', () => {
     expect(beside || below).toBe(true);
 
     const first = await fillScale(page);
-    await page.waitForTimeout(1500);
+    await expect.poll(() => fillScale(page)).toBeGreaterThan(first);
     const later = await fillScale(page);
     expect(later).toBeGreaterThan(first);
     expect(later).toBeLessThan(0.5);
@@ -111,8 +111,9 @@ test.describe('hero pager', () => {
     await page.getByRole('button', { name: 'Pause slideshow' }).click();
     await expect(page.getByRole('button', { name: 'Play slideshow' })).toBeVisible();
     const held = await fillScale(page);
-    await page.waitForTimeout(1000);
-    expect(await fillScale(page)).toBeCloseTo(held, 2); // within a frame or so; 1 s running would be 0.033
+    // Proving it holds: long enough that a running fill would have moved (0.4 s is 0.013 of the 30 s interval).
+    await page.waitForTimeout(400);
+    expect(await fillScale(page)).toBeCloseTo(held, 2); // within a frame or so
 
     // Another title starts its pill empty.
     const next = pager.getByRole('tab').nth(1); // the first title is showing

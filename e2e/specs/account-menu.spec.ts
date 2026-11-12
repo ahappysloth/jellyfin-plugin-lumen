@@ -52,12 +52,13 @@ test.describe('wide screens', () => {
     const x = from.x + from.width / 2;
     const gapY = (from.y + from.height + panel.y) / 2;
     expect(panel.y - (from.y + from.height)).toBeGreaterThan(2);
+    // Each pause proves the menu doesn't close: past the close delay, after which a closed menu is gone at once.
     await page.mouse.move(x, gapY, { steps: 8 });
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(450);
     await expect(accountMenu(page)).toBeVisible();
     const settings = (await accountMenu(page).getByRole('menuitem', { name: 'Settings' }).boundingBox())!;
     await page.mouse.move(x, settings.y + settings.height / 2, { steps: 8 });
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(450);
     await expect(accountMenu(page)).toBeVisible();
 
     await page.mouse.move(20, 600);

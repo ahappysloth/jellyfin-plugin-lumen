@@ -54,6 +54,8 @@ test('a cold load on Search keeps the veil up until its file is in, then shows t
 
   // Lumen's nav is up under the veil, but not the page: the veil stays until the file arrives.
   await expect(page.locator('#lmn-root .lmn-nav')).toBeAttached();
+  // Proving the veil doesn't lift without it: past the one deadline it has before the slow-load message, its wait for
+  // the fonts (FONT_WAIT_MS, 800 ms).
   await page.waitForTimeout(1000);
   await expect(page.locator('#lmn-veil')).toBeVisible();
   await expect(page.locator('#lmn-veil')).not.toHaveClass(/is-lifting/);
@@ -283,6 +285,8 @@ test("the More menu opens jellyfin-web's dialog once the dialogs' stylesheet is 
   await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`, { waitUntil: 'commit' });
   await page.locator('#lmn-root .lmn-details__header').getByRole('button', { name: /^More actions for / }).click();
   await page.getByRole('menu', { name: 'More actions for Lumen Alpha' }).getByRole('menuitem', { name: 'Media info' }).click();
+  // Proving the dialog doesn't open without it: time enough for jellyfin-web to fetch the dialog's code and open it,
+  // well short of the 3 s Lumen waits for the stylesheet at most (SKIN_WAIT_MS).
   await page.waitForTimeout(1000);
   await expect(page.locator('.dialogContainer')).toHaveCount(0);
 
