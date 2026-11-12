@@ -4,7 +4,7 @@ import { Icon } from '../components/icons';
 import { LumenMark } from '../components/LumenMark';
 import { newUuid } from '../util/uuid';
 import type { AdminApi } from './adminApi';
-import { ADMIN_TABS, type AdminTab, rememberTab, TAB_LABELS, tabFromHash } from './adminTabs';
+import { ADMIN_TABS, type AdminTab, initialTab, rememberTab, TAB_LABELS } from './adminTabs';
 import { DiagnosticsSettings } from './DiagnosticsSettings';
 import { GeneralSettings } from './GeneralSettings';
 import { HeroSettings } from './HeroSettings';
@@ -60,7 +60,7 @@ export function AdminApp({
 
   // Settings, or Storage. Storage starts measuring only once its tab is first opened (it can take a while on a big
   // library, and most visits are for a setting), then stays mounted, so going back to it doesn't measure again.
-  const [tab, setTab] = useState<AdminTab>(() => tabFromHash(hash));
+  const [tab, setTab] = useState<AdminTab>(() => initialTab(hash));
   const [storageOpened, setStorageOpened] = useState(tab === 'storage');
   const [ids] = useState(() => `lmna-page-${++pageCount}`);
   const tabRefs = useRef<Partial<Record<AdminTab, HTMLButtonElement | null>>>({});

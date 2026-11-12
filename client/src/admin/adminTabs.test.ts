@@ -1,40 +1,46 @@
-import { describe, expect, it, vi } from 'vitest';
-import { hashWithTab, rememberTab, tabFromHash } from './adminTabs';
+import { describe, expect, it } from 'vitest';
+import { initialTab, rememberTab } from './adminTabs';
 
-describe('admin tabs in the URL', () => {
-  it('reads the tab from the hash’s query, Settings when there is none', () => {
-    expect(tabFromHash('#/configurationpage?name=Lumen&tab=storage')).toBe('storage');
-    expect(tabFromHash('#/configurationpage?name=Lumen')).toBe('settings');
-    expect(tabFromHash('#/configurationpage?name=Lumen&tab=nonsense')).toBe('settings');
-    expect(tabFromHash('')).toBe('settings');
+function memoryStore(): Storage {
+  const data = new Map<string, string>();
+  return {
+    getItem: (k: string) => data.get(k) ?? null,
+    setItem: (k: string, v: string) => void data.set(k, v),
+    removeItem: (k: string) => void data.delete(k),
+    clear: () => data.clear(),
+    key: () => null,
+    get length() {
+      return data.size;
+    },
+  };
+}
+
+describe('admin tabs across a reload', () => {
+  it('opens the tab a link names, else the one last open in this browser tab, else Settings', () => {
+    const store = memoryStore();
+    expect(initialTab('#/configurationpage?name=Lumen', store)).toBe('settings');
+    expect(initialTab('#/configurationpage?name=Lumen&tab=storage', store)).toBe('storage');
+    expect(initialTab('#/configurationpage?name=Lumen&tab=nonsense', store)).toBe('settings');
+
+    rememberTab('storage', store);
+    expect(initialTab('#/configurationpage?name=Lumen', store)).toBe('storage');
+    expect(initialTab('#/configurationpage?name=Lumen&tab=settings', store)).toBe('settings');
+    rememberTab('settings', store);
+    expect(initialTab('#/configurationpage?name=Lumen', store)).toBe('settings');
   });
 
-  it('writes the tab beside the rest of the query, and leaves it out for Settings', () => {
-    expect(hashWithTab('#/configurationpage?name=Lumen', 'storage')).toBe(
-      '#/configurationpage?name=Lumen&tab=storage',
-    );
-    expect(hashWithTab('#/configurationpage?name=Lumen&tab=storage', 'settings')).toBe(
-      '#/configurationpage?name=Lumen',
-    );
-    // The updates check keeps working with the tab in the URL.
-    expect(hashWithTab('#/configurationpage?name=Lumen&check=updates', 'storage')).toBe(
-      '#/configurationpage?name=Lumen&check=updates&tab=storage',
-    );
-  });
-
-  it('remembers the tab with replaceState, keeping the router’s history state, and no navigation', () => {
-    const replaceState = vi.fn();
-    const state = { idx: 3, key: 'abc' };
-    const win = {
-      location: { hash: '#/configurationpage?name=Lumen' },
-      history: { state, replaceState },
-    } as unknown as Window;
-
-    rememberTab('storage', win);
-    expect(replaceState).toHaveBeenCalledWith(state, '', '#/configurationpage?name=Lumen&tab=storage');
-
-    replaceState.mockClear();
-    rememberTab('settings', win);
-    expect(replaceState).not.toHaveBeenCalled(); // already the URL
+  it('works without storage, or with storage that refuses', () => {
+    expect(initialTab('#/configurationpage?name=Lumen', null)).toBe('settings');
+    const refusing = {
+      ...memoryStore(),
+      getItem: () => {
+        throw new Error('denied');
+      },
+      setItem: () => {
+        throw new Error('denied');
+      },
+    } as Storage;
+    expect(() => rememberTab('storage', refusing)).not.toThrow();
+    expect(initialTab('', refusing)).toBe('settings');
   });
 });

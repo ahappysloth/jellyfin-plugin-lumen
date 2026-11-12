@@ -91,6 +91,8 @@
   color: inherit;
 }
 .lmn-admin .lmna-tab.is-active {
+  /* Chromium 68 and Safari 13 drop color-mix: a grey that reads on light and dark alike still marks the open tab. */
+  background: rgba(128, 128, 128, 0.22);
   background: color-mix(in srgb, currentColor 12%, transparent);
   color: inherit;
   font-weight: 600;

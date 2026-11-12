@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/preact';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminApi, LumenConfig, SectionTypeDef, UpdateStatus } from './adminApi';
 import { AdminApp } from './AdminApp';
 
@@ -98,6 +98,9 @@ function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     ...overrides,
   };
 }
+
+// The open tab is remembered for a reload in sessionStorage: each test starts on Settings.
+beforeEach(() => sessionStorage.clear());
 
 describe('AdminApp updates', () => {
   it("checks on open from Jellyfin's Plugins page, installs the update and restarts Jellyfin", async () => {
@@ -924,6 +927,19 @@ describe('AdminApp tabs', () => {
     await screen.findByRole('group', { name: 'Storage' });
     expect(tab('Storage')).toHaveAttribute('aria-selected', 'true');
     await waitFor(() => expect(api.getStorage).toHaveBeenCalledTimes(1));
+  });
+
+  it('reopens on the tab last open in this browser tab, without touching the URL', async () => {
+    const hash = window.location.hash;
+    const first = render(<AdminApp api={fakeApi()} hash="#/configurationpage?name=Lumen" />);
+    await screen.findByText('Genre rows');
+    fireEvent.click(tab('Storage'));
+    first.unmount();
+    expect(window.location.hash).toBe(hash);
+
+    render(<AdminApp api={fakeApi()} hash="#/configurationpage?name=Lumen" />);
+    await screen.findByRole('group', { name: 'Storage' });
+    expect(tab('Storage')).toHaveAttribute('aria-selected', 'true');
   });
 
   it('moves between tabs with the arrows, Home and End, round from either end', async () => {

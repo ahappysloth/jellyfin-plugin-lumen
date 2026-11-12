@@ -130,7 +130,8 @@ test('Settings and Storage are tabs: Storage loads when first opened, and the ta
     await root.getByRole('button', { name: /Move Continue Watching down/ }).click();
     await storage.click();
     await expect(storage).toHaveAttribute('aria-selected', 'true');
-    await expect(page).toHaveURL(/configurationpage\?name=Lumen&tab=storage$/);
+    // Not in the URL: jellyfin-web keeps a page it has left by its exact URL (see the Back check below).
+    await expect(page).toHaveURL(/configurationpage\?name=Lumen$/);
     await expect(root.getByRole('group', { name: 'Storage' })).toBeVisible();
     await expect.poll(() => storageCalls.length).toBeGreaterThan(0);
     await expect(root.getByRole('group', { name: 'Home sections' })).toBeHidden();
@@ -147,16 +148,24 @@ test('Settings and Storage are tabs: Storage loads when first opened, and the ta
     await expect(root.getByRole('button', { name: /Move Continue Watching up/ })).toBeEnabled();
     await page.keyboard.press('ArrowRight');
     await expect(storage).toBeFocused();
+
+    // Leaving for another page and coming Back finds the page as it was: the change, the bar and the tab.
+    await page.evaluate(() => (window.location.hash = '#/dashboard'));
+    await expect(page).toHaveURL(/#\/dashboard$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/configurationpage\?name=Lumen$/);
+    await expect(root.getByRole('tab', { name: 'Storage' })).toHaveAttribute('aria-selected', 'true');
+    await expect(bar).toBeVisible();
+    await expect(bar).toContainText('Unsaved changes on the Settings tab');
     await bar.getByRole('button', { name: 'Discard' }).click();
     await expect(bar).toBeHidden();
 
-    // The tab is in the URL without jellyfin-web opening the page again: one copy of it, and a reload comes back to it.
+    // One copy of the page, and a reload comes back to the tab.
     await expect(page.locator('[id="lmn-admin-root"]')).toHaveCount(1);
     await page.reload();
     await expect(root.getByRole('tab', { name: 'Storage' })).toHaveAttribute('aria-selected', 'true');
     await expect(root.getByRole('group', { name: 'Storage' })).toBeVisible();
     await root.getByRole('tab', { name: 'Settings' }).click();
-    await expect(page).toHaveURL(/configurationpage\?name=Lumen$/);
     await expect(root.getByRole('group', { name: 'Home sections' })).toBeVisible();
   } finally {
     await resetLumen();

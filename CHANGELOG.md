@@ -6,7 +6,7 @@ All notable changes to Lumen are documented here. Versions follow SemVer; Jellyf
 
 ### Added
 - Top 10 Movies and Top 10 Shows home rows: what Trakt's users watched most this week, ranked, with a Request button
-  under titles you don't have yet. Without a Trakt key they rank Seerr's trending titles instead. Add them under
+  under titles you don't have yet when Seerr is set up (without Seerr, only titles on the server are shown). Without a Trakt key they rank Seerr's trending titles instead. Add them under
   Home sections; a Top 10 card in Lumen's settings takes the Trakt key and checks it.
 - Discard in the settings save bar puts back the settings as last saved.
 - Storage has a tab of its own on Lumen's settings page, and only measures once it's opened. The page remembers the

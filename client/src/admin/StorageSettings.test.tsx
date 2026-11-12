@@ -389,16 +389,25 @@ describe('Storage bar tooltips', () => {
     const bar = await codecBar();
     layOut(bar);
     const wrap = bar.parentElement!;
+    const tap = (clientX: number): void => {
+      fireEvent.pointerDown(wrap, { pointerType: 'touch', clientX });
+      fireEvent.pointerUp(wrap, { pointerType: 'touch', clientX });
+    };
 
-    fireEvent.pointerDown(wrap, { pointerType: 'touch', clientX: 320 });
+    tap(320);
     expect(tip()).toHaveTextContent('Other · 30 GB · 2 files · 9% of Movies');
     // A touch's move (scrolling) doesn't change it.
     fireEvent.pointerMove(wrap, { pointerType: 'touch', clientX: 120 });
     expect(tip()).toHaveTextContent(/^Other/);
-    fireEvent.pointerDown(wrap, { pointerType: 'touch', clientX: 320 });
+    tap(320);
     expect(tip()).toBeNull();
 
+    // A swipe that starts on the bar becomes a scroll (pointercancel, no pointerup): no tooltip.
     fireEvent.pointerDown(wrap, { pointerType: 'touch', clientX: 120 });
+    fireEvent.pointerCancel(wrap, { pointerType: 'touch', clientX: 120 });
+    expect(tip()).toBeNull();
+
+    tap(120);
     expect(tip()).toHaveTextContent(/^H\.264/);
     fireEvent.pointerDown(document.body, { pointerType: 'touch' });
     expect(tip()).toBeNull();

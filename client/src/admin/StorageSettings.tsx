@@ -473,6 +473,10 @@ function Bar({
         class={`lmna-bar-wrap${shown ? ' is-pointing' : ''}`}
         onPointerDown={(e) => {
           pointer.current = e.pointerType;
+        }}
+        // A tap toggles on release: a swipe that starts on the bar turns into a scroll (pointercancel, no pointerup)
+        // and leaves the tooltip alone.
+        onPointerUp={(e) => {
           if (e.pointerType === 'mouse') return;
           const at = partAt(e.clientX);
           setActive((current) => (current === at ? null : at));

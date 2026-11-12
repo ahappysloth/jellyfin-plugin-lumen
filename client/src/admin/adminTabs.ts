@@ -1,42 +1,51 @@
-/** The settings page's tabs, and how the open one is kept in the page's URL across a reload. */
+/** The settings page's tabs, and how the open one is kept across a reload. */
 
 export const ADMIN_TABS = ['settings', 'storage'] as const;
 export type AdminTab = (typeof ADMIN_TABS)[number];
 
 export const TAB_LABELS: Record<AdminTab, string> = { settings: 'Settings', storage: 'Storage' };
 
+const STORAGE_KEY = 'lumen-admin-tab';
+
 /** jellyfin-web's route is in the hash, its query after the `?`: `#/configurationpage?name=Lumen&tab=storage`. */
-function splitHash(hash: string): [string, URLSearchParams] {
+function tabInHash(hash: string): AdminTab | null {
   const query = hash.indexOf('?');
-  return query < 0
-    ? [hash, new URLSearchParams()]
-    : [hash.slice(0, query), new URLSearchParams(hash.slice(query + 1))];
+  if (query < 0) return null;
+  const tab = new URLSearchParams(hash.slice(query + 1)).get('tab');
+  return tab === 'storage' || tab === 'settings' ? tab : null;
 }
 
-export function tabFromHash(hash: string): AdminTab {
-  return splitHash(hash)[1].get('tab') === 'storage' ? 'storage' : 'settings';
-}
-
-/** The hash with `tab` set (or, for the first tab, left out), and the rest of its query as it was. */
-export function hashWithTab(hash: string, tab: AdminTab): string {
-  const [route, params] = splitHash(hash);
-  if (tab === 'settings') params.delete('tab');
-  else params.set('tab', tab);
-  const query = params.toString();
-  return query ? `${route}?${query}` : route;
+function sessionStore(): Storage | null {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
 }
 
 /**
- * Writes the tab into the address bar without navigating: a changed hash would have jellyfin-web's router open the page
- * again (as a new copy beside this one), and replaceState fires no hashchange. Its history state is kept, since
- * jellyfin-web's router keeps its place in the history there.
+ * The tab to open with: the one a link names (`&tab=storage`), else the one last open in this browser tab, else
+ * Settings.
  */
-export function rememberTab(tab: AdminTab, win: Window = window): void {
-  const next = hashWithTab(win.location.hash, tab);
-  if (next === win.location.hash) return;
+export function initialTab(hash: string, store: Storage | null = sessionStore()): AdminTab {
+  const linked = tabInHash(hash);
+  if (linked) return linked;
   try {
-    win.history.replaceState(win.history.state, '', next || '#');
+    return store?.getItem(STORAGE_KEY) === 'storage' ? 'storage' : 'settings';
   } catch {
-    // Only the reload would forget the tab.
+    return 'settings';
+  }
+}
+
+/**
+ * Remembers the open tab for a reload in this browser tab. Not in the URL: jellyfin-web keeps a page it has left by
+ * its exact URL, so a changed URL would have Back open a fresh copy, losing unsaved changes.
+ */
+export function rememberTab(tab: AdminTab, store: Storage | null = sessionStore()): void {
+  try {
+    if (tab === 'settings') store?.removeItem(STORAGE_KEY);
+    else store?.setItem(STORAGE_KEY, tab);
+  } catch {
+    // Private modes may refuse storage: only a reload forgets the tab.
   }
 }
