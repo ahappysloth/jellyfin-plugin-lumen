@@ -1,6 +1,7 @@
 import { devices, expect, test, type Page } from '@playwright/test';
 import { ADMIN, api, loadState } from '../support/api';
 import { login } from '../support/login';
+import { forgetPlayback } from '../support/playback';
 
 // A phone, by touch: real taps in Chromium and WebKit, and (through Chromium's CDP) real touch drags. Firefox has no
 // touch emulation. WebKit gets Safari's desktop user agent: an iPhone's gets HLS, which Playwright's WebKit can't play
@@ -13,6 +14,9 @@ test.use({
     use(devices[browserName === 'webkit' ? 'Desktop Safari' : 'Desktop Chrome'].userAgent),
 });
 const dragsOnly = 'touch drags go through Chromium (CDP)';
+
+// Each test plays Lumen Alpha: off the admin's History and Continue watching again afterwards.
+test.afterEach(async ({ page }) => forgetPlayback(page, [loadState().items['Lumen Alpha']!]));
 
 async function play(page: Page): Promise<void> {
   const { items } = loadState();
@@ -159,21 +163,37 @@ test.describe('a short phone in landscape, watching together', () => {
     await api('/SyncPlay/Leave', { method: 'POST', token: loadState().admin.token }).catch(() => undefined);
   });
 
-  test("Playback info sits below the group's line under the title, and above the seek bar", async ({ page }) => {
-    await play(page);
-    await showControls(page);
-    await tapOn(page, page.getByRole('button', { name: 'Settings' }));
-    await tapOn(page, page.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: /Watch together/ }));
-    await tapOn(page, page.getByRole('menuitem', { name: 'New group' }));
-    const group = page.locator('.lmn-player__syncplay');
-    await expect(group).toBeVisible();
+  // The title block is as tall as its fonts and text make it: another system's fonts, or a long episode name over two
+  // lines, push the group's line down. Here, a serif and an added line.
+  const taller = `.lmn-player__titles { font-family: Georgia, serif; line-height: 1.5; }
+    .lmn-player__subtitle::after { display: block; content: 'and a long episode name that runs over a line'; }`;
+  for (const [what, style] of [
+    ['', null],
+    [', under a taller title block', taller],
+  ] as const) {
+    test(`Playback info sits below the group's line under the title, and above the time and the seek bar${what}`, async ({
+      page,
+    }) => {
+      await play(page);
+      if (style) await page.addStyleTag({ content: style });
+      await showControls(page);
+      await tapOn(page, page.getByRole('button', { name: 'Settings' }));
+      await tapOn(page, page.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: /Watch together/ }));
+      await tapOn(page, page.getByRole('menuitem', { name: 'New group' }));
+      const group = page.locator('.lmn-player__syncplay');
+      await expect(group).toBeVisible();
 
-    await showControls(page);
-    await tapOn(page, page.getByRole('button', { name: 'Settings' }));
-    await tapOn(page, page.getByRole('button', { name: 'Playback info' }));
-    const card = (await page.getByRole('complementary', { name: 'Playback info' }).boundingBox())!;
-    const line = (await group.boundingBox())!;
-    expect(card.y).toBeGreaterThanOrEqual(line.y + line.height);
-    expect(card.y + card.height).toBeLessThanOrEqual((await page.locator('.lmn-seek').boundingBox())!.y);
-  });
+      await showControls(page);
+      await tapOn(page, page.getByRole('button', { name: 'Settings' }));
+      await tapOn(page, page.getByRole('button', { name: 'Playback info' }));
+      const info = page.getByRole('complementary', { name: 'Playback info' });
+      const card = (await info.boundingBox())!;
+      const line = (await group.boundingBox())!;
+      expect(card.y).toBeGreaterThanOrEqual(line.y + line.height);
+      expect(card.y + card.height).toBeLessThanOrEqual((await page.locator('.lmn-player__times').boundingBox())!.y);
+      // Short of room, it scrolls rather than run over them, and its close button stays in reach.
+      if (style) expect(await info.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+      await expect(info.getByRole('button', { name: 'Hide playback info' })).toBeInViewport();
+    });
+  }
 });

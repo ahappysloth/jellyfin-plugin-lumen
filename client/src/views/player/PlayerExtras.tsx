@@ -1,5 +1,5 @@
 import type { RefObject } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { TranscodingInfo } from '../../api/types';
 import type { MediaStreamInfo, PlaybackManager, RepeatMode } from '../../compat/playbackManager';
 import { type MenuEntry, openContextMenu } from '../../components/ContextMenu';
@@ -248,6 +248,26 @@ export function playbackInfoRows(
   return rows;
 }
 
+/** Where `el`'s top, or its bottom, is in `to`, by its offsets: those leave out the bars' slide as they hide. */
+function offsetIn(el: HTMLElement | null | undefined, to: Element | null, bottom?: boolean): number | null {
+  let y = el && bottom ? el.offsetHeight : 0;
+  for (; el && el !== to; el = el.offsetParent as HTMLElement | null) y += el.offsetTop;
+  return el ? y : null;
+}
+
+/**
+ * Where Playback info has room in a short window (player.css): below the title block, which is as tall as its fonts, a
+ * long episode name or Watch together's line make it, and above the time over the seek bar.
+ */
+export function placeInfo(card: HTMLElement): void {
+  const osd = card.offsetParent;
+  const set = (name: string, y: number | null): void => {
+    if (y !== null) card.style.setProperty(name, `${y}px`);
+  };
+  set('--lmn-osd-title-bottom', offsetIn(osd?.querySelector<HTMLElement>('.lmn-player__titles'), osd, true));
+  set('--lmn-osd-times-top', offsetIn(osd?.querySelector<HTMLElement>('.lmn-player__times'), osd));
+}
+
 export function PlaybackInfoCard({
   ctx,
   snap,
@@ -274,8 +294,20 @@ export function PlaybackInfoCard({
     };
   }, [transcoding, snap.mediaSourceId]);
 
+  const ref = useRef<HTMLElement>(null);
+  // On every render: the title block changes as the player's view does (a name, Watch together's line), and that view
+  // renders this card too. A cheap read: the browser lays the frame out before painting it anyway.
+  useLayoutEffect(() => {
+    if (ref.current) placeInfo(ref.current);
+  });
+  useEffect(() => {
+    const onResize = (): void => void (ref.current && placeInfo(ref.current));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   return (
-    <aside class="lmn-player-info" aria-label={playerStrings.playbackInfo}>
+    <aside ref={ref} class="lmn-player-info" aria-label={playerStrings.playbackInfo}>
       <header class="lmn-player-info__header">
         <h2>{playerStrings.playbackInfo}</h2>
         <button

@@ -833,24 +833,16 @@ html.lmn-skin-player .volumeOsd {
   overflow-wrap: anywhere;
 }
 
-/* Short windows (a phone in landscape): the card sits higher, under the title, with tighter rows, and stops above the
-   time and the seek bar (97px of the bottom bar, past its bottom padding, and a gap), scrolling inside if need be.
-   --lmn-titles is the title block's height and a gap: two lines, or three with Watch together's. */
+/* Short windows (a phone in landscape): the card sits higher, under the title block, with tighter rows, and stops above
+   the time over the seek bar, scrolling inside if need be. The card measures both (PlayerExtras.tsx placeInfo): the
+   title block is as tall as its fonts, a long episode name or Watch together's line make it. */
 @media (max-height: 500px) {
   .lmn-player-info {
-    top: 72px;
-    top: calc(max(20px, env(safe-area-inset-top)) + var(--lmn-titles, 52px));
-    max-height: calc(100% - 191px);
-    max-height: calc(
-      100% - max(20px, env(safe-area-inset-top)) - var(--lmn-titles, 52px) - 105px -
-        max(14px, env(safe-area-inset-bottom))
-    );
+    top: calc(var(--lmn-osd-title-bottom, 72px) + 8px);
+    max-height: calc(var(--lmn-osd-times-top, 100% - 120px) - var(--lmn-osd-title-bottom, 72px) - 16px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-  }
-  .lmn-osd.has-syncplay .lmn-player-info {
-    --lmn-titles: 84px;
   }
   .lmn-player-info__row {
     padding: 2px 0;

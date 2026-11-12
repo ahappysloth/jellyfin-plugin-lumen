@@ -6,7 +6,14 @@ import { makeContext } from '../../../test/viewContext';
 import type { PlaybackManager } from '../../compat/playbackManager';
 import { ContextMenuHost } from '../../components/ContextMenu';
 import { NO_SYNCPLAY } from '../syncplay/syncPlayState';
-import { endsAt, playbackInfoRows, reasonText, repeatOptions, SettingsPanel } from './PlayerExtras';
+import {
+  endsAt,
+  placeInfo,
+  playbackInfoRows,
+  reasonText,
+  repeatOptions,
+  SettingsPanel,
+} from './PlayerExtras';
 import type { PlayerSnapshot } from './playerState';
 
 describe('player extras', () => {
@@ -138,5 +145,53 @@ describe('player settings panel focus', () => {
     await waitFor(() => expect(newGroup).toHaveFocus());
     fireEvent.keyDown(newGroup, { key: 'Escape' });
     expect(pill).toHaveFocus();
+  });
+});
+
+describe('Playback info placement', () => {
+  /** jsdom lays nothing out: each element's offsets, as a browser would give them. */
+  const place = (el: Element, offsetParent: Element | null, offsetTop: number, offsetHeight = 0): void => {
+    for (const [key, value] of Object.entries({ offsetParent, offsetTop, offsetHeight }))
+      Object.defineProperty(el, key, { configurable: true, value });
+  };
+
+  function player(): { osd: HTMLElement; titles: HTMLElement; card: HTMLElement } {
+    document.body.innerHTML = `<div class="lmn-osd">
+      <aside class="lmn-player-info"></aside>
+      <header class="lmn-player__top"><div class="lmn-player__titles"></div></header>
+      <footer class="lmn-player__bottom"><div class="lmn-player__times"></div></footer>
+    </div>`;
+    const $ = (selector: string): HTMLElement => document.querySelector<HTMLElement>(selector)!;
+    place($('.lmn-player__top'), $('.lmn-osd'), 0);
+    place($('.lmn-player__titles'), $('.lmn-player__top'), 20, 76);
+    place($('.lmn-player__bottom'), $('.lmn-osd'), 200);
+    place($('.lmn-player__times'), $('.lmn-player__bottom'), 70);
+    place($('.lmn-player-info'), $('.lmn-osd'), 0);
+    return { osd: $('.lmn-osd'), titles: $('.lmn-player__titles'), card: $('.lmn-player-info') };
+  }
+
+  it("gives the card the title block's bottom and the time's top, in the player", () => {
+    const { card, titles } = player();
+    placeInfo(card);
+    expect(card.style.getPropertyValue('--lmn-osd-title-bottom')).toBe('96px');
+    expect(card.style.getPropertyValue('--lmn-osd-times-top')).toBe('270px');
+
+    // A taller block (another font, a long name wrapping, Watch together's line): the card moves down with it.
+    place(titles, titles.parentElement, 20, 118);
+    placeInfo(card);
+    expect(card.style.getPropertyValue('--lmn-osd-title-bottom')).toBe('138px');
+  });
+
+  it('leaves them unset while the card is out of the layout', () => {
+    const { card, osd } = player();
+    place(card, null, 0);
+    placeInfo(card);
+    expect(card.getAttribute('style')).toBeNull();
+    // Nor from a block that isn't in the card's player.
+    place(card, osd, 0);
+    place(osd.querySelector('.lmn-player__top')!, null, 0);
+    placeInfo(card);
+    expect(card.style.getPropertyValue('--lmn-osd-title-bottom')).toBe('');
+    expect(card.style.getPropertyValue('--lmn-osd-times-top')).toBe('270px');
   });
 });

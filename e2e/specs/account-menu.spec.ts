@@ -113,12 +113,18 @@ test.describe('wide screens', () => {
 
     await expect(page).toHaveURL(/#\/home\?lumen=history$/);
     await expect(page.getByRole('heading', { name: 'History', level: 1 })).toBeVisible();
-    const today = page.getByRole('list', { name: 'Today' });
-    const cards = today.getByRole('link');
+    // The two titles played above, newest first, whichever day lists they're in: a run just after midnight puts Lumen
+    // Beta, a minute older, under Yesterday. Other titles in the history (from other specs) aren't this test's.
+    const watched = new RegExp(`^(Lumen Show S\\d+:E\\d+ · ${episode.Name}|Lumen Beta)$`);
+    const cards = page.locator('#lmn-root .lmn-history').getByRole('list').getByRole('link', { name: watched });
     // Episodes show under their show's name.
     await expect(cards.first()).toHaveAccessibleName(new RegExp(`^Lumen Show S\\d+:E\\d+ · ${episode.Name}$`));
     await expect(cards.nth(1)).toHaveAccessibleName('Lumen Beta');
     await expect(cards).toHaveCount(2);
+    // By day: the episode, played just now, is under Today (or, a moment after midnight, Yesterday).
+    await expect(
+      page.getByRole('list', { name: /^(Today|Yesterday)$/ }).getByRole('link', { name: watched }).first(),
+    ).toHaveAccessibleName(new RegExp(`^Lumen Show S\\d+:E\\d+ · ${episode.Name}$`));
     // The account button is lit on its pages.
     await expect(accountButton(page)).toHaveClass(/is-active/);
 
@@ -219,10 +225,11 @@ test.describe('wide screens', () => {
 
     await login(page, ADMIN);
     await page.goto('/web/#/home?lumen=history');
-    const today = page.getByRole('list', { name: 'Today' });
-    const card = today.getByRole('link', { name: /^Lumen Show \d+ episodes$/ });
+    const history = page.locator('#lmn-root .lmn-history').getByRole('list');
+    const card = history.getByRole('link', { name: /^Lumen Show \d+ episodes$/ });
     await expect(card).toBeVisible();
-    await expect(today.getByRole('link')).toHaveCount(1);
+    // One card for all of them, and none for an episode alone (other titles in the history aren't this test's).
+    await expect(history.getByRole('link', { name: /^Lumen Show/ })).toHaveCount(1);
     await card.click();
     await expect(page).toHaveURL(new RegExp(`#/details\\?id=${show}`));
   });
