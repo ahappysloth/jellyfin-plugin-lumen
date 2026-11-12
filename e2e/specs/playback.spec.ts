@@ -85,11 +85,111 @@ test("the volume slider's arrow keys change the volume, not the position", async
   await volume.focus();
   await page.keyboard.press('ArrowLeft');
 
-  // jellyfin-web's shortcuts would have gone back 10 s, to the start.
+  // The player's own shortcut would have gone back 10 s, to the start.
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.volume)).toBeLessThan(before);
   await page.waitForTimeout(500);
   expect(await video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeCloseTo(8, 0);
   await expect(volume).toBeFocused();
+});
+
+test("the skip buttons and the arrow keys go 10 s each way, not by jellyfin-web's skip lengths", async ({ page }) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
+  const video = page.locator('video.htmlvideoplayer');
+  const at = () => video.evaluate((v: HTMLVideoElement) => v.currentTime);
+  await expect.poll(at).toBeGreaterThan(0.3);
+  await video.evaluate((v: HTMLVideoElement) => {
+    v.pause();
+    v.currentTime = 2;
+  });
+  await expect.poll(at).toBeCloseTo(2, 0);
+
+  // jellyfin-web's default forward skip is 30 s: from 2 s on this 20 s title it would land at the end.
+  await page.getByRole('button', { name: 'Forward 10 seconds' }).click();
+  await expect.poll(at).toBeCloseTo(12, 0);
+  await page.getByRole('button', { name: 'Back 10 seconds' }).click();
+  await expect.poll(at).toBeCloseTo(2, 0);
+
+  await page.locator('.lmn-player__controls').getByRole('button', { name: 'Play', exact: true }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(at).toBeCloseTo(12, 0);
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(at).toBeCloseTo(2, 0);
+});
+
+test('a skip on a converted stream goes 10 s on through the restart', async ({ page }) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
+  await expect.poll(() => page.locator('video.htmlvideoplayer').evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0.3);
+  // A fixed quality: the server converts the title, and the stream restarts to seek in it.
+  await page.getByRole('button', { name: /Quality/ }).click();
+  await page.getByRole('dialog', { name: 'Quality' }).getByRole('radio').nth(1).click();
+  await expect(page.locator('.lmn-switching')).toHaveCount(0, { timeout: 20_000 });
+  await expect.poll(() => page.locator('video.htmlvideoplayer').evaluate((v: HTMLVideoElement) => !v.paused)).toBe(true);
+  // The position the controls show: the playback manager's, which counts the converted stream's offset.
+  const shown = async () => {
+    const text = (await page.locator('.lmn-player__time').textContent()) ?? '';
+    const [m, s] = text.split(' / ')[0]!.split(':').map(Number);
+    return m! * 60 + s!;
+  };
+  await page.mouse.move(640, 600);
+  const before = await shown();
+
+  await page.getByRole('button', { name: 'Forward 10 seconds' }).click();
+
+  await expect.poll(shown, { timeout: 20_000 }).toBeGreaterThanOrEqual(before + 9);
+  expect(await shown()).toBeLessThanOrEqual(before + 13);
+});
+
+test('the volume slider follows a mouse drag without jumping back', async ({ page }) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
+  const video = page.locator('video.htmlvideoplayer');
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0.3);
+  // Every value the slider shows, as it shows it: a redraw with the player's older reading would put it back.
+  await page.evaluate(() => {
+    const slider = document.querySelector<HTMLInputElement>('.lmn-player__volume-slider')!;
+    const seen: number[] = [];
+    (window as unknown as { __volumes: number[] }).__volumes = seen;
+    const value = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!;
+    Object.defineProperty(slider, 'value', {
+      get() {
+        return value.get!.call(this);
+      },
+      set(v: string) {
+        seen.push(Number(v));
+        value.set!.call(this, v);
+      },
+    });
+    slider.addEventListener('input', () => seen.push(Number(value.get!.call(slider))));
+  });
+  await page.locator('.lmn-player__volume').hover(); // the slider opens out on hover
+  const slider = page.getByRole('slider', { name: 'Volume' });
+  await expect.poll(async () => (await slider.boundingBox())?.width ?? 0).toBeGreaterThan(40);
+  const box = (await slider.boundingBox())!;
+  const y = box.y + box.height / 2;
+
+  await page.mouse.move(box.x + box.width * 0.95, y);
+  await page.mouse.down();
+  for (let i = 1; i <= 20; i++) {
+    await page.mouse.move(box.x + box.width * (0.95 - (0.75 * i) / 20), y);
+    await page.waitForTimeout(40); // across several of the controls' 250 ms reads
+  }
+  await page.mouse.up();
+
+  const seen = await page.evaluate(() => (window as unknown as { __volumes: number[] }).__volumes);
+  const wentBack = seen.filter((v, i) => i > 0 && v > seen[i - 1]!);
+  expect(wentBack).toEqual([]);
+  expect(seen.at(-1)).toBeLessThan(30);
+  await expect.poll(() => slider.evaluate((s: HTMLInputElement) => Number(s.value))).toBeLessThan(30);
+  // The player has it too (jellyfin-web's volume is cubed: 20% is 0.008).
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.volume)).toBeLessThan(0.03);
 });
 
 test('Space presses the player button the keyboard is on instead of playing or pausing', { tag: '@smoke' }, async ({ page }) => {
