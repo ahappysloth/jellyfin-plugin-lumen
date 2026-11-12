@@ -4,7 +4,7 @@ import type { TrickplayPreview } from './trickplay';
 import { playerStrings } from './playerStrings';
 
 /** A seek counts as arrived once the player reports a time this close to it. */
-const ARRIVED_MS = 1500;
+export const ARRIVED_MS = 1500;
 /** Give up waiting after this long (a seek the player refused, or a stream restart that took longer). */
 export const PENDING_MAX_MS = 15_000;
 /** Trickplay thumbnails are shown at this width (the tiles' own width is usually 320 px). */

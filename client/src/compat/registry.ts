@@ -366,8 +366,6 @@ export const PLAYBACK_MANAGER_METHODS = {
     'paused',
     'playPause',
     'seek',
-    'rewind',
-    'fastForward',
     'getVolume',
     'setVolume',
     'isMuted',

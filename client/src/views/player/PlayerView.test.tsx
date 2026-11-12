@@ -42,8 +42,6 @@ function fakeManager() {
     paused: () => paused,
     playPause: vi.fn(() => (paused = !paused)),
     seek: vi.fn(),
-    rewind: vi.fn(),
-    fastForward: vi.fn(),
     getVolume: vi.fn(() => 80),
     setVolume: vi.fn(),
     isMuted: vi.fn(() => false),
@@ -183,7 +181,7 @@ describe('PlayerView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
     expect(pm.playPause).toHaveBeenCalledWith(pm.player);
     fireEvent.click(screen.getByRole('button', { name: 'Back 10 seconds' }));
-    expect(pm.rewind).toHaveBeenCalled();
+    expect(pm.seek).toHaveBeenCalledWith(0, pm.player); // from 0:03, as far back as there is
     fireEvent.click(screen.getByRole('button', { name: 'Next episode' }));
     expect(pm.nextTrack).toHaveBeenCalled();
 
@@ -229,6 +227,88 @@ describe('PlayerView', () => {
     expect(pm.seek).toHaveBeenLastCalledWith(650_000 * 10_000, pm.player);
   });
 
+  describe('skips', () => {
+    let reachedJellyfin: string[] = [];
+    const stock = (e: KeyboardEvent): void => void reachedJellyfin.push(e.key);
+    beforeEach(() => {
+      reachedJellyfin = [];
+      document.addEventListener('keydown', stock);
+    });
+    afterEach(() => document.removeEventListener('keydown', stock));
+
+    const open = async (layout: 'tv' | 'desktop' = 'desktop') => {
+      const pm = fakeManager();
+      let at = 600_000;
+      pm.currentTime.mockImplementation(() => at);
+      pm.seek.mockImplementation((ticks: number) => void (at = ticks / 10_000));
+      vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+      render(<PlayerView ctx={makeContext(createFakeClient(), { layout })} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      return { pm, setAt: (ms: number) => void (at = ms) };
+    };
+    const seconds = (pm: ReturnType<typeof fakeManager>) =>
+      pm.seek.mock.calls.map(([ticks]) => ticks / 10_000_000);
+
+    it("go 10 s each way, whatever jellyfin-web's skip lengths", async () => {
+      const { pm } = await open();
+      fireEvent.click(screen.getByRole('button', { name: 'Forward 10 seconds' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Back 10 seconds' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Back 10 seconds' }));
+      expect(seconds(pm)).toEqual([610, 600, 590]);
+      expect(pm.seek).toHaveBeenCalledWith(590 * 10_000_000, pm.player);
+    });
+
+    it('add up while a seek is still on its way (a converted stream restarting), and go on from the video after', async () => {
+      const { pm, setAt } = await open();
+      pm.seek.mockImplementation(() => undefined); // the position stays where it was for now
+      const forward = screen.getByRole('button', { name: 'Forward 10 seconds' });
+      fireEvent.click(forward);
+      fireEvent.click(forward);
+      expect(seconds(pm)).toEqual([610, 620]);
+      setAt(621_000); // arrived, and played on a little
+      fireEvent.click(forward);
+      expect(seconds(pm)).toEqual([610, 620, 631]);
+    });
+
+    it('stop short of the end going forward, and at the start going back', async () => {
+      const { pm, setAt } = await open();
+      setAt(9_934_000_000 / 1000 - 4_000); // 4 s before the end of 2:45:34
+      fireEvent.click(screen.getByRole('button', { name: 'Forward 10 seconds' }));
+      expect(pm.seek).toHaveBeenLastCalledWith(9_934_000_000 * 10 - 10_000_000, pm.player); // 1 s before it
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(16_000); // long enough that the next skip isn't taken as on from that one
+      });
+      setAt(3_000);
+      fireEvent.click(screen.getByRole('button', { name: 'Back 10 seconds' }));
+      expect(pm.seek).toHaveBeenLastCalledWith(0, pm.player);
+    });
+
+    it('come from the arrow keys (and J and L) too, kept from jellyfin-web, on a button or on nothing', async () => {
+      const { pm } = await open();
+      const play = screen.getByRole('button', { name: 'Pause' });
+      fireEvent.keyDown(play, { key: 'ArrowRight' });
+      fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
+      fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
+      fireEvent.keyDown(play, { key: 'l' });
+      fireEvent.keyDown(play, { key: 'j' });
+      expect(seconds(pm)).toEqual([610, 600, 590, 600, 590]);
+      expect(reachedJellyfin).toEqual([]);
+      // With a modifier, they're jellyfin-web's (or the browser's).
+      fireEvent.keyDown(play, { key: 'ArrowRight', shiftKey: true });
+      expect(pm.seek).toHaveBeenCalledTimes(5);
+      expect(reachedJellyfin).toEqual(['ArrowRight']);
+    });
+
+    it("leave the arrow keys to jellyfin-web's D-pad navigation in the TV layout", async () => {
+      const { pm } = await open('tv');
+      fireEvent.keyDown(screen.getByRole('button', { name: 'Pause' }), { key: 'ArrowRight' });
+      expect(pm.seek).not.toHaveBeenCalled();
+      expect(reachedJellyfin).toEqual(['ArrowRight']);
+    });
+  });
+
   describe('the volume slider', () => {
     // jellyfin-web's keyboard shortcuts listen on `document`: arrows left and right seek, up and down change the
     // volume, Home and End seek, Page Up and Down skip chapters.
@@ -240,16 +320,91 @@ describe('PlayerView', () => {
     });
     afterEach(() => document.removeEventListener('keydown', stock));
 
+    let pm: ReturnType<typeof fakeManager>;
     const open = async (layout: 'tv' | 'desktop') => {
-      const pm = fakeManager();
+      pm = fakeManager();
       vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
       render(<PlayerView ctx={makeContext(createFakeClient(), { layout })} />);
       await act(async () => {
         await vi.advanceTimersByTimeAsync(300);
       });
-      return screen.getByRole('slider', { name: playerStrings.volume });
+      return screen.getByRole<HTMLInputElement>('slider', { name: playerStrings.volume });
     };
     const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'];
+
+    const volumeButton = () => screen.getByRole('button', { name: /^(Mute|Unmute)$/ });
+    /** Which of the volume icons the mute button shows, by its number of sound waves (-1: struck through). */
+    const waves = () => {
+      const d = volumeButton().querySelector('path')!.getAttribute('d')!;
+      return /l6 6M22 9l-6 6$/.test(d) ? -1 : (d.match(/a[\d.]+ [\d.]+ 0 0 1 0/g) ?? []).length;
+    };
+
+    it('follows a mouse drag smoothly, though the controls redraw with an older reading', async () => {
+      const slider = await open('desktop');
+      fireEvent.pointerDown(slider, { pointerId: 1, pointerType: 'mouse' });
+      for (const value of [70, 60, 50, 40]) {
+        fireEvent.input(slider, { target: { value: String(value) } });
+        // A redraw from the poll, which still reads 80 (the player hasn't caught up).
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10);
+        });
+        expect(slider.value).toBe(String(value));
+      }
+      // Sent at once, then at most every 50 ms (the rest of these came sooner), and the last as the button comes up.
+      expect(pm.setVolume.mock.calls.map(([v]) => v)).toEqual([70]);
+      fireEvent.pointerUp(document.body, { pointerId: 1, pointerType: 'mouse' });
+      expect(pm.setVolume.mock.calls.map(([v]) => v)).toEqual([70, 40]);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(slider.value).toBe('40'); // until the player reports it, or a second passes
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(slider.value).toBe('80'); // it never took: the player's reading again
+    });
+
+    it("lets go as soon as the player reports the value, and shows the level's waves as it moves", async () => {
+      const slider = await open('desktop');
+      let volume = 80;
+      pm.getVolume.mockImplementation(() => volume);
+      pm.setVolume.mockImplementation((v: number) => void (volume = v));
+      expect(waves()).toBe(3);
+      fireEvent.pointerDown(slider, { pointerId: 1, pointerType: 'touch' });
+      fireEvent.input(slider, { target: { value: '50' } });
+      expect(waves()).toBe(2);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      fireEvent.input(slider, { target: { value: '20' } });
+      expect(waves()).toBe(1);
+      fireEvent.input(slider, { target: { value: '0' } });
+      expect(waves()).toBe(-1);
+      fireEvent.pointerCancel(document.body, { pointerId: 1, pointerType: 'touch' });
+      expect(volume).toBe(0);
+      volume = 33; // changed elsewhere (jellyfin-web's wheel): shown at the next reading
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(slider.value).toBe('33');
+      expect(waves()).toBe(1);
+    });
+
+    it('changes the volume with its arrow keys, one input at a time, and unmutes once going up from muted', async () => {
+      const slider = await open('desktop');
+      let muted = true;
+      pm.isMuted.mockImplementation(() => muted);
+      pm.toggleMute.mockImplementation(() => void (muted = !muted));
+      // The browser moves a focused range by its arrow keys and fires an input for each.
+      fireEvent.input(slider, { target: { value: '81' } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      fireEvent.input(slider, { target: { value: '82' } });
+      expect(pm.toggleMute).toHaveBeenCalledTimes(1);
+      expect(pm.setVolume.mock.calls.map(([v]) => v)).toEqual([81, 82]);
+      expect(slider.value).toBe('82');
+    });
 
     it("keeps its keys from jellyfin-web's shortcuts, so they only change the volume", async () => {
       const slider = await open('desktop');
@@ -377,7 +532,7 @@ describe('PlayerView', () => {
         const rewind = screen.getByRole('button', { name: 'Back 10 seconds' });
         fireEvent.pointerDown(rewind);
         fireEvent.click(rewind);
-        expect(pm.rewind).toHaveBeenCalled();
+        expect(pm.seek).toHaveBeenCalled();
         expect(mute).toHaveFocus();
         await idle();
         expect(osd).toHaveClass('is-idle');
@@ -529,23 +684,21 @@ describe('PlayerView', () => {
       expect(pm.playPause).toHaveBeenCalledTimes(2);
     });
 
-    it('skips on a double tap at either side, not going full screen', async () => {
+    it('skips 10 s on a double tap at either side, not going full screen', async () => {
       const { pm, osd, surface } = await open();
-      // jellyfin-web's default skips: 10 s back, 30 s forward.
-      const video = document.body.appendChild(document.createElement('video'));
-      video.className = 'htmlvideoplayer';
-      video.currentTime = 60;
-      pm.rewind.mockImplementation(() => (video.currentTime -= 10));
-      pm.fastForward.mockImplementation(() => (video.currentTime += 30));
+      let at = 60_000;
+      pm.currentTime.mockImplementation(() => at);
+      pm.seek.mockImplementation((ticks: number) => void (at = ticks / 10_000));
       await idle();
       press(surface, 'touch', 100);
       press(surface, 'touch', 100);
       fireEvent.dblClick(surface); // Chrome on Android sends one
-      expect(pm.rewind).toHaveBeenCalledTimes(1);
+      expect(pm.seek).toHaveBeenCalledTimes(1);
+      expect(pm.seek).toHaveBeenLastCalledWith(50_000 * 10_000, pm.player);
       expect(osd).not.toHaveClass('is-idle'); // showing where it went
       expect(osd.querySelector('.lmn-player-skipped')).toHaveTextContent('−10 s');
       press(surface, 'touch', 100); // a third tap on goes back again, and adds up
-      expect(pm.rewind).toHaveBeenCalledTimes(2);
+      expect(pm.seek).toHaveBeenLastCalledWith(40_000 * 10_000, pm.player);
       expect(osd.querySelector('.lmn-player-skipped')).toHaveTextContent('−20 s');
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1000);
@@ -553,11 +706,20 @@ describe('PlayerView', () => {
       expect(osd.querySelector('.lmn-player-skipped')).toBeNull();
       press(surface, 'touch', 800);
       press(surface, 'touch', 800);
-      expect(pm.fastForward).toHaveBeenCalledTimes(1);
-      expect(osd.querySelector('.lmn-player-skipped.is-forward')).toHaveTextContent('+30 s');
+      expect(pm.seek).toHaveBeenLastCalledWith(50_000 * 10_000, pm.player);
+      expect(osd.querySelector('.lmn-player-skipped.is-forward')).toHaveTextContent('+10 s');
       expect(pm.toggleFullscreen).not.toHaveBeenCalled();
       expect(pm.playPause).not.toHaveBeenCalled();
-      video.remove();
+    });
+
+    it('says how far a double tap really went, near the start', async () => {
+      const { pm, osd, surface } = await open();
+      pm.currentTime.mockReturnValue(4_000);
+      await idle();
+      press(surface, 'touch', 100);
+      press(surface, 'touch', 100);
+      expect(pm.seek).toHaveBeenLastCalledWith(0, pm.player);
+      expect(osd.querySelector('.lmn-player-skipped')).toHaveTextContent('−4 s');
     });
 
     it("takes a double tap's first tap away slowly, so the second brings the controls back without a flash", async () => {
@@ -566,7 +728,7 @@ describe('PlayerView', () => {
       expect(osd).toHaveClass('is-idle');
       expect(osd).toHaveClass('is-tapped'); // player.css: a fade that starts slowly
       press(surface, 'touch', 100);
-      expect(pm.rewind).toHaveBeenCalledTimes(1);
+      expect(pm.seek).toHaveBeenCalledTimes(1);
       expect(osd).not.toHaveClass('is-idle');
       expect(osd).not.toHaveClass('is-tapped');
     });

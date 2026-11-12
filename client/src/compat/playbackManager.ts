@@ -23,8 +23,6 @@ export interface PlaybackManager {
   paused(player: Player): boolean;
   playPause(player: Player): void;
   seek(ticks: number, player: Player): void;
-  rewind(player: Player): void;
-  fastForward(player: Player): void;
   getVolume(player: Player): number;
   setVolume(volume: number, player: Player): void;
   isMuted(player: Player): boolean;
