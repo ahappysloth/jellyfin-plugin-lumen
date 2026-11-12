@@ -86,7 +86,7 @@ test('settings pages match the settings menu’s width, and an open menu doesn�
 });
 
 test('jellyfin-web’s toasts, menus and dialogs wear Lumen’s look on the pages Lumen doesn’t take over', async ({ page, isMobile }) => {
-  // A wrong password: jellyfin-web's toast, as Lumen's pill (styles/stock-skin.css).
+  // A wrong password: jellyfin-web's toast, as Lumen's pill (styles/toasts.css).
   await page.goto('/web/#/login');
   await page.locator('#txtManualName').fill(ADMIN.name);
   await page.locator('#txtManualPassword').fill('not-the-password');

@@ -47,12 +47,15 @@ test('the save bar comes up with a change, wherever the page is scrolled, and go
 test('the Dashboard wears Lumen’s look, and only on admin pages', async ({ page, isMobile }) => {
   await login(page, ADMIN);
   const html = page.locator('html');
-  await expect(page.locator('link[href*="lumen-dashboard.css"]')).toHaveCount(1);
+  // Lumen's own pages carry jellyfin-web's dialogs' and menus' look, not the admin pages' (lazy-loading.spec.ts).
+  await expect(page.locator('link[href*="lumen-stock.css"]')).toHaveCount(1);
+  await expect(page.locator('link[href*="lumen-dashboard.css"]')).toHaveCount(0);
   // The server's accent comes with the page, so the admin pages have it at first paint.
   expect(await page.locator('style').allTextContents()).toContain('html[data-lmn-skin]{--lmn-accent:#e30b17}');
 
   await page.goto('/web/#/dashboard');
   await expect(html).toHaveClass(/\blmn-skin-dashboard\b/);
+  await expect(page.locator('link[href*="lumen-dashboard.css"]')).toHaveCount(1);
   const restart = page.locator('.MuiButton-containedError').first();
   await expect(restart).toBeVisible();
   // Lumen's background on the drawer; destructive buttons outlined in Lumen's red rather than filled.
