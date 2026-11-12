@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import css from './stock-skin.css?raw';
+import css from './toasts.css?raw';
 
-describe('stock skin', () => {
+describe('toasts', () => {
   it("drops jellyfin-web's toasts below Lumen's nav, except on the player, which has none", () => {
     const start = css.indexOf(':is(html.lmn-active, html.lmn-skin-settings) .toastContainer {');
     expect(start).toBeGreaterThan(

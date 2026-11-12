@@ -95,12 +95,16 @@ console.log(
 const GUARD_BUDGET = 4 * 1024;
 const guard = gz('dist/lumen-guard.js') + gz('dist/lumen-web-plugin.js');
 console.log(`lumen guard + web plugin: ${kb(guard)} gzipped (budget ${GUARD_BUDGET / 1024} KB)`);
-// The admin pages' stylesheet loads alongside lumen.css only where the Dashboard skin is on.
+// With the stock pages restyled, the guard links these (veil/skinCss.ts): jellyfin-web's sign-in, settings and admin
+// pages' controls and its dialogs and menus on every page, in the way of the first paint only on those pages; and the
+// admin pages' own look, on those pages only. They were part of lumen.css and of the Dashboard's stylesheet, which the
+// server linked on every page.
+const STOCK_BUDGET = 7 * 1024;
+const stock = gz('dist/lumen-stock.css');
+console.log(`lumen stock pages: ${kb(stock)} gzipped (budget ${STOCK_BUDGET / 1024} KB)`);
 const DASHBOARD_BUDGET = 8 * 1024;
-const dashboard = gzipSync(readFileSync('dist/lumen-dashboard.css')).length;
-console.log(
-  `lumen dashboard: ${(dashboard / 1024).toFixed(1)} KB gzipped (budget ${DASHBOARD_BUDGET / 1024} KB)`,
-);
+const dashboard = gz('dist/lumen-dashboard.css');
+console.log(`lumen dashboard: ${kb(dashboard)} gzipped (budget ${DASHBOARD_BUDGET / 1024} KB)`);
 if (
   total > BUDGET ||
   player > PLAYER_BUDGET ||
@@ -111,6 +115,7 @@ if (
   itemMenu > ITEM_MENU_BUDGET ||
   secondary > SECONDARY_BUDGET ||
   guard > GUARD_BUDGET ||
+  stock > STOCK_BUDGET ||
   dashboard > DASHBOARD_BUDGET
 ) {
   process.exit(1);

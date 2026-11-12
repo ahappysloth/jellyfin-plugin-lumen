@@ -5,6 +5,7 @@ import navCss from '../styles/nav.css?raw';
 import playerCss from '../styles/player.css?raw';
 import stockComponentsCss from '../styles/stock-components.css?raw';
 import stockSkinCss from '../styles/stock-skin.css?raw';
+import toastsCss from '../styles/toasts.css?raw';
 import { PLAYBACK_MANAGER_METHODS, STOCK_SELECTORS } from './registry';
 import { STOCK_SELECTOR_META } from './registry.meta';
 
@@ -12,6 +13,7 @@ const stylesheets: Record<string, string> = {
   'base.css': baseCss,
   'player.css': playerCss,
   'stock-skin.css': stockSkinCss,
+  'toasts.css': toastsCss,
   'dashboard.css': dashboardCss,
   'nav.css': navCss,
   'stock-components.css': stockComponentsCss,

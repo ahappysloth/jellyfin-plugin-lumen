@@ -5,10 +5,11 @@
  * View menus), MUI dialogs and the phone drawer. They open over any page, so they are scoped to html[data-lmn-skin],
  * which the index.html injection sets on every page while the option is on, rather than to a page's class.
  *
- * Part of lumen-dashboard.css (imported first by dashboard.css, so the admin pages' own rules win ties): the server links
- * that stylesheet on every page while the option is on and never otherwise, so these rules cost Lumen's startup
- * nothing. The emby-* form controls inside dialogs share their rules with the settings pages (stock-skin.css, under
- * `html[data-lmn-skin] .dialogContainer`), and jellyfin-web's toasts are restyled there too.
+ * Part of lumen-stock.css (stock.css), which loads before lumen-dashboard.css, so the admin pages' own rules win ties:
+ * the inline guard links it on every page while the option is on and never otherwise, without holding up the first
+ * paint of Lumen's own pages (veil/skin.ts), so these rules cost Lumen's startup nothing. The emby-* form controls
+ * inside dialogs share their rules with the settings pages (stock-skin.css, under `html[data-lmn-skin]
+ * .dialogContainer`); jellyfin-web's toasts are restyled in toasts.css, part of lumen.css.
  *
  * Selectors are jellyfin-web's legacy class names and MUI's stable Mui* ones, never emotion's generated css-* ones.
  * Nothing here changes how a component works; if a selector stops matching after a Jellyfin update, that part simply

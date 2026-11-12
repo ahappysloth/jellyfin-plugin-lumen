@@ -1,0 +1,10 @@
+/*
+ * lumen-stock.css (vite.styles.config.ts): Lumen's look for jellyfin-web's own pages and components, wherever "Restyle
+ * Jellyfin's sign-in, settings and Dashboard pages" is on. The inline guard links it (veil/skin.ts): in the way of the
+ * first paint only on the pages it restyles (sign in, the settings pages, the admin pages); on Lumen's own pages it
+ * loads alongside, without holding them up, for jellyfin-web's dialogs and menus (the More menu opens them) and the
+ * settings pages a click away. Linked before lumen.css, so lumen.css wins ties; its rules are scoped to jellyfin-web's
+ * markup under html classes Lumen's own pages don't have.
+ */
+@import './stock-skin.css';
+@import './stock-components.css';

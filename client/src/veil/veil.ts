@@ -7,6 +7,11 @@ import { parseRoute } from '../takeover/routes';
 
 export const VEIL_ID = 'lmn-veil';
 export const PENDING_CLASS = 'lmn-pending';
+/**
+ * The guard's safety timer id, on window, for lumen.js to clear (runGuard.ts). Here rather than there, so the core
+ * doesn't import the guard's own code.
+ */
+export const SAFETY_TIMER_KEY = '__lmnVeilSafety';
 const NAME_KEY = 'lmn-server-name';
 const LIFT_MS = 900;
 /**

@@ -26,9 +26,10 @@ public static partial class HtmlInjector
     /// </param>
     /// <param name="styleStockPages">
     /// Marks the page (<c>data-lmn-skin</c> on &lt;html&gt;) so Lumen restyles the sign-in page, which loads before
-    /// anyone is signed in and so can't read Lumen's per-user client config, and links the admin pages' stylesheet
-    /// (<c>lumen-dashboard.css</c>: the Dashboard, metadata manager and plugin settings pages, and jellyfin-web's dialogs
-    /// and menus on every page).
+    /// anyone is signed in and so can't read Lumen's per-user client config, and the admin pages. Their stylesheets
+    /// (<c>lumen-stock.css</c>, <c>lumen-dashboard.css</c>) aren't linked here: the guard links each where it's used, in
+    /// the way of the first paint only on the pages it restyles (client/src/veil/skinCss.ts). It finds their version
+    /// in a <c>lumen-version</c> meta tag, so they're cached for good like lumen.css.
     /// </param>
     /// <param name="installAsLumen">
     /// Makes a home-screen install Lumen's: points the web app manifest, Apple touch icon and theme colour at Lumen's, names
@@ -79,13 +80,13 @@ public static partial class HtmlInjector
         var skin = styleStockPages ? "document.documentElement.setAttribute('data-lmn-skin','');" : string.Empty;
         var script = skin + (guardScript ?? string.Empty);
         var guard = InlineScript(webPluginScript) + InlineScript(script);
-        var dashboard = styleStockPages
-            ? $"<link rel=\"stylesheet\" href=\"{AssetBase}lumen-dashboard.css?v={version}\">"
-                + (accentColor is not null && HexColor().IsMatch(accentColor)
-                    ? $"<style>html[data-lmn-skin]{{--lmn-accent:{accentColor}}}</style>"
-                    : string.Empty)
+
+        // Before the guard, which reads it.
+        var versionMeta = styleStockPages ? $"<meta name=\"lumen-version\" content=\"{version}\">" : string.Empty;
+        var accent = styleStockPages && accentColor is not null && HexColor().IsMatch(accentColor)
+            ? $"<style>html[data-lmn-skin]{{--lmn-accent:{accentColor}}}</style>"
             : string.Empty;
-        var tags = $"{Marker}{guard}<link rel=\"stylesheet\" href=\"{AssetBase}lumen.css?v={version}\">{dashboard}"
+        var tags = $"{Marker}{versionMeta}{guard}<link rel=\"stylesheet\" href=\"{AssetBase}lumen.css?v={version}\">{accent}"
             + (coreChunk is null ? string.Empty : $"<link rel=\"modulepreload\" href=\"{AssetBase}{Uri.EscapeDataString(coreChunk)}\">")
             + $"<script type=\"module\" src=\"{AssetBase}lumen.js?v={version}\"></script>";
 

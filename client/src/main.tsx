@@ -1,6 +1,6 @@
 import { render } from 'preact';
 import './styles/lumen.css';
-import './styles/stock-skin.css';
+import './styles/toasts.css';
 import './styles/dropdown.css';
 import './styles/player.css';
 import './styles/feedback.css';
