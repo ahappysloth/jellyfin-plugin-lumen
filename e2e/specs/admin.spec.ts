@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import { ADMIN, resetLumen } from '../support/api';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { ADMIN, loadState, resetLumen } from '../support/api';
 import { login } from '../support/login';
 
 test('the Lumen dashboard page loads its settings', async ({ page }) => {
@@ -172,4 +172,88 @@ test('the Dashboard’s dialogs use Lumen’s fields', async ({ page }) => {
   await expect(field.locator('input')).toHaveValue('lumen-e2e');
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
+});
+
+/** Lumen's settings page with a fresh storage report: the cached one may be from before this run's library scan. */
+async function openStorage(page: Page): Promise<Locator> {
+  await page.goto('/web/#/configurationpage?name=Lumen');
+  const card = page.locator('[id="lmn-admin-root"]:visible').getByRole('group', { name: 'Storage' });
+  await card.scrollIntoViewIfNeeded();
+  const refresh = card.getByRole('button', { name: 'Refresh' });
+  await expect(refresh).toBeEnabled({ timeout: 30_000 });
+  await refresh.click();
+  await expect(refresh).toBeEnabled({ timeout: 30_000 });
+  await expect(card.getByText(/^Computed /)).toBeVisible();
+  return card;
+}
+
+test('the Storage card shows space by library, codec and resolution, and links the biggest titles', { tag: '@smoke' }, async ({
+  page,
+}) => {
+  await login(page, ADMIN);
+  const card = await openStorage(page);
+  const { items } = loadState();
+
+  // The fixtures (scripts/gen-test-media.sh): 8 movies and 6 episodes, all VP9 at 640×360. Their trailers aren't counted.
+  await expect(card.locator('.lmna-storage__total')).toContainText('in 14 files');
+  const codecs = card.getByRole('table', { name: 'By codec' });
+  await expect(codecs.getByRole('row', { name: /^Other/ })).toContainText(/14\s*100%/);
+  await expect(codecs.getByRole('row', { name: /^H\.264/ })).toContainText(/0 B\s*0\s*0%/);
+  const resolutions = card.getByRole('table', { name: 'By resolution' });
+  await expect(resolutions.getByRole('row', { name: /^SD/ })).toContainText(/14\s*100%/);
+  await expect(resolutions.getByRole('row', { name: /^1080p/ })).toContainText(/0 B\s*0\s*0%/);
+  // No H.264 to re-encode, and no HDR.
+  await expect(card.locator('.lmna-storage__tile--pool')).toContainText('0 B in 0 files');
+
+  // Per library, with the same split.
+  await expect(card.getByRole('img', { name: /^Movies by codec: Other [\d.]+ [KM]B, 8 files$/ })).toBeVisible();
+  await expect(card.getByRole('img', { name: /^Movies by resolution: SD [\d.]+ [KM]B, 8 files$/ })).toBeVisible();
+  await expect(card.getByRole('img', { name: /^Shows by codec: Other [\d.]+ [KM]B, 6 files$/ })).toBeVisible();
+
+  // The biggest titles link to their details pages.
+  const movies = card.getByRole('region', { name: 'Biggest movies' }).getByRole('link');
+  await expect(movies).toHaveCount(8);
+  const alpha = card.getByRole('link', { name: 'Lumen Alpha (2001)' });
+  await expect(alpha).toHaveAttribute('href', `#/details?id=${items['Lumen Alpha']}`);
+  await expect(alpha.locator('xpath=ancestor::li')).toContainText('VP9 · SD');
+  const show = card.getByRole('region', { name: 'Biggest shows' }).getByRole('link', { name: 'Lumen Show' });
+  await expect(show).toHaveAttribute('href', `#/details?id=${items['Lumen Show']}`);
+  await expect(show.locator('xpath=ancestor::li')).toContainText('6 episodes · Other');
+
+  // Nothing wider than the screen, phones included.
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+  await alpha.click();
+  await expect(page).toHaveURL(new RegExp(`#/details\\?id=${items['Lumen Alpha']}`));
+  await expect(page.locator('#lmn-root')).toContainText('Lumen Alpha');
+});
+
+test('TV layout: the Storage card’s Refresh and titles are reached with the D-pad, and OK opens a title', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('layout', 'tv'));
+  await login(page, ADMIN);
+  await expect(page.locator('html')).toHaveClass(/\blayout-tv\b/);
+  const card = await openStorage(page);
+  const { items } = loadState();
+
+  await card.getByRole('button', { name: 'Refresh' }).focus();
+  // Down through the card: the numbers between Refresh and the titles are stops of their own (a remote's D-pad only
+  // moves between focusable things), each library with its bars, then the biggest movies.
+  await page.keyboard.press('ArrowDown');
+  const table = card.locator('table:focus');
+  await expect(table).toHaveCount(1); // the one under Refresh: By resolution beside By codec, or By codec on a phone
+  await expect(table).toHaveCSS('outline-style', 'solid');
+  const first = card.getByRole('region', { name: 'Biggest movies' }).getByRole('link').first();
+  const visited: string[] = [];
+  for (let i = 0; i < 12 && !(await first.evaluate((el) => el === document.activeElement)); i++) {
+    await page.keyboard.press('ArrowDown');
+    visited.push(await page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? ''));
+  }
+  expect(visited).toEqual(expect.arrayContaining(['Movies', 'Shows']));
+  await expect(first).toBeFocused();
+  await expect(first).toHaveCSS('outline-style', 'solid');
+
+  const id = (await first.getAttribute('href'))!.split('id=')[1]!;
+  expect(Object.values(items)).toContain(id);
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(new RegExp(`#/details\\?id=${id}`));
 });

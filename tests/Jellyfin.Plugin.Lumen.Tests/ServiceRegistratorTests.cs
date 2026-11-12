@@ -3,6 +3,7 @@ using Jellyfin.Plugin.Lumen.Configuration;
 using Jellyfin.Plugin.Lumen.Home;
 using Jellyfin.Plugin.Lumen.Injection;
 using Jellyfin.Plugin.Lumen.Requests;
+using Jellyfin.Plugin.Lumen.Storage;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Dto;
@@ -46,6 +47,7 @@ public class ServiceRegistratorTests
         Assert.NotNull(provider.GetRequiredService<ITmdbImageCache>());
         Assert.NotNull(provider.GetRequiredService<CatalogMapper>());
         Assert.NotNull(provider.GetRequiredService<WebStaticFiles>());
+        Assert.NotNull(provider.GetRequiredService<StorageReportService>());
         Assert.Contains(provider.GetServices<IStartupFilter>(), f => f is LumenStartupFilter);
         Assert.Equal(
             [

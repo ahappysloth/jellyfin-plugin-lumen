@@ -26,6 +26,13 @@ To update, use **Check for Lumen updates** on the Plugins page (or **Check for u
 Lumen's releases on GitHub straight away (no waiting for Jellyfin's daily plugin update task), installs the new version
 through Jellyfin's own installer, and offers to restart Jellyfin to load it.
 
+The **Storage** card on Lumen's page shows where the space goes, to help decide where re-encoding (e.g. with Unmanic)
+or a Radarr/Sonarr profile change would save the most: the total size and file count, each library, the split by video
+codec (H.264, HEVC, AV1, other) and resolution (SD, 720p, 1080p, 4K), HDR, the 15 biggest movies and series, and the
+usual re-encode pool, "H.264 at 1080p and above". It only reads Jellyfin's library database and never changes a file.
+Every version of a title counts; trailers and extras don't; .strm and remote files are counted as "size unknown". The
+numbers are computed in the background and kept for 10 minutes (**Refresh** recomputes them).
+
 ## Where Lumen appears
 
 Lumen changes Jellyfin's *web* interface, so it appears wherever that interface runs:

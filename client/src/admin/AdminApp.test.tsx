@@ -77,6 +77,8 @@ function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     installUpdate: vi.fn(async () => update({ UpdateAvailable: false, RestartPending: true })),
     restartServer: vi.fn(async () => undefined),
     serverState: vi.fn(async () => ({ up: true as const, restartPending: false })),
+    getStorage: vi.fn(async () => ({ State: 'Computing' as const, Report: null, Error: null })),
+    refreshStorage: vi.fn(async () => ({ State: 'Computing' as const, Report: null, Error: null })),
     ...overrides,
   };
 }

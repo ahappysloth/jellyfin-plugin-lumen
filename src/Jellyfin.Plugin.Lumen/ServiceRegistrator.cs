@@ -6,6 +6,7 @@ using Jellyfin.Plugin.Lumen.Home;
 using Jellyfin.Plugin.Lumen.Home.Providers;
 using Jellyfin.Plugin.Lumen.Injection;
 using Jellyfin.Plugin.Lumen.Requests;
+using Jellyfin.Plugin.Lumen.Storage;
 using Jellyfin.Plugin.Lumen.Updates;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
@@ -37,6 +38,8 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ILumenConfigStore, LumenConfigStore>();
         serviceCollection.AddSingleton<DiagnosticsStore>();
         serviceCollection.AddSingleton<UpdateChecker>();
+        serviceCollection.AddSingleton<IStorageScanner, StorageScanner>();
+        serviceCollection.AddSingleton<StorageReportService>();
 
         serviceCollection.AddSingleton<HomeCache>();
         serviceCollection.AddSingleton<IWatchHistoryService, WatchHistoryService>();
