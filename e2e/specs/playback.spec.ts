@@ -119,6 +119,31 @@ test("the skip buttons and the arrow keys go 10 s each way, not by jellyfin-web'
   await expect.poll(at).toBeCloseTo(2, 0);
 });
 
+test('a skip after one that arrived goes from where the video has played to, not from where the last one landed', async ({ page }) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
+  const video = page.locator('video.htmlvideoplayer');
+  const at = () => video.evaluate((v: HTMLVideoElement) => v.currentTime);
+  await expect.poll(at).toBeGreaterThan(0.3);
+  await video.evaluate((v: HTMLVideoElement) => {
+    v.currentTime = 1;
+  });
+  await expect.poll(at).toBeLessThan(2);
+
+  await page.getByRole('button', { name: 'Forward 10 seconds' }).click();
+  await expect.poll(at).toBeGreaterThan(10.5);
+  // Played on a few seconds, then paused there.
+  await expect.poll(at, { timeout: 10_000 }).toBeGreaterThan(14);
+  await video.evaluate((v: HTMLVideoElement) => v.pause());
+  const from = await at();
+
+  await page.getByRole('button', { name: 'Back 10 seconds' }).click();
+  // From where the last skip landed (about 11 s) it would go back to about 1 s.
+  await expect.poll(at).toBeCloseTo(from - 10, 0);
+});
+
 test('a skip on a converted stream goes 10 s on through the restart', async ({ page }) => {
   const { items } = loadState();
   await login(page, ADMIN);

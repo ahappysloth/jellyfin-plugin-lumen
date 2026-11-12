@@ -11,7 +11,7 @@
  * views/itemMenu/itemMenuIcons.ts, views/secondary/secondaryIcons.ts), and is passed as `name={PLAYER_ICONS.cast}`.
  * An icon the core needs too belongs here.
  */
-import type { JSX } from 'preact';
+import type { ComponentChildren, JSX } from 'preact';
 
 const HEART =
   'M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5';
@@ -19,6 +19,8 @@ const CHEVRON_LEFT = 'M15 18l-6-6 6-6';
 /** The volume icons' speaker, and its sound waves from the inside out: the player shows one per level. */
 export const SPEAKER =
   'M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298Z';
+/** A ring with an arrowhead, turning back (Lucide's rotate-ccw): history's clock face, and the player's 10 s skips. */
+export const RING_BACK = 'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5' as IconPath;
 export const WAVES = [
   'M14.18 8.82a4.5 4.5 0 0 1 0 6.36',
   'M16.66 6.34a8 8 0 0 1 0 11.31',
@@ -36,9 +38,9 @@ const PATHS = {
    * a play symbol (that's Quality, shown right under it in the player).
    */
   watchTogether:
-    'M4.5 5.5a2.5 2.5 0 1 0 5 0 2.5 2.5 0 1 0-5 0M3 14a4 4 0 0 1 8 0M14.5 13.5a2.5 2.5 0 1 0 5 0 2.5 2.5 0 1 0-5 0M13 22a4 4 0 0 1 8 0M15 2.5a9 9 0 0 1 5.5 5M9 21.5a9 9 0 0 1-5.5-5',
+    'M4.5 5.5a2.5 2.5 0 1 0 5 0 2.5 2.5 0 1 0-5 0M3 14a4 4 0 0 1 8 0M14.5 13.5a2.5 2.5 0 1 0 5 0 2.5 2.5 0 1 0-5 0M13 22a4 4 0 0 1 8 0M15.93 2.86a9 9 0 0 1 4.12 3.75M8.07 21.14a9 9 0 0 1-4.12-3.75',
   /** A clock with an arrow running back round it. */
-  history: 'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5M12 7v5l4 2',
+  history: `${RING_BACK}M12 7v5l4 2`,
   server:
     'M4 2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2ZM4 14h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2ZM6 6h.01M6 18h.01',
   check: 'M20 6 9 17l-5-5',
@@ -94,10 +96,13 @@ export function Icon({
   name,
   size = 20,
   class: className,
+  children,
 }: {
   name: IconRef;
   size?: number;
   class?: string;
+  /** Drawn over the path (the player's skip icons put their "10" in the ring). */
+  children?: ComponentChildren;
 }): JSX.Element {
   const d: string = name in PATHS ? PATHS[name as IconName] : name;
   const filled = d[0] === '*';
@@ -116,6 +121,7 @@ export function Icon({
       focusable="false"
     >
       <path d={filled ? d.slice(1) : d} />
+      {children}
     </svg>
   );
 }

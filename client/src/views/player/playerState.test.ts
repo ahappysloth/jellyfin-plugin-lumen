@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { snapshotKey, type PlayerSnapshot } from './playerState';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { PlaybackManager, Player } from '../../compat/playbackManager';
+import { readVolume, snapshotKey, type PlayerSnapshot } from './playerState';
+import { PLAYER_ICONS } from './playerIcons';
+import { volumeIcon } from './volume';
 
 const snap = (over: Partial<PlayerSnapshot> = {}): PlayerSnapshot =>
   ({
@@ -28,5 +31,33 @@ describe('snapshotKey', () => {
   it('ignores the position only while it is off screen', () => {
     expect(snapshotKey(snap({ positionMs: 2000 }), true)).not.toBe(snapshotKey(snap(), true));
     expect(snapshotKey(snap({ positionMs: 2000, bufferedMs: 9000 }), false)).toBe(snapshotKey(snap(), false));
+  });
+});
+
+describe('readVolume', () => {
+  // jellyfin-web's playback manager where the device's buttons set the volume: a fixed 1, not the player's volume.
+  const manager = { getVolume: vi.fn(() => 1) } as unknown as PlaybackManager;
+  const local: Player = { id: 'htmlvideoplayer', isLocalPlayer: true };
+  const host = (supports: boolean) => {
+    (window as Window & { NativeShell?: unknown }).NativeShell = {
+      AppHost: { supports: (feature: string) => supports && feature === 'physicalvolumecontrol' },
+    };
+  };
+  afterEach(() => delete (window as Window & { NativeShell?: unknown }).NativeShell);
+
+  it("counts as full on a phone, where the device's buttons set the volume (full, not one wave, on the icon)", () => {
+    host(true);
+    expect(readVolume(manager, local)).toBe(100);
+    expect(volumeIcon(readVolume(manager, local), false)).toBe('volumeHigh');
+    expect(volumeIcon(readVolume(manager, local), true)).toBe('volumeOff');
+  });
+
+  it("is the player's own on a desktop, and for a remote player", () => {
+    expect(readVolume(manager, local)).toBe(1);
+    expect(volumeIcon(readVolume(manager, local), false)).toBe(PLAYER_ICONS.volumeLow);
+    host(false);
+    expect(readVolume(manager, local)).toBe(1);
+    host(true);
+    expect(readVolume(manager, { id: 'chromecast' })).toBe(1);
   });
 });

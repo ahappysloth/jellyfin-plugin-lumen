@@ -13,11 +13,13 @@ export const SKIP_MS = 10_000;
  */
 export const END_MARGIN_MS = 1000;
 
-/** Where a skip from `fromMs` lands: 10 s on or back, within the title (and never back, going forward). */
+/**
+ * Where a skip from `fromMs` lands: 10 s on or back, within the title (and never back, going forward). Only for a
+ * stream that can seek, which has a length (playerState.ts canSeek).
+ */
 export function skipTarget(fromMs: number, durationMs: number, direction: 'back' | 'forward'): number {
   if (direction === 'back') return Math.max(0, fromMs - SKIP_MS);
-  const to = fromMs + SKIP_MS;
-  return durationMs > 0 ? Math.max(fromMs, Math.min(to, durationMs - END_MARGIN_MS)) : to;
+  return Math.max(fromMs, Math.min(fromMs + SKIP_MS, durationMs - END_MARGIN_MS));
 }
 
 /** The keys that skip (outside the TV layout, where the arrows move focus), as jellyfin-web's shortcuts have them. */

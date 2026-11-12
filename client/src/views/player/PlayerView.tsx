@@ -23,7 +23,7 @@ import {
   useCastAvailable,
   usePlaybackProgress,
 } from './PlayerExtras';
-import { readPlayerState, snapshotKey, type PlayerSnapshot } from './playerState';
+import { readPlayerState, readVolume, snapshotKey, type PlayerSnapshot } from './playerState';
 import { PLAYER_ICONS } from './playerIcons';
 import { playerStrings } from './playerStrings';
 import { lockLandscape, unlockOrientation } from './orientation';
@@ -44,6 +44,8 @@ const PILL_MS = 1200;
 const PRESS_MS = 1000;
 /** How long "−10 s" stays on screen after a double tap skips. */
 const SKIPPED_MS = 700;
+/** A held arrow key skips at most this often (outside Watch together, where it skips once). */
+const REPEAT_MS = 250;
 
 type Panel = 'quality' | 'tracks' | 'settings' | null;
 
@@ -55,6 +57,8 @@ type Panel = 'quality' | 'tracks' | 'settings' | null;
 export function PlayerView({ ctx }: { ctx: ViewContext }) {
   const pm = useRef<PlaybackManager | null>(getPlaybackManager());
   const syncPlay = useSyncPlayState(ctx);
+  const inGroup = useRef(false);
+  inGroup.current = !!syncPlay.group;
   const [snap, setSnap] = useState<PlayerSnapshot | null>(null);
   const [visible, setVisible] = useState(true);
   /**
@@ -70,6 +74,8 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   const positionShown = useRef(true);
   /** Until when a seek may still be on its way: the seek bar needs the position to see it arrive, even when hidden. */
   const seekingUntil = useRef(0);
+  /** The last skip, while it may still be on its way: quick presses add up from it (as the seek bar's steps do). */
+  const lastSkip = useRef<{ ms: number; at: number } | null>(null);
   const readNow = useRef<() => void>(() => undefined);
 
   // Poll the player. Give it a moment to appear; if it never does, fall back to the stock controls. Without a playback
@@ -91,6 +97,9 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
       }
       missing.current = 0;
       const next = readPlayerState(manager, player);
+      // The skip arrived: the next one goes on from the video, as it plays on (the seek bar lets go the same way).
+      if (lastSkip.current && Math.abs(next.positionMs - lastSkip.current.ms) < ARRIVED_MS)
+        lastSkip.current = null;
       // And "Ends at", which moves on with the clock while paused.
       const withPosition = positionShown.current || next.paused || Date.now() < seekingUntil.current;
       const key = `${snapshotKey(next, withPosition)}|${endsAt(next)}`;
@@ -98,13 +107,26 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
       last = { player, key };
       setSnap(next);
     };
+    // Any other seek (jellyfin-web's Home, End and chapter keys, a Watch together member's) ends the skips' adding up:
+    // the next skip goes from where that one went. A skip's own seek lands at its target. <video> events don't bubble.
+    const onSeeking = (): void => {
+      const manager = pm.current!;
+      try {
+        if (Math.abs(manager.currentTime(manager.getCurrentPlayer()!) - lastSkip.current!.ms) >= ARRIVED_MS)
+          lastSkip.current = null;
+      } catch {
+        // no skip on its way, or no player
+      }
+    };
     readNow.current = read;
     read();
     const timer = setInterval(read, POLL_MS);
     document.addEventListener('visibilitychange', read);
+    document.addEventListener('seeking', onSeeking, true);
     return () => {
       clearInterval(timer);
       document.removeEventListener('visibilitychange', read);
+      document.removeEventListener('seeking', onSeeking, true);
     };
   }, []);
 
@@ -250,7 +272,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
       if (!manager || !player) return;
       let next: { level: number; muted: boolean };
       try {
-        next = { level: Math.round(manager.getVolume(player)), muted: manager.isMuted(player) };
+        next = { level: Math.round(readVolume(manager, player)), muted: manager.isMuted(player) };
       } catch {
         return;
       }
@@ -404,13 +426,12 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
 
   /** Skips 10 s back or on (skip.ts) and says how far it went, in seconds; set as each render has the player. */
   const skipRef = useRef<(direction: 'back' | 'forward') => number>(() => 0);
-  /** The last skip, while it may still be on its way: quick presses add up from it (as the seek bar's steps do). */
-  const lastSkip = useRef<{ ms: number; at: number } | null>(null);
   // The arrow keys (and J and L) skip as the buttons do, 10 s, not by jellyfin-web's skip lengths (skip.ts). On <body>,
   // ahead of jellyfin-web's shortcuts on `document`; the seek bar, the volume slider and the panels keep the arrows they
   // use. In the TV layout the arrows move focus instead.
   useEffect(() => {
     if (ctx.layout === 'tv') return;
+    let skippedAt = 0;
     const onKey = (e: KeyboardEvent): void => {
       const direction = SKIP_KEYS[e.key];
       if (!direction || e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
@@ -418,6 +439,10 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
       if (document.querySelector('.dialogContainer .dialog.opened')) return;
       e.preventDefault();
       e.stopPropagation();
+      // A held key repeats. In Watch together each skip is a seek the whole group waits for (everyone pauses to buffer),
+      // so there it skips once per press; elsewhere it goes on, at a pace the player can follow.
+      if (e.repeat && (inGroup.current || Date.now() - skippedAt < REPEAT_MS)) return;
+      skippedAt = Date.now();
       skipRef.current(direction);
     };
     document.body.addEventListener('keydown', onKey);
@@ -661,6 +686,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
           bufferedMs={snap.bufferedMs}
           disabled={!snap.canSeek}
           onSeek={(ms) => {
+            lastSkip.current = null; // the next skip goes from here (a converted stream restarts: no `seeking`)
             seekingUntil.current = Date.now() + PENDING_MAX_MS;
             act(() => manager.seek(Math.round(ms * 10_000), player))();
           }}
@@ -682,6 +708,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
               type="button"
               class="lmn-player__icon"
               aria-label={playerStrings.rewind}
+              disabled={!snap.canSeek}
               onClick={() => skipRef.current('back')}
             >
               <SkipIcon direction="back" />
@@ -690,6 +717,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
               type="button"
               class="lmn-player__icon"
               aria-label={playerStrings.forward}
+              disabled={!snap.canSeek}
               onClick={() => skipRef.current('forward')}
             >
               <SkipIcon direction="forward" />
@@ -761,6 +789,8 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
 /** The keys a range input handles itself. */
 const SLIDER_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'];
 
+/** What ends a volume drag, on `document` (and `blur` on the window). */
+const DRAG_END = ['pointerup', 'pointercancel', 'lostpointercapture'];
 /** How often a drag sends the volume to the player (each pointer move is an input). */
 const VOLUME_SEND_MS = 50;
 /** How long, at most, the slider keeps the value it was let go at when the player reports nothing new. */
@@ -791,17 +821,19 @@ function Volume({ manager, snap, tv }: { manager: PlaybackManager; snap: PlayerS
       }
     }, VOLUME_SEND_MS),
   );
-  // A drag ends wherever the button comes up, on the slider or off it.
+  // A drag ends wherever the button comes up, on the slider or off it, or when the pointer or the window is lost
+  // without that (a pointerup elsewhere, an alert, another app); and when the player closes, sending the last value.
+  const end = useRef((): void => {
+    DRAG_END.forEach((type) => document.removeEventListener(type, end.current, true));
+    window.removeEventListener('blur', end.current);
+    send.current.flush();
+    setDragging(false);
+  });
+  useEffect(() => end.current, []);
   const startDrag = (): void => {
     setDragging(true);
-    const end = (): void => {
-      document.removeEventListener('pointerup', end, true);
-      document.removeEventListener('pointercancel', end, true);
-      send.current.flush();
-      setDragging(false);
-    };
-    document.addEventListener('pointerup', end, true);
-    document.addEventListener('pointercancel', end, true);
+    DRAG_END.forEach((type) => document.addEventListener(type, end.current, true));
+    window.addEventListener('blur', end.current);
   };
   // Once the drag (or a key) is done and sent, the player's reading takes over: the first one taken after the last
   // send (it may differ: the wheel, or a player that keeps its own steps), or one that matches. Or after a moment.
