@@ -66,7 +66,7 @@ export function Row({ row, client, catalogImageToken, badges, onSelect, onMenu, 
           onClick={() => scroll(-1)}
         >
           <span class="lmn-row__disc">
-            <Icon name="chevronLeft" size={22} />
+            <Icon name="chevronLeft" size={24} />
           </span>
         </button>
         <div ref={scroller} class="lmn-row__scroller focuscontainer-x">
@@ -126,7 +126,7 @@ export function Row({ row, client, catalogImageToken, badges, onSelect, onMenu, 
           onClick={() => scroll(1)}
         >
           <span class="lmn-row__disc">
-            <Icon name="chevronRight" size={22} />
+            <Icon name="chevronRight" size={24} />
           </span>
         </button>
       </div>

@@ -96,7 +96,7 @@ export function cardMenuEntries(
     newTab,
     {
       label: favorite ? strings.removeFavorite : strings.addFavorite,
-      icon: favorite ? 'heart' : 'heartOutline',
+      icon: favorite ? 'heartFilled' : 'heart',
       onSelect: () => toggleUserData(ctx, item, 'IsFavorite', !favorite, onError),
     },
     {

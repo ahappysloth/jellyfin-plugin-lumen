@@ -196,7 +196,7 @@ export function Card({
           ) : (
             meta.map((part, i) => (
               <span key={part}>
-                {i === 0 && item.CommunityRating ? <Icon name="star" size={11} class="lmn-star" /> : null}
+                {i === 0 && item.CommunityRating ? <Icon name="star" size={12} class="lmn-star" /> : null}
                 {part}
               </span>
             ))
@@ -222,7 +222,7 @@ export function Card({
             onMenu(item, { x: box.left, y: box.bottom }, from);
           }}
         >
-          <Icon name="more" size={18} />
+          <Icon name="more" size={20} />
         </button>
       )}
     </div>

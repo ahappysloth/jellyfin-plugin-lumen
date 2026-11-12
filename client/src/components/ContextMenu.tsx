@@ -177,7 +177,7 @@ export function ContextMenuHost() {
           onPointerMove={() => setActive(i)}
           onClick={() => choose(entry)}
         >
-          <Icon name={entry.icon} size={16} />
+          <Icon name={entry.icon} size={18} />
           {entry.detail ? (
             <span class="lmn-menu__text">
               {entry.label}

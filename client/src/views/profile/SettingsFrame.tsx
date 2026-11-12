@@ -23,7 +23,7 @@ export function SettingsFrame({ page }: { page: SettingsPage }) {
   return (
     <div class="lmn-settings-frame">
       <a class="lmn-settings-frame__back" href={PREFERENCES_HASH}>
-        <Icon name="back" size={16} />
+        <Icon name="back" size={18} />
         {strings.settingsMenu}
       </a>
       <h1 class="lmn-settings-frame__title">{title}</h1>

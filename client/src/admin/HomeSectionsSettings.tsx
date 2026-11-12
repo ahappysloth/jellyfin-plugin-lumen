@@ -141,7 +141,7 @@ function SectionEditor(props: {
       </div>
       {type?.Description && (
         <p class="lmna-section__about">
-          <Icon name="info" size={15} />
+          <Icon name="info" size={16} />
           {type.Description}
         </p>
       )}

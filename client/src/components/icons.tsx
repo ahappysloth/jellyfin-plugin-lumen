@@ -1,68 +1,74 @@
 /**
  * Small inline SVG icons (24×24 grid, currentColor). Decorative: always aria-hidden; label the control instead.
  *
+ * Outlined, from Lucide (https://lucide.dev, ISC; LICENSES/lucide.txt), drawn as one path each: a 2-unit stroke with
+ * round caps and joins, so every icon at a size has the same line weight. Path data starting with `*` is filled as
+ * well (play, pause, a rating's star, a favorite's heart). The volume levels' waves and Watch together are Lumen's
+ * own, drawn the same way.
+ *
  * PATHS downloads at startup whole, so an icon only a lazily loaded view shows lives in that view's own set, made with
  * defineIcons in a module only its chunk imports (views/player/playerIcons.ts, views/profile/profileIcons.ts,
- * views/itemMenu/itemMenuIcons.ts, views/secondary/secondaryIcons.ts), and is passed as `name={PLAYER_ICONS.cast}`. An icon the core needs too belongs
- * here.
+ * views/itemMenu/itemMenuIcons.ts, views/secondary/secondaryIcons.ts), and is passed as `name={PLAYER_ICONS.cast}`.
+ * An icon the core needs too belongs here.
  */
 import type { JSX } from 'preact';
 
+const HEART =
+  'M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5';
+const CHEVRON_LEFT = 'M15 18l-6-6 6-6';
+
 const PATHS = {
-  play: 'M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5Z',
-  pause: 'M7 4h3v16H7zM14 4h3v16h-3z',
-  info: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16Zm-1 7h2v6h-2zm0-4h2v2h-2z',
-  plus: 'M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z',
+  play: '*M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19Z',
+  pause:
+    '*M15 3h3a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM6 3h3a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z',
+  info: 'M2 12a10 10 0 1 0 20 0 10 10 0 1 0-20 0M12 16v-4M12 8h.01',
+  plus: 'M5 12h14M12 5v14',
   /**
    * Watch together (SyncPlay): two people passing it round. Not one person (the account icon) and not a screen with
    * a play symbol (that's Quality, shown right under it in the player).
    */
   watchTogether:
-    'M7 1.75a3.25 3.25 0 1 1 0 6.5 3.25 3.25 0 0 1 0-6.5Zm0 2a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5ZM2 14a5 5 0 0 1 10 0h-2a3 3 0 0 0-6 0ZM17 9.75a3.25 3.25 0 1 1 0 6.5 3.25 3.25 0 0 1 0-6.5Zm0 2a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5ZM12 22a5 5 0 0 1 10 0h-2a3 3 0 0 0-6 0ZM14.87 2A10.4 10.4 0 0 1 20.82 6.49 1 1 0 0 1 19.12 7.55 8.4 8.4 0 0 0 14.32 3.93 1 1 0 0 1 14.87 2ZM9.13 22A10.4 10.4 0 0 1 3.18 17.51 1 1 0 0 1 4.88 16.45 8.4 8.4 0 0 0 9.68 20.07 1 1 0 0 1 9.13 22Z',
+    'M4.5 5.5a2.5 2.5 0 1 0 5 0 2.5 2.5 0 1 0-5 0M3 14a4 4 0 0 1 8 0M14.5 13.5a2.5 2.5 0 1 0 5 0 2.5 2.5 0 1 0-5 0M13 22a4 4 0 0 1 8 0M15 2.5a9 9 0 0 1 5.5 5M9 21.5a9 9 0 0 1-5.5-5',
   /** A clock with an arrow running back round it. */
-  history:
-    'M4 12A9 9 0 1 1 6.64 18.36L8.05 16.95A7 7 0 1 0 6 12ZM1.5 12h7L5 15.5ZM12 7h2v4.6l3.2 1.9-1 1.7-4.2-2.5Z',
+  history: 'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5M12 7v5l4 2',
   server:
-    'M4 3h16a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm1 2v4h14V5Zm2 1h2v2H7Zm-3 7h16a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1Zm1 2v4h14v-4Zm2 1h2v2H7Z',
-  check: 'M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z',
-  eye: 'M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7S3 14.5 2 12c1-2.5 5-7 10-7Zm0 2c-3.6 0-6.6 3-7.8 5 1.2 2 4.2 5 7.8 5s6.6-3 7.8-5c-1.2-2-4.2-5-7.8-5Zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z',
-  film: 'M4 4h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm1 2v2h2V6Zm12 0v2h2V6ZM5 10v4h2v-4Zm12 0v4h2v-4ZM5 16v2h2v-2Zm12 0v2h2v-2ZM9 6v12h6V6Z',
-  tv: 'M4 5h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-7v1h3v2H8v-2h3v-1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm1 2v9h14V7Z',
-  home: 'M12 3 2.5 11H5v9h5v-6h4v6h5v-9h2.5Z',
-  folder: 'M3 5a1 1 0 0 1 1-1h6l2 2h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Zm2 3v10h14V8Z',
-  music: 'M19 3v12.5a3.5 3.5 0 1 1-2-3.16V7l-8 1.8v8.7A3.5 3.5 0 1 1 7 14.34V5.2Z',
-  search:
-    'M10.5 3a7.5 7.5 0 0 1 5.96 12.05l4.25 4.24-1.42 1.42-4.24-4.25A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z',
-  user: 'M12 3a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Zm0 2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Zm0 8c4.4 0 8 2.2 8 5v3H4v-3c0-2.8 3.6-5 8-5Zm0 2c-3.5 0-6 1.6-6 3v1h12v-1c0-1.4-2.5-3-6-3Z',
-  heart:
-    'M12 21.2 10.5 19.8C5.3 15.1 2 12.1 2 8.4 2 5.4 4.4 3 7.4 3c1.7 0 3.4.8 4.6 2.1C13.2 3.8 14.9 3 16.6 3 19.6 3 22 5.4 22 8.4c0 3.7-3.3 6.7-8.5 11.4Z',
-  heartOutline:
-    'M12 21.2 10.5 19.8C5.3 15.1 2 12.1 2 8.4 2 5.4 4.4 3 7.4 3c1.7 0 3.4.8 4.6 2.1C13.2 3.8 14.9 3 16.6 3 19.6 3 22 5.4 22 8.4c0 3.7-3.3 6.7-8.5 11.4Zm0-2.7.1-.1C16.9 14.1 20 11.3 20 8.4 20 6.5 18.5 5 16.6 5c-1.5 0-3 1-3.6 2.4h-2C10.4 6 8.9 5 7.4 5 5.5 5 4 6.5 4 8.4c0 2.9 3.1 5.7 7.9 10Z',
-  replay: 'M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8Z',
-  external:
-    'M14 3h7v7h-2V6.4l-8.3 8.3-1.4-1.4L17.6 5H14ZM5 5h6v2H5v12h12v-6h2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z',
-  download: 'M11 3h2v8.6l3.3-3.3 1.4 1.4-5.7 5.7-5.7-5.7 1.4-1.4 3.3 3.3ZM4 14h2v4h12v-4h2v6H4Z',
-  close: 'M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12 19 17.6 17.6 19 12 13.4 6.4 19 5 17.6 10.6 12 5 6.4Z',
+    'M4 2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2ZM4 14h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2ZM6 6h.01M6 18h.01',
+  check: 'M20 6 9 17l-5-5',
+  eye: 'M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0M9 12a3 3 0 1 0 6 0 3 3 0 1 0-6 0',
+  film: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM7 3v18M3 7.5h4M3 12h18M3 16.5h4M17 3v18M17 7.5h4M17 16.5h4',
+  tv: 'M17 2l-5 5-5-5M4 7h16a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z',
+  home: 'M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z',
+  folder:
+    'M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z',
+  music:
+    'M21 16V3a1 1 0 0 0-1.28-.96l-10 2.917a1 1 0 0 0-.72.96V19M15 16a3 3 0 1 0 6 0 3 3 0 1 0-6 0M3 19a3 3 0 1 0 6 0 3 3 0 1 0-6 0',
+  search: 'M21 21l-4.34-4.34M3 11a8 8 0 1 0 16 0 8 8 0 1 0-16 0',
+  user: 'M7 8a5 5 0 1 0 10 0A5 5 0 1 0 7 8M20 21a8 8 0 0 0-16 0',
+  heart: HEART,
+  heartFilled: `*${HEART}`,
+  replay: 'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5',
+  external: 'M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6',
+  download: 'M12 15V3M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5',
+  close: 'M18 6 6 18M6 6l12 12',
   settings:
-    'M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L14.9 3h-4l-.4 2.7a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.4 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.7h4l.4-2.7a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5ZM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z',
-  display:
-    'M3 4h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-7v2h3v2H7v-2h3v-2H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm1 2v10h16V6Z',
-  key: 'M7 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm5.6-4H22v4h-2v3h-3v-3h-4.4a6 6 0 1 1 0-4Z',
+    'M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915M9 12a3 3 0 1 0 6 0 3 3 0 1 0-6 0',
+  display: 'M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM8 21h8M12 17v4',
+  key: 'M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4ZM16 7.5a.5.5 0 1 0 1 0 .5.5 0 1 0-1 0',
   shield:
-    'M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5Zm0 2.2 6 2.2V11c0 3.9-2.5 7.6-6 8.9-3.5-1.3-6-5-6-8.9V6.4Z',
-  edit: 'M4 17.2V20h2.8l8.3-8.3-2.8-2.8ZM19.7 7.1a1 1 0 0 0 0-1.4L18.3 4.3a1 1 0 0 0-1.4 0l-1.4 1.4 2.8 2.8Z',
-  logout:
-    'M10 4H4v16h6v2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h6Zm6.6 3.6L21 12l-4.4 4.4-1.4-1.4 2-2H9v-2h8.2l-2-2Z',
-  chevronDown: 'm4.6 8.6 7.4 7.4 7.4-7.4 1.4 1.4-8.8 8.8L3.2 10Z',
-  more: 'M5 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z',
-  star: 'm12 2.5 2.9 6.1 6.6.8-4.9 4.6 1.3 6.5L12 17.3l-5.9 3.2 1.3-6.5-4.9-4.6 6.6-.8Z',
-  back: 'M15.4 4.6 8 12l7.4 7.4-1.4 1.4L5.2 12 14 3.2Z',
-  chevronRight: 'M8.6 4.6 16 12l-7.4 7.4 1.4 1.4 8.8-8.8L10 3.2Z',
-  chevronLeft: 'M15.4 4.6 8 12l7.4 7.4-1.4 1.4L5.2 12 14 3.2Z',
+    'M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1Z',
+  edit: 'M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497ZM15 5l4 4',
+  logout: 'M16 17l5-5-5-5M21 12H9M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4',
+  chevronDown: 'M6 9l6 6 6-6',
+  more: 'M11 12a1 1 0 1 0 2 0 1 1 0 1 0-2 0M18 12a1 1 0 1 0 2 0 1 1 0 1 0-2 0M4 12a1 1 0 1 0 2 0 1 1 0 1 0-2 0',
+  star: '*M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16Z',
+  back: CHEVRON_LEFT,
+  chevronRight: 'M9 18l6-6-6-6',
+  chevronLeft: CHEVRON_LEFT,
   volumeOff:
-    'M4 9h4l5-4v14l-5-4H4Zm12.3.3 1.4-1.4 2.1 2.1 2.1-2.1 1.4 1.4-2.1 2.1 2.1 2.1-1.4 1.4-2.1-2.1-2.1 2.1-1.4-1.4 2.1-2.1Z',
-  volumeOn:
-    'M4 9h4l5-4v14l-5-4H4Zm12-1.5a6 6 0 0 1 0 9l-1.4-1.4a4 4 0 0 0 0-6.2Zm2.8-2.8a10 10 0 0 1 0 14.6l-1.4-1.4a8 8 0 0 0 0-11.8Z',
+    'M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298ZM16 9l6 6M22 9l-6 6',
+  /** The speaker with all three of the player's volume waves (views/player/playerIcons.ts has one and two). */
+  volumeHigh:
+    'M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298ZM14.18 8.82a4.5 4.5 0 0 1 0 6.36M16.66 6.34a8 8 0 0 1 0 11.31M19.55 4.3a11.5 11.5 0 0 1 0 15.39',
 } as const;
 
 export type IconName = keyof typeof PATHS;
@@ -80,24 +86,30 @@ export function defineIcons<K extends string>(paths: Record<K, string>): Readonl
 
 export function Icon({
   name,
-  size = 18,
+  size = 20,
   class: className,
 }: {
   name: IconRef;
   size?: number;
   class?: string;
 }): JSX.Element {
+  const d: string = name in PATHS ? PATHS[name as IconName] : name;
+  const filled = d[0] === '*';
   return (
     <svg
       class={`lmn-icon${className ? ` ${className}` : ''}`}
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="currentColor"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
       aria-hidden="true"
       focusable="false"
     >
-      <path d={name in PATHS ? PATHS[name as IconName] : name} fill-rule="evenodd" />
+      <path d={filled ? d.slice(1) : d} />
     </svg>
   );
 }

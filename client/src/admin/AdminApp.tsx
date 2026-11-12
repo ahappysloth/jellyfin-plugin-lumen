@@ -223,7 +223,7 @@ export function AdminApp({
         style={column ? { left: `${column.left}px`, width: `${column.width}px` } : undefined}
       >
         <p class={`lmna-savebar__status${tone ? ` lmna-savebar__status--${tone}` : ''}`}>
-          {tone === 'ok' && <Icon name="check" size={16} />}
+          {tone === 'ok' && <Icon name="check" size={18} />}
           {/* Read out by the live region above, except errors (the alert at the top reads those). */}
           <span aria-hidden={failed ? undefined : 'true'}>{statusText}</span>
         </p>

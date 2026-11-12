@@ -48,7 +48,7 @@ export function ToastHost() {
             aria-label={strings.dismiss}
             onClick={() => setToast(null)}
           >
-            <Icon name="close" size={16} />
+            <Icon name="close" size={18} />
           </button>
         </p>
       )}

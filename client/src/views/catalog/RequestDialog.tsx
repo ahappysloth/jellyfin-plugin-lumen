@@ -120,7 +120,7 @@ export function RequestDialog({ title, ctx, onClose, onRequested }: Props) {
           disabled={phase.kind === 'sending'}
           onClick={onClose}
         >
-          <Icon name="close" size={18} />
+          <Icon name="close" size={20} />
         </button>
         <h2 id={headingId} class="lmn-dialog__title">
           {titleStrings.requestTitle(title.Title)}
@@ -129,7 +129,7 @@ export function RequestDialog({ title, ctx, onClose, onRequested }: Props) {
         {phase.kind === 'done' || phase.kind === 'error' ? (
           <>
             <p class={`lmn-dialog__outcome${phase.kind === 'error' ? ' is-error' : ''}`} role="status">
-              <Icon name={phase.kind === 'error' ? 'info' : 'check'} size={20} />
+              <Icon name={phase.kind === 'error' ? 'info' : 'check'} size={22} />
               {phase.kind === 'error'
                 ? phase.message
                 : phase.pending

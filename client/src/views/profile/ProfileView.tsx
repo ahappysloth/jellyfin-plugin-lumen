@@ -222,13 +222,13 @@ function Row({
   const content = (
     <>
       <span class="lmn-profile__icon">
-        <Icon name={icon} size={20} />
+        <Icon name={icon} size={22} />
       </span>
       <span class="lmn-profile__text">
         <span class="lmn-profile__label">{label}</span>
         <span class="lmn-profile__hint">{hint}</span>
       </span>
-      <Icon name="chevronRight" size={18} class="lmn-profile__chevron" />
+      <Icon name="chevronRight" size={20} class="lmn-profile__chevron" />
     </>
   );
   return (

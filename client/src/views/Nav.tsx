@@ -124,7 +124,7 @@ export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavAc
           aria-label={strings.search}
           aria-current={active === 'search' ? 'page' : undefined}
         >
-          <Icon name="search" size={18} />
+          <Icon name="search" size={20} />
         </a>
         <AccountMenu ctx={ctx} syncPlay={syncPlay} current={active === 'profile'} />
       </nav>
@@ -135,7 +135,7 @@ export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavAc
         aria-label={strings.search}
         aria-current={active === 'search' ? 'page' : undefined}
       >
-        <Icon name="search" size={20} />
+        <Icon name="search" size={22} />
       </a>
       <nav class="lmn-tabbar" aria-label={strings.tabs}>
         <Tab href={HOME_HASH} icon="home" label={strings.home} current={active === 'home'} />
@@ -168,7 +168,7 @@ export function Nav({ ctx, active = 'home' }: { ctx: ViewContext; active?: NavAc
               });
             }}
           >
-            <Icon name="folder" size={22} />
+            <Icon name="folder" size={24} />
             <span class="lmn-tab__label">{strings.more}</span>
           </button>
         )}
@@ -200,7 +200,7 @@ function Tab({
       href={href}
       aria-current={current ? 'page' : undefined}
     >
-      <Icon name={icon} size={22} />
+      <Icon name={icon} size={24} />
       <span class="lmn-tab__label">{label}</span>
     </a>
   );
@@ -225,7 +225,7 @@ function NavItem({
       aria-label={label}
       title={label}
     >
-      <Icon name={icon} size={17} />
+      <Icon name={icon} size={20} />
       <span class="lmn-nav__label" aria-hidden="true">
         {label}
       </span>

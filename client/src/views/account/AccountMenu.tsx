@@ -332,7 +332,7 @@ export function AccountMenu({
           }
         }}
       >
-        <Icon name="user" size={18} />
+        <Icon name="user" size={20} />
         {group && <span class="lmn-account__badge" aria-hidden="true" />}
       </button>
       {open && (
@@ -344,7 +344,7 @@ export function AccountMenu({
               ) : user ? (
                 initials(user.Name)
               ) : (
-                <Icon name="user" size={20} />
+                <Icon name="user" size={22} />
               )}
             </span>
             <span class="lmn-menu__text">
@@ -377,7 +377,7 @@ export function AccountMenu({
                   };
                   const content = (
                     <>
-                      <Icon name={item.icon} size={16} />
+                      <Icon name={item.icon} size={18} />
                       {item.detail ? (
                         <span class="lmn-menu__text">
                           {item.label}

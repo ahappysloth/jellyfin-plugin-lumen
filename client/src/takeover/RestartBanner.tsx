@@ -232,7 +232,7 @@ export function RestartBanner({
       {busy ? (
         <span class="lmn-restart__spinner" aria-hidden="true" />
       ) : (
-        <Icon name="replay" size={20} class="lmn-restart__icon" />
+        <Icon name="replay" size={22} class="lmn-restart__icon" />
       )}
       <p class="lmn-restart__text">{text}</p>
       {!busy && (
@@ -272,7 +272,7 @@ export function RestartBanner({
                 title="Dismiss"
                 onClick={onDismiss}
               >
-                <Icon name="close" size={18} />
+                <Icon name="close" size={20} />
               </button>
             </>
           )}

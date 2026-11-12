@@ -68,7 +68,7 @@ export function PersonDetails({ item, ctx }: { item: BaseItem; ctx: ViewContext 
             aria-label={strings.back}
             onClick={() => goBack(ctx)}
           >
-            <Icon name="back" size={18} />
+            <Icon name="back" size={20} />
           </button>
         </div>
         <div class="lmn-person-page__intro">
