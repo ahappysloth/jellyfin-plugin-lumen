@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 import { ADMIN, api, loadState } from '../support/api';
 import { login } from '../support/login';
+import { accountButton, accountMenu } from '../support/nav';
 
 /**
  * What loads on demand: the pages in views/secondary's file (search, person and collection pages, a library's
@@ -84,6 +85,35 @@ test("a person page whose file can't load shows Lumen's error page, and Try agai
   await expect(page.locator('.lmn-person-page__name')).toHaveCSS('font-weight', '800');
 });
 
+test('a person page whose file still fails on Try again reloads, for a browser that remembers the failure', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', CACHE_PAST_ROUTE);
+  const id = await personId('Ada Vance');
+  await page.route(SECONDARY, (route) => route.abort());
+  await login(page, ADMIN);
+  await page.goto('about:blank');
+  await page.goto(`/web/#/details?id=${id}`);
+  await expect(page.getByRole('heading', { name: "Couldn't load this page", level: 1 })).toBeVisible();
+
+  const reloaded = page.waitForEvent('load');
+  await page.getByRole('button', { name: 'Try again' }).click();
+  await reloaded;
+  await expect(page).toHaveURL(new RegExp(`#/details\\?id=${id}`));
+  await expect(page.getByRole('heading', { name: "Couldn't load this page", level: 1 })).toBeVisible();
+});
+
+test("Watch together says so when its file can't load", async ({ page, browserName, isMobile }) => {
+  test.skip(browserName === 'webkit', CACHE_PAST_ROUTE);
+  test.skip(isMobile, 'phones have Watch together on the profile page');
+  await page.route(SECONDARY, (route) => route.abort());
+  await login(page, ADMIN);
+  await expect(page.locator('#lmn-root .lmn-row').first()).toBeVisible();
+
+  await accountButton(page).click();
+  await accountMenu(page).getByRole('menuitem', { name: /^Watch together/ }).click();
+  await expect(page.locator('.lmn-toast')).toHaveText("Couldn't open Watch together. Try again.");
+  await expect(page.getByRole('menu', { name: 'Watch together' })).toHaveCount(0);
+});
+
 test("Lumen's pages fetch the file once the first page is up, so Search opens without waiting", async ({ page }) => {
   const fetched = page.waitForRequest(SECONDARY);
   await login(page, ADMIN);
@@ -153,6 +183,15 @@ test('the sign-in, settings and admin pages wait for their stylesheets before th
   }
 });
 
+test("a signed-out visit to Lumen's address waits for the sign-in page's stylesheet, where jellyfin-web sends it", async ({ page }) => {
+  // No one signed in: jellyfin-web goes from home to its sign-in page.
+  await page.goto('/web/');
+  await expect(page.locator('.manualLoginForm')).toBeVisible();
+  const blocking = await cssBlocking(page);
+  test.skip(!blocking['lumen.css'], 'no renderBlockingStatus in this browser');
+  expect(blocking['lumen-stock.css']).toBe('blocking');
+});
+
 test('an admin page reached from Lumen is never shown without its stylesheet', async ({ page, isMobile }) => {
   await login(page, ADMIN);
   await expect(page.locator('#lmn-root .lmn-row').first()).toBeVisible();
@@ -168,4 +207,86 @@ test('an admin page reached from Lumen is never shown without its stylesheet', a
   // On phones the drawer is closed until its menu button opens it.
   await expect(page.locator(isMobile ? '.MuiAppBar-root' : '.MuiDrawer-paper').first()).toBeVisible();
   await expect(page.locator('html')).toHaveClass(/\blmn-skin-dashboard\b/);
+});
+
+test('an admin page left and come back to before its stylesheet came waits for it anew, not until the first deadline', async ({ page, isMobile }) => {
+  await login(page, ADMIN);
+  await expect(page.locator('#lmn-root .lmn-row').first()).toBeVisible();
+  await expect(page.locator('link[data-lmn-css="lumen-stock.css"]')).toHaveAttribute('media', 'all');
+  // In 4.5 s: past the first visit's 3 s deadline, before the second's.
+  await page.route(/lumen-dashboard\.css/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 4500));
+    await route.continue();
+  });
+  const hiddenOnReturn = await page.evaluate(async () => {
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    location.hash = '#/dashboard';
+    await sleep(1000);
+    location.hash = '#/home';
+    await sleep(1500);
+    location.hash = '#/dashboard';
+    // Past the first visit's deadline.
+    await sleep(1000);
+    return document.documentElement.classList.contains('lmn-skin-wait');
+  });
+  expect(hiddenOnReturn).toBe(true);
+  await expect(page.locator('html')).not.toHaveClass(/\blmn-skin-wait\b/, { timeout: 10_000 });
+  // Shown because the stylesheet came, not because a deadline ran out.
+  expect(await page.evaluate(() => !!document.querySelector<HTMLLinkElement>('link[data-lmn-css="lumen-dashboard.css"]')!.sheet)).toBe(true);
+  await expect(page.locator(isMobile ? '.MuiAppBar-root' : '.MuiDrawer-paper').first()).toBeVisible();
+});
+
+test("clicking through the admin pages doesn't hide each one again while their stylesheet is on its way", async ({ page }) => {
+  await login(page, ADMIN);
+  await expect(page.locator('#lmn-root .lmn-row').first()).toBeVisible();
+  await expect(page.locator('link[data-lmn-css="lumen-stock.css"]')).toHaveAttribute('media', 'all');
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route(/lumen-dashboard\.css/, async (route) => {
+    await held;
+    await route.continue();
+  });
+  const hidden = await page.evaluate(async () => {
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const waiting = () => document.documentElement.classList.contains('lmn-skin-wait');
+    location.hash = '#/dashboard';
+    await sleep(2000);
+    location.hash = '#/dashboard/users';
+    await sleep(200);
+    const second = waiting();
+    // Past the first page's deadline: the second didn't put it off.
+    await sleep(1300);
+    const afterDeadline = waiting();
+    location.hash = '#/dashboard/devices';
+    await sleep(300);
+    return { second, afterDeadline, third: waiting() };
+  });
+  release();
+  // Hidden on through the second page until the deadline, then shown; the third page isn't hidden again.
+  expect(hidden).toEqual({ second: true, afterDeadline: false, third: false });
+});
+
+test("the More menu opens jellyfin-web's dialog once the dialogs' stylesheet is in", async ({ page, browserName, isMobile }) => {
+  test.skip(browserName === 'webkit', CACHE_PAST_ROUTE);
+  test.skip(isMobile, 'phones open the More menu as a sheet; the desktop one is enough here');
+  const { items } = loadState();
+  await login(page, ADMIN);
+  // Held from the cold load on: a slow network, where it comes after the page.
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route(/lumen-stock\.css/, async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.goto('about:blank');
+  // Not until load: the page's load waits for every stylesheet.
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`, { waitUntil: 'commit' });
+  await page.locator('#lmn-root .lmn-details__header').getByRole('button', { name: /^More actions for / }).click();
+  await page.getByRole('menu', { name: 'More actions for Lumen Alpha' }).getByRole('menuitem', { name: 'Media info' }).click();
+  await page.waitForTimeout(1000);
+  await expect(page.locator('.dialogContainer')).toHaveCount(0);
+
+  release();
+  await expect(page.locator('.dialogContainer')).toBeVisible();
+  expect(await page.evaluate(() => !!document.querySelector<HTMLLinkElement>('link[data-lmn-css="lumen-stock.css"]')!.sheet)).toBe(true);
 });
