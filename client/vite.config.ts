@@ -4,6 +4,8 @@ import { target } from './vite.target.ts';
 
 export default defineConfig({
   plugins: [preact()],
+  // lumen.css asks for its fonts relative to itself (/Lumen/Assets/, under any base URL), not at the server's root.
+  base: './',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
@@ -22,6 +24,9 @@ export default defineConfig({
       output: {
         // Content-hashed: the server caches them for good (Api/LumenController.cs).
         chunkFileNames: 'lumen-chunk-[name]-[hash].js',
+        // The fonts (styles/fonts.css, which keeps library mode from inlining them) too, and apart from the chunks.
+        assetFileNames: (asset) =>
+          asset.names[0]?.endsWith('.woff2') ? 'lumen-font-[name]-[hash][extname]' : '[name][extname]',
         // One core file: main.tsx and everything it imports, which the later files (the player, the trailer preview)
         // import from. Left to itself, Rolldown puts the code all three share (Preact) in a file of its own, a second
         // download the page waits for before Lumen can start. veil/stockCss.ts joins it too: the item menu's file and

@@ -69,6 +69,7 @@ Links Lumen shares carry a couple of extra URL parameters that Jellyfin's own pa
 ## Reverse proxies
 
 - **Content Security Policy.** Lumen adds two small inline scripts to Jellyfin's `index.html`: one registers Lumen's jellyfin-web plugin, the other makes its loading screen and the restyled sign-in, settings and Dashboard pages appear before the page paints (it links those pages' stylesheets where they're used). A proxy that sends a CSP with `script-src 'self'` blocks them: Lumen still loads, but without the loading veil and the restyled sign-in and Dashboard pages and jellyfin-web dialogs (and, rarely, jellyfin-web logs "failed loading plugins" when it reaches Lumen's plugin before Lumen's main script has registered it). Either allow `'unsafe-inline'` for scripts, or add both scripts' hashes. The browser console's CSP errors show the exact `'sha256-…'` values to add; they change with every Lumen release, and the second also with the "Restyle Jellyfin's sign-in, settings and Dashboard pages" setting (from a checkout, `cd client && npm run build && npm run guard-hash` prints all three). Lumen's tab icon and a few images are `data:` URLs, so `img-src` needs `data:` too.
+- **Fonts.** Except on Apple devices, which use their own system font, Lumen's pages use Inter, which Lumen serves itself from the same server (`/Lumen/Assets/lumen-font-*.woff2`). A CSP needs `font-src` (or `default-src`) to allow `'self'`.
 - **Installing to a home screen.** Phones fetch the app's manifest (`/Lumen/Manifest`) and icons (`/Lumen/Assets/lumen-icon-*.png`) without signing in, so a proxy that asks for its own login must let those through, as it does `/web/`. With a base URL they're under it (`/jellyfin/Lumen/Manifest`). Lumen adds no inline content for this: the manifest and icons come from the same server, so a CSP only needs `manifest-src` (or `default-src`) to allow `'self'`.
 - **jellyfin-web served by the proxy.** Lumen adds itself to the web client that Jellyfin serves (`/web/`). If your proxy serves its own copy of jellyfin-web (with Jellyfin's hosted web client turned off), nothing injects Lumen into it, and the stock UI is shown. Serve `index.html` and `config.json` from the same place: Lumen lists its plugin in `config.json` only alongside the `index.html` that defines it.
 
@@ -97,3 +98,5 @@ Works on macOS and Linux, including WSL2. See [docs/development.md](docs/develop
 ## License
 
 GPL-3.0. See [LICENSE](LICENSE).
+
+Lumen's interface font is [Inter](https://github.com/rsms/inter) 4.1, Copyright (c) 2016 The Inter Project Authors, under the SIL Open Font License 1.1 (see [client/src/assets/fonts/LICENSE-Inter.txt](client/src/assets/fonts/LICENSE-Inter.txt)). Lumen ships a subset of it (`client/scripts/subset-inter.sh`).

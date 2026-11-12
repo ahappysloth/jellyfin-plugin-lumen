@@ -32,7 +32,11 @@
      black-translucent status bar), the notch in portrait. 0 in a browser tab. Whatever sits at the top adds it. */
   --lmn-safe-top: env(safe-area-inset-top);
   --lmn-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --lmn-font: -apple-system, system-ui, Inter, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  /* Apple devices: San Francisco, and Inter never downloads (fonts.css). Elsewhere: Lumen's Inter, its metric-matched
+     stand-in until it's in, then the system font for what Inter's subset doesn't cover. */
+  --lmn-font:
+    -apple-system, 'Lumen Inter', 'Lumen Inter Fallback', system-ui, 'Segoe UI', Roboto, 'Helvetica Neue',
+    sans-serif;
 }
 /* Chromium 68 (webOS 5) has neither max() nor env(): without this, every var(--lmn-gutter) would be invalid there. A
    second --lmn-gutter in :root wouldn't do, as Lightning CSS keeps only the last. */

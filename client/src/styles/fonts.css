@@ -1,0 +1,66 @@
+/* Inter, for devices without a good system font (TVs, Windows, Android, Linux). --lmn-font (base.css) puts
+   -apple-system first, and a browser downloads a font only for text that uses it, so Apple devices keep San Francisco
+   and never fetch these. Elsewhere they download as Lumen's first text renders, behind the loading veil, which waits
+   for them a little (veil/veil.ts); no preload, so pages that never show Lumen's text never fetch them.
+
+   'Lumen Inter', not 'Inter', so an Inter installed on the device (another version, other metrics) never stands in.
+   Inter 4.1, SIL Open Font License (../assets/fonts/LICENSE-Inter.txt), subset to Latin by scripts/subset-inter.sh:
+   the unicode-range is what the files hold, so other text (Greek, Cyrillic, CJK in a title) goes straight to the
+   system font and doesn't fetch Inter. Three weights; 650 and above use 600, without faux bold. The files are
+   content-named, so the server caches them for good (Api/LumenController.cs). */
+@font-face {
+  font-family: 'Lumen Inter';
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/inter-400.woff2?no-inline') format('woff2');
+  unicode-range:
+    U+0000-017F, U+0218-021B, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+    U+20AC, U+2122, U+2190-2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Lumen Inter';
+  font-weight: 500;
+  font-display: swap;
+  src: url('../assets/fonts/inter-500.woff2?no-inline') format('woff2');
+  unicode-range:
+    U+0000-017F, U+0218-021B, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+    U+20AC, U+2122, U+2190-2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Lumen Inter';
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/inter-600.woff2?no-inline') format('woff2');
+  unicode-range:
+    U+0000-017F, U+0218-021B, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+    U+20AC, U+2122, U+2190-2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* What shows until Inter is in (font-display: swap): Arial, or Roboto or Liberation Sans (both about as wide), scaled
+   and spaced to Inter's size, so the swap barely moves anything. The overrides are Inter's ascent and descent over the
+   scale; the scale is Inter's average width of English text over Arial's (Inter Regular/Arial, Inter SemiBold/Arial
+   Bold). Browsers that don't know these descriptors (Chromium 68, Safari 13) ignore them and show the plain font. Only
+   for what Inter covers: anything else goes to the system font, as with Inter. */
+@font-face {
+  font-family: 'Lumen Inter Fallback';
+  font-weight: 400;
+  src: local('Arial'), local('Roboto'), local('Liberation Sans');
+  size-adjust: 107.5%;
+  ascent-override: 90.1%;
+  descent-override: 22.4%;
+  line-gap-override: 0%;
+  unicode-range:
+    U+0000-017F, U+0218-021B, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+    U+20AC, U+2122, U+2190-2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Lumen Inter Fallback';
+  font-weight: 700;
+  src: local('Arial Bold'), local('Roboto Bold'), local('Liberation Sans Bold');
+  size-adjust: 101.3%;
+  ascent-override: 95.6%;
+  descent-override: 23.8%;
+  line-gap-override: 0%;
+  unicode-range:
+    U+0000-017F, U+0218-021B, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+    U+20AC, U+2122, U+2190-2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
