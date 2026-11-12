@@ -82,13 +82,13 @@ export function AdminApp({
     return () => window.removeEventListener('resize', measure);
   }, [shown]);
 
-  // Saved from the bar's Save button with focus on it: when the bar slides away, focus would drop to the end of the
-  // page, so it goes to the page's heading instead, without scrolling. (Only then: Safari doesn't focus a tapped button,
-  // and before 15 it scrolls to whatever is focused.)
-  const savedFromBar = useRef(false);
+  // Saved or discarded from the bar's buttons with focus on one: when the bar slides away, focus would drop to the end
+  // of the page, so it goes to the page's heading instead, without scrolling. (Only then: Safari doesn't focus a tapped
+  // button, and before 15 it scrolls to whatever is focused.)
+  const leftFromBar = useRef(false);
   useEffect(() => {
-    if (shown || !savedFromBar.current) return;
-    savedFromBar.current = false;
+    if (shown || !leftFromBar.current) return;
+    leftFromBar.current = false;
     const active = document.activeElement;
     // Disabling Save while it saves can drop focus to the body.
     if (!active || active === document.body || barRef.current?.contains(active)) {
@@ -141,6 +141,10 @@ export function AdminApp({
   const reset = (): void => {
     if (confirm('Reset all Lumen settings to their defaults?')) void admin.reset();
   };
+  // Remounted on Discard (useAdminConfig's revision): sections keeping state of their own start again from the
+  // restored settings. Updates, Storage and Diagnostics hold nothing that Discard puts back, and remounting them would
+  // check for updates and measure storage again.
+  const revision = admin.revision;
 
   return (
     <form
@@ -150,7 +154,7 @@ export function AdminApp({
       onSubmit={(e) => {
         e.preventDefault();
         if (busy) return;
-        savedFromBar.current = !!barRef.current?.contains(document.activeElement);
+        leftFromBar.current = !!barRef.current?.contains(document.activeElement);
         void admin.save();
       }}
     >
@@ -185,16 +189,23 @@ export function AdminApp({
       ))}
 
       <UpdatesSettings api={api} autoCheck={wantsCheck(hash)} confirm={confirm} reload={reload} />
-      <GeneralSettings config={config} update={update} />
-      <HeroSettings config={config} lookups={admin.lookups} update={update} />
+      <GeneralSettings key={`general-${revision}`} config={config} update={update} />
+      <HeroSettings key={`hero-${revision}`} config={config} lookups={admin.lookups} update={update} />
       <HomeSectionsSettings
+        key={`sections-${revision}`}
         config={config}
         types={admin.types}
         lookups={admin.lookups}
         newId={newId}
         update={update}
       />
-      <RequestsSettings api={api} config={config} savedUrl={admin.savedUrl} update={update} />
+      <RequestsSettings
+        key={`requests-${revision}`}
+        api={api}
+        config={config}
+        savedUrl={admin.savedUrl}
+        update={update}
+      />
       <StorageSettings api={api} />
       <DiagnosticsSettings diagnostics={admin.diagnostics} />
 
@@ -214,8 +225,8 @@ export function AdminApp({
         {failed ? '' : statusText}
       </span>
 
-      {/* Slides up from the bottom of the window while there's something to say; status on the left, Save on the
-          right. Hidden, it's out of the tab order and the accessibility tree (visibility: hidden in admin.css). */}
+      {/* Slides up from the bottom of the window while there's something to say; status on the left, Discard and Save
+          on the right. Hidden, it's out of the tab order and the accessibility tree (visibility: hidden in admin.css). */}
       <div
         ref={barRef}
         class={`lmna-savebar${shown ? ' is-shown' : ''}`}
@@ -227,6 +238,21 @@ export function AdminApp({
           {/* Read out by the live region above, except errors (the alert at the top reads those). */}
           <span aria-hidden={failed ? undefined : 'true'}>{statusText}</span>
         </p>
+        {/* Drops the unsaved changes, with no confirmation: nothing saved is lost. Only while there are some (not while
+            "Settings saved." shows). */}
+        {dirty && (
+          <button
+            type="button"
+            class="lmna-btn"
+            disabled={busy}
+            onClick={() => {
+              leftFromBar.current = !!barRef.current?.contains(document.activeElement);
+              admin.discard();
+            }}
+          >
+            Discard
+          </button>
+        )}
         {/* Out of the TV layout's D-pad while hidden: jellyfin-web's arrow-key navigation counts any button with a
             box, and this one waits just below the window, so Down from a control above it would pick it and go
             nowhere. */}

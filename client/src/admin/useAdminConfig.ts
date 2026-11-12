@@ -56,6 +56,10 @@ export interface AdminConfigState {
   /** Shown instead of the form when status is 'failed'. */
   failure: string;
   dirty: boolean;
+  /** The configuration as last loaded or saved: what Discard puts back. */
+  saved: LumenConfig | null;
+  /** Goes up on every Discard, so the form's sections remount and drop local state (a test result, a pending choice). */
+  revision: number;
 }
 
 /**
@@ -74,6 +78,8 @@ export function useAdminConfig(api: AdminApi) {
     status: 'loading',
     failure: LOAD_FAILED,
     dirty: false,
+    saved: null,
+    revision: 0,
   });
   const patch = (next: Partial<AdminConfigState>): void => setState((s) => ({ ...s, ...next }));
 
@@ -97,8 +103,10 @@ export function useAdminConfig(api: AdminApi) {
       Playlist: playlists,
     };
     const missing = (Object.keys(lists) as PickerKind[]).filter((k) => lists[k].status === 'rejected');
+    const loaded = normalizeConfig(config.value);
     patch({
-      config: normalizeConfig(config.value),
+      config: loaded,
+      saved: loaded,
       savedUrl: config.value.SeerrUrl,
       types: types.value,
       lookups: {
@@ -152,9 +160,10 @@ export function useAdminConfig(api: AdminApi) {
       return;
     }
     try {
-      const fresh = await api.getConfig();
+      const fresh = normalizeConfig(await api.getConfig());
       patch({
-        config: normalizeConfig(fresh),
+        config: fresh,
+        saved: fresh,
         savedUrl: fresh.SeerrUrl,
         errors: [],
         warnings: state.warnings.filter((w) => w !== RELOAD_AFTER_SAVE_FAILED),
@@ -162,8 +171,14 @@ export function useAdminConfig(api: AdminApi) {
         status: 'saved',
       });
     } catch {
-      // The save went through; only the refresh failed. Say so rather than "Saving failed".
+      // The save went through; only the refresh failed. Say so rather than "Saving failed". What was sent is what's
+      // saved now (less the API key, which the server keeps and never sends back).
       patch({
+        saved: {
+          ...config,
+          SeerrApiKey: null,
+          SeerrApiKeySet: config.SeerrApiKeySet || !!config.SeerrApiKey,
+        },
         savedUrl: config.SeerrUrl,
         errors: [],
         warnings: [...state.warnings.filter((w) => w !== RELOAD_AFTER_SAVE_FAILED), RELOAD_AFTER_SAVE_FAILED],
@@ -172,6 +187,24 @@ export function useAdminConfig(api: AdminApi) {
       });
     }
   };
+
+  /**
+   * Drops the unsaved changes: the configuration goes back to what was last loaded or saved, and a failed save's errors
+   * go with them. Nothing is sent to the server, so it needs no confirmation.
+   */
+  const discard = (): void =>
+    setState((s) =>
+      !s.saved || isBusy(s.status)
+        ? s
+        : {
+            ...s,
+            config: s.saved,
+            dirty: false,
+            errors: [],
+            status: s.status === 'saved' ? 'ready' : s.status,
+            revision: s.revision + 1,
+          },
+    );
 
   /** Resets everything to the defaults and reloads. The caller asks for confirmation first. */
   const reset = async (): Promise<void> => {
@@ -187,5 +220,5 @@ export function useAdminConfig(api: AdminApi) {
     await load(RELOAD_AFTER_RESET_FAILED);
   };
 
-  return { ...state, update, save, reset };
+  return { ...state, update, save, discard, reset };
 }

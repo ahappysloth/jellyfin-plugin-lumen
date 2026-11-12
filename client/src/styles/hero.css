@@ -147,9 +147,9 @@
   display: flex;
   align-items: center;
 }
-/* Each dash is a 24px-high button around the pill it draws: a target big enough to hit (WCAG 2.5.8), 24px wide for a
-   slide that isn't showing (an 8px dot) and wider for the current one, whose empty pill fills from the left over the
-   slide's interval (Hero.tsx sets the duration and pauses it with the timer). */
+/* Each dash is a 24px-high button, 10px wider than the thin bar it draws: a target big enough to hit (WCAG 2.5.8), with
+   the bars 10px apart. The current slide's bar is wider, and white fills it from the left over the slide's interval
+   (Hero.tsx sets the duration and pauses it with the timer). */
 .lmn-hero__dash {
   position: relative;
   width: 24px;
@@ -160,30 +160,29 @@
   cursor: pointer;
   transition: width 0.35s var(--lmn-ease);
 }
-.lmn-hero__pill {
+.lmn-hero__bar {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  left: 8px;
-  height: 8px;
+  top: 11px;
+  right: 5px;
+  left: 5px;
+  height: 3px;
   overflow: hidden;
-  border-radius: 4px;
+  border-radius: 2px;
   background: var(--lmn-text-faint);
-  /* Over a bright backdrop the dots and the pill's empty part would vanish without an edge. */
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
+  /* A soft shadow keeps the bars in sight over a bright backdrop. */
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.35);
   transition: background-color 0.35s;
   /* Older WebKit (Safari 13) doesn't clip a transformed child's layer to rounded corners without a mask. */
   -webkit-mask-image: -webkit-radial-gradient(white, black);
 }
-.lmn-hero__dash:hover .lmn-hero__pill {
+.lmn-hero__dash:hover .lmn-hero__bar {
   background: var(--lmn-text-dim);
 }
 .lmn-hero__dash.is-active {
-  width: 56px;
+  width: 38px;
 }
-.lmn-hero__dash.is-active .lmn-hero__pill {
-  right: 6px;
-  left: 6px;
+/* The current bar's track, which the fill grows across. */
+.lmn-hero__dash.is-active .lmn-hero__bar {
   background: var(--lmn-text-faint);
 }
 .lmn-hero__fill {
@@ -215,21 +214,20 @@
 .lmn-hero__dash:focus-visible {
   outline: none;
 }
-.lmn-hero__dash:focus-visible .lmn-hero__pill {
+.lmn-hero__dash:focus-visible .lmn-hero__bar {
   outline: 2px solid var(--lmn-focus);
   outline-offset: 3px;
 }
-/* Read from across the room: a longer, thicker pill. */
+/* Read from across the room: thicker bars, and a longer current one. */
 .layout-tv .lmn-hero__dash.is-active {
-  width: 72px;
+  width: 52px;
 }
-.layout-tv .lmn-hero__pill {
-  top: 7px;
-  height: 10px;
-  border-radius: 5px;
+.layout-tv .lmn-hero__bar {
+  top: 10px;
+  height: 4px;
 }
 /* TV browsers (Chromium 68) have no :focus-visible, and the D-pad's focus must always show (tv.css). */
-.layout-tv .lmn-hero__dash:focus .lmn-hero__pill {
+.layout-tv .lmn-hero__dash:focus .lmn-hero__bar {
   outline: 3px solid var(--lmn-focus);
   outline-offset: 4px;
 }
@@ -253,14 +251,14 @@
     height: 30px;
   }
 }
-/* The smallest phones: ten slides' dots plus Pause would run off the left edge. */
+/* The smallest phones: ten slides' bars plus Pause would run off the left edge. */
 @media (max-width: 360px) {
   .lmn-hero__dash {
     width: 18px;
   }
-  .lmn-hero__pill {
-    right: 5px;
-    left: 5px;
+  .lmn-hero__bar {
+    right: 4px;
+    left: 4px;
   }
 }
 
@@ -269,7 +267,7 @@
   .lmn-hero__video,
   .lmn-hero__content,
   .lmn-hero__dash,
-  .lmn-hero__pill,
+  .lmn-hero__bar,
   .lmn-hero__fill {
     transition: none;
     animation: none;

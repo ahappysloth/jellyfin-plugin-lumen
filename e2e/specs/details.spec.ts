@@ -438,3 +438,39 @@ test('TV layout: More opens with the D-pad, and focus comes back to it when the 
   await expect(more(page)).toBeFocused();
 });
 
+test('"You may like" cards keep to their own place in the grid, wide and on a phone', { tag: '@smoke' }, async ({
+  page,
+  isMobile,
+}) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+
+  const similar = page.locator('#lmn-root .lmn-similar');
+  // Every other fixture movie shares a genre with this one: enough for more than one row of the grid.
+  await expect(similar.locator('.lmn-card')).not.toHaveCount(0);
+  expect(await similar.locator('.lmn-card').count()).toBeGreaterThan(4);
+  // The phone's own width on webkit-iphone; elsewhere a desktop one, then an iPhone-wide window.
+  for (const viewport of isMobile ? [null] : [{ width: 1280, height: 720 }, { width: 393, height: 852 }]) {
+    if (viewport) await page.setViewportSize(viewport);
+    await similar.scrollIntoViewIfNeeded();
+    // Each card (with its artwork) inside its grid cell, and no two cards over each other. A card sized by its content
+    // rather than its column spilled into the next one.
+    const boxes = await similar.locator('.lmn-card-cell').evaluateAll((cells) =>
+      cells.map((cell) => {
+        const c = cell.getBoundingClientRect();
+        const a = cell.querySelector('.lmn-card__art')!.getBoundingClientRect();
+        return { cell: [c.left, c.top, c.right, c.bottom], art: [a.left, a.top, a.right, a.bottom] };
+      }),
+    );
+    for (const { cell, art } of boxes) {
+      expect(art[0]).toBeGreaterThanOrEqual(cell[0] - 0.5);
+      expect(art[2]).toBeLessThanOrEqual(cell[2] + 0.5);
+    }
+    const overlaps = (a: number[], b: number[]) =>
+      a[0] < b[2] - 0.5 && b[0] < a[2] - 0.5 && a[1] < b[3] - 0.5 && b[1] < a[3] - 0.5;
+    for (let i = 0; i < boxes.length; i++)
+      for (let j = i + 1; j < boxes.length; j++)
+        expect(overlaps(boxes[i].art, boxes[j].art), `cards ${i} and ${j}`).toBe(false);
+  }
+});

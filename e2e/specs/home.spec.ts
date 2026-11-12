@@ -68,7 +68,7 @@ test('every card on home is a link named by its visible title, not an aria-label
 });
 
 test.describe('hero pager', () => {
-  /** How far the current pill's fill has grown, 0 to 1 (its scaleX). */
+  /** How far the current bar's fill has grown, 0 to 1 (its scaleX). */
   const fillScale = (page: Page) =>
     page.locator('#lmn-root .lmn-hero__dash.is-active .lmn-hero__fill').evaluate((el) => {
       const transform = getComputedStyle(el).transform;
@@ -86,7 +86,7 @@ test.describe('hero pager', () => {
     });
   });
 
-  test("fills the current slide's pill over its interval, and stops with the slideshow", async ({ page }) => {
+  test("fills the current slide's bar over its interval, and stops with the slideshow", async ({ page }) => {
     await login(page, ADMIN);
     const pager = page.getByRole('tablist', { name: 'Featured titles' });
     await expect(pager).toBeVisible();
@@ -102,6 +102,24 @@ test.describe('hero pager', () => {
     const below = controls.y >= actions.y + actions.height;
     expect(beside || below).toBe(true);
 
+    // Thin bars, the current one longer; Pause to their right, and after them in Tab order too.
+    const bars = await pager.locator('.lmn-hero__bar').evaluateAll((els) =>
+      els.map((el) => el.getBoundingClientRect()).map((r) => ({ width: r.width, height: r.height })),
+    );
+    for (const bar of bars) expect(bar.height).toBeLessThanOrEqual(4);
+    const current = await pager.locator('.lmn-hero__dash.is-active .lmn-hero__bar').boundingBox();
+    expect(current!.width).toBeGreaterThan(Math.max(...bars.map((b) => b.width).filter((w) => w !== current!.width)));
+    const pause = page.getByRole('button', { name: 'Pause slideshow' });
+    const pagerBox = (await pager.boundingBox())!;
+    expect((await pause.boundingBox())!.x).toBeGreaterThanOrEqual(pagerBox.x + pagerBox.width);
+    await pager.getByRole('tab', { selected: true }).focus();
+    await page.keyboard.press('Tab');
+    await expect(pause).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(pager.getByRole('tab', { selected: true })).toBeFocused();
+    // Keyboard focus in the hero holds the slideshow; once focus leaves, it runs on.
+    await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+
     const first = await fillScale(page);
     await expect.poll(() => fillScale(page)).toBeGreaterThan(first);
     const later = await fillScale(page);
@@ -115,14 +133,14 @@ test.describe('hero pager', () => {
     await page.waitForTimeout(400);
     expect(await fillScale(page)).toBeCloseTo(held, 2); // within a frame or so
 
-    // Another title starts its pill empty.
+    // Another title starts its bar empty.
     const next = pager.getByRole('tab').nth(1); // the first title is showing
     await next.click();
     await expect(next).toHaveAttribute('aria-selected', 'true');
     expect(await fillScale(page)).toBeCloseTo(0, 2);
   });
 
-  test('with trailers let finish, keeps a slide up until its trailer ends, the pill filling with it', async ({ page }) => {
+  test('with trailers let finish, keeps a slide up until its trailer ends, the bar filling with it', async ({ page }) => {
     // A 3 s interval, and previews from the start: the fixtures' trailers run 8 s, well past it.
     await page.route(/\/Lumen\/ClientConfig/, async (route) => {
       const response = await route.fetch();
@@ -140,7 +158,7 @@ test.describe('hero pager', () => {
     const showing = await title();
     await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(4);
 
-    // Past the 3 s interval: still this title, its pill following the trailer rather than the clock.
+    // Past the 3 s interval: still this title, its bar following the trailer rather than the clock.
     expect(await title()).toBe(showing);
     await expect(page.locator('#lmn-root .lmn-hero__fill')).toHaveClass(/\bis-trailer\b/);
     const filled = await fillScale(page);
@@ -167,10 +185,46 @@ test.describe('hero pager', () => {
     await expect.poll(title, { timeout: 5_000 }).not.toBe(showing);
   });
 
-  test('shows the current pill full, without the growing fill, for reduced motion', async ({ page }) => {
+  test('shows the current bar full, without the growing fill, for reduced motion', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await login(page, ADMIN);
     await expect(page.getByRole('tablist', { name: 'Featured titles' })).toBeVisible();
     expect(await fillScale(page)).toBe(1);
   });
+});
+
+test('rows scroll freely: a mouse drag leaves a row where it was let go, with no snapping to a card', async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, 'touch scrolls natively; a phone has no mouse to drag with');
+  await login(page, ADMIN);
+  await expect(page.locator('#lmn-root .lmn-row .lmn-card').first()).toBeVisible();
+  // Nothing snaps, for touch either: no row has scroll snapping.
+  const snapping = await page
+    .locator('#lmn-root .lmn-row__scroller')
+    .evaluateAll((els) => els.map((el) => getComputedStyle(el).scrollSnapType).filter((t) => t && t !== 'none'));
+  expect(snapping).toEqual([]);
+
+  // A row that overflows: dragged 137 px, somewhere between two cards, slowly, and held still before the release (so
+  // no glide either).
+  const scroller = page
+    .locator('#lmn-root .lmn-row__scroller')
+    .filter({ has: page.locator('.lmn-card >> nth=5') })
+    .first();
+  await scroller.scrollIntoViewIfNeeded();
+  const box = (await scroller.boundingBox())!;
+  const y = box.y + box.height / 3;
+  await page.mouse.move(box.x + box.width / 2, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 137, y, { steps: 10 });
+  await page.waitForTimeout(100);
+  await page.mouse.up();
+  const left = () => scroller.evaluate((el) => el.scrollLeft);
+  expect(await left()).toBeCloseTo(137, 0);
+  // Long enough for snapping to have settled it on a card, had there been any.
+  await page.waitForTimeout(600);
+  expect(await left()).toBeCloseTo(137, 0);
+  // The release didn't open the card under the pointer.
+  await expect(page).toHaveURL(/#\/home/);
 });

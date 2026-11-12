@@ -11,7 +11,6 @@
   text-align: left;
   text-decoration: none;
   cursor: pointer;
-  scroll-snap-align: start;
 }
 /* A card's link and its More button; it takes the card's place in rows and grids, at the card's size. */
 .lmn-card-cell {
@@ -20,8 +19,11 @@
   flex: 0 0 auto;
   min-width: 0;
 }
+/* The card fills its cell and may shrink to it: `.lmn-card`'s own `flex: 0 0 auto` would keep a card of `width: auto`
+   (the "You may like" grid) at its content's width, its nowrap title and logo, spilling into the next column. In a row
+   the cell is the card's width, so nothing changes there. */
 .lmn-card-cell > .lmn-card {
-  flex-grow: 1;
+  flex: 1 1 auto;
   min-width: 0;
 }
 .lmn-card__more {
@@ -192,7 +194,6 @@
   background: var(--lmn-surface-2);
   color: #fff;
   cursor: pointer;
-  scroll-snap-align: start;
 }
 .lmn-genre img {
   position: absolute;

@@ -3,7 +3,7 @@ import { useState } from 'preact/hooks';
 import { Dropdown } from '../components/Dropdown';
 import { Icon } from '../components/icons';
 import type { LumenConfig, SectionDef, SectionParamDef, SectionTypeDef } from './adminApi';
-import { getParam, moveSection, newSection, removeSection, setParam } from './configModel';
+import { canAdd, getParam, moveSection, newSection, removeSection, setParam } from './configModel';
 import { Card, Field, OptionSelect, inputValue } from './controls';
 import type { Lookups } from './useAdminConfig';
 
@@ -80,6 +80,7 @@ export function HomeSectionsSettings({
       </ol>
       <AddSection
         types={types}
+        sections={config.Sections}
         onAdd={(type) => update({ Sections: [...config.Sections, newSection(type, newId())] })}
       />
     </Card>
@@ -169,8 +170,23 @@ function SectionEditor(props: {
   );
 }
 
-function AddSection({ types, onAdd }: { types: SectionTypeDef[]; onAdd: (type: SectionTypeDef) => void }) {
-  const [choice, setChoice] = useState('');
+/**
+ * Picks a section type to add. A type that's only useful once (see isRepeatable) shows as "(already added)" and can't
+ * be picked while it's in the list. Configs saved with duplicates from before still load and edit as they are.
+ */
+function AddSection({
+  types,
+  sections,
+  onAdd,
+}: {
+  types: SectionTypeDef[];
+  sections: SectionDef[];
+  onAdd: (type: SectionTypeDef) => void;
+}) {
+  const [picked, setPicked] = useState('');
+  const pickedType = types.find((t) => t.Type === picked);
+  // A pending choice of a type that's since come back into the list (Discard restoring it) no longer stands.
+  const choice = pickedType && canAdd(pickedType, sections) ? picked : '';
   return (
     <div class="lmna-add">
       <Dropdown
@@ -179,20 +195,23 @@ function AddSection({ types, onAdd }: { types: SectionTypeDef[]; onAdd: (type: S
         value={choice}
         options={[
           { value: '', label: 'Choose a section to add…' },
-          ...types.map((t) => ({ value: t.Type, label: t.DisplayName })),
+          ...types.map((t) =>
+            canAdd(t, sections)
+              ? { value: t.Type, label: t.DisplayName }
+              : { value: t.Type, label: `${t.DisplayName} (already added)`, disabled: true },
+          ),
         ]}
-        onChange={setChoice}
+        onChange={setPicked}
       />
-      {choice && <p class="lmna-add__about">{types.find((t) => t.Type === choice)?.Description}</p>}
+      {choice && <p class="lmna-add__about">{pickedType?.Description}</p>}
       <button
         type="button"
         class="lmna-btn"
         disabled={!choice}
         onClick={() => {
-          const type = types.find((t) => t.Type === choice);
-          if (type) {
-            onAdd(type);
-            setChoice('');
+          if (choice && pickedType) {
+            onAdd(pickedType);
+            setPicked('');
           }
         }}
       >

@@ -33,8 +33,9 @@
   padding: 4px var(--lmn-gutter) 8px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
+  /* No scroll snapping: a row stops wherever it's let go, by mouse (useDragScroll) or by touch. The padding still keeps
+     a card the D-pad or Tab moves to clear of the gutter as it's scrolled into view. */
   scroll-padding: 0 var(--lmn-gutter);
-  scroll-snap-type: x proximity;
   scrollbar-width: none;
 }
 .lmn-row__scroller::-webkit-scrollbar {
@@ -100,10 +101,9 @@
 .lmn-row__arrow[hidden] {
   display: none;
 }
-/* Mouse drag-to-scroll (useDragScroll): no snapping or text selection mid-drag. */
+/* Mouse drag-to-scroll (useDragScroll): no text selection mid-drag. */
 .lmn-row__scroller.is-dragging {
   cursor: grabbing;
-  scroll-snap-type: none;
   -webkit-user-select: none;
   user-select: none;
 }

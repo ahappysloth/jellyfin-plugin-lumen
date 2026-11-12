@@ -94,4 +94,45 @@ describe('Dropdown', () => {
     expect(screen.queryByRole('listbox')).toBeNull();
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it('shows disabled options but passes over them: arrows, Home/End, type-ahead and clicks', () => {
+    const onChange = vi.fn();
+    const withDisabled = [
+      { value: 'a', label: 'Apple', disabled: true },
+      { value: 'b', label: 'Banana' },
+      { value: 'c', label: 'Cherry', disabled: true },
+      { value: 'd', label: 'Date' },
+      { value: 'e', label: 'Elderberry', disabled: true },
+    ];
+    render(<Dropdown label="Fruit" value="b" options={withDisabled} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button'));
+    const list = screen.getByRole('listbox');
+    const active = () => list.querySelector('.is-active')?.textContent;
+
+    expect(screen.getByRole('option', { name: 'Apple' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('option', { name: 'Banana' })).not.toHaveAttribute('aria-disabled');
+    expect(active()).toBe('Banana');
+    fireEvent.keyDown(list, { key: 'ArrowDown' });
+    expect(active()).toBe('Date'); // over Cherry
+    fireEvent.keyDown(list, { key: 'ArrowDown' });
+    expect(active()).toBe('Date'); // nothing after it can be picked
+    fireEvent.keyDown(list, { key: 'Home' });
+    expect(active()).toBe('Banana'); // the first that can be
+    fireEvent.keyDown(list, { key: 'End' });
+    expect(active()).toBe('Date');
+    fireEvent.keyDown(list, { key: 'ArrowUp' });
+    expect(active()).toBe('Banana');
+    fireEvent.keyDown(list, { key: 'c' });
+    expect(active()).toBe('Banana'); // Cherry can't be picked
+
+    fireEvent.pointerMove(screen.getByRole('option', { name: 'Elderberry' }));
+    expect(active()).toBe('Banana');
+    fireEvent.click(screen.getByRole('option', { name: 'Elderberry' }));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+
+    fireEvent.keyDown(list, { key: 'ArrowDown' });
+    fireEvent.keyDown(list, { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith('d');
+  });
 });
