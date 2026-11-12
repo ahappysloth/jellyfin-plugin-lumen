@@ -106,13 +106,17 @@ function showSlow(doc: Document, veil: HTMLElement): void {
   retry.focus();
 }
 
+/** styles/fonts.css's family name for Inter. */
+const LUMEN_FONT = 'Lumen Inter';
+
 /**
- * Lumen's page is ready: lifts the veil once the fonts its text uses are in (styles/fonts.css), so the page shows in
- * Inter rather than swapping to it as the veil rises, but never more than FONT_WAIT_MS later. It waits on
- * `document.fonts.ready`, not on loading Inter: that waits only for the fonts the page is already fetching, so a
- * device that doesn't use Inter (Apple's keep San Francisco) fetches nothing and lifts at once, as does a repeat
- * visit with Inter cached. Browsers without `document.fonts` lift at once. Safe to call more than once or with no
- * veil: a second call while it waits changes nothing, and liftVeilNow (the safety timers) doesn't wait for it.
+ * Lumen's page is ready: lifts the veil once Lumen's own font (Inter, styles/fonts.css) is in, if the page is loading
+ * it, so the page shows in Inter rather than swapping to it as the veil rises, but never more than FONT_WAIT_MS later.
+ * It waits only for 'Lumen Inter' faces already loading, never starts one, and not for other fonts (jellyfin-web's
+ * hidden chrome fetches its own on every page, Apple devices included): a device that doesn't use Inter (Apple's keep
+ * San Francisco), or a repeat visit with Inter cached, lifts at once. Browsers without `document.fonts` lift at once.
+ * Safe to call more than once or with no veil: a second call while it waits changes nothing, and liftVeilNow (the
+ * safety timers) doesn't wait for it.
  */
 export function liftVeil(doc: Document = document): void {
   const veil = doc.getElementById(VEIL_ID);
@@ -125,21 +129,38 @@ export function liftVeil(doc: Document = document): void {
   // The stock chrome may show now (Lumen's page or the stock page is up under the veil) and start its fonts too.
   doc.documentElement.classList.remove(PENDING_CLASS);
   if (veil.hasAttribute(FONT_WAIT_ATTR) || veil.classList.contains('is-lifting')) return;
+  const pending: Promise<unknown>[] = [];
+  try {
+    // Lay the page out first, so the faces its text needs have started loading.
+    void doc.documentElement.offsetHeight;
+    fonts.forEach((face) => {
+      // WebKit reports a swap face still downloading as 'error' once its block period ends (its `loaded` still
+      // settles when the file arrives): only 'unloaded' (never needed) and 'loaded' are settled.
+      if (
+        face.family.replace(/["']/g, '') === LUMEN_FONT &&
+        face.status !== 'unloaded' &&
+        face.status !== 'loaded'
+      )
+        pending.push(face.loaded);
+    });
+  } catch {
+    // A partial FontFaceSet: lift now.
+  }
+  if (!pending.length) {
+    liftVeilNow(doc);
+    return;
+  }
   veil.setAttribute(FONT_WAIT_ATTR, '');
-  const cap = setTimeout(() => liftVeilNow(doc), FONT_WAIT_MS);
+  let settled = false;
+  // Once: a late callback after the cap mustn't lift again, or take off lmn-pending something else has set since.
   const done = (): void => {
+    if (settled) return;
+    settled = true;
     clearTimeout(cap);
     liftVeilNow(doc);
   };
-  try {
-    // Lay the page out first, so the fonts its text needs have started loading and `ready` waits for them (Chromium
-    // does this itself when `ready` is read; older engines may not).
-    void doc.documentElement.offsetHeight;
-    fonts.ready.then(done, done);
-  } catch {
-    // A partial FontFaceSet without `ready`.
-    done();
-  }
+  const cap = setTimeout(done, FONT_WAIT_MS);
+  Promise.all(pending).then(done, done);
 }
 
 /**

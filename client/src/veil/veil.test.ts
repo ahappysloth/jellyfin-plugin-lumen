@@ -120,9 +120,16 @@ describe('veil', () => {
 });
 
 describe("the veil waits for Lumen's fonts", () => {
-  /** document.fonts as a browser has it, with `ready` as given (jsdom has none). */
-  const fonts = (ready: Promise<unknown>) =>
-    Object.defineProperty(document, 'fonts', { configurable: true, value: { ready } });
+  type Face = { family: string; status: string; loaded: Promise<unknown> };
+  /** document.fonts as a browser has it (jsdom has none), holding these faces. */
+  const fontSet = (faces: Face[]) =>
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: { ready: Promise.resolve(), forEach: (cb: (face: Face) => void) => faces.forEach(cb) },
+    });
+  /** Lumen's Inter face, loading until `loaded` settles. */
+  const fonts = (loaded: Promise<unknown>, status = 'loading') =>
+    fontSet([{ family: '"Lumen Inter"', status, loaded }]);
   const pending = () => {
     let resolve!: () => void;
     return { ready: new Promise<void>((r) => (resolve = r)), resolve: () => resolve() };
@@ -159,14 +166,56 @@ describe("the veil waits for Lumen's fonts", () => {
     expect(lifting(veil)).toBe(true);
   });
 
-  it('lifts at once when nothing is loading (a device that uses no Inter, or has it cached)', async () => {
+  it('lifts at once when Inter is loaded or never needed (a device that uses no Inter, or has it cached)', async () => {
     vi.useFakeTimers();
-    fonts(Promise.resolve());
+    fontSet([
+      { family: 'Lumen Inter', status: 'unloaded', loaded: new Promise(() => undefined) },
+      { family: 'Lumen Inter', status: 'loaded', loaded: Promise.resolve() },
+    ]);
     const veil = showVeil(document, '<svg></svg>');
 
     liftVeil(document);
     await Promise.resolve();
     expect(lifting(veil)).toBe(true);
+  });
+
+  it("doesn't wait for jellyfin-web's own fonts (its hidden chrome loads them on every page, Apple devices too)", () => {
+    fontSet([
+      { family: 'Noto Sans', status: 'loading', loaded: new Promise(() => undefined) },
+      { family: 'Material Icons', status: 'loading', loaded: new Promise(() => undefined) },
+    ]);
+    const veil = showVeil(document, '<svg></svg>');
+
+    liftVeil(document);
+    expect(lifting(veil)).toBe(true);
+  });
+
+  it("waits for an Inter face WebKit reports as 'error' while it still downloads (font-display: swap)", async () => {
+    vi.useFakeTimers();
+    const fetching = pending();
+    fonts(fetching.ready, 'error');
+    const veil = showVeil(document, '<svg></svg>');
+
+    liftVeil(document);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(lifting(veil)).toBe(false);
+    fetching.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lifting(veil)).toBe(true);
+  });
+
+  it('a font arriving after the cap lifted the veil leaves lmn-pending alone (set again since, e.g. signing in)', async () => {
+    vi.useFakeTimers();
+    const fetching = pending();
+    fonts(fetching.ready);
+    showVeil(document, '<svg></svg>');
+
+    liftVeil(document);
+    await vi.advanceTimersByTimeAsync(FONT_WAIT_MS);
+    document.documentElement.classList.add('lmn-pending');
+    fetching.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(document.documentElement).toHaveClass('lmn-pending');
   });
 
   it(`never waits more than ${FONT_WAIT_MS} ms`, async () => {
