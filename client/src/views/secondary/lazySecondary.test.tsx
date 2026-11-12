@@ -93,6 +93,20 @@ describe('LazySecondary', () => {
     expect(await screen.findByTestId('search')).toHaveTextContent('alien');
   });
 
+  it('reloads the page if Try again fails too (a browser may keep the first failure until then)', async () => {
+    const reloadPage = vi.fn();
+    vi.doMock('../../util/reloadPage', () => ({ reloadPage }));
+    vi.doMock('./SecondaryViews', failingImport);
+    const fresh = await freshModule();
+    render(<fresh.LazySecondary ctx={makeContext(createFakeClient())} view={() => <p>never</p>} />);
+    await screen.findByRole('heading', { name: "Couldn't load this page" });
+    expect(reloadPage).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(reloadPage).toHaveBeenCalledTimes(1));
+    vi.doUnmock('../../util/reloadPage');
+  });
+
   it('shows a page of its own instead when given one', async () => {
     vi.doMock('./SecondaryViews', failingImport);
     const fresh = await freshModule();
@@ -144,7 +158,7 @@ describe('LazySecondary', () => {
     expect(screen.getByTestId('search')).toBeInTheDocument();
   });
 
-  it('opens the Watch together menu from the file, and nothing if it cannot load', async () => {
+  it('opens the Watch together menu from the file, and says so if it cannot load', async () => {
     const views = stubViews();
     vi.doMock('./SecondaryViews', () => views);
     let fresh = await freshModule();
@@ -157,7 +171,10 @@ describe('LazySecondary', () => {
     vi.doUnmock('./SecondaryViews');
     vi.doMock('./SecondaryViews', failingImport);
     fresh = await freshModule();
+    const { ToastHost } = await import('../../components/Toast');
+    render(<ToastHost />);
     await expect(fresh.openWatchTogether(ctx, state as never, button)).resolves.toBeUndefined();
+    expect(await screen.findByText("Couldn't open Watch together. Try again.")).toBeInTheDocument();
   });
 
   it('loads the real file once, however often it is asked for', async () => {

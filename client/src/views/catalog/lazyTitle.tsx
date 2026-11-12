@@ -3,6 +3,7 @@ import type { CatalogMediaType } from '../../api/types';
 import { LoadError } from '../../components/LoadError';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { strings } from '../../strings';
+import { reloadPage } from '../../util/reloadPage';
 import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import { liftVeil } from '../../veil/veil';
 import type { ViewContext } from '../context';
@@ -17,7 +18,7 @@ let loaded: TitleModule | null = null;
  * A catalog title's page (and its Request dialog) is a separate file, loaded the first time it's needed, so servers
  * without Seerr, which never show one, don't download or parse it. A failed load is asked for again next time, though a
  * browser may remember the failure until the page reloads (as it will for a page left open across a Lumen update, whose
- * old file is gone).
+ * old file is gone): so a Try again that fails too reloads the page.
  */
 export function loadTitle(): Promise<TitleModule> {
   loading ??= import('./TitleView').then(
@@ -53,7 +54,8 @@ interface Props {
 
 /**
  * TitleView once its code is in; until then the same empty page it shows while its data loads, so nothing jumps. If the
- * code can't load, the page's own "couldn't load" block, whose Try again asks for the code again.
+ * code can't load, the page's own "couldn't load" block, whose Try again asks for the code again (and reloads the page
+ * if that fails too).
  */
 export function LazyTitleView(props: Props) {
   const [module, setModule] = useState<TitleModule | null>(loaded);
@@ -69,6 +71,8 @@ export function LazyTitleView(props: Props) {
       (m) => !cancelled && setModule(m),
       () => {
         if (cancelled) return;
+        // A Try again that failed too: the browser may be holding on to the first failure (see loadTitle).
+        if (attempt) return reloadPage();
         setFailed(true);
         liftVeil();
       },
