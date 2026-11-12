@@ -94,16 +94,30 @@ describe('LazySecondary', () => {
   });
 
   it('reloads the page if Try again fails too (a browser may keep the first failure until then)', async () => {
-    const reloadPage = vi.fn();
-    vi.doMock('../../util/reloadPage', () => ({ reloadPage }));
+    const reloadIfReachable = vi.fn(async () => true);
+    vi.doMock('../../util/reloadPage', () => ({ reloadIfReachable }));
     vi.doMock('./SecondaryViews', failingImport);
     const fresh = await freshModule();
     render(<fresh.LazySecondary ctx={makeContext(createFakeClient())} view={() => <p>never</p>} />);
     await screen.findByRole('heading', { name: "Couldn't load this page" });
-    expect(reloadPage).not.toHaveBeenCalled();
+    expect(reloadIfReachable).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    await waitFor(() => expect(reloadPage).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(reloadIfReachable).toHaveBeenCalledTimes(1));
+    vi.doUnmock('../../util/reloadPage');
+  });
+
+  it("stays on its error page when Try again fails and the server doesn't answer (offline: no reload)", async () => {
+    const reloadIfReachable = vi.fn(async () => false);
+    vi.doMock('../../util/reloadPage', () => ({ reloadIfReachable }));
+    vi.doMock('./SecondaryViews', failingImport);
+    const fresh = await freshModule();
+    render(<fresh.LazySecondary ctx={makeContext(createFakeClient())} view={() => <p>never</p>} />);
+    await screen.findByRole('heading', { name: "Couldn't load this page" });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(reloadIfReachable).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole('button', { name: 'Try again' })).toBeEnabled();
     vi.doUnmock('../../util/reloadPage');
   });
 

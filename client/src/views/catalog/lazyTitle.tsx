@@ -3,7 +3,7 @@ import type { CatalogMediaType } from '../../api/types';
 import { LoadError } from '../../components/LoadError';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { strings } from '../../strings';
-import { reloadPage } from '../../util/reloadPage';
+import { reloadIfReachable } from '../../util/reloadPage';
 import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import { liftVeil } from '../../veil/veil';
 import type { ViewContext } from '../context';
@@ -72,9 +72,13 @@ export function LazyTitleView(props: Props) {
       () => {
         if (cancelled) return;
         // A Try again that failed too: the browser may be holding on to the first failure (see loadTitle).
-        if (attempt) return reloadPage();
-        setFailed(true);
-        liftVeil();
+        const fail = (): void => {
+          setFailed(true);
+          liftVeil();
+        };
+        // Only if the server answers: offline, a reload would strand a home-screen app on the browser's error page.
+        if (attempt) void reloadIfReachable().then((reloaded) => !reloaded && !cancelled && fail());
+        else fail();
       },
     );
     return () => {
