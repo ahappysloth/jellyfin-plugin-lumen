@@ -2,6 +2,44 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.4.0] - 2026-11-12
+
+### Added
+- Install Lumen as a home-screen app: adding the server to a phone's home screen gives a "Lumen" app with Lumen's
+  icon, no browser bars and a status bar that blends in. An admin setting can name it after the server instead.
+  Re-add an existing home-screen icon to pick this up.
+- An account menu in the nav, with a History page (what you watched, by day) and Watch together.
+- A More (⋯) menu on details pages and cards with jellyfin-web's item actions (edit metadata and images, identify,
+  refresh, add to a collection or playlist, delete, …). Deleted titles leave every list.
+- "Mark as unwatched" asks first, since it also removes the title from History.
+- A Storage card on Lumen's settings page: space by library, video codec and resolution, the H.264 1080p+ files worth
+  re-encoding, and the biggest movies and series.
+- An admin setting to let home banner trailers finish before the next slide.
+- Lumen's look for jellyfin-web's own dialogs, menus and notifications on every page, and a centred layout with
+  section cards and Lumen tabs for the Dashboard's admin pages.
+- A restart banner with a Restart button on the admin pages; the settings save bar slides up when there are changes.
+- Lumen's own "Page not found", and clearer error pages ("You don't have access to this", "The server had a
+  problem", "The server didn't answer") with Try again.
+
+### Changed
+- Player on touch screens: a tap shows or hides the controls instead of pausing; menus scroll and every option is
+  reachable; a double tap on either side skips; Android goes landscape in full screen.
+- Skip back and forward are both exactly 10 seconds (buttons, double tap, arrow keys and J/L), whatever Jellyfin's
+  own skip settings say.
+- New outline icons throughout (Lucide), a little bigger; the volume icon shows the level.
+- Inter on Linux, Windows, Android and TVs (Apple devices keep San Francisco), loaded behind the loading screen.
+- A smaller startup download (about 72 KB → 65 KB): less-used pages, the stock pages' and admin pages' styles load
+  where they're used.
+- The server's accent colour applies to every restyled jellyfin-web page, not only the Dashboard; destructive buttons
+  stay Lumen's red.
+- On TVs the account menu and profile hide Dashboard and Metadata manager, as jellyfin-web does.
+
+### Fixed
+- Dragging the volume slider no longer jumps back and forth.
+- Many TV remote fixes: dropdowns no longer trap the D-pad, the nav and the hero's Pause are reachable, History's days
+  can be navigated, and a page that finishes loading no longer steals focus from an open menu.
+- Music genres go back to jellyfin-web without a flash; the music now-playing bar sits above the phone tab bar.
+
 ## [0.3.7] - 2026-11-10
 
 ### Added
