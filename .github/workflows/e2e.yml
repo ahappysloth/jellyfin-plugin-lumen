@@ -9,7 +9,7 @@ on:
         type: string
         default: e2e-report
       # Pull requests run every spec on chromium and the `@smoke` ones on firefox and webkit-iphone, in parallel jobs
-      # that take no longer than the chromium one. The nightly run sets this to run every spec on all three.
+      # that take no longer than a chromium one. The nightly run sets this to run every spec on all three.
       all-browsers:
         type: boolean
         default: false
@@ -19,16 +19,21 @@ permissions:
 
 jobs:
   e2e:
-    name: e2e (${{ matrix.project }})
+    name: e2e (${{ matrix.project }}${{ matrix.part && format(' {0}/2', matrix.part) || '' }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        # The Playwright projects in e2e/playwright.config.ts, and the browser each one installs.
+        # The Playwright projects in e2e/playwright.config.ts, and the browser each one installs. Chromium runs every
+        # spec, so it's split in two jobs of about 5 minutes each (`part`, LUMEN_E2E_PART in the config).
         include:
           - project: chromium
             browser: chromium
+            part: 1
+          - project: chromium
+            browser: chromium
+            part: 2
           - project: firefox
             browser: firefox
           - project: webkit-iphone
@@ -96,19 +101,21 @@ jobs:
           LUMEN_E2E_BASE_URL: http://localhost:8096
           LUMEN_E2E_MEDIA_PATH: /media
           LUMEN_E2E_SEERR_URL: http://host.docker.internal:5055
-      # The whole suite ran on chromium; the other browsers may have run only the smoke specs.
+          LUMEN_E2E_PART: ${{ matrix.part }}
+      # The whole suite runs on chromium, half in each part; the other browsers may run only the smoke specs. Part 1
+      # records the version, so its note stands only when the whole run passed.
       - name: Record the Jellyfin version the suite passed on
-        if: matrix.project == 'chromium'
+        if: matrix.project == 'chromium' && matrix.part == 1
         run: |
           VERSION="$(curl -fsS http://localhost:8096/System/Info/Public | jq -r .Version)"
           RELEASE="$(cut -d. -f1,2 <<<"$VERSION")"
-          echo "E2E passed on Jellyfin $VERSION (\`${{ inputs.jellyfin-image }}\`)" >> "$GITHUB_STEP_SUMMARY"
+          echo "E2E chromium part 1 passed on Jellyfin $VERSION (\`${{ inputs.jellyfin-image }}\`)" >> "$GITHUB_STEP_SUMMARY"
           echo "$VERSION ${{ inputs.jellyfin-image }} $(date -u +%Y-%m-%dT%H:%M:%SZ)" > tested-jellyfin.txt
           # Diagnostics flag servers on releases missing from this list as "untested" (client/src/compat/testedVersions.ts).
           if ! jq -e --arg r "$RELEASE" '.versions | index($r)' client/src/compat/tested-jellyfin.json >/dev/null; then
-            echo "::warning title=Untested Jellyfin release passed::E2E passed on Jellyfin $VERSION. Add \"$RELEASE\" to client/src/compat/tested-jellyfin.json."
+            echo "::warning title=Untested Jellyfin release passed::E2E chromium part 1 passed on Jellyfin $VERSION. If the run passed, add \"$RELEASE\" to client/src/compat/tested-jellyfin.json."
           fi
-      - if: matrix.project == 'chromium'
+      - if: matrix.project == 'chromium' && matrix.part == 1
         uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.report-name }}-jellyfin-version-${{ github.run_attempt }}
@@ -118,7 +125,7 @@ jobs:
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ inputs.report-name }}-${{ matrix.project }}-${{ github.run_attempt }}
+          name: ${{ inputs.report-name }}-${{ matrix.project }}${{ matrix.part && format('-{0}', matrix.part) || '' }}-${{ github.run_attempt }}
           path: |
             e2e/playwright-report
             e2e/test-results
