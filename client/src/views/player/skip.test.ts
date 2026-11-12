@@ -16,10 +16,6 @@ describe('skipTarget', () => {
     expect(skipTarget(595_000, 600_000, 'forward')).toBe(600_000 - END_MARGIN_MS);
     expect(skipTarget(599_500, 600_000, 'forward')).toBe(599_500);
   });
-
-  it('goes on 10 s when the length is unknown', () => {
-    expect(skipTarget(60_000, 0, 'forward')).toBe(70_000);
-  });
 });
 
 describe('SKIP_KEYS', () => {

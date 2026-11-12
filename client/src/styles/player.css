@@ -142,6 +142,10 @@ html.lmn-skin-player .upNextContainer {
 .lmn-player__icon.is-on .lmn-icon {
   color: var(--lmn-accent);
 }
+/* Skip forward: the skip-back ring turned round (SkipIcon puts its "10" back the right way). */
+.lmn-skip-icon.is-forward {
+  transform: scaleX(-1);
+}
 .lmn-osd :is(button, [role='slider'], input):focus-visible {
   outline: 2px solid #fff;
   outline-offset: 2px;

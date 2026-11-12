@@ -8,6 +8,7 @@ import { qualityLabel, trackParts } from './PlayerPanels';
 import { formatClock, PlayerView } from './PlayerView';
 import type { PlayerSnapshot } from './playerState';
 import { ContextMenuHost } from '../../components/ContextMenu';
+import * as syncPlayState from '../syncplay/syncPlayState';
 import { NO_SYNCPLAY } from '../syncplay/syncPlayState';
 import { openWatchTogether } from '../syncplay/WatchTogether';
 import { playerStrings } from './playerStrings';
@@ -272,6 +273,113 @@ describe('PlayerView', () => {
       expect(seconds(pm)).toEqual([610, 620, 631]);
     });
 
+    it('go on from the video once a skip has arrived and played on, not from where it landed', async () => {
+      const { pm, setAt } = await open();
+      const forward = screen.getByRole('button', { name: 'Forward 10 seconds' });
+      fireEvent.click(forward); // 10:00 to 10:10, which arrives at once
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      setAt(615_000); // five seconds on
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      fireEvent.click(forward);
+      expect(seconds(pm)).toEqual([610, 625]);
+    });
+
+    it('go from where the seek bar went, even with a skip still on its way', async () => {
+      const { pm, setAt } = await open();
+      pm.seek.mockImplementation(() => undefined); // a converted stream: the skip to 10:10 is still on its way
+      fireEvent.click(screen.getByRole('button', { name: 'Forward 10 seconds' }));
+      const bar = screen.getByRole('slider', { name: playerStrings.seek });
+      bar.getBoundingClientRect = () => ({ left: 0, width: 9_934 }) as DOMRect; // a pixel a second
+      fireEvent.pointerDown(bar, { button: 0, clientX: 400 });
+      fireEvent.pointerUp(bar, { clientX: 400 });
+      expect(seconds(pm)).toEqual([610, 400]);
+      setAt(400_000);
+      fireEvent.click(screen.getByRole('button', { name: 'Back 10 seconds' }));
+      expect(seconds(pm)).toEqual([610, 400, 390]);
+    });
+
+    it("go from where another seek went (jellyfin-web's own keys, Watch together), even with a skip on its way", async () => {
+      const { pm, setAt } = await open();
+      pm.seek.mockImplementation(() => undefined);
+      const forward = screen.getByRole('button', { name: 'Forward 10 seconds' });
+      fireEvent.click(forward);
+      const video = document.body.appendChild(document.createElement('video'));
+      setAt(0); // Home
+      video.dispatchEvent(new Event('seeking'));
+      fireEvent.click(forward);
+      expect(seconds(pm)).toEqual([610, 10]);
+      // A skip's own seek doesn't count as another: quick presses still add up.
+      setAt(10_000);
+      video.dispatchEvent(new Event('seeking'));
+      setAt(0); // not there yet
+      fireEvent.click(forward);
+      expect(seconds(pm)).toEqual([610, 10, 20]);
+      video.remove();
+    });
+
+    it('add up three quick presses while the first is still on its way', async () => {
+      const { pm } = await open();
+      pm.seek.mockImplementation(() => undefined);
+      const forward = screen.getByRole('button', { name: 'Forward 10 seconds' });
+      fireEvent.click(forward);
+      fireEvent.click(forward);
+      fireEvent.click(forward);
+      expect(seconds(pm)).toEqual([610, 620, 630]); // +30 s
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300); // a reading from before any arrived changes nothing
+      });
+      fireEvent.click(forward);
+      expect(seconds(pm)).toEqual([610, 620, 630, 640]);
+    });
+
+    it("are off for a stream that can't seek (Live TV)", async () => {
+      const pm = fakeManager();
+      const state = pm.getPlayerState();
+      pm.getPlayerState = () => ({ ...state, PlayState: { ...state.PlayState, CanSeek: false } });
+      vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+      render(<PlayerView ctx={makeContext(createFakeClient())} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(screen.getByRole('button', { name: 'Back 10 seconds' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Forward 10 seconds' })).toBeDisabled();
+      fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+      expect(pm.seek).not.toHaveBeenCalled();
+    });
+
+    it('go on while an arrow key is held, at most every 250 ms', async () => {
+      const { pm } = await open();
+      fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+      for (let i = 0; i < 10; i++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(50); // a key repeat
+        });
+        fireEvent.keyDown(document.body, { key: 'ArrowRight', repeat: true });
+      }
+      expect(seconds(pm)).toEqual([610, 620, 630]); // the press, then at 250 and 500 ms
+      expect(reachedJellyfin).toEqual([]); // the rest are kept from jellyfin-web too
+    });
+
+    it('skip once per press of a held arrow key in Watch together, where each seek pauses the group', async () => {
+      vi.spyOn(syncPlayState, 'useSyncPlayState').mockReturnValue(watchTogether);
+      const { pm } = await open();
+      fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+      for (let i = 0; i < 10; i++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(300);
+        });
+        fireEvent.keyDown(document.body, { key: 'ArrowRight', repeat: true });
+      }
+      expect(seconds(pm)).toEqual([610]);
+      expect(reachedJellyfin).toEqual([]);
+      fireEvent.keyDown(document.body, { key: 'ArrowRight' }); // let go and pressed again
+      expect(seconds(pm)).toEqual([610, 620]);
+    });
+
     it('stop short of the end going forward, and at the start going back', async () => {
       const { pm, setAt } = await open();
       setAt(9_934_000_000 / 1000 - 4_000); // 4 s before the end of 2:45:34
@@ -388,6 +496,53 @@ describe('PlayerView', () => {
       });
       expect(slider.value).toBe('33');
       expect(waves()).toBe(1);
+    });
+
+    for (const [how, lose] of [
+      ['the window loses focus', () => window.dispatchEvent(new Event('blur'))],
+      ['the pointer is lost', () => fireEvent(document.body, new Event('lostpointercapture'))],
+    ] as const)
+      it(`ends a drag when ${how} with no pointerup, and follows the player again`, async () => {
+        const slider = await open('desktop');
+        fireEvent.pointerDown(slider, { pointerId: 1, pointerType: 'mouse' });
+        fireEvent.input(slider, { target: { value: '50' } });
+        fireEvent.input(slider, { target: { value: '40' } }); // waits its turn
+        lose();
+        expect(pm.setVolume.mock.calls.map(([v]) => v)).toEqual([50, 40]);
+        pm.getVolume.mockReturnValue(65); // changed elsewhere
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1300);
+        });
+        expect(slider.value).toBe('65');
+      });
+
+    it('sends the last value and stops listening for the drag when the player closes mid-drag', async () => {
+      pm = fakeManager();
+      vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+      const { unmount } = render(<PlayerView ctx={makeContext(createFakeClient())} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      const slider = screen.getByRole<HTMLInputElement>('slider', { name: playerStrings.volume });
+      const added = vi.spyOn(document, 'addEventListener');
+      fireEvent.pointerDown(slider, { pointerId: 1, pointerType: 'mouse' });
+      const endDrag = added.mock.calls.find(([type]) => type === 'lostpointercapture')![1];
+      fireEvent.input(slider, { target: { value: '50' } });
+      fireEvent.input(slider, { target: { value: '40' } });
+      const removed = vi.spyOn(document, 'removeEventListener');
+      const removedFromWindow = vi.spyOn(window, 'removeEventListener');
+      act(() => unmount());
+      expect(pm.setVolume.mock.calls.map(([v]) => v)).toEqual([50, 40]);
+      expect(removed.mock.calls.filter(([, fn]) => fn === endDrag).map(([type]) => type)).toEqual([
+        'pointerup',
+        'pointercancel',
+        'lostpointercapture',
+      ]);
+      expect(removedFromWindow).toHaveBeenCalledWith('blur', endDrag);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      expect(pm.setVolume).toHaveBeenCalledTimes(2); // no timer left behind
     });
 
     it('changes the volume with its arrow keys, one input at a time, and unmutes once going up from muted', async () => {

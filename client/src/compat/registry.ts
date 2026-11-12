@@ -328,6 +328,8 @@ export const APP_FEATURES = {
   exitMenu: 'exitmenu',
   clientSettings: 'clientsettings',
   downloadManagement: 'downloadmanagement',
+  /** The device's own buttons set the volume (jellyfin-web: phones, tablets, TVs, consoles); see readVolume. */
+  physicalVolumeControl: 'physicalvolumecontrol',
 } as const;
 /** jellyfin-web's web config file, relative to the page, and its multi-server switch. */
 export const WEB_CONFIG = { file: 'config.json', multiServer: 'multiserver' } as const;

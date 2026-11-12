@@ -1,28 +1,16 @@
+import { Icon, RING_BACK } from '../../components/icons';
+
 /**
- * The 10-second skip glyph: Lucide's rotate-ccw ring and arrowhead, stroked like the other icons (components/icons.tsx),
- * around a real "10" set in the UI font (a filled path "10" blurs at control sizes). Forward mirrors the ring, not the
- * number.
+ * The 10-second skip glyph: Lucide's rotate-ccw ring and arrowhead, stroked like the other icons, around a real "10"
+ * set in the UI font (a filled path "10" blurs at control sizes). Forward mirrors the icon (player.css), and the "10"
+ * back again.
  */
-export function SkipIcon({ direction, size = 28 }: { direction: 'back' | 'forward'; size?: number }) {
+export function SkipIcon({ direction }: { direction: 'back' | 'forward' }) {
+  const forward = direction === 'forward';
   return (
-    <svg
-      class="lmn-icon lmn-skip-icon"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path
-        transform={direction === 'forward' ? 'matrix(-1 0 0 1 24 0)' : undefined}
-        d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
+    <Icon name={RING_BACK} size={28} class={forward ? 'lmn-skip-icon is-forward' : 'lmn-skip-icon'}>
       <text
+        transform={forward ? 'matrix(-1 0 0 1 24 0)' : undefined}
         x="12"
         y="15"
         text-anchor="middle"
@@ -30,9 +18,10 @@ export function SkipIcon({ direction, size = 28 }: { direction: 'back' | 'forwar
         font-weight="700"
         letter-spacing="-.3"
         fill="currentColor"
+        stroke="none"
       >
         10
       </text>
-    </svg>
+    </Icon>
   );
 }

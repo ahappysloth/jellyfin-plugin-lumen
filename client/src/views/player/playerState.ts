@@ -1,4 +1,6 @@
+import { appSupports } from '../../compat/jellyfin';
 import type { PlaybackManager, Player, PlayerState, RepeatMode, Stream } from '../../compat/playbackManager';
+import { APP_FEATURES } from '../../compat/registry';
 
 /** Everything the controls show, read from jellyfin-web's playback manager in one pass. */
 export interface PlayerSnapshot {
@@ -64,7 +66,7 @@ export function readPlayerState(pm: PlaybackManager, player: Player): PlayerSnap
     bufferedMs: buffered ? buffered.end / TICKS_PER_MS : positionMs,
     paused: attempt(() => pm.paused(player), false),
     canSeek: state.PlayState?.CanSeek !== false && durationMs > 0,
-    volume: attempt(() => pm.getVolume(player), 100),
+    volume: readVolume(pm, player),
     muted: attempt(() => pm.isMuted(player), false),
     audioTracks: attempt(() => pm.audioTracks(player), []),
     audioIndex: attempt(() => pm.getAudioStreamIndex(player), -1),
@@ -86,6 +88,16 @@ export function readPlayerState(pm: PlaybackManager, player: Player): PlayerSnap
     playMethod: state.PlayState?.PlayMethod ?? null,
     mediaSource: state.MediaSource,
   };
+}
+
+/**
+ * The player's volume, 0–100. Where the device's own buttons set the volume (appHost's PhysicalVolumeControl, for a
+ * local player), jellyfin-web's playback manager doesn't ask the player: it answers a fixed 1 (and ignores setVolume).
+ * That isn't 1%: the picture plays at whatever the device is set to, so it counts as full (muted still shows muted).
+ */
+export function readVolume(pm: PlaybackManager, player: Player): number {
+  if (player.isLocalPlayer && appSupports(APP_FEATURES.physicalVolumeControl)) return 100;
+  return attempt(() => pm.getVolume(player), 100);
 }
 
 /**
