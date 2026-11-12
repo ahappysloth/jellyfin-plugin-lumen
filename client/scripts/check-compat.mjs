@@ -43,12 +43,13 @@ const REQUIRED = [
   'lumen-stock.css',
   'lumen-dashboard.css',
   'lumen-secondary.css',
+  'lumen-charts.css',
 ];
 for (const file of REQUIRED) {
   if (!existsSync(`dist/${file}`)) failures.push(`dist/${file} is missing: run \`npm run build\` first`);
 }
 // The content-named chunks: the core, the player and the trailer preview (vite.config.ts).
-for (const chunk of ['main', 'PlayerView', 'TrailerPreview', 'SecondaryViews']) {
+for (const chunk of ['main', 'PlayerView', 'TrailerPreview', 'SecondaryViews', 'ChartsView']) {
   if (!readdirSync('dist').some((f) => f.startsWith(`lumen-chunk-${chunk}-`) && f.endsWith('.js'))) {
     failures.push(`no lumen-chunk-${chunk}-*.js in dist: run \`npm run build\` first`);
   }

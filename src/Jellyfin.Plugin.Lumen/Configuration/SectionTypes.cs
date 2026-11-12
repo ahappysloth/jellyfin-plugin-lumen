@@ -18,4 +18,10 @@ public static class SectionTypes
     public const string MyRequests = "MyRequests";
     public const string Top10Movies = "Top10Movies";
     public const string Top10Shows = "Top10Shows";
+    public const string TraktBoxOffice = "TraktBoxOffice";
+    public const string TraktAnticipatedMovies = "TraktAnticipatedMovies";
+    public const string TraktAnticipatedShows = "TraktAnticipatedShows";
+    public const string TraktTrendingMovies = "TraktTrendingMovies";
+    public const string TraktTrendingShows = "TraktTrendingShows";
+    public const string TraktList = "TraktList";
 }

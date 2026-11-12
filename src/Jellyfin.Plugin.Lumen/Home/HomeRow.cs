@@ -8,6 +8,9 @@ namespace Jellyfin.Plugin.Lumen.Home;
 /// <summary>One rendered row on the home screen (domain items; mapped to DTOs by the home service).</summary>
 public sealed record HomeRow(string Id, string Type, string Title, IReadOnlyList<BaseItem> Items)
 {
+    /// <summary>A <see cref="Source"/>: the titles are Seerr's (its trending list), not Trakt's.</summary>
+    public const string SeerrSource = "Seerr";
+
     /// <summary>
     /// Gets, for row items without art of their own (genre tiles), the item whose backdrop the card should borrow,
     /// keyed by row item id. Mapped to <c>ParentBackdropItemId</c>/<c>ParentBackdropImageTags</c>.
@@ -19,6 +22,12 @@ public sealed record HomeRow(string Id, string Type, string Title, IReadOnlyList
     /// <see cref="Items"/>; other rows leave this null.
     /// </summary>
     public IReadOnlyList<HomeRowEntry>? Entries { get; init; }
+
+    /// <summary>
+    /// Gets where a row's titles came from when that isn't what its type says: <see cref="SeerrSource"/> for a Top 10 row
+    /// showing Seerr's trending list because Trakt has none to give, which has no Top chart to "See all" of. Null otherwise.
+    /// </summary>
+    public string? Source { get; init; }
 
     /// <summary>Gets a value indicating whether the row has anything to show.</summary>
     public bool HasContent => Items.Count > 0 || Entries is { Count: > 0 };

@@ -167,8 +167,13 @@ export const strings = {
   },
   request: 'Request',
   requestNamed: (title: string) => `Request ${title}`,
-  /** Starts a Top 10 card's name: "3, Title". */
+  /** Starts a Top 10 or Top charts card's name: "3, Title". */
   rankOf: (rank: number) => `${formatNumber(rank)}, `,
+  // Top charts (views/charts): the page's own strings are in chartsStrings.ts, with its code.
+  topCharts: 'Top charts',
+  seeAll: 'See all',
+  /** A Top 10 row's title link: "Top 10 Movies This Week, see all in Top charts". */
+  seeAllNamed: (title: string) => `${title}, see all in Top charts`,
   requested: 'Requested',
   downloading: 'Downloading',
   partlyAvailable: 'Partly available',

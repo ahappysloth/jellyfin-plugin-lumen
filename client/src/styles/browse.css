@@ -72,6 +72,10 @@
 .lmn-chip:hover {
   color: #fff;
 }
+/* A chip with a short label for phones (Toolbar.tsx Option.short): the full one elsewhere. */
+.lmn-chip__short {
+  display: none;
+}
 .lmn-chip.is-active {
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
@@ -207,6 +211,16 @@
   }
   .lmn-browse-grid--landscape {
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}
+
+/* Phones: the short labels, so four chips fit on one row of a 390 px screen. */
+@media (max-width: 480px) {
+  .lmn-chip__long {
+    display: none;
+  }
+  .lmn-chip__short {
+    display: inline;
   }
 }
 

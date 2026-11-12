@@ -4,6 +4,7 @@ import { target } from './vite.target.ts';
 /**
  * Lumen's stylesheets besides lumen.css, each built on its own so a page downloads only the ones it uses:
  * - lumen-secondary.css: the pages in views/secondary's file (styles/secondary.css), linked with that file.
+ * - lumen-charts.css: the Top charts page (styles/charts.css), linked with its file (views/charts/lazyCharts.tsx).
  * - lumen-stock.css: jellyfin-web's sign-in, settings and admin pages' controls, and its dialogs and menus on every
  *   page (styles/stock.css), while "Restyle Jellyfin's sign-in, settings and Dashboard pages" is on.
  * - lumen-dashboard.css: the admin pages' own look (styles/dashboard.css), on those pages only.
@@ -19,6 +20,7 @@ export default defineConfig({
         'lumen-stock': 'src/styles/stock.css',
         'lumen-dashboard': 'src/styles/dashboard.css',
         'lumen-secondary': 'src/styles/secondary.css',
+        'lumen-charts': 'src/styles/charts.css',
       },
       output: { assetFileNames: '[name][extname]' },
     },

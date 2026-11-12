@@ -1,6 +1,6 @@
 // Fails when what every page loads (lumen.js, the chunks it loads at startup, lumen.css), or one of the chunks loaded
 // when they're needed (the player, the trailer preview, the restart banner, the catalog title page, the profile pages,
-// the item menu, the secondary views), or one of the stylesheets linked where they're used, exceeds its gzipped budget,
+// the item menu, the secondary views, Top charts), or one of the stylesheets linked where they're used, exceeds its gzipped budget,
 // or Lumen's fonts exceed theirs.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
@@ -20,7 +20,7 @@ const oneChunk = (name) => {
 const coreChunk = oneChunk('main');
 // Loaded when they're needed: views/player/lazyPlayer.tsx, views/home/lazyTrailer.tsx, takeover/restartWatch.ts,
 // views/catalog/lazyTitle.tsx, views/profile/lazyProfile.tsx, views/itemMenu/lazyItemMenu.ts,
-// views/secondary/lazySecondary.tsx.
+// views/secondary/lazySecondary.tsx, views/charts/lazyCharts.tsx.
 const playerChunk = oneChunk('PlayerView');
 const trailerChunk = oneChunk('TrailerPreview');
 const restartChunk = oneChunk('RestartBanner');
@@ -28,6 +28,7 @@ const titleChunk = oneChunk('TitleView');
 const profileChunk = oneChunk('ProfilePages');
 const itemMenuChunk = oneChunk('itemMenu');
 const secondaryChunk = oneChunk('SecondaryViews');
+const chartsChunk = oneChunk('ChartsView');
 // Startup is lumen.js and the core it imports, which the server preloads with it. Another chunk would be a download
 // the core waits for (vite.config.ts keeps it to one).
 const others = chunks.filter(
@@ -41,6 +42,7 @@ const others = chunks.filter(
       profileChunk,
       itemMenuChunk,
       secondaryChunk,
+      chartsChunk,
     ].includes(f),
 );
 if (others.length) {
@@ -94,6 +96,11 @@ const secondary = gz(`dist/${secondaryChunk}`) + gz('dist/lumen-secondary.css');
 console.log(
   `lumen secondary views + styles: ${kb(secondary)} gzipped (budget ${SECONDARY_BUDGET / 1024} KB)`,
 );
+// Top charts, with its stylesheet (views/charts/lazyCharts.tsx): only servers with a Trakt key have the page, so it's a
+// file of its own rather than more of the secondary views' (added in the Trakt charts PR; not a raised budget).
+const CHARTS_BUDGET = 5 * 1024;
+const charts = gz(`dist/${chartsChunk}`) + gz('dist/lumen-charts.css');
+console.log(`lumen top charts + styles: ${kb(charts)} gzipped (budget ${CHARTS_BUDGET / 1024} KB)`);
 // The guard and the web plugin's definer are inlined into every index.html, so they share a small budget.
 const GUARD_BUDGET = 4 * 1024;
 const guard = gz('dist/lumen-guard.js') + gz('dist/lumen-web-plugin.js');
@@ -134,6 +141,7 @@ if (
   profile > PROFILE_BUDGET ||
   itemMenu > ITEM_MENU_BUDGET ||
   secondary > SECONDARY_BUDGET ||
+  charts > CHARTS_BUDGET ||
   guard > GUARD_BUDGET ||
   stock > STOCK_BUDGET ||
   dashboard > DASHBOARD_BUDGET ||

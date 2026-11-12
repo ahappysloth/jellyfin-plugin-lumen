@@ -8,7 +8,7 @@ import { imageUrl, resolveImage } from '../../components/images';
 import { strings } from '../../strings';
 import type { CardMenuHandler } from '../cardMenu';
 import { CatalogCard } from '../catalog/CatalogCard';
-import { Top10Items, isTop10Row } from './Top10Item';
+import { Top10Items, isTop10Row, isTraktRow } from './Top10Item';
 
 export function captionFor(item: BaseItem): string | undefined {
   if (item.Type !== 'Episode') return undefined;
@@ -28,10 +28,12 @@ interface Props {
   /** Whether the user may request this catalog title; Top 10 rows then show a Request button that calls onRequest. */
   canRequest?: (item: CatalogItem) => boolean;
   onRequest?: (item: CatalogItem) => void;
+  /** Where the title links, with "See all" beside it (a Top 10 row's Top charts, when there's a Trakt key). */
+  seeAll?: string;
 }
 
 export function Row(props: Props) {
-  const { row, client, catalogImageToken, badges, onSelect, onMenu, onSelectCatalog } = props;
+  const { row, client, catalogImageToken, badges, onSelect, onMenu, onSelectCatalog, seeAll } = props;
   const scroller = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ start: true, end: true });
   useDragScroll(scroller);
@@ -58,16 +60,30 @@ export function Row(props: Props) {
     el?.scrollBy({ left: direction * el.clientWidth * 0.85, behavior: reduced ? 'auto' : 'smooth' });
   };
   const genres = row.Type === 'Genres';
-  // Top 10 rows rank their cards (Top10Item); the other rows' cards below are left out for them.
+  // Top 10 rows rank their cards (Top10Item), and Trakt's other rows have the same poster cards without ranks; the
+  // other rows' cards below are left out for them.
   const top10 = isTop10Row(row);
-  const entries = top10 ? null : row.Entries;
+  const posters = top10 || isTraktRow(row);
+  const entries = posters ? null : row.Entries;
   return (
     <section
-      class={`lmn-row${genres ? ' lmn-row--genres' : ''}${top10 ? ' lmn-row--top10' : ''}`}
+      class={`lmn-row${genres ? ' lmn-row--genres' : ''}${top10 ? ' lmn-row--top10' : posters ? ' lmn-row--trakt' : ''}`}
       aria-label={row.Title}
       data-row-id={row.Id}
     >
-      <h2 class="lmn-row__title">{row.Title}</h2>
+      <h2 class="lmn-row__title">
+        {seeAll ? (
+          <a class="lmn-row__link" href={seeAll} aria-label={strings.seeAllNamed(row.Title)}>
+            {row.Title}
+            <span class="lmn-row__see-all" aria-hidden="true">
+              {strings.seeAll}
+              <Icon name="chevronRight" size={18} />
+            </span>
+          </a>
+        ) : (
+          row.Title
+        )}
+      </h2>
       <div class="lmn-row__viewport">
         <button
           type="button"
@@ -82,7 +98,7 @@ export function Row(props: Props) {
           </span>
         </button>
         <div ref={scroller} class="lmn-row__scroller focuscontainer-x">
-          {top10 && <Top10Items {...props} />}
+          {posters && <Top10Items {...props} />}
           {entries
             ? entries.map((entry) =>
                 entry.Catalog ? (
@@ -107,7 +123,7 @@ export function Row(props: Props) {
                   />
                 ) : null,
               )
-            : (top10 ? [] : row.Items).map((item) =>
+            : (posters ? [] : row.Items).map((item) =>
                 genres ? (
                   <GenreTile
                     key={item.Id}

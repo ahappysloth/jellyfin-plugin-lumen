@@ -26,6 +26,8 @@ import {
 import { withLocalChanges } from '../itemChanges';
 import { liftVeil } from '../../veil/veil';
 import { Row } from './Row';
+import { isTop10Row } from './Top10Item';
+import { chartsHash } from '../../takeover/routes';
 
 export function HomeView({ ctx }: { ctx: ViewContext }) {
   const [home, setHome] = useState<HomeResponse | null>(() => usableCachedHome(ctx.userId) ?? null);
@@ -52,7 +54,9 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
     if (!key || !root) return;
     const back =
       root.querySelector<HTMLElement>(`[data-request-key="${key}"]`) ??
-      root.querySelector<HTMLElement>(`.lmn-row--top10 [data-catalog-key="${key}"]`);
+      root.querySelector<HTMLElement>(
+        `.lmn-row--top10 [data-catalog-key="${key}"], .lmn-row--trakt [data-catalog-key="${key}"]`,
+      );
     window.setTimeout(() => {
       if (!document.activeElement || document.activeElement === document.body)
         back?.focus({ preventScroll: true });
@@ -155,6 +159,13 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
             onSelectCatalog={(item) => ctx.navigate(catalogHash(item))}
             canRequest={canRequest}
             onRequest={setRequesting}
+            // With a Trakt key, a Top 10 row's title opens its Top chart (This week, where the row comes from); not
+            // while the row is Seerr's trending list instead, Trakt having none to give yet.
+            seeAll={
+              ctx.config.Charts && isTop10Row(row) && row.Source !== 'Seerr'
+                ? chartsHash(row.Type === 'Top10Shows' ? 'shows' : 'movies')
+                : undefined
+            }
           />
         </ErrorBoundary>
       ))}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseRoute } from './routes';
+import { chartsHash, parseRoute } from './routes';
 
 describe('parseRoute', () => {
   it.each([
@@ -82,6 +82,8 @@ describe('parseRoute', () => {
     ['#/mypreferencesmenu', { kind: 'profile' }],
     ['#/home?lumen=history', { kind: 'history' }],
     ['#/home?lumen=requests', { kind: 'requests' }],
+    ['#/home?lumen=charts', { kind: 'charts' }],
+    ['#/home?lumen=charts&chart=shows&period=monthly', { kind: 'charts' }],
     ['#/home?lumen=nope', { kind: 'home' }],
     ['#/mypreferencesdisplay?userId=x', { kind: 'settings', page: 'display' }],
     ['#/userprofile?userId=x', { kind: 'settings', page: 'profile' }],
@@ -117,5 +119,12 @@ describe('parseRoute', () => {
     ['', { kind: 'other' }],
   ])('%s', (hash, expected) => {
     expect(parseRoute(hash)).toEqual(expected);
+  });
+});
+
+describe('chartsHash', () => {
+  it('opens Top charts on a chart and period, This week by default', () => {
+    expect(chartsHash('shows')).toBe('#/home?lumen=charts&chart=shows&period=weekly');
+    expect(parseRoute(chartsHash('movies', 'yearly'))).toEqual({ kind: 'charts' });
   });
 });

@@ -24,6 +24,48 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* A Top 10 row's title opens Top charts: the title, then a dim "See all ›" pill that lights up with the link. Focus fills
+   the pill: an outline would be clipped by the title's overflow (kept for its ellipsis). */
+.lmn-row__link {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+}
+.lmn-row__see-all {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  /* Not flex gap: Chromium 68 and Safari 13 don't have it. */
+  margin-left: 8px;
+  padding: 3px 6px 3px 10px;
+  border-radius: 999px;
+  color: var(--lmn-text-dim);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.3;
+  transition:
+    color 0.2s,
+    background-color 0.2s;
+}
+.lmn-row__see-all > svg {
+  margin-left: 2px;
+  transition: transform 0.2s;
+}
+.lmn-row__link:hover .lmn-row__see-all {
+  color: var(--lmn-accent);
+}
+.lmn-row__link:hover .lmn-row__see-all > svg {
+  transform: translateX(2px);
+}
+.lmn-row__link:focus-visible .lmn-row__see-all,
+.layout-tv .lmn-row__link:focus .lmn-row__see-all {
+  background: var(--lmn-accent);
+  color: #fff;
+}
 .lmn-row__viewport {
   position: relative;
 }

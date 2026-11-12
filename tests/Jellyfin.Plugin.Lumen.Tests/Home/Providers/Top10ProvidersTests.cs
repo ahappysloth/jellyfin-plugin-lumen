@@ -4,7 +4,7 @@ using Jellyfin.Plugin.Lumen.Configuration;
 using Jellyfin.Plugin.Lumen.Home;
 using Jellyfin.Plugin.Lumen.Home.Providers;
 using Jellyfin.Plugin.Lumen.Requests;
-using Jellyfin.Plugin.Lumen.Top10;
+using Jellyfin.Plugin.Lumen.Trakt;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
@@ -21,7 +21,7 @@ public class Top10ProvidersTests
     private const int SeerrUserId = 7;
     private static readonly SeerrEndpoint Endpoint = new(new Uri("http://seerr:5055/"), "k");
 
-    private readonly ITop10Lists _lists = Substitute.For<ITop10Lists>();
+    private readonly ITraktLists _lists = Substitute.For<ITraktLists>();
     private readonly ISeerrUserMap _users = Substitute.For<ISeerrUserMap>();
     private readonly ISeerrClient _seerr = Substitute.For<ISeerrClient>();
     private readonly ILibraryManager _library = Substitute.For<ILibraryManager>();
@@ -76,6 +76,7 @@ public class Top10ProvidersTests
 
         Assert.Equal("Top 10 Movies This Week", row.Title);
         Assert.Equal(SectionTypes.Top10Movies, row.Type);
+        Assert.Null(row.Source);
         Assert.Same(inception, row.Entries![0].Item);
         Assert.Equal(("movie-500", "Seerr 500", "p.jpg"), (row.Entries[1].Catalog!.Key, row.Entries[1].Catalog!.Title, row.Entries[1].Catalog!.Poster));
         Assert.Same(byImdb, row.Entries[2].Item);
@@ -215,6 +216,9 @@ public class Top10ProvidersTests
         var row = Assert.Single(await Rows(SectionTypes.Top10Movies));
 
         Assert.Equal(["movie-1", "movie-4", "movie-5"], row.Entries!.Select(e => e.Catalog!.Key));
+
+        // Marked as Seerr's, so the client doesn't offer Trakt's Top chart for it.
+        Assert.Equal(HomeRow.SeerrSource, row.Source);
         await _seerr.DidNotReceive().DiscoverPageAsync(Arg.Any<SeerrEndpoint>(), Arg.Any<int>(), Arg.Any<SeerrDiscoverList>(), 3, Arg.Any<CancellationToken>());
         Assert.Empty(_queries);
     }
@@ -285,7 +289,8 @@ public class Top10ProvidersTests
     private static SeerrMedia Media(string type, int id) => new() { MediaType = type, Id = id, Title = "T" + id, Name = "T" + id };
 
     private void Trakt(TraktListKind kind, params TraktTitle[] titles) =>
-        _lists.GetAsync(kind, Arg.Any<CancellationToken>()).Returns(titles);
+        _lists.GetAsync(TraktQuery.Watched(kind, TraktPeriod.Weekly), Arg.Any<CancellationToken>())
+            .Returns(new TraktList(titles.Select(t => t with { Kind = kind }).ToList()));
 
     private Task<IReadOnlyList<HomeRow>> Rows(string type) =>
         Provider(type).GetRowsAsync(TestData.Context(_user), TestData.Section(type), CancellationToken.None);
@@ -294,8 +299,9 @@ public class Top10ProvidersTests
     {
         var mapper = new CatalogMapper(_library);
         var access = new CatalogRowAccess(_users);
+        var cards = new TraktCards(_seerr, mapper, _library, TimeProvider.System, NullLogger<TraktCards>.Instance);
         return type == SectionTypes.Top10Movies
-            ? new Top10MoviesProvider(_lists, access, _seerr, mapper, _library, TimeProvider.System, NullLogger<Top10MoviesProvider>.Instance)
-            : new Top10ShowsProvider(_lists, access, _seerr, mapper, _library, TimeProvider.System, NullLogger<Top10ShowsProvider>.Instance);
+            ? new Top10MoviesProvider(_lists, access, cards, _seerr, mapper, TimeProvider.System, NullLogger<Top10MoviesProvider>.Instance)
+            : new Top10ShowsProvider(_lists, access, cards, _seerr, mapper, TimeProvider.System, NullLogger<Top10ShowsProvider>.Instance);
     }
 }

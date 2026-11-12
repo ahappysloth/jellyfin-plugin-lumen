@@ -9,7 +9,7 @@ const POPUP = '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdia
 
 /**
  * TV layout: D-pad users need a focused element, pointer users don't. Focus goes to the previously selected item
- * if present, else the view's primary action (.lmn-autofocus), else its first button or card. jellyfin-web's own focus
+ * (a library card by item id, or a catalog card by key) if present, else the view's primary action (.lmn-autofocus), else its first button or card. jellyfin-web's own focus
  * manager then handles the arrow keys inside #lmn-root.
  *
  * Other layouts: only a restored selection (Back to a page) is focused, without scrolling (the view has scrolled back
@@ -33,8 +33,11 @@ export function useAutoFocus(
     standIn.current = null;
     const root = ref.current;
     if (!ready || !root) return;
+    // A library card by its item id, or a catalog card (Seerr's, not on the server) by its key ("movie-603").
     const card =
-      preferredItemId && SAFE_ID.test(preferredItemId) ? `[data-item-id="${preferredItemId}"]` : null;
+      preferredItemId && SAFE_ID.test(preferredItemId)
+        ? `[data-item-id="${preferredItemId}"], [data-catalog-key="${preferredItemId}"]`
+        : null;
     // Row ids aren't selector-safe ("<guid>:0"): compared, not put in a selector.
     const row = [...root.querySelectorAll('[data-row-id]')].find(
       (r) => r.getAttribute('data-row-id') === preferredRowId,

@@ -1,6 +1,6 @@
 using System.Net;
 using Jellyfin.Plugin.Lumen.Requests;
-using Jellyfin.Plugin.Lumen.Top10;
+using Jellyfin.Plugin.Lumen.Trakt;
 using MediaBrowser.Controller;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -101,7 +101,7 @@ public sealed class SeerrClientSafetyTests : IDisposable
         await using var provider = services.BuildServiceProvider();
         var client = new TraktClient(provider.GetRequiredService<IHttpClientFactory>()) { BaseUrl = new Uri(trakt.Urls.First() + "/") };
 
-        var error = await Assert.ThrowsAsync<TraktException>(() => client.GetWeeklyWatchedAsync("secret-client-id", TraktListKind.Movies, 10, CancellationToken.None));
+        var error = await Assert.ThrowsAsync<TraktException>(() => client.GetTitlesAsync("secret-client-id", TraktQuery.Watched(TraktListKind.Movies, TraktPeriod.Weekly), CancellationToken.None));
 
         Assert.Equal(HttpStatusCode.Redirect, error.Status);
         Assert.Equal(0, elsewhereHits);

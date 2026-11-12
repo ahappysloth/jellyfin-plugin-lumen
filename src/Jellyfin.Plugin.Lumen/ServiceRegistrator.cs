@@ -7,7 +7,7 @@ using Jellyfin.Plugin.Lumen.Home.Providers;
 using Jellyfin.Plugin.Lumen.Injection;
 using Jellyfin.Plugin.Lumen.Requests;
 using Jellyfin.Plugin.Lumen.Storage;
-using Jellyfin.Plugin.Lumen.Top10;
+using Jellyfin.Plugin.Lumen.Trakt;
 using Jellyfin.Plugin.Lumen.Updates;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
@@ -69,7 +69,9 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddHttpClient(TraktClient.HttpClientName, client => client.DefaultRequestHeaders.UserAgent.Add(UserAgent))
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false });
         serviceCollection.AddSingleton<ITraktClient, TraktClient>();
-        serviceCollection.AddSingleton<ITop10Lists, Top10Lists>();
+        serviceCollection.AddSingleton<ITraktLists, TraktLists>();
+        serviceCollection.AddSingleton<TraktCards>();
+        serviceCollection.AddSingleton<ChartService>();
 
         serviceCollection.AddSingleton<IHomeSectionProvider, ContinueWatchingProvider>();
         serviceCollection.AddSingleton<IHomeSectionProvider, NextUpProvider>();
@@ -86,5 +88,11 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IHomeSectionProvider, MyRequestsProvider>();
         serviceCollection.AddSingleton<IHomeSectionProvider, Top10MoviesProvider>();
         serviceCollection.AddSingleton<IHomeSectionProvider, Top10ShowsProvider>();
+        serviceCollection.AddSingleton<IHomeSectionProvider, TraktBoxOfficeProvider>();
+        serviceCollection.AddSingleton<IHomeSectionProvider, TraktAnticipatedMoviesProvider>();
+        serviceCollection.AddSingleton<IHomeSectionProvider, TraktAnticipatedShowsProvider>();
+        serviceCollection.AddSingleton<IHomeSectionProvider, TraktTrendingMoviesProvider>();
+        serviceCollection.AddSingleton<IHomeSectionProvider, TraktTrendingShowsProvider>();
+        serviceCollection.AddSingleton<IHomeSectionProvider, TraktListProvider>();
     }
 }

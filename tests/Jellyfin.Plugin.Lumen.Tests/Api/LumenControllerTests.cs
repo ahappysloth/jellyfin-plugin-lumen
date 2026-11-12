@@ -201,6 +201,21 @@ public class LumenControllerTests
         Assert.Equal(expected, Create().GetClientConfig().Value!.Requests);
     }
 
+    [Theory]
+    [InlineData(true, "0123456789abcdef", true)]
+    [InlineData(true, null, false)]
+    [InlineData(true, " ", false)]
+    [InlineData(false, "0123456789abcdef", false)]
+    public void ClientConfig_SaysWhetherThereAreCharts_WithoutTheTraktKey(bool enabled, string? key, bool expected)
+    {
+        _config.Current.Returns(new PluginConfiguration { Enabled = enabled, TraktClientId = key });
+
+        var dto = Create().GetClientConfig().Value!;
+
+        Assert.Equal(expected, dto.Charts);
+        Assert.DoesNotContain("0123456789abcdef", System.Text.Json.JsonSerializer.Serialize(dto), StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Diagnostics_AreRecorded()
     {

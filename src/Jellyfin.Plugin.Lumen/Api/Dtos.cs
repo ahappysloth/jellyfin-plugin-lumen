@@ -36,6 +36,12 @@ public sealed class ClientConfigDto
     /// </summary>
     public bool Requests { get; init; }
 
+    /// <summary>
+    /// A Trakt key is saved: the Top charts page exists, and the Top 10 rows link to it. The key itself never leaves the
+    /// server.
+    /// </summary>
+    public bool Charts { get; init; }
+
     public string BuildHash { get; init; } = string.Empty;
 
     public static ClientConfigDto From(PluginConfiguration config, string buildHash) => new()
@@ -52,6 +58,7 @@ public sealed class ClientConfigDto
         TrailerDelaySeconds = config.TrailerDelaySeconds,
         HeroWaitForTrailer = config.HeroWaitForTrailer,
         Requests = config.Enabled && Jellyfin.Plugin.Lumen.Requests.SeerrEndpoint.From(config) is not null,
+        Charts = config.Enabled && !string.IsNullOrWhiteSpace(config.TraktClientId),
         BuildHash = buildHash,
     };
 }
@@ -78,6 +85,9 @@ public sealed record HeroItemDto(BaseItemDto Item, Guid? TrailerItemId);
 public sealed record HomeRowDto(string Id, string Type, string Title, IReadOnlyList<BaseItemDto> Items)
 {
     public IReadOnlyList<HomeRowEntryDto>? Entries { get; init; }
+
+    /// <summary>Gets <see cref="Home.HomeRow.Source"/>: "Seerr" for a Top 10 row showing Seerr's trending list instead of Trakt's.</summary>
+    public string? Source { get; init; }
 }
 
 /// <summary>One card of a catalog row: exactly one of <c>Item</c> (a title in the library) or <c>Catalog</c> is set.</summary>

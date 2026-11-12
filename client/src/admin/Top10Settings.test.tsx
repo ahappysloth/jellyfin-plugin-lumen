@@ -21,8 +21,19 @@ describe('Top10Settings', () => {
 
     const field = screen.getByLabelText('Trakt API key');
     expect(field).toHaveAccessibleDescription(
-      /trakt\.tv\/oauth\/applications.*only uses it to fetch the weekly/,
+      /trakt\.tv\/oauth\/applications.*only uses it to read Trakt's public charts and lists.*never reaches anyone's browser/,
     );
+    // The card is Trakt's: everything the key powers is named.
+    const card = screen.getByRole('group', { name: 'Trakt' });
+    for (const feature of [
+      'Top charts',
+      'Top 10',
+      'Box Office',
+      'Most Anticipated',
+      'Trending',
+      'Trakt list',
+    ])
+      expect(card).toHaveTextContent(feature);
     expect(field).toHaveAttribute('placeholder', 'Paste the Client ID');
     // Nothing to check, and nothing to remove, without a key.
     expect(screen.getByRole('button', { name: 'Check key' })).toBeDisabled();

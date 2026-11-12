@@ -1,12 +1,12 @@
 using Jellyfin.Plugin.Lumen.Configuration;
-using Jellyfin.Plugin.Lumen.Top10;
+using Jellyfin.Plugin.Lumen.Trakt;
 using MediaBrowser.Common.Api;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Jellyfin.Plugin.Lumen.Api;
 
-/// <summary>Admin-only: checks a Trakt key for the Top 10 rows (the dashboard's Check key button).</summary>
+/// <summary>Admin-only: checks a Trakt key for the Trakt rows and Top charts (the dashboard's Check key button).</summary>
 [ApiController]
 [Route("Lumen/Admin/Trakt")]
 [Authorize(Policy = Policies.RequiresElevation)]
@@ -39,7 +39,7 @@ public sealed class TraktAdminController : ControllerBase
 
         try
         {
-            var titles = await _trakt.GetWeeklyWatchedAsync(key, TraktListKind.Movies, 1, cancellationToken).ConfigureAwait(false);
+            var titles = await _trakt.GetTitlesAsync(key, TraktQuery.Watched(TraktListKind.Movies, TraktPeriod.Weekly) with { Limit = 1 }, cancellationToken).ConfigureAwait(false);
             return new TraktTestResultDto(true, titles.Count > 0 ? titles[0].Title : null, null);
         }
         catch (TraktException e)

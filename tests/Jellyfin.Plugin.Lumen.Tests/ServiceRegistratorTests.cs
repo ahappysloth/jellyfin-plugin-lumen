@@ -46,7 +46,8 @@ public class ServiceRegistratorTests
         Assert.NotNull(provider.GetRequiredService<ISeerrUserMap>());
         Assert.NotNull(provider.GetRequiredService<ITmdbImageCache>());
         Assert.NotNull(provider.GetRequiredService<CatalogMapper>());
-        Assert.NotNull(provider.GetRequiredService<Jellyfin.Plugin.Lumen.Top10.ITop10Lists>());
+        Assert.NotNull(provider.GetRequiredService<Jellyfin.Plugin.Lumen.Trakt.ITraktLists>());
+        Assert.NotNull(provider.GetRequiredService<ChartService>());
         Assert.NotNull(provider.GetRequiredService<WebStaticFiles>());
         Assert.NotNull(provider.GetRequiredService<StorageReportService>());
         Assert.Contains(provider.GetServices<IStartupFilter>(), f => f is LumenStartupFilter);
@@ -55,7 +56,8 @@ public class ServiceRegistratorTests
                 SectionTypes.BecauseYouWatched, SectionTypes.CatalogPopularMovies, SectionTypes.CatalogPopularShows, SectionTypes.CatalogTrending,
                 SectionTypes.CatalogUpcoming, SectionTypes.ContinueWatching, SectionTypes.Curated, SectionTypes.Genre, SectionTypes.Genres,
                 SectionTypes.MyRequests, SectionTypes.NewForYou, SectionTypes.NextUp, SectionTypes.RecentlyAdded, SectionTypes.Top10Movies,
-                SectionTypes.Top10Shows,
+                SectionTypes.Top10Shows, SectionTypes.TraktAnticipatedMovies, SectionTypes.TraktAnticipatedShows, SectionTypes.TraktBoxOffice,
+                SectionTypes.TraktList, SectionTypes.TraktTrendingMovies, SectionTypes.TraktTrendingShows,
             ],
             provider.GetServices<IHomeSectionProvider>().Select(p => p.Type).Order(StringComparer.Ordinal));
 

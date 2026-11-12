@@ -129,11 +129,30 @@ export interface HomeRow {
    * titles the server doesn't have (Catalog). Their Items is empty; other rows leave this out.
    */
   Entries?: HomeRowEntry[] | null;
+  /**
+   * Where the row's titles came from when that isn't what its type says: "Seerr" for a Top 10 row showing Seerr's
+   * trending list because Trakt has none to give yet (it has no Top chart to "See all" of).
+   */
+  Source?: string | null;
 }
 
 export interface HomeRowEntry {
   Item?: BaseItem | null;
   Catalog?: CatalogItem | null;
+}
+
+/** A Top charts title: its true Trakt rank (gaps where a title can't be shown) and its card. */
+export interface ChartEntry {
+  Rank: number;
+  Item?: BaseItem | null;
+  Catalog?: CatalogItem | null;
+}
+
+/** A page of a chart (GET /Lumen/Charts/{type}/{period}); TotalCount is how many titles it has for this user. */
+export interface ChartPage {
+  Entries: ChartEntry[];
+  TotalCount: number;
+  StartIndex: number;
 }
 
 export interface HeroItem {
@@ -167,6 +186,8 @@ export interface ClientConfig {
   HeroWaitForTrailer: boolean;
   /** Seerr is set up (whether this user has request features is GET /Lumen/Requests/Status's to say). */
   Requests?: boolean;
+  /** A Trakt key is saved: the Top charts page exists and the Top 10 rows link to it (the key stays on the server). */
+  Charts?: boolean;
   BuildHash: string;
 }
 
