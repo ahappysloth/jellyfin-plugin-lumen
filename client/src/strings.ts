@@ -121,6 +121,7 @@ export const strings = {
   noStudios: 'No studios yet.',
   noEpisodes: 'No episodes yet.',
   watchTogether: 'Watch together',
+  watchTogetherFailed: "Couldn't open Watch together. Try again.",
   syncPlay: 'SyncPlay',
   inGroup: (name: string) => `In ${name}`,
   titleCount: (n: number) => (n === 1 ? '1 title' : `${formatNumber(n)} titles`),

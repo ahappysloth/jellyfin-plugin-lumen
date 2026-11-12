@@ -1,7 +1,9 @@
 import type { ComponentChildren, JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
+import { showToast } from '../../components/Toast';
 import { strings } from '../../strings';
 import { loadStyles } from '../../util/loadStyles';
+import { reloadPage } from '../../util/reloadPage';
 import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import { liftVeil } from '../../veil/veil';
 import type { ViewContext } from '../context';
@@ -18,7 +20,7 @@ let loaded: SecondaryModule | null = null;
  * together menu are one file (./SecondaryViews.ts) with its own stylesheet, loaded the first time one is needed and
  * fetched anyway once the first page is up (prefetchSecondary), so opening one from Lumen doesn't wait. A failed load is
  * asked for again next time, though a browser may remember the failure until the page reloads (as it will for a page
- * left open across a Lumen update, whose old file is gone).
+ * left open across a Lumen update, whose old file is gone): so a Try again that fails too reloads the page.
  */
 export function loadSecondary(): Promise<SecondaryModule> {
   loading ??= Promise.all([import('./SecondaryViews'), loadStyles('lumen-secondary.css')]).then(
@@ -34,7 +36,7 @@ export function loadSecondary(): Promise<SecondaryModule> {
 let prefetched = false;
 
 /**
- * Fetches the file once the browser is idle (App calls it as the first page shows), so a click on Search or a person
+ * Fetches the file once the browser is idle (App calls it as the first page mounts), so a click on Search or a person
  * finds it there. A failed fetch is left for the click to retry.
  */
 export function prefetchSecondary(): void {
@@ -46,7 +48,7 @@ export function prefetchSecondary(): void {
   else setTimeout(load, 1000);
 }
 
-/** The Watch together menu (see ./SecondaryViews.ts); nothing opens if its file can't load. */
+/** The Watch together menu (see ./SecondaryViews.ts); a toast says so if its file can't load. */
 export function openWatchTogether(
   ctx: ViewContext,
   state: SyncPlayState,
@@ -55,7 +57,7 @@ export function openWatchTogether(
 ): Promise<void> {
   return loadSecondary().then(
     (module) => module.openWatchTogether(ctx, state, from, returnFocus),
-    () => undefined,
+    () => showToast(strings.watchTogetherFailed),
   );
 }
 
@@ -63,7 +65,7 @@ export function openWatchTogether(
  * One of the file's pages: `view` once the file is in. Until then `pending` (the empty page the view shows while its data
  * loads), under the loading veil on a cold load; `liftOnLoad` lifts the veil as the file arrives, for a page that draws
  * its header at once (the others lift it themselves, as before). If the file can't load, `failed` (by default Lumen's
- * error page), whose Try again asks for it again.
+ * error page), whose Try again asks for it again, and reloads the page if that fails too.
  */
 export function LazySecondary({
   ctx,
@@ -96,6 +98,8 @@ export function LazySecondary({
       (m) => !cancelled && setModule(m),
       () => {
         if (cancelled) return;
+        // A Try again that failed too: the browser may be holding on to the first failure (see loadSecondary).
+        if (attempt) return reloadPage();
         setFailedLoad(true);
         setRetrying(false);
         liftVeil();

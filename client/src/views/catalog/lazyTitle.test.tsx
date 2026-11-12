@@ -64,6 +64,20 @@ describe('LazyTitleView', () => {
     expect(await screen.findByTestId('title')).toHaveTextContent('tv-1399');
   });
 
+  it('reloads the page if Try again fails too (a browser may keep the first failure until then)', async () => {
+    const reloadPage = vi.fn();
+    vi.doMock('../../util/reloadPage', () => ({ reloadPage }));
+    vi.doMock('./TitleView', failingImport);
+    const fresh = await freshModule();
+    render(<fresh.LazyTitleView mediaType="tv" tmdbId={1399} ctx={makeContext(createFakeClient())} />);
+    await screen.findByRole('alert');
+    expect(reloadPage).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await vi.waitFor(() => expect(reloadPage).toHaveBeenCalledTimes(1));
+    vi.doUnmock('../../util/reloadPage');
+  });
+
   it('shows the error if the code takes too long', async () => {
     vi.doMock('./TitleView', () => new Promise(() => undefined)); // a download that never finishes
     const fresh = await freshModule();

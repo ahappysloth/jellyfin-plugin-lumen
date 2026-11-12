@@ -92,7 +92,8 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
   useEffect(() => {
     if (route.kind === 'library' || route.kind === 'favorites' || route.kind === 'notFound') liftVeil();
   }, [route.kind]);
-  // The pages most visits never open come in a file of their own: fetch it once this one is up, so they open at once.
+  // The pages most visits never open come in a file of their own: fetch it as soon as the browser is idle, so they open
+  // at once. That's alongside this page's own requests, not after them; measured, it doesn't slow this page.
   useEffect(prefetchSecondary, []);
   // Lumen's own pages are the document's main content (jellyfin-web's, empty, is hidden: base.css). The player and
   // settings pages frame jellyfin-web's, which keep its main and its title.
