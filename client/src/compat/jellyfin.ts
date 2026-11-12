@@ -408,5 +408,7 @@ export const SETTINGS_HASHES = {
   subtitles: settingsHash(SETTINGS_ROUTES.subtitles),
   controls: settingsHash(SETTINGS_ROUTES.controls),
   dashboard: () => `#${STOCK_ROUTES.dashboard}`,
+  /** Lumen's own settings page (its plugin configuration page), without going through Dashboard → Plugins. */
+  lumen: () => `#${STOCK_ROUTES.configurationPage}?name=Lumen`,
   metadata: () => `#${STOCK_ROUTES.metadata}`,
 } as const;

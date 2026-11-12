@@ -41,6 +41,7 @@ const PREFERENCES: readonly Entry[] = [
 ];
 const ADMIN: readonly Entry[] = [
   { key: 'dashboard', icon: 'shield' },
+  { key: 'lumen', icon: 'sliders' },
   { key: 'metadata', icon: 'edit' },
 ];
 

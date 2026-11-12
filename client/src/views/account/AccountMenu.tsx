@@ -110,6 +110,12 @@ export function accountItems(
           href: SETTINGS_HASHES.dashboard(),
         },
         {
+          key: 'lumen',
+          label: strings.settings.lumen[0],
+          icon: 'sliders',
+          href: SETTINGS_HASHES.lumen(),
+        },
+        {
           key: 'metadata',
           label: strings.settings.metadata[0],
           icon: 'edit',

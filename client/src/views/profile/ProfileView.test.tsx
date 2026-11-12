@@ -38,6 +38,10 @@ describe('ProfileView', () => {
     await waitFor(() =>
       expect(screen.getByRole('link', { name: /Dashboard/ })).toHaveAttribute('href', '#/dashboard'),
     );
+    expect(screen.getByRole('link', { name: /Lumen settings/ })).toHaveAttribute(
+      'href',
+      '#/configurationpage?name=Lumen',
+    );
     expect(screen.getByText('Administrator')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
   });
@@ -54,6 +58,7 @@ describe('ProfileView', () => {
       expect(screen.getByText('Administrator')).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /Playback/ })).toBeInTheDocument();
       expect(screen.queryByRole('link', { name: /Dashboard/ })).toBeNull();
+      expect(screen.queryByRole('link', { name: /Lumen settings/ })).toBeNull();
       expect(screen.queryByRole('link', { name: /Metadata manager/ })).toBeNull();
       expect(screen.queryByText('Administration')).toBeNull();
     } finally {

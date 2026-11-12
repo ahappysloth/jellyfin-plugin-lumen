@@ -162,6 +162,7 @@ export const strings = {
     subtitles: ['Subtitles', 'Language, style and size'],
     controls: ['Controls', 'Remote and keyboard'],
     dashboard: ['Dashboard', 'Server, users, libraries and plugins'],
+    lumen: ['Lumen settings', 'Home sections, banner, requests and storage'],
     metadata: ['Metadata manager', 'Edit titles, artwork and details'],
   },
   request: 'Request',
