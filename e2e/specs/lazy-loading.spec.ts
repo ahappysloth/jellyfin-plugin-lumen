@@ -8,6 +8,11 @@ import { login } from '../support/login';
  * inline guard links where they're used (veil/skinCss.ts).
  */
 const SECONDARY = /lumen-chunk-SecondaryViews-.*\.js$/;
+/**
+ * Playwright's WebKit serves a file it has seen from its cache without asking page.route, even one the route failed,
+ * so it can't hold the file back or fail it.
+ */
+const CACHE_PAST_ROUTE = "Playwright's WebKit serves the file from its cache past page.route";
 
 async function personId(name: string): Promise<string> {
   const { admin } = loadState();
@@ -33,14 +38,16 @@ async function cssBlocking(page: Page): Promise<Record<string, string>> {
   );
 }
 
-test('a cold load on Search keeps the veil up until its file is in, then shows the page', async ({ page }) => {
-  await login(page, ADMIN);
+test('a cold load on Search keeps the veil up until its file is in, then shows the page', { tag: '@smoke' }, async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', CACHE_PAST_ROUTE);
+  // Held from the start, the first page's prefetch too: a browser may serve the file from its cache otherwise.
   let release!: () => void;
   const held = new Promise<void>((resolve) => (release = resolve));
   await page.route(SECONDARY, async (route) => {
     await held;
     await route.continue();
   });
+  await login(page, ADMIN);
   await page.goto('about:blank');
   await page.goto('/web/#/search');
 
@@ -55,11 +62,13 @@ test('a cold load on Search keeps the veil up until its file is in, then shows t
   await expect(page.locator('#lmn-veil')).toHaveCount(0);
 });
 
-test("a person page whose file can't load shows Lumen's error page, and Try again loads it", async ({ page }) => {
+test("a person page whose file can't load shows Lumen's error page, and Try again loads it", { tag: '@smoke' }, async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', CACHE_PAST_ROUTE);
   const id = await personId('Ada Vance');
-  await login(page, ADMIN);
+  // Failing from the start, the first page's prefetch too: a browser may serve the file from its cache otherwise.
   let fail = true;
   await page.route(SECONDARY, (route) => (fail ? route.abort() : route.continue()));
+  await login(page, ADMIN);
   await page.goto('about:blank');
   await page.goto(`/web/#/details?id=${id}`);
 
@@ -95,11 +104,11 @@ test("Lumen's pages fetch the file once the first page is up, so Search opens wi
 test('TV layout: a cold load on a person page focuses its first title once its file is in', async ({ page }) => {
   const id = await personId('Ada Vance');
   await page.addInitScript(() => localStorage.setItem('layout', 'tv'));
-  await login(page, ADMIN);
   await page.route(SECONDARY, async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     await route.continue();
   });
+  await login(page, ADMIN);
   await page.goto('about:blank');
   await page.goto(`/web/#/details?id=${id}`);
 
@@ -144,7 +153,7 @@ test('the sign-in, settings and admin pages wait for their stylesheets before th
   }
 });
 
-test('an admin page reached from Lumen is never shown without its stylesheet', async ({ page }) => {
+test('an admin page reached from Lumen is never shown without its stylesheet', async ({ page, isMobile }) => {
   await login(page, ADMIN);
   await expect(page.locator('#lmn-root .lmn-row').first()).toBeVisible();
   // A slow stylesheet: the page stays hidden (lmn-skin-wait) until it's in, rather than show unstyled.
@@ -156,6 +165,7 @@ test('an admin page reached from Lumen is never shown without its stylesheet', a
   await expect(page.locator('html')).toHaveClass(/\blmn-skin-wait\b/);
   await expect(page.locator('body')).toHaveCSS('visibility', 'hidden');
   await expect(page.locator('html')).not.toHaveClass(/\blmn-skin-wait\b/, { timeout: 10_000 });
-  await expect(page.locator('.MuiDrawer-paper').first()).toBeVisible();
+  // On phones the drawer is closed until its menu button opens it.
+  await expect(page.locator(isMobile ? '.MuiAppBar-root' : '.MuiDrawer-paper').first()).toBeVisible();
   await expect(page.locator('html')).toHaveClass(/\blmn-skin-dashboard\b/);
 });
