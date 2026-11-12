@@ -135,6 +135,34 @@ public class ChartServiceTests
     }
 
     [Fact]
+    public async Task TwoTitlesThatAreOneItem_ShowOnce_AtTheBetterRank()
+    {
+        // Title 2 is the item by its TMDB id, title 4 by its IMDb id; title 3 is another item, which Seerr says is here.
+        var both = TestData.Movie("Both");
+        both.SetProviderId(MetadataProvider.Tmdb, "2");
+        both.SetProviderId(MetadataProvider.Imdb, "tt0000004");
+        _owned = [both];
+        var hereId = Guid.NewGuid();
+        var here = TestData.Movie("Here");
+        _library.GetItemById<BaseItem>(hereId, _user).Returns(here);
+        _seerr.GetTitleSummaryAsync(Arg.Any<SeerrEndpoint>(), Arg.Any<int>(), "movie", Arg.Is<int>(id => id == 3 || id == 5), Arg.Any<CancellationToken>())
+            .Returns(c => new SeerrTitle { Id = c.ArgAt<int>(3), Title = "T", MediaInfo = new SeerrMediaInfo { Status = 5, JellyfinMediaId = hereId.ToString("N") } });
+        _lists.GetAsync(default!, default).ReturnsForAnyArgs(new TraktList(
+        [
+            new TraktTitle("T1", 2026, 1, null),
+            new TraktTitle("T2", 2026, 2, null),
+            new TraktTitle("T3", 2026, 3, null),
+            new TraktTitle("T4", 2026, 444, "tt0000004"),
+            new TraktTitle("T5", 2026, 5, null),
+        ]));
+
+        var page = (await Service().GetPageAsync(_user, TraktListKind.Movies, TraktPeriod.Weekly, 0, 24, CancellationToken.None))!;
+
+        Assert.Equal([(1, (BaseItem?)null), (2, both), (3, here)], page.Entries.Select(e => (e.Rank, e.Item)));
+        Assert.Equal(4, page.TotalCount);
+    }
+
+    [Fact]
     public async Task NoChart_WhenTraktHasNothingToGive()
     {
         _lists.GetAsync(default!, default).ReturnsForAnyArgs((TraktList?)null);

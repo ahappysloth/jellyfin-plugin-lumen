@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { makeContext, testConfig } from '../../../test/viewContext';
@@ -6,7 +6,7 @@ import type { AjaxRequest } from '../../compat/jellyfin';
 import type { CatalogItem, ChartEntry, ChartPage } from '../../api/types';
 import { resetSessionCaches } from '../../util/sessionCaches';
 import { chartFromHash } from './chartsRoute';
-import { CHART_PAGE, ChartsView } from './ChartsView';
+import { CHART_PAGE, CHART_STALE_AFTER, ChartsView } from './ChartsView';
 
 const catalog = (tmdbId: number, title: string, state: CatalogItem['State'] = 'None'): CatalogItem => ({
   Key: `movie-${tmdbId}`,
@@ -82,6 +82,7 @@ beforeEach(() => {
 afterEach(() => {
   resetSessionCaches();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
   observers.length = 0;
 });
 
@@ -145,11 +146,17 @@ describe('ChartsView', () => {
 
     fireEvent.click(within(type).getByRole('button', { name: 'Movies' }));
     const periods = screen.getByRole('group', { name: 'Period' });
+    // Short labels on a phone, where four chips share the width (browse.css); the full names are the buttons' names.
     expect(
       within(periods)
         .getAllByRole('button')
-        .map((b) => b.textContent),
-    ).toEqual(['This week', 'This month', 'This year', 'All time']);
+        .map((b) => [b.getAttribute('aria-label'), b.querySelector('.lmn-chip__short')?.textContent]),
+    ).toEqual([
+      ['This week', 'Week'],
+      ['This month', 'Month'],
+      ['This year', 'Year'],
+      ['All time', 'All time'],
+    ]);
     fireEvent.click(within(periods).getByRole('button', { name: 'This month' }));
     await screen.findByRole('list', { name: 'Top movies this month' });
     expect(window.location.hash).toBe('#/home?lumen=charts&chart=movies&period=monthly');
@@ -177,13 +184,68 @@ describe('ChartsView', () => {
     expect(month).toHaveFocus();
   });
 
-  it('back on a chart it has, while another is still loading, shows it ready', async () => {
-    let releaseShows: (p: ChartPage) => void = () => undefined;
-    const { ctx } = setup((request) =>
-      request.url.includes('/shows/')
-        ? (new Promise<ChartPage>((resolve) => (releaseShows = resolve)) as unknown as ChartPage)
-        : page([owned(1, 'Alpha')], 30),
+  it('TV: Back from a card focuses it, and it keeps focus through the re-renders that follow', async () => {
+    const { ctx } = setup(() =>
+      page([owned(1, 'Alpha'), owned(2, 'Beta'), { Rank: 3, Catalog: catalog(603, 'The Matrix') }]),
     );
+    const tv = { ...ctx, layout: 'tv' as const };
+    const first = render(<ChartsView ctx={tv} />);
+    fireEvent.click(await screen.findByRole('link', { name: '2, Beta' }));
+    expect(tv.navigate).toHaveBeenCalledWith(expect.stringContaining('id=i2'));
+    first.unmount();
+
+    // Back: the chart is drawn from this session's copy, with the card the user left focused.
+    render(<ChartsView ctx={tv} />);
+    const beta = screen.getByRole('link', { name: '2, Beta' });
+    await waitFor(() => expect(beta).toHaveFocus());
+    // The user's request rights come in after (a re-render): focus stays on the card, not the chart switch.
+    expect(await screen.findByRole('button', { name: 'Request The Matrix' })).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(beta).toHaveFocus();
+  });
+
+  it('Back: the page goes back where it was, even when jellyfin-web scrolls to the top as it shows its page', async () => {
+    const { ctx } = setup(() => page([owned(1, 'Alpha'), owned(2, 'Beta')]));
+    const first = render(<ChartsView ctx={ctx} />);
+    const scrollY = vi.spyOn(window, 'scrollY', 'get').mockReturnValue(900);
+    fireEvent.click(await screen.findByRole('link', { name: '2, Beta' }));
+    scrollY.mockRestore();
+    first.unmount();
+
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+    render(<ChartsView ctx={ctx} />);
+    expect(scrollTo).toHaveBeenCalledWith({ top: 900 });
+    scrollTo.mockClear();
+    // libraryMenu's viewshow: jellyfin-web scrolls to the top, then Lumen puts the page back.
+    document.dispatchEvent(new CustomEvent('viewshow'));
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({ top: 900 }));
+    scrollTo.mockRestore();
+  });
+
+  it('TV: Back from a catalog card focuses it too', async () => {
+    const { ctx } = setup(() => page([owned(1, 'Alpha'), { Rank: 2, Catalog: catalog(603, 'The Matrix') }]));
+    const tv = { ...ctx, layout: 'tv' as const };
+    const first = render(<ChartsView ctx={tv} />);
+    fireEvent.click(await screen.findByRole('button', { name: '2, The Matrix' }));
+    first.unmount();
+
+    render(<ChartsView ctx={tv} />);
+    // Named "…, Request" until the user's request rights are in (the Request button under it then says so instead).
+    const matrix = screen.getByRole('button', { name: /^2, The Matrix/ });
+    await waitFor(() => expect(matrix).toHaveFocus());
+    expect(await screen.findByRole('button', { name: 'Request The Matrix' })).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(matrix).toHaveFocus();
+  });
+
+  it('back on a chart it has, while another is still loading: the late one lands in its own chart, not this one', async () => {
+    let releaseShows: (p: ChartPage) => void = () => undefined;
+    let showsAsked = 0;
+    const { ctx } = setup((request) => {
+      if (!request.url.includes('/shows/')) return page([owned(1, 'Alpha')], 30);
+      showsAsked++;
+      return new Promise<ChartPage>((resolve) => (releaseShows = resolve)) as unknown as ChartPage;
+    });
     render(<ChartsView ctx={ctx} />);
     const movies = await screen.findByRole('list', { name: 'Top movies this week' });
     expect(movies).toHaveAttribute('aria-busy', 'false');
@@ -197,9 +259,83 @@ describe('ChartsView', () => {
     const again = await screen.findByRole('list', { name: 'Top movies this week' });
     expect(again).toHaveAttribute('aria-busy', 'false');
     expect(within(again).getByRole('link', { name: '1, Alpha' })).toBeInTheDocument();
-    // The shows chart landing late changes nothing here.
-    act(() => releaseShows(page([owned(1, 'Show')])));
-    expect(screen.getByRole('list', { name: 'Top movies this week' })).toHaveAttribute('aria-busy', 'false');
+
+    // The shows chart landing late changes nothing here…
+    await act(async () => {
+      releaseShows(page([owned(1, 'Show')]));
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    const still = screen.getByRole('list', { name: 'Top movies this week' });
+    expect(within(still).queryByRole('link', { name: '1, Show' })).toBeNull();
+    expect(within(still).getByRole('link', { name: '1, Alpha' })).toBeInTheDocument();
+    expect(still).toHaveAttribute('aria-busy', 'false');
+
+    // …but is kept for its own chart: back on Shows, it's there at once, without asking again.
+    fireEvent.click(screen.getByRole('button', { name: 'Shows' }));
+    expect(await screen.findByRole('link', { name: '1, Show' })).toBeInTheDocument();
+    expect(showsAsked).toBe(1);
+  });
+
+  it('a page still loading when the user switches chart and back is waited for, not asked for again', async () => {
+    const starts: number[] = [];
+    let releaseSecond: () => void = () => undefined;
+    const { ctx } = setup((request) => {
+      if (request.url.includes('/shows/')) return page([owned(1, 'Show')]);
+      const start = Number(new URL(request.url).searchParams.get('startIndex'));
+      starts.push(start);
+      const titles = (from: number, count: number) =>
+        Array.from({ length: count }, (_, i) => owned(from + i + 1, `T${from + i + 1}`));
+      if (start === 0) return page(titles(0, CHART_PAGE), 30, 0);
+      return new Promise<ChartPage>((resolve) => {
+        releaseSecond = () => resolve(page(titles(CHART_PAGE, 30 - CHART_PAGE), 30, CHART_PAGE));
+      }) as unknown as ChartPage;
+    });
+    render(<ChartsView ctx={ctx} />);
+    await screen.findByRole('list', { name: 'Top movies this week' });
+    await waitFor(() => expect(observers).toHaveLength(1));
+    act(scrollToEnd);
+    await waitFor(() => expect(starts).toEqual([0, CHART_PAGE]));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Shows' }));
+    await screen.findByRole('link', { name: '1, Show' });
+    fireEvent.click(screen.getByRole('button', { name: 'Movies' }));
+    const again = await screen.findByRole('list', { name: 'Top movies this week' });
+    // Still loading its second page: the grid says so, and reaching its end asks for nothing more.
+    expect(again).toHaveAttribute('aria-busy', 'true');
+    act(scrollToEnd);
+    expect(starts).toEqual([0, CHART_PAGE]);
+
+    await act(async () => {
+      releaseSecond();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    await waitFor(() => expect(within(again).getAllByRole('listitem')).toHaveLength(30));
+    expect(again).toHaveAttribute('aria-busy', 'false');
+    expect(starts).toEqual([0, CHART_PAGE]);
+  });
+
+  it('fetches a chart again on a later visit once its copy is half an hour old', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-12T10:00:00Z'));
+    let asked = 0;
+    const { ctx } = setup(() => {
+      asked++;
+      return page([owned(1, asked === 1 ? 'Old' : 'New')]);
+    });
+    render(<ChartsView ctx={ctx} />);
+    expect(await screen.findByRole('link', { name: '1, Old' })).toBeInTheDocument();
+    cleanup();
+
+    vi.setSystemTime(Date.now() + CHART_STALE_AFTER - 1000);
+    render(<ChartsView ctx={ctx} />);
+    expect(screen.getByRole('link', { name: '1, Old' })).toBeInTheDocument();
+    cleanup();
+    expect(asked).toBe(1);
+
+    vi.setSystemTime(Date.now() + 2000);
+    render(<ChartsView ctx={ctx} />);
+    expect(await screen.findByRole('link', { name: '1, New' })).toBeInTheDocument();
+    expect(asked).toBe(2);
   });
 
   it('opens on the chart and period in the URL', async () => {

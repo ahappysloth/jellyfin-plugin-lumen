@@ -126,7 +126,7 @@ public sealed class HomeService : IHomeService
         var hero = await heroTask;
 
         var rows = sections.SelectMany(r => r).Where(r => r.HasContent).ToList();
-        var rowDtos = rows.Select(r => new HomeRowDto(r.Id, r.Type, r.Title, MapRow(r, user)) { Entries = MapEntries(r, user) }).ToList();
+        var rowDtos = rows.Select(r => new HomeRowDto(r.Id, r.Type, r.Title, MapRow(r, user)) { Entries = MapEntries(r, user), Source = r.Source }).ToList();
         var heroDtos = hero.Select(h => new HeroItemDto(_mapper.MapHero(h.Item, user), h.TrailerItemId)).ToList();
 
         // Genre tiles are not titles, so they never get a badge.

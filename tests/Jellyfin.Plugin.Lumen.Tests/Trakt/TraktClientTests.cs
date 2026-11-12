@@ -247,7 +247,6 @@ public sealed class TraktClientTests : IDisposable
     [Theory]
     [InlineData(HttpStatusCode.NotFound)]
     [InlineData(HttpStatusCode.Unauthorized)]
-    [InlineData(HttpStatusCode.Forbidden)]
     public async Task APrivateOrMissingList_SaysSo(HttpStatusCode status)
     {
         Assert.True(TraktListRef.TryParse("https://trakt.tv/users/sean/lists/secret", out var list));
@@ -257,6 +256,23 @@ public sealed class TraktClientTests : IDisposable
 
         Assert.True(error.IsMissing);
         Assert.Contains("private or doesn't exist", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AUsersList_RefusedForTheKey_IsAKeyProblem_NotAMissingList()
+    {
+        // Trakt's 403: an invalid API key or an unapproved app. The list may well be there.
+        Assert.True(TraktListRef.TryParse("https://trakt.tv/users/sean/lists/best-of", out var list));
+        _http.Respond = _ => new HttpResponseMessage(HttpStatusCode.Forbidden);
+
+        var name = await Assert.ThrowsAsync<TraktException>(() => Client().GetListNameAsync(Key, list, CancellationToken.None));
+        var items = await Assert.ThrowsAsync<TraktException>(() => Client().GetTitlesAsync(Key, TraktQuery.ListItems(list), CancellationToken.None));
+
+        foreach (var error in new[] { name, items })
+        {
+            Assert.False(error.IsMissing);
+            Assert.Contains("rejected the API key", error.Message, StringComparison.Ordinal);
+        }
     }
 
     public void Dispose() => _http.Dispose();

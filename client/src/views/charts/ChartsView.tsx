@@ -25,16 +25,35 @@ interface Chart {
   total: number;
   /** Where the next page starts (the server pages by title, so a page Seerr couldn't fully describe is short). */
   next: number;
+  /** When its first page came (Date.now()): an older copy is fetched again on the next visit (CHART_STALE_AFTER). */
+  fetchedAt: number;
 }
+
+/**
+ * How long a chart loaded this session is shown again as it is. The server's copy is fresh for hours, but a TV left on
+ * Lumen for days would otherwise show last week's chart, and titles Seerr couldn't describe the first time (left out of
+ * their page) never come back.
+ */
+export const CHART_STALE_AFTER = 30 * 60 * 1000;
 
 /** Charts loaded this session, by user, chart and period, so Back from a title shows its chart at once. */
 const cache = new Map<string, Chart>();
+/**
+ * The charts with a page on its way, by the same key. Module-wide, not the view's: a page still loading when the user
+ * switches chart (or leaves the page) lands in its chart's copy, and coming back to that chart waits for it rather than
+ * asking for the same page again.
+ */
+const pending = new Set<string>();
+/** Which session a page was asked for in: one that lands after sign-out (clearCharts) is dropped. */
+let session = 0;
 /** The card last opened from a chart, and where the page was, for Back. */
 let selection: { key: string; card: string; scrollY: number } | null = null;
 
 /** Forgets the charts: the session ended (sign out, another user or server). */
 export function clearCharts(): void {
   cache.clear();
+  pending.clear();
+  session++;
   selection = null;
 }
 registerSessionCache(clearCharts);
@@ -53,12 +72,26 @@ export function ChartsView({ ctx }: { ctx: ViewContext }) {
   const [type, setType] = useState<ChartType>(initial.chart);
   const [span, setSpan] = useState<ChartPeriod>(initial.period);
   const key = `${ctx.userId}|${type}|${span}`;
+  // Back from a title: the card to focus and where the page was. Kept for the view's life, as useBrowseItems keeps
+  // restoredSelectedId: were it read from `selection` on each render, the first re-render after it's cleared (Seerr's
+  // request rights coming in, a page loading) would take the card away from useAutoFocus, which would then focus the
+  // chart switch and jump to the top.
+  const [restore] = useState(() => (selection?.key === key ? selection : null));
   const [data, setData] = useState<Chart | null>(() => cache.get(key) ?? null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  // Re-renders when a page lands or fails (`pending` is module-wide, so `loading` below is read from it).
+  const [, setPages] = useState(0);
   const latest = useRef(key);
   latest.current = key;
+  const mounted = useRef(true);
+  useEffect(
+    () => () => {
+      mounted.current = false;
+    },
+    [],
+  );
+  const loading = pending.has(key);
 
   // The chart and period in the URL, without a navigation (takeover/routes.ts chartsHash).
   useEffect(() => {
@@ -66,39 +99,59 @@ export function ChartsView({ ctx }: { ctx: ViewContext }) {
     if (window.location.hash !== hash) window.history.replaceState(window.history.state, '', hash);
   }, [type, span]);
 
-  const load = (from: Chart | null): void => {
+  /** Asks for the chart's next page (its first when there's no copy), unless one is already on its way. */
+  const load = (): void => {
     const forKey = key;
-    setLoading(true);
+    if (pending.has(forKey)) return;
+    const from = cache.get(forKey)?.next ?? 0;
+    const asked = session;
+    pending.add(forKey);
+    setPages((n) => n + 1);
     setError(false);
-    ctx.api.getChart(type, span, from?.next ?? 0, CHART_PAGE).then(
+    const done = (): void => {
+      pending.delete(forKey);
+      if (mounted.current) setPages((n) => n + 1);
+    };
+    ctx.api.getChart(type, span, from, CHART_PAGE).then(
       (page) => {
-        if (latest.current !== forKey) return;
-        const seen = new Set((from?.entries ?? []).map(entryKey));
-        const chartNow: Chart = {
-          entries: [...(from?.entries ?? []), ...page.Entries.filter((e) => !seen.has(entryKey(e)))],
+        if (asked !== session) return;
+        done();
+        // Into the chart's copy as it is now (another page may have landed meanwhile), whether or not it's showing.
+        const now = from === 0 ? null : (cache.get(forKey) ?? null);
+        const seen = new Set((now?.entries ?? []).map(entryKey));
+        const chart: Chart = {
+          entries: [...(now?.entries ?? []), ...page.Entries.filter((e) => !seen.has(entryKey(e)))],
           total: page.TotalCount,
-          next: page.StartIndex + CHART_PAGE,
+          next: Math.max(now?.next ?? 0, page.StartIndex + CHART_PAGE),
+          fetchedAt: now?.fetchedAt ?? Date.now(),
         };
-        cache.set(forKey, chartNow);
-        setData(chartNow);
-        setLoading(false);
+        cache.set(forKey, chart);
+        if (mounted.current && latest.current === forKey) setData(chart);
       },
       () => {
-        if (latest.current !== forKey) return;
-        setLoading(false);
-        setError(true);
+        if (asked !== session) return;
+        done();
+        if (mounted.current && latest.current === forKey) setError(true);
       },
     );
   };
 
-  // A new chart or period: the copy from this session if there is one, else its first page.
+  // A new chart or period: the copy from this session if there is one, else its first page. A copy older than
+  // CHART_STALE_AFTER is fetched again, unless the user is coming Back to it (to the card they left, where they were).
   useEffect(() => {
-    const cached = cache.get(key) ?? null;
+    let cached = cache.get(key) ?? null;
+    if (
+      cached &&
+      !pending.has(key) &&
+      restore?.key !== key &&
+      Date.now() - cached.fetchedAt > CHART_STALE_AFTER
+    ) {
+      cache.delete(key);
+      cached = null;
+    }
     setData(cached);
-    // A load still running for the chart the user left is ignored when it lands (latest), so it mustn't hold this one.
-    setLoading(false);
     setError(false);
-    if (!cached) load(null);
+    if (!cached) load();
   }, [key, attempt]);
 
   const hasMore = !!data && data.next < data.total;
@@ -106,7 +159,7 @@ export function ChartsView({ ctx }: { ctx: ViewContext }) {
   useEffect(() => {
     const el = sentinel.current;
     if (!el || !hasMore || loading || error || typeof IntersectionObserver === 'undefined') return;
-    const observer = new IntersectionObserver((seen) => seen.some((e) => e.isIntersecting) && load(data), {
+    const observer = new IntersectionObserver((seen) => seen.some((e) => e.isIntersecting) && load(), {
       rootMargin: '1200px 0px',
     });
     observer.observe(el);
@@ -129,22 +182,31 @@ export function ChartsView({ ctx }: { ctx: ViewContext }) {
   const [requesting, setRequesting] = useState<CatalogItem | null>(null);
 
   const rootRef = useRef<HTMLDivElement>(null);
-  const restore = selection?.key === key ? selection : null;
-  // TV: focus the card the user came back from, else the chart switch (the active Movies or Shows chip). Only as the
-  // page opens: switching chart or period leaves focus on the chip the user pressed.
+  // TV: focus the card the user came back from (a library or catalog card: useAutoFocus finds either), else the chart
+  // switch (the active Movies or Shows chip). Only as the page opens: switching chart or period leaves focus on the chip
+  // the user pressed.
   const opened = useRef(false);
   if (data) opened.current = true;
   useAutoFocus(rootRef, opened.current, ctx.layout, restore?.card);
   useLayoutEffect(() => {
-    if (data && restore) window.scrollTo({ top: restore.scrollY });
+    if (!data || restore?.key !== key) return undefined;
+    const top = restore.scrollY;
+    window.scrollTo({ top });
+    // On Back, jellyfin-web shows its own home page (under this one) again, and scrolls to the top as it does
+    // (libraryMenu's viewshow) — sometimes after this has run. Back where the user was, after it.
+    const again = (): void => {
+      window.setTimeout(() => window.scrollTo({ top }));
+    };
+    document.addEventListener('viewshow', again);
+    const stop = window.setTimeout(() => document.removeEventListener('viewshow', again), 2000);
+    return () => {
+      window.clearTimeout(stop);
+      document.removeEventListener('viewshow', again);
+    };
   }, [data !== null]);
-  // useAutoFocus finds library cards by item id; a catalog card (by its key) is focused here, after it.
   useEffect(() => {
-    if (!data || !restore) return;
-    selection = null;
-    const card = rootRef.current?.querySelector<HTMLElement>(`[data-catalog-key="${restore.card}"]`);
-    if (card) card.focus({ preventScroll: ctx.layout !== 'tv' });
-  }, [data !== null]);
+    if (selection === restore) selection = null;
+  }, []);
 
   const remember = (card: string): void => {
     selection = { key, card, scrollY: window.scrollY };
@@ -191,7 +253,11 @@ export function ChartsView({ ctx }: { ctx: ViewContext }) {
         <Segmented
           label={chartsStrings.period}
           value={span}
-          options={CHART_PERIODS.map((p) => ({ value: p, label: chartsStrings.periods[p] }))}
+          options={CHART_PERIODS.map((p) => ({
+            value: p,
+            label: chartsStrings.periods[p],
+            short: chartsStrings.periodsShort[p],
+          }))}
           onChange={setSpan}
         />
       </PageHeader>
@@ -253,7 +319,7 @@ export function ChartsView({ ctx }: { ctx: ViewContext }) {
       {error && (
         <LoadError
           onRetry={() => {
-            if (data) load(data);
+            if (data) load();
             else setAttempt((n) => n + 1);
           }}
         />

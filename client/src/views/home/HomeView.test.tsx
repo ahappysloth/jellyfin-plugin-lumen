@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
-import { makeContext } from '../../../test/viewContext';
+import { makeContext, testConfig } from '../../../test/viewContext';
 import type { HomeResponse } from '../../api/types';
 import { ContextMenuHost } from '../../components/ContextMenu';
 import { HomeView } from './HomeView';
@@ -166,6 +166,38 @@ describe('HomeView', () => {
     expect(ctx.navigate).toHaveBeenCalledWith('#/home?title=movie-603');
     fireEvent.click(within(row).getByRole('link', { name: 'Alpha' }));
     expect(ctx.navigate).toHaveBeenCalledWith('#/details?id=m1&serverId=s');
+  });
+
+  it('offers a Top 10 row’s Top chart (See all), but not while the row is Seerr’s trending list', async () => {
+    const entry = { Item: { Id: 'm1', Name: 'Alpha', Type: 'Movie', ServerId: 's' } };
+    const top10: HomeResponse = {
+      ConfigVersion: 1,
+      Hero: [],
+      Rows: [
+        { Id: 't1', Type: 'Top10Movies', Title: 'Top 10 Movies This Week', Items: [], Entries: [entry] },
+        // Trakt has no list yet: the server fills the row from Seerr's trending titles, and says so.
+        {
+          Id: 't2',
+          Type: 'Top10Shows',
+          Title: 'Top 10 Shows This Week',
+          Items: [],
+          Entries: [entry],
+          Source: 'Seerr',
+        },
+      ],
+    };
+    const ctx = makeContext(createFakeClient(routes({ 'Lumen/Home': top10 })), {
+      config: { ...testConfig, Charts: true },
+    });
+    render(<HomeView ctx={ctx} />);
+
+    const movies = await screen.findByRole('region', { name: 'Top 10 Movies This Week' });
+    expect(within(movies).getByRole('link', { name: /see all/ })).toHaveAttribute(
+      'href',
+      '#/home?lumen=charts&chart=movies&period=weekly',
+    );
+    const shows = screen.getByRole('region', { name: 'Top 10 Shows This Week' });
+    expect(within(shows).queryByRole('link', { name: /see all/ })).toBeNull();
   });
 
   it('falls back to stock when home is empty', async () => {

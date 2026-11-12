@@ -266,6 +266,38 @@ test.describe('TV layout', () => {
     await expect(page.getByRole('dialog', { name: 'Request The Matrix' })).toBeVisible();
   });
 
+  test('TV layout: Back from a chart card focuses that card, where the page was, and it stays there', async ({ page }) => {
+    await configureTrakt({ trakt: true, seerr: true, only: true }, [{ Type: 'Top10Movies' }]);
+    await signInOnTv(page);
+    await page.goto('/web/#/home?lumen=charts&chart=movies&period=all');
+    const all = chart(page, 'Top movies all time');
+    const stub = all.getByRole('button', { name: /^24, Stub Request 782/ });
+    await expect(stub).toBeVisible();
+    // Further down the grid (its second page), so Back has somewhere to scroll to.
+    const alpha = all.getByRole('link', { name: '27, Lumen Alpha' });
+    await stub.scrollIntoViewIfNeeded();
+    await expect(alpha).toBeVisible();
+
+    for (const card of [alpha, stub]) {
+      await card.focus();
+      await card.scrollIntoViewIfNeeded();
+      const scrolled = await page.evaluate(() => window.scrollY);
+      expect(scrolled).toBeGreaterThan(100);
+      await page.keyboard.press('Enter');
+      await expect(page).not.toHaveURL(/lumen=charts/);
+      await page.goBack();
+      await expect(page).toHaveURL(/chart=movies&period=all$/);
+
+      await expect(card).toBeFocused();
+      // Still there once what follows has come in (the user's request rights, which re-render the page): not the
+      // chart switch, at the top of the page.
+      await expect(all.getByRole('button', { name: 'Request Stub Request 782' })).toBeVisible();
+      await page.waitForTimeout(500);
+      await expect(card).toBeFocused();
+      expect(Math.abs((await page.evaluate(() => window.scrollY)) - scrolled)).toBeLessThan(40);
+    }
+  });
+
   test('TV layout: OK on a period chip switches the chart, and focus stays on it', async ({ page }) => {
     await configureTrakt({ trakt: true, seerr: false, only: true }, [{ Type: 'Top10Movies' }]);
     await signInOnTv(page);

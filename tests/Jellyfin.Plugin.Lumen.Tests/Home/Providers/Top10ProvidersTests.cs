@@ -76,6 +76,7 @@ public class Top10ProvidersTests
 
         Assert.Equal("Top 10 Movies This Week", row.Title);
         Assert.Equal(SectionTypes.Top10Movies, row.Type);
+        Assert.Null(row.Source);
         Assert.Same(inception, row.Entries![0].Item);
         Assert.Equal(("movie-500", "Seerr 500", "p.jpg"), (row.Entries[1].Catalog!.Key, row.Entries[1].Catalog!.Title, row.Entries[1].Catalog!.Poster));
         Assert.Same(byImdb, row.Entries[2].Item);
@@ -215,6 +216,9 @@ public class Top10ProvidersTests
         var row = Assert.Single(await Rows(SectionTypes.Top10Movies));
 
         Assert.Equal(["movie-1", "movie-4", "movie-5"], row.Entries!.Select(e => e.Catalog!.Key));
+
+        // Marked as Seerr's, so the client doesn't offer Trakt's Top chart for it.
+        Assert.Equal(HomeRow.SeerrSource, row.Source);
         await _seerr.DidNotReceive().DiscoverPageAsync(Arg.Any<SeerrEndpoint>(), Arg.Any<int>(), Arg.Any<SeerrDiscoverList>(), 3, Arg.Any<CancellationToken>());
         Assert.Empty(_queries);
     }

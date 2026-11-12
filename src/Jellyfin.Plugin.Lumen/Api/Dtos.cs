@@ -85,6 +85,9 @@ public sealed record HeroItemDto(BaseItemDto Item, Guid? TrailerItemId);
 public sealed record HomeRowDto(string Id, string Type, string Title, IReadOnlyList<BaseItemDto> Items)
 {
     public IReadOnlyList<HomeRowEntryDto>? Entries { get; init; }
+
+    /// <summary>Gets <see cref="Home.HomeRow.Source"/>: "Seerr" for a Top 10 row showing Seerr's trending list instead of Trakt's.</summary>
+    public string? Source { get; init; }
 }
 
 /// <summary>One card of a catalog row: exactly one of <c>Item</c> (a title in the library) or <c>Catalog</c> is set.</summary>

@@ -14,6 +14,13 @@ export const chartsStrings = {
     yearly: 'This year',
     all: 'All time',
   } satisfies Record<ChartPeriod, string>,
+  /** The periods on a phone, where four chips share the screen's width (the full names stay the buttons' names). */
+  periodsShort: {
+    weekly: 'Week',
+    monthly: 'Month',
+    yearly: 'Year',
+    all: 'All time',
+  } satisfies Record<ChartPeriod, string>,
   /** The grid's name: "Top movies this week". */
   listLabel: (type: string, period: string) => `Top ${type.toLowerCase()} ${period.toLowerCase()}`,
   /** The visible rank on a card. */

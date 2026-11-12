@@ -59,14 +59,24 @@ public sealed class ChartService
 
         var titles = list.Titles.Count > TraktQuery.ChartSize ? list.Titles.Take(TraktQuery.ChartSize).ToList() : list.Titles;
         var owned = _cards.MatchOwned(titles, user);
-        var shown = Enumerable.Range(0, titles.Count).Where(i => TraktCards.CanShow(titles, i, owned, caller is not null)).ToList();
+
+        // Two titles matched to one item (by TMDB id and by IMDb id, say) show once, at the better rank.
+        var ownedSeen = new HashSet<Guid>();
+        var shown = Enumerable.Range(0, titles.Count)
+            .Where(i => TraktCards.CanShow(titles, i, owned, caller is not null) && (!owned.TryGetValue(i, out var item) || ownedSeen.Add(item.Id)))
+            .ToList();
         var page = shown.Skip(startIndex).Take(limit).ToList();
         var cards = await _cards.ResolveAsync(titles, page, owned, caller, user, started, DetailsBudget, cancellationToken).ConfigureAwait(false);
 
-        // A title Seerr couldn't describe (or not in time) is left out of this page; it's usually there next time.
+        // A title Seerr couldn't describe (or not in time) is left out of this page; it's usually there next time. One
+        // Seerr says is on the server (its VisibleItem) can be an item the page already has: it shows once, at the better
+        // rank (the page is in rank order, so the first).
+        var items = new HashSet<Guid>();
+        var catalogKeys = new HashSet<string>(StringComparer.Ordinal);
         var entries = page
             .Zip(cards, (index, card) => card is null ? null : new ChartEntry(index + 1, card.Item, card.Catalog))
             .OfType<ChartEntry>()
+            .Where(e => e.Item is null ? catalogKeys.Add(e.Catalog!.Key) : items.Add(e.Item.Id))
             .ToList();
         return new ChartPage(entries, shown.Count, startIndex);
     }

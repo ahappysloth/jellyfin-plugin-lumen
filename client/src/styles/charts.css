@@ -28,13 +28,23 @@
 .lmn-charts__cell.is-top .lmn-charts__rank {
   background: var(--lmn-accent);
 }
+/* The card's request state ("Requested", top-right) never runs under the rank (top-left): it keeps the rank's widest
+   ("100") and a gap clear, and a longer label ends in an ellipsis (catalog.css). */
+.lmn-charts__cell .lmn-card__state {
+  max-width: calc(100% - 64px);
+}
 .lmn-charts__cell .lmn-top10__request {
   align-self: flex-start;
   margin-top: 8px;
 }
 
-/* Phones (the two switches stack, each a full row: browse.css): a smaller tab on the smaller posters. */
+/* Phones (the two switches stack, each a full row: browse.css): two columns on a phone rather than the browse grids'
+   three, so a card is wide enough for its rank and request state side by side, and for its whole meta line
+   ("★ 7.2 · 2002 · Movie"); more on a larger screen. A smaller tab on the smaller posters. */
 @media (max-width: 720px) {
+  .lmn-browse-grid.lmn-charts__grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
   .lmn-charts__rank {
     min-width: 28px;
     padding: 4px 7px 5px;

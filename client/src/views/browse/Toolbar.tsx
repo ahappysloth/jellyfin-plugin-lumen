@@ -4,6 +4,11 @@ import { formatNumber } from '../../util/locale';
 export interface Option<T extends string> {
   value: T;
   label: string;
+  /**
+   * A shorter label for phones, where the chips share the screen's width and the full one would wrap ("Week" for
+   * "This week"). The full label stays the button's name.
+   */
+  short?: string;
 }
 
 /** Mutually exclusive chips, e.g. All / Unwatched / Watched. */
@@ -26,9 +31,17 @@ export function Segmented<T extends string>({
           type="button"
           class={`lmn-chip${o.value === value ? ' is-active lmn-autofocus' : ''}`}
           aria-pressed={o.value === value}
+          aria-label={o.short ? o.label : undefined}
           onClick={() => onChange(o.value)}
         >
-          {o.label}
+          {o.short ? (
+            <>
+              <span class="lmn-chip__long">{o.label}</span>
+              <span class="lmn-chip__short">{o.short}</span>
+            </>
+          ) : (
+            o.label
+          )}
           {o.count !== undefined && <span class="lmn-chip__count">{formatNumber(o.count)}</span>}
         </button>
       ))}

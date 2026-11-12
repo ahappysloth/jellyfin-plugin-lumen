@@ -148,7 +148,7 @@ public class TraktRowProvidersTests
     }
 
     [Fact]
-    public void TheList_HasARequiredTextParameter_SoItCanBeAddedOncePerList()
+    public void TheList_HasOneParameter_ItsRequiredTextAddress()
     {
         var parameter = Assert.Single(Provider(SectionTypes.TraktList).Parameters);
 

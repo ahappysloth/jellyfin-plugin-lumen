@@ -7,6 +7,8 @@ namespace Jellyfin.Plugin.Lumen.Trakt;
 /// A public Trakt list, from its web address: a user's list (<c>https://trakt.tv/users/{user}/lists/{list}</c>) or one
 /// by id alone (<c>https://trakt.tv/lists/{id}</c>, as Trakt links official and shared lists). trakt.tv, www.trakt.tv
 /// and app.trakt.tv are all Trakt; the scheme may be left out, and a query (<c>?sort=…</c>) or fragment is ignored.
+/// Trakt makes its user and list slugs lowercase (and its list ids are digits), so an address is read in lowercase: one
+/// list typed two ways is one list, one cached copy and one row's worth of Trakt calls.
 /// </summary>
 public sealed partial record TraktListRef
 {
@@ -61,13 +63,13 @@ public sealed partial record TraktListRef
             && Slug().IsMatch(parts[1])
             && Slug().IsMatch(parts[3]))
         {
-            list = new TraktListRef(parts[1], parts[3]);
+            list = new TraktListRef(parts[1].ToLowerInvariant(), parts[3].ToLowerInvariant());
             return true;
         }
 
         if (parts.Length == 2 && parts[0].Equals("lists", StringComparison.OrdinalIgnoreCase) && Slug().IsMatch(parts[1]))
         {
-            list = new TraktListRef(null, parts[1]);
+            list = new TraktListRef(null, parts[1].ToLowerInvariant());
             return true;
         }
 

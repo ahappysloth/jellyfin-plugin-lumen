@@ -223,15 +223,87 @@ public class TraktListsTests
     }
 
     [Fact]
-    public async Task AListThatNeverLoaded_IsNull_WithoutAskingForItsItems()
+    public async Task AListThatNeverLoaded_IsNull_EvenIfItsItemsAnswer()
     {
         var query = ListQuery("trakt.tv/users/sean/lists/gone");
         _trakt.GetListNameAsync(default!, default!, default)
             .ThrowsAsyncForAnyArgs(new TraktException("gone") { Status = System.Net.HttpStatusCode.NotFound });
+        _trakt.GetTitlesAsync(default!, default!, default).ReturnsForAnyArgs(List("A"));
 
         Assert.Null(await _lists.GetAsync(query, CancellationToken.None));
+        Assert.Contains("its row is hidden", Assert.Single(_logger.Entries).Message, StringComparison.Ordinal);
+    }
 
-        await _trakt.DidNotReceiveWithAnyArgs().GetTitlesAsync(default!, default!, default);
+    [Fact]
+    public async Task AListsNameAndItems_AreAskedForAtOnce()
+    {
+        var query = ListQuery("https://trakt.tv/users/sean/lists/best-of");
+        var name = new TaskCompletionSource<string?>();
+        var items = new TaskCompletionSource<IReadOnlyList<TraktTitle>>();
+        _trakt.GetListNameAsync(default!, default!, default).ReturnsForAnyArgs(name.Task);
+        _trakt.GetTitlesAsync(default!, default!, default).ReturnsForAnyArgs(items.Task);
+
+        var load = _lists.GetAsync(query, CancellationToken.None);
+
+        // The items are asked for while the name is still on its way.
+        await WaitForAsync(() => Task.FromResult(_trakt.ReceivedCalls().Count() == 2));
+        items.SetResult(List("A"));
+        name.SetResult("Best of");
+        Assert.Equal(("Best of", "A"), ((await load)!.Name, (await load)!.Titles[0].Title));
+    }
+
+    [Fact]
+    public async Task AListWhoseItemsFailFirst_StillSaysItIsGone_WhenItsNameDoes()
+    {
+        var query = ListQuery("https://trakt.tv/users/sean/lists/best-of");
+        var name = new TaskCompletionSource<string?>();
+        _trakt.GetListNameAsync(default!, default!, default).ReturnsForAnyArgs(name.Task);
+        _trakt.GetTitlesAsync(default!, default!, default)
+            .ThrowsAsyncForAnyArgs(new TraktException("Trakt did not answer within 3 seconds."));
+
+        var load = _lists.GetAsync(query, CancellationToken.None);
+        name.SetException(new TraktException("The list is private or doesn't exist (HTTP 404).") { Status = System.Net.HttpStatusCode.NotFound });
+
+        Assert.Null(await load);
+        Assert.Contains("its row is hidden", Assert.Single(_logger.Entries).Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AUsersListRefusedForTheKey_KeepsItsLastCopy()
+    {
+        var query = ListQuery("https://trakt.tv/users/sean/lists/best-of");
+        _trakt.GetListNameAsync(default!, default!, default).ReturnsForAnyArgs("Best of");
+        _trakt.GetTitlesAsync(default!, default!, default).ReturnsForAnyArgs(List("A"));
+        await _lists.GetAsync(query, CancellationToken.None);
+        var refused = new TraktException("Trakt rejected the API key.") { Status = System.Net.HttpStatusCode.Forbidden };
+        _trakt.GetListNameAsync(default!, default!, default).ThrowsAsyncForAnyArgs(refused);
+        _trakt.GetTitlesAsync(default!, default!, default).ThrowsAsyncForAnyArgs(refused);
+        _time.Advance(TraktQuery.ListFreshFor);
+
+        await _lists.GetAsync(query, CancellationToken.None);
+        await WaitForAsync(() => Task.FromResult(_logger.Entries.Count == 1));
+
+        Assert.Equal("Best of", (await _lists.GetAsync(query, CancellationToken.None))!.Name);
+        Assert.Contains("it shows the last copy it had", _logger.Entries[0].Message, StringComparison.Ordinal);
+        Assert.Contains("rejected the API key", _logger.Entries[0].Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AListNobodyAsksForInADay_IsForgotten()
+    {
+        _trakt.GetTitlesAsync(default!, default!, default).ReturnsForAnyArgs(List("A"));
+        await _lists.GetAsync(Weekly(TraktListKind.Movies), CancellationToken.None);
+        await _lists.GetAsync(Weekly(TraktListKind.Shows), CancellationToken.None);
+        Assert.Equal(2, _lists.CachedCount);
+
+        // Shows are still on someone's home after 20 hours; movies aren't.
+        _time.Advance(TimeSpan.FromHours(20));
+        await _lists.GetAsync(Weekly(TraktListKind.Shows), CancellationToken.None);
+        await WaitForAsync(async () => (await _lists.GetAsync(Weekly(TraktListKind.Shows), CancellationToken.None))!.Titles.Count == 1 && _trakt.ReceivedCalls().Count() == 3);
+        _time.Advance(TimeSpan.FromHours(5));
+        await _lists.GetAsync(Weekly(TraktListKind.Shows), CancellationToken.None);
+
+        Assert.Equal(1, _lists.CachedCount);
     }
 
     [Fact]

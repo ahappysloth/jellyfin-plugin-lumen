@@ -8,7 +8,7 @@ public class TraktListRefTests
     [Theory]
     [InlineData("https://trakt.tv/users/sean/lists/best-of", "users/sean/lists/best-of")]
     [InlineData("https://trakt.tv/users/sean/lists/best-of/", "users/sean/lists/best-of")]
-    [InlineData("  https://www.trakt.tv/users/Sean_99/lists/best-of?sort=rank,asc#top ", "users/Sean_99/lists/best-of")]
+    [InlineData("  https://www.trakt.tv/users/Sean_99/lists/best-of?sort=rank,asc#top ", "users/sean_99/lists/best-of")]
     [InlineData("https://app.trakt.tv/users/sean/lists/best-of", "users/sean/lists/best-of")]
     [InlineData("http://trakt.tv/users/sean/lists/12345", "users/sean/lists/12345")]
     [InlineData("trakt.tv/users/sean/lists/best-of", "users/sean/lists/best-of")]
@@ -16,12 +16,24 @@ public class TraktListRefTests
     [InlineData("https://trakt.tv/lists/2142753", "lists/2142753")]
     [InlineData("https://trakt.tv/users/sean.k/lists/my.list-2", "users/sean.k/lists/my.list-2")]
 
+    // Trakt's slugs are lowercase: a list typed in capitals is the same list (one cached copy).
+    [InlineData("https://trakt.tv/users/Sean/lists/Best-Of", "users/sean/lists/best-of")]
+
     // Dot segments are resolved as a browser would, so they can't climb out of the list's path.
     [InlineData("https://trakt.tv/users/%2E%2E/lists/best-of", "lists/best-of")]
     public void PublicListAddresses_AreRead(string url, string apiPath)
     {
         Assert.True(TraktListRef.TryParse(url, out var list));
         Assert.Equal(apiPath, list.ApiPath);
+    }
+
+    [Fact]
+    public void OneListTypedTwoWays_IsOneQuery()
+    {
+        Assert.True(TraktListRef.TryParse("https://trakt.tv/users/sean/lists/best-of", out var lower));
+        Assert.True(TraktListRef.TryParse("trakt.tv/users/SEAN/lists/Best-of", out var mixed));
+
+        Assert.Equal(TraktQuery.ListItems(lower), TraktQuery.ListItems(mixed));
     }
 
     [Theory]

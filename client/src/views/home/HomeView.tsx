@@ -159,9 +159,10 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
             onSelectCatalog={(item) => ctx.navigate(catalogHash(item))}
             canRequest={canRequest}
             onRequest={setRequesting}
-            // With a Trakt key, a Top 10 row's title opens its Top chart (This week, where the row comes from).
+            // With a Trakt key, a Top 10 row's title opens its Top chart (This week, where the row comes from); not
+            // while the row is Seerr's trending list instead, Trakt having none to give yet.
             seeAll={
-              ctx.config.Charts && isTop10Row(row)
+              ctx.config.Charts && isTop10Row(row) && row.Source !== 'Seerr'
                 ? chartsHash(row.Type === 'Top10Shows' ? 'shows' : 'movies')
                 : undefined
             }

@@ -39,8 +39,12 @@ public sealed class TraktException : Exception
 
     public HttpStatusCode? Status { get; init; }
 
-    /// <summary>Gets a value indicating whether Trakt said the list isn't there for Lumen: private, deleted, or never was.</summary>
-    public bool IsMissing => Status is HttpStatusCode.NotFound or HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized;
+    /// <summary>
+    /// Gets a value indicating whether Trakt said the list isn't there for Lumen: private, deleted, or never was. That's a
+    /// 404, or a 401 (Trakt's "OAuth must be provided": a private list or user, which a key alone can't read). A 403 is
+    /// Trakt refusing the key itself (invalid, or the app unapproved), which says nothing about the list.
+    /// </summary>
+    public bool IsMissing => Status is HttpStatusCode.NotFound or HttpStatusCode.Unauthorized;
 }
 
 /// <summary>
@@ -138,12 +142,13 @@ public sealed class TraktClient : ITraktClient
         id is { Length: > 2 and <= 16 } && id.StartsWith("tt", StringComparison.Ordinal) && id.AsSpan(2).IndexOfAnyExceptInRange('0', '9') < 0 ? id : null;
 
     /// <summary>
-    /// What went wrong. Trakt answers a private list's address as it would a missing one (401, 403 or 404, depending), so
-    /// a user's list says either; a chart (always there) can only be refused for the key.
+    /// What went wrong. Trakt's status codes: 401 is "OAuth must be provided", 403 "invalid API key or unapproved app". A
+    /// user's list that's private asks for OAuth (401) or is hidden (404), so either says private or missing; a 403 is the
+    /// key, for a list as for a chart (which is always there, so it can only be refused for the key).
     /// </summary>
     private static string Describe(HttpStatusCode status, bool userList) => status switch
     {
-        HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound when userList =>
+        HttpStatusCode.Unauthorized or HttpStatusCode.NotFound when userList =>
             string.Create(CultureInfo.InvariantCulture, $"The list is private or doesn't exist (HTTP {(int)status})."),
         HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Trakt rejected the API key. Use the Client ID of an app from trakt.tv/oauth/applications.",
         HttpStatusCode.TooManyRequests => "Trakt asked Lumen to slow down (HTTP 429).",

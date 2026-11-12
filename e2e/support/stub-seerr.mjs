@@ -26,7 +26,8 @@
 //   (Catalog and request routes act as a user: they need the key and an X-Api-User header, 400 without it.)
 //   GET  /t/p/:size/:file                       → a tiny PNG (TMDB image stand-in)
 //   Trakt (LUMEN_TRAKT_API_BASE points here, under /trakt): every call needs `trakt-api-version: 2` and
-//   `trakt-api-key: stub-trakt-key`, else 401. Lists take ?page=&limit= and answer with Trakt's X-Pagination-* headers.
+//   `trakt-api-key: stub-trakt-key`, else 403 (as Trakt answers an invalid key). Lists take ?page=&limit= and answer
+//   with Trakt's X-Pagination-* headers.
 //   The fixture media has no ids: the Top 10 and Trakt specs give the library items theirs.
 //   GET  /trakt/{movies|shows}/watched/{weekly|monthly|yearly|all} → most watched (Top 10 rows, Top charts):
 //        weekly movies: Lumen Beta (tmdb 900002), The Matrix (603), a title Seerr doesn't know (999999), Lumen Alpha (imdb
@@ -304,7 +305,8 @@ createServer((req, res) => {
   }
   if (path.startsWith('/trakt/') && req.method === 'GET') {
     if (req.headers['trakt-api-key'] !== STUB_TRAKT_KEY || req.headers['trakt-api-version'] !== '2') {
-      return json(res, 401, { error: 'invalid_api_key' });
+      // As Trakt: 403 is an invalid API key (401 is "OAuth must be provided", as for a private list below).
+      return json(res, 403, { error: 'invalid_api_key' });
     }
     const resource = path.slice('/trakt/'.length);
     const list = resource.match(/^(?:users\/([^/]+)\/lists\/([^/]+)|lists\/([^/]+))(\/items\/movie,show)?$/);

@@ -129,6 +129,11 @@ export interface HomeRow {
    * titles the server doesn't have (Catalog). Their Items is empty; other rows leave this out.
    */
   Entries?: HomeRowEntry[] | null;
+  /**
+   * Where the row's titles came from when that isn't what its type says: "Seerr" for a Top 10 row showing Seerr's
+   * trending list because Trakt has none to give yet (it has no Top chart to "See all" of).
+   */
+  Source?: string | null;
 }
 
 export interface HomeRowEntry {

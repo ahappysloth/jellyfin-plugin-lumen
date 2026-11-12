@@ -25,7 +25,8 @@ public sealed record TraktList(IReadOnlyList<TraktTitle> Titles, string? Name = 
 /// in the background; only the very first load waits, and for at most <see cref="TraktClient.Timeout"/> a call. When
 /// Trakt fails, the last good list keeps being served, Trakt isn't asked about that list again for <see cref="RetryAfter"/>,
 /// and the failure is logged once (and the recovery once), not on every home load. A user's list that turns out to be
-/// private or gone is dropped instead, so its row hides. A new key starts over.
+/// private or gone is dropped instead, so its row hides. A new key starts over. A list nobody has asked for in
+/// <see cref="ForgetAfter"/> (a row removed, a list address changed) is forgotten.
 /// <para>
 /// Trakt allows 1000 GETs per 5 minutes per app. This asks at most once per list per freshness period (or per back-off
 /// after a failure): a few dozen calls an hour for every chart, row and list Lumen can show together.
@@ -35,12 +36,19 @@ public sealed class TraktLists : ITraktLists
 {
     public static readonly TimeSpan RetryAfter = TimeSpan.FromMinutes(10);
 
+    /// <summary>A day: longer than any list's freshness, so a list in use is never forgotten between two home loads.</summary>
+    public static readonly TimeSpan ForgetAfter = TimeSpan.FromHours(24);
+
+    /// <summary>How often, at most, lists are checked for ones to forget.</summary>
+    private static readonly TimeSpan PruneEvery = TimeSpan.FromHours(1);
+
     private readonly Lock _lock = new();
     private readonly Dictionary<TraktQuery, State> _states = [];
     private readonly ILumenConfigReader _config;
     private readonly ITraktClient _trakt;
     private readonly TimeProvider _time;
     private readonly ILogger<TraktLists> _logger;
+    private DateTimeOffset _prunedAt;
 
     public TraktLists(ILumenConfigReader config, ITraktClient trakt, TimeProvider time, ILogger<TraktLists> logger)
     {
@@ -51,6 +59,18 @@ public sealed class TraktLists : ITraktLists
     }
 
     public bool Enabled => !string.IsNullOrWhiteSpace(_config.Current.TraktClientId);
+
+    /// <summary>Gets how many lists are cached (tests).</summary>
+    internal int CachedCount
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _states.Count;
+            }
+        }
+    }
 
     public async Task<TraktList?> GetAsync(TraktQuery query, CancellationToken cancellationToken)
     {
@@ -65,13 +85,15 @@ public sealed class TraktLists : ITraktLists
         Task<TraktList?> refresh;
         lock (_lock)
         {
+            var now = _time.GetUtcNow();
+            Prune(now);
             if (!_states.TryGetValue(query, out var state) || !string.Equals(state.Key, key, StringComparison.Ordinal))
             {
                 state = new State(key);
                 _states[query] = state;
             }
 
-            var now = _time.GetUtcNow();
+            state.AskedAt = now;
             list = state.List;
             if ((list is not null && now < state.FetchedAt + query.FreshFor) || now < state.RetryAt)
             {
@@ -89,11 +111,16 @@ public sealed class TraktLists : ITraktLists
     {
         try
         {
-            // A user's list's name first: a private or deleted list fails there, before its items are asked for.
-            var name = query.List is { } listRef
-                ? await _trakt.GetListNameAsync(state.Key, listRef, CancellationToken.None).ConfigureAwait(false)
-                : null;
-            var titles = await _trakt.GetTitlesAsync(state.Key, query, CancellationToken.None).ConfigureAwait(false);
+            // A user's list's name and items at once: one after the other, a first load could take two of Trakt's
+            // timeouts, as long as the row's. Both fail for a private or deleted list; the name's error is the one thrown,
+            // so whichever lands first, the list is known to be gone.
+            var nameTask = query.List is { } listRef
+                ? _trakt.GetListNameAsync(state.Key, listRef, CancellationToken.None)
+                : Task.FromResult<string?>(null);
+            var titlesTask = _trakt.GetTitlesAsync(state.Key, query, CancellationToken.None);
+            await ((Task)Task.WhenAll(nameTask, titlesTask)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            var name = await nameTask.ConfigureAwait(false);
+            var titles = await titlesTask.ConfigureAwait(false);
             var list = new TraktList(titles, name);
             lock (_lock)
             {
@@ -147,6 +174,21 @@ public sealed class TraktLists : ITraktLists
         }
     }
 
+    /// <summary>Forgets the lists nobody has asked for in <see cref="ForgetAfter"/>, at most every <see cref="PruneEvery"/>.</summary>
+    private void Prune(DateTimeOffset now)
+    {
+        if (now < _prunedAt + PruneEvery)
+        {
+            return;
+        }
+
+        _prunedAt = now;
+        foreach (var (query, state) in _states.Where(s => s.Value.Refresh is null && now - s.Value.AskedAt >= ForgetAfter).ToList())
+        {
+            _states.Remove(query);
+        }
+    }
+
     /// <summary>One list's cache, for one key. Guarded by <see cref="_lock"/>.</summary>
     private sealed class State
     {
@@ -166,5 +208,8 @@ public sealed class TraktLists : ITraktLists
         public Task<TraktList?>? Refresh { get; set; }
 
         public bool Failing { get; set; }
+
+        /// <summary>Gets or sets when the list was last asked for.</summary>
+        public DateTimeOffset AskedAt { get; set; }
     }
 }

@@ -73,10 +73,15 @@ public abstract class TraktRowProvider : IHomeSectionProvider
         var caller = await accessTask.ConfigureAwait(false);
         var list = await listTask.ConfigureAwait(false);
 
-        var entries = list is { Titles.Count: > 0 }
-            ? await _cards.RowAsync(list.Titles, caller, context.User, limit, started, DetailsBudget, cancellationToken).ConfigureAwait(false)
-            : await FallbackAsync(caller, context.User, limit, cancellationToken).ConfigureAwait(false);
-        return HomeRow.Catalog(definition, RowTitle(list), entries);
+        if (list is { Titles.Count: > 0 })
+        {
+            var entries = await _cards.RowAsync(list.Titles, caller, context.User, limit, started, DetailsBudget, cancellationToken).ConfigureAwait(false);
+            return HomeRow.Catalog(definition, RowTitle(list), entries);
+        }
+
+        // Marked, so the client doesn't offer the Top chart (Trakt's) of a row that isn't showing it.
+        var fallback = await FallbackAsync(caller, context.User, limit, cancellationToken).ConfigureAwait(false);
+        return HomeRow.Catalog(definition, RowTitle(list), fallback).Select(r => r with { Source = HomeRow.SeerrSource }).ToList();
     }
 
     /// <summary>The list the row shows for <paramref name="definition"/>, or null to show nothing.</summary>
