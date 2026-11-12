@@ -29,7 +29,14 @@ export type ProbePage =
 export interface StockSelectorMeta {
   probe: ProbePage | null;
   /** The stylesheet that repeats this selector, if any. */
-  css?: 'base.css' | 'player.css' | 'stock-skin.css' | 'dashboard.css' | 'nav.css' | 'stock-components.css';
+  css?:
+    | 'base.css'
+    | 'player.css'
+    | 'stock-skin.css'
+    | 'toasts.css'
+    | 'dashboard.css'
+    | 'nav.css'
+    | 'stock-components.css';
 }
 
 export const STOCK_SELECTOR_META = {
@@ -55,10 +62,10 @@ export const STOCK_SELECTOR_META = {
   embyCheckbox: { probe: 'settings', css: 'stock-skin.css' },
   sectionTitle: { probe: 'settings', css: 'stock-skin.css' },
   muiInput: { probe: 'display', css: 'stock-skin.css' },
-  toastContainer: { probe: null, css: 'stock-skin.css' },
-  toast: { probe: null, css: 'stock-skin.css' },
-  toastShown: { probe: null, css: 'stock-skin.css' },
-  toastHiding: { probe: null, css: 'stock-skin.css' },
+  toastContainer: { probe: null, css: 'toasts.css' },
+  toast: { probe: null, css: 'toasts.css' },
+  toastShown: { probe: null, css: 'toasts.css' },
+  toastHiding: { probe: null, css: 'toasts.css' },
   dialogContainer: { probe: 'actionSheet', css: 'stock-components.css' },
   formDialogHeader: { probe: 'confirmDialog', css: 'stock-components.css' },
   floatingDialog: { probe: 'confirmDialog', css: 'stock-components.css' },

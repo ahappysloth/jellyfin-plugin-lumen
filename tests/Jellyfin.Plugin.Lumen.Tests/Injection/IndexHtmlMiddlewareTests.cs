@@ -214,6 +214,36 @@ public sealed class IndexHtmlMiddlewareTests : IDisposable
         Assert.DoesNotContain("lumen-icon", off, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("/jellyfin")]
+    public async Task TheStockPagesStylesheets_AreTheGuards_WithLumensVersion_UnderTheBaseUrl(string baseUrl)
+    {
+        UseRealPage();
+        var current = new PluginConfiguration { ConfigVersion = 1, StyleStockPages = true };
+        using var host = await StartAsync(services: s => s.AddSingleton(Config(() => current)));
+        var client = host.GetTestClient();
+        var pageUrl = new Uri($"http://lumen.test{baseUrl}/web/");
+
+        var on = await client.GetStringAsync(pageUrl);
+        current = new PluginConfiguration { ConfigVersion = 2, StyleStockPages = false };
+        var off = await client.GetStringAsync(pageUrl);
+
+        // The guard links lumen-stock.css and lumen-dashboard.css itself (client/src/veil/skinCss.ts), beside lumen.css
+        // and with its version, so they land under the base URL and are cached for good like it.
+        var lumenCss = Regex.Match(on, "<link rel=\"stylesheet\" href=\"([^\"?]+)lumen[.]css[?]v=([^\"]+)\">");
+        Assert.True(lumenCss.Success);
+        Assert.Equal("../Lumen/Assets/", lumenCss.Groups[1].Value);
+        Assert.Equal($"{baseUrl}/Lumen/Assets/lumen-stock.css", new Uri(pageUrl, "../Lumen/Assets/lumen-stock.css").AbsolutePath);
+        var meta = $"<meta name=\"lumen-version\" content=\"{lumenCss.Groups[2].Value}\">";
+        Assert.Contains(meta, on, StringComparison.Ordinal);
+        Assert.True(on.IndexOf(meta, StringComparison.Ordinal) < on.IndexOf("data-lmn-skin", StringComparison.Ordinal));
+        Assert.DoesNotContain("lumen-dashboard.css", on, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("lumen-version", off, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-lmn-skin", off, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task TheHomeScreenName_IsLumens_OrFollowsTheServersName_WhenTheAdminAsks()
     {

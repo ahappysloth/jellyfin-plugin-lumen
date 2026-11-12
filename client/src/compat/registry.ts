@@ -4,8 +4,8 @@
  * (e2e/specs/stock-probe.spec.ts checks each selector matches on its page; stock-routes.spec.ts checks no route
  * Lumen links to is jellyfin-web's 404 page). When jellyfin-web changes, fix it here.
  *
- * The CSS (styles/base.css, player.css, stock-skin.css, dashboard.css, nav.css, stock-components.css) can't import this
- * module, so it repeats the selectors it needs. Which page the probe finds each selector on, and which stylesheet
+ * The CSS (styles/base.css, player.css, stock-skin.css, toasts.css, dashboard.css, nav.css, stock-components.css) can't
+ * import this module, so it repeats the selectors it needs. Which page the probe finds each selector on, and which stylesheet
  * repeats it, is in registry.meta.ts: only the tests read that, so it stays out of the bundle.
  * Evidence for each entry: docs/reference/jellyfin-web-12.1-notes.md.
  *

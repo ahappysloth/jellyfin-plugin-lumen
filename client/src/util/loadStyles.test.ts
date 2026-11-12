@@ -28,7 +28,7 @@ describe('loadStyles', () => {
     let done = false;
     const sheet = loadStyles('lumen-player.css').then(() => (done = true));
     expect(loadStyles('lumen-player.css')).toBe(loadStyles('lumen-player.css'));
-    const [link] = links('lumen-player.css');
+    const link = links('lumen-player.css')[0]!;
     expect(links('lumen-player.css')).toHaveLength(1);
     expect(new URL(link.href).search).toBe('?v=abc');
     // After lumen.css, so its rules win ties with the core's, as they did inside it.
@@ -44,13 +44,13 @@ describe('loadStyles', () => {
   it("rejects if the sheet can't load, and links it afresh next time", async () => {
     const { loadStyles } = await fresh();
     const first = loadStyles('lumen-secondary.css');
-    links('lumen-secondary.css')[0].dispatchEvent(new Event('error'));
+    links('lumen-secondary.css')[0]!.dispatchEvent(new Event('error'));
     await expect(first).rejects.toThrow(/lumen-secondary\.css/);
     expect(links('lumen-secondary.css')).toHaveLength(0);
 
     const second = loadStyles('lumen-secondary.css');
     expect(second).not.toBe(first);
-    links('lumen-secondary.css')[0].dispatchEvent(new Event('load'));
+    links('lumen-secondary.css')[0]!.dispatchEvent(new Event('load'));
     await expect(second).resolves.toBeUndefined();
   });
 });

@@ -6,16 +6,18 @@
  */
 import { MARK_SVG } from '../brand/mark';
 import { applyDashboardSkin, applySignInSkin } from './skin';
-import { liftVeil, PENDING_CLASS, shouldVeil, showVeil } from './veil';
+import { applySkinCss } from './skinCss';
+import { liftVeil, PENDING_CLASS, SAFETY_TIMER_KEY, shouldVeil, showVeil } from './veil';
+
+export { SAFETY_TIMER_KEY };
 
 export const SAFETY_MS = 8000;
-/** The guard's safety timer id, on window, for lumen.js to clear. */
-export const SAFETY_TIMER_KEY = '__lmnVeilSafety';
 
 export function runGuard(win: Window, doc: Document): void {
   const follow = (): void => {
     applySignInSkin(doc, win.location.hash);
     applyDashboardSkin(doc, win.location.hash);
+    applySkinCss(doc, win.location.hash);
   };
   follow();
   // Follow navigation on our own too, so the sign-in and admin looks come off even if lumen.js never loads. jellyfin-web

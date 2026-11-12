@@ -1,9 +1,10 @@
 /*
  * Lumen's look for jellyfin-web's admin pages: the Dashboard (#/dashboard/*), the metadata manager (#/metadata) and
- * plugin settings pages (#/configurationpage). Built on its own (vite.dashboard.config.ts → lumen-dashboard.css) and
- * only linked when the admin leaves "Restyle Jellyfin's sign-in, settings and Dashboard pages" on; everything here is
- * scoped to html.lmn-skin-dashboard, which the inline guard sets on those routes (veil/skin.ts). The stylesheet also
- * carries stock-components.css: jellyfin-web's dialogs, menus and drawers, which it restyles on every page.
+ * plugin settings pages (#/configurationpage). Built on its own (vite.styles.config.ts → lumen-dashboard.css) and
+ * only linked on those pages, when the admin leaves "Restyle Jellyfin's sign-in, settings and Dashboard pages" on
+ * (veil/skin.ts); everything here is scoped to html.lmn-skin-dashboard, which the inline guard sets on those routes.
+ * It loads after lumen-stock.css (stock.css), whose stock-components.css restyles jellyfin-web's dialogs, menus and
+ * drawers and sets the palette these pages share with them.
  *
  * The Dashboard is React + MUI. MUI reads its colours from jellyfin-web's `--jf-*` CSS variables, so Lumen's palette
  * goes in there first (stock-components.css, shared with those components); the rest uses MUI's stable `Mui*` class names (never emotion's generated `css-*` ones) and
@@ -11,9 +12,6 @@
  * rules with the settings pages (stock-skin.css). If a selector stops matching after a Jellyfin update, that part
  * looks stock again; nothing here changes how a page works.
  */
-
-/* jellyfin-web's dialogs, menus and drawers on every page, and the palette the admin pages share with them. */
-@import './stock-components.css';
 
 /* ---- Page, type -------------------------------------------------------------------------------------------------- */
 html.lmn-skin-dashboard body,

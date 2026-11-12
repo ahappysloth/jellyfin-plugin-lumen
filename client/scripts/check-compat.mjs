@@ -40,6 +40,7 @@ const REQUIRED = [
   GUARD,
   'lumen-admin.js',
   'lumen.css',
+  'lumen-stock.css',
   'lumen-dashboard.css',
   'lumen-secondary.css',
 ];

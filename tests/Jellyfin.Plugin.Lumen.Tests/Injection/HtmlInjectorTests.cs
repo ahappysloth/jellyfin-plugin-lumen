@@ -63,14 +63,28 @@ public class HtmlInjectorTests
     }
 
     [Fact]
-    public void LinksTheAdminStylesheet_AfterLumens_OnlyWhenStylingStockPages()
+    public void GivesTheGuardTheBuildsVersion_BeforeItRuns_OnlyWhenStylingStockPages()
     {
-        const string link = "<link rel=\"stylesheet\" href=\"../Lumen/Assets/lumen-dashboard.css?v=h\">";
-        var result = HtmlInjector.Inject(Page, "h", "guard()", styleStockPages: true);
+        // The guard links the stock pages' stylesheets with it (client/src/veil/skinCss.ts), so they're cached for good.
+        const string meta = "<meta name=\"lumen-version\" content=\"a%2Bb\">";
+        var result = HtmlInjector.Inject(Page, "a+b", "guard()", styleStockPages: true);
 
-        Assert.Contains(link, result, StringComparison.Ordinal);
-        Assert.True(result.IndexOf(link, StringComparison.Ordinal) > result.IndexOf("lumen.css", StringComparison.Ordinal));
-        Assert.DoesNotContain("lumen-dashboard.css", HtmlInjector.Inject(Page, "h", "guard()"), StringComparison.Ordinal);
+        Assert.Contains(meta, result, StringComparison.Ordinal);
+        Assert.True(result.IndexOf(meta, StringComparison.Ordinal) < result.IndexOf("guard()", StringComparison.Ordinal));
+        Assert.DoesNotContain("lumen-version", HtmlInjector.Inject(Page, "a+b", "guard()"), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void LinksOnlyLumensOwnStylesheet_TheGuardLinksTheStockPagesOnesWhereTheyreUsed(bool styleStockPages)
+    {
+        var result = HtmlInjector.Inject(Page, "h", "guard()", styleStockPages: styleStockPages);
+
+        Assert.Single(Regex.Matches(result, "rel=\"stylesheet\""));
+        Assert.Contains("<link rel=\"stylesheet\" href=\"../Lumen/Assets/lumen.css?v=h\">", result, StringComparison.Ordinal);
+        Assert.DoesNotContain("lumen-dashboard.css", result, StringComparison.Ordinal);
+        Assert.DoesNotContain("lumen-stock.css", result, StringComparison.Ordinal);
     }
 
     [Theory]

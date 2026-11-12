@@ -9,7 +9,7 @@ import { SIGN_IN_PATHS } from '../takeover/routes';
 import { veilName } from './veil';
 
 export const SIGN_IN_CLASS = 'lmn-signin';
-/** The admin pages' look (styles/dashboard.css, its own stylesheet linked by Injection/HtmlInjector.cs). */
+/** The admin pages' look (styles/dashboard.css, its own stylesheet: skinCss.ts). */
 export const DASHBOARD_CLASS = 'lmn-skin-dashboard';
 const NAME_PROPERTY = '--lmn-signin-name';
 

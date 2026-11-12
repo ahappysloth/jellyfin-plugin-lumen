@@ -196,6 +196,15 @@ html.lmn-active body {
   display: none;
 }
 
+/* A restyled stock page whose stylesheet is still on its way after a navigation (veil/skin.ts): hidden, briefly, rather
+   than shown unstyled. Not the veil, if it's up. */
+html.lmn-skin-wait body {
+  visibility: hidden;
+}
+html.lmn-skin-wait #lmn-veil {
+  visibility: visible;
+}
+
 /* Pinned to the top of the document rather than placed after #reactRoot: the Modern layout's MUI shell keeps
    its full viewport height even with the stock page hidden, which would push Lumen one screen down.
    Being positioned and later in the DOM, it paints over the hidden stock page. */
