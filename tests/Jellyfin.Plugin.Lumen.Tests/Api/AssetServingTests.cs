@@ -23,6 +23,7 @@ public sealed class AssetServingTests : IAsyncLifetime
 {
     private static readonly byte[] Css = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Range(0, 500).Select(i => $".lumen-row-{i} {{ margin: {i}px; }}\n")));
     private static readonly byte[] TinyJs = "import('./x.js');"u8.ToArray();
+    private static readonly byte[] Font = [.. "wOF2"u8, .. new byte[2048]];
     private static readonly byte[] WebPlugin = Encoding.UTF8.GetBytes("window.LumenWebPlugin = function () { return function () { this.name = 'Lumen'; }; };\n" + new string(' ', 256));
     private IHost _host = null!;
 
@@ -33,7 +34,7 @@ public sealed class AssetServingTests : IAsyncLifetime
                 .UseTestServer()
                 .ConfigureServices(services =>
                 {
-                    services.AddSingleton(new AssetCatalog(new Dictionary<string, byte[]> { ["lumen.css"] = Css, ["lumen.js"] = TinyJs, [HtmlInjector.WebPluginAsset] = WebPlugin }));
+                    services.AddSingleton(new AssetCatalog(new Dictionary<string, byte[]> { ["lumen.css"] = Css, ["lumen.js"] = TinyJs, [HtmlInjector.WebPluginAsset] = WebPlugin, ["lumen-font-inter-400-AbC.woff2"] = Font }));
                     services.AddSingleton(Substitute.For<ILumenConfigReader>());
                     services.AddSingleton(new DiagnosticsStore());
                     services.AddSingleton(TimeProvider.System);
@@ -135,6 +136,20 @@ public sealed class AssetServingTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, identity.StatusCode);
         Assert.Equal(Css, await identity.Content.ReadAsByteArrayAsync());
+    }
+
+    [Theory]
+    [InlineData("https://localhost")]
+    [InlineData("http://localhost")]
+    public async Task AFont_IsSentAsItIs_NotCompressedAgainByJellyfin_AndCachedForGood(string baseAddress)
+    {
+        using var response = await Get(baseAddress, "/Lumen/Assets/lumen-font-inter-400-AbC.woff2", "br, gzip");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty(response.Content.Headers.ContentEncoding);
+        Assert.Equal(Font, await response.Content.ReadAsByteArrayAsync());
+        Assert.Equal("font/woff2", response.Content.Headers.ContentType!.ToString());
+        Assert.Equal("public, max-age=31536000, immutable", response.Headers.CacheControl!.ToString());
     }
 
     private static byte[] Decode(byte[] bytes, string? encoding)

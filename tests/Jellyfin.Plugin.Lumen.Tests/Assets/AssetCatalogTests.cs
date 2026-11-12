@@ -20,6 +20,27 @@ public class AssetCatalogTests
         Assert.False(catalog.TryGet("../secret", out _));
     }
 
+    [Theory]
+    [InlineData("lumen-chunk-main-AbC.js", true)]
+    [InlineData("lumen-font-inter-400-AbC.woff2", true)]
+    [InlineData("lumen.css", false)]
+    [InlineData("lumen.js", false)]
+    [InlineData("lumen-icon-192.png", false)]
+    public void ChunksAndFonts_AreContentNamed(string name, bool contentNamed)
+    {
+        Assert.Equal(contentNamed, AssetCatalog.IsContentNamed(name));
+    }
+
+    [Fact]
+    public void Fonts_AreServedAsWoff2_AndNotCompressedAgain()
+    {
+        var catalog = new AssetCatalog(new Dictionary<string, byte[]> { ["lumen-font-inter-400-AbC.woff2"] = [1, 2, 3] });
+
+        Assert.True(catalog.TryGet("lumen-font-inter-400-AbC.woff2", out var font));
+        Assert.Equal("font/woff2", font.ContentType);
+        Assert.False(font.Compressible);
+    }
+
     [Fact]
     public void BuildHash_IsStable_AndChangesWithContent()
     {

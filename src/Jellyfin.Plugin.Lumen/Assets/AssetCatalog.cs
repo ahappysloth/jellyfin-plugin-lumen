@@ -14,6 +14,12 @@ public sealed partial class AssetCatalog
     /// <summary>The client's content-named files (client/vite.config.ts): their names change with their content.</summary>
     public const string ChunkPrefix = "lumen-chunk-";
 
+    /// <summary>
+    /// Lumen's fonts (client/src/styles/fonts.css), content-named too. lumen.css asks for them relative to itself, without
+    /// a version, so they're cached for good on their names.
+    /// </summary>
+    public const string FontPrefix = "lumen-font-";
+
     private readonly Dictionary<string, LumenAsset> _assets;
     private readonly Lock _precompressionGate = new();
 
@@ -63,6 +69,10 @@ public sealed partial class AssetCatalog
         return new AssetCatalog(files);
     }
 
+    /// <summary>Whether a file's name changes with its content (a chunk or a font), so it can be cached for good as it is.</summary>
+    public static bool IsContentNamed(string name) =>
+        name.StartsWith(ChunkPrefix, StringComparison.Ordinal) || name.StartsWith(FontPrefix, StringComparison.Ordinal);
+
     public bool TryGet(string name, out LumenAsset asset) => _assets.TryGetValue(name, out asset!);
 
     /// <summary>
@@ -97,6 +107,7 @@ public sealed partial class AssetCatalog
         ".js" => "text/javascript; charset=utf-8",
         ".css" => "text/css; charset=utf-8",
         ".png" => "image/png",
+        ".woff2" => "font/woff2",
         _ => "application/octet-stream",
     };
 
