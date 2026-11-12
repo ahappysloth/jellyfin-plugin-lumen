@@ -31,7 +31,7 @@
   <!-- Items are added inside a target so files produced by BuildClient are picked up on the first build. -->
   <Target Name="EmbedClient" BeforeTargets="BeforeBuild" DependsOnTargets="BuildClient">
     <ItemGroup>
-      <ClientAsset Include="$(ClientDir)dist/*.js;$(ClientDir)dist/*.css;$(ClientDir)dist/*.png" />
+      <ClientAsset Include="$(ClientDir)dist/*.js;$(ClientDir)dist/*.css;$(ClientDir)dist/*.png;$(ClientDir)dist/*.woff2" />
       <EmbeddedResource Include="@(ClientAsset)" LogicalName="Lumen.Assets.%(Filename)%(Extension)" />
     </ItemGroup>
   </Target>

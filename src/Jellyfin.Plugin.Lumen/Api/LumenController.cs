@@ -43,8 +43,8 @@ public sealed class LumenController : ControllerBase
             return NotFound();
         }
 
-        // A content-named chunk can't change under its name, so it's cached for good without a version.
-        Response.Headers.CacheControl = string.Equals(v, _assets.BuildHash, StringComparison.Ordinal) || name.StartsWith(AssetCatalog.ChunkPrefix, StringComparison.Ordinal)
+        // A content-named chunk or font can't change under its name, so it's cached for good without a version.
+        Response.Headers.CacheControl = string.Equals(v, _assets.BuildHash, StringComparison.Ordinal) || AssetCatalog.IsContentNamed(name)
             ? "public, max-age=31536000, immutable"
             : "no-cache";
 

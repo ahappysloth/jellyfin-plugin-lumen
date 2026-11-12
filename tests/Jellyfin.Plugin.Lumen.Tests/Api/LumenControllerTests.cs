@@ -20,6 +20,7 @@ public class LumenControllerTests
         ["lumen.js"] = Encoding.UTF8.GetBytes("x"),
         ["lumen-chunk-main-AbC123.js"] = Encoding.UTF8.GetBytes("y"),
         ["lumen-icon-192.png"] = [0x89, 0x50, 0x4e, 0x47],
+        ["lumen-font-inter-400-AbC123.woff2"] = [0x77, 0x4f, 0x46, 0x32],
     });
 
     private readonly ILumenConfigStore _config = Substitute.For<ILumenConfigStore>();
@@ -146,6 +147,24 @@ public class LumenControllerTests
         Assert.Equal("image/png", result.ContentType);
         Assert.Equal(0, controller.Response.Headers.ContentEncoding.Count);
         Assert.Equal(0, controller.Response.Headers.Vary.Count);
+    }
+
+    [Fact]
+    public void Font_IsCachedForGood_WithoutAVersion_AndSentAsItIs()
+    {
+        // lumen.css asks for its fonts relative to itself, without ?v=: their names change with their content.
+        var controller = Create();
+        controller.Request.Headers.AcceptEncoding = "br, gzip";
+
+        var result = Assert.IsType<FileContentResult>(controller.GetAsset("lumen-font-inter-400-AbC123.woff2", null));
+
+        Assert.Equal("font/woff2", result.ContentType);
+        Assert.Equal("public, max-age=31536000, immutable", controller.Response.Headers.CacheControl.ToString());
+
+        // woff2 is compressed already.
+        Assert.Equal(0, controller.Response.Headers.ContentEncoding.Count);
+        Assert.Equal(0, controller.Response.Headers.Vary.Count);
+        Assert.Equal(new byte[] { 0x77, 0x4f, 0x46, 0x32 }, result.FileContents);
     }
 
     [Fact]

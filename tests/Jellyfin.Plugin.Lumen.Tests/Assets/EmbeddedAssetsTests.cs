@@ -26,6 +26,33 @@ public class EmbeddedAssetsTests
     }
 
     [Fact]
+    public void PluginAssembly_EmbedsInter_WhichLumenCssAsksForBesideItself()
+    {
+        var catalog = AssetCatalog.FromEmbeddedResources(typeof(LumenPlugin).Assembly);
+        Assert.True(catalog.TryGet("lumen.css", out var css));
+        var stylesheet = Encoding.UTF8.GetString(css.Content);
+
+        // Three weights (client/src/styles/fonts.css), content-named, and relative to lumen.css: /Lumen/Assets/ under
+        // any base URL. Not at the server's root, where they wouldn't be found.
+        var fonts = catalog.Names.Where(n => n.StartsWith(AssetCatalog.FontPrefix, StringComparison.Ordinal)).Order(StringComparer.Ordinal).ToList();
+        Assert.Collection(
+            fonts,
+            f => Assert.StartsWith("lumen-font-inter-400-", f, StringComparison.Ordinal),
+            f => Assert.StartsWith("lumen-font-inter-500-", f, StringComparison.Ordinal),
+            f => Assert.StartsWith("lumen-font-inter-600-", f, StringComparison.Ordinal));
+        foreach (var font in fonts)
+        {
+            Assert.Contains($"url(./{font})", stylesheet, StringComparison.Ordinal);
+            Assert.True(catalog.TryGet(font, out var file));
+            Assert.Equal("font/woff2", file.ContentType);
+            Assert.Equal("wOF2"u8.ToArray(), file.Content[..4]);
+        }
+
+        Assert.DoesNotContain("url(/", stylesheet, StringComparison.Ordinal);
+        Assert.DoesNotContain("data:font", stylesheet, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EveryScriptAndStylesheet_IsOfferedCompressed_AndDecodesToTheFile()
     {
         var catalog = AssetCatalog.FromEmbeddedResources(typeof(LumenPlugin).Assembly);
