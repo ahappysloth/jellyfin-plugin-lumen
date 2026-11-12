@@ -56,6 +56,59 @@
   color: var(--a-dim);
 }
 
+/* Tabs (Settings, Storage): the strip Lumen gives the Dashboard's tabs (styles/dashboard.css, a user's Profile / Access
+   tabs): framed, as wide as its tabs, the open one filled. In the dashboard's own colours, like the rest of the page. */
+.lmn-admin .lmna-tabs {
+  display: inline-flex;
+  max-width: 100%;
+  margin: 0 0 20px;
+  padding: 3px;
+  border: 1px solid var(--a-line);
+  border-radius: 12px;
+  background: var(--a-surface);
+}
+/* A margin, not flex gap: Chromium 68 (webOS 5) has no gap on flex containers. */
+.lmn-admin .lmna-tab + .lmna-tab {
+  margin-left: 2px;
+}
+.lmn-admin .lmna-tab {
+  min-width: 0;
+  height: 34px;
+  margin: 0;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--a-dim);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+.lmn-admin .lmna-tab:hover {
+  color: inherit;
+}
+.lmn-admin .lmna-tab.is-active {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  color: inherit;
+  font-weight: 600;
+}
+/* Keyboard and D-pad focus: a ring inside the tab, as on the Dashboard's tabs. */
+.lmn-admin .lmna-tab:focus-visible {
+  outline: 2px solid var(--a-accent);
+  outline-offset: -2px;
+}
+/* A TV's browser may be older than :focus-visible (Chromium 86), and a D-pad is all it has: the ring on any focus. */
+html.layout-tv .lmn-admin .lmna-tab:focus {
+  outline: 2px solid var(--a-accent);
+  outline-offset: -2px;
+}
+.lmn-admin .lmna-tabpanel[hidden] {
+  display: none;
+}
+
 /* Cards (fieldsets) */
 .lmn-admin fieldset.lmna-card {
   min-width: 0;
@@ -734,11 +787,14 @@
 }
 .lmn-admin .lmna-storage__total {
   margin: 0;
+}
+/* The headline figures are in the text's own colour, not the dim one: --a-fg is currentColor, which inside a dimmed
+   line would be dim too, so only what follows a figure ("in 40 files") is dimmed. */
+.lmn-admin .lmna-storage__files {
   color: var(--a-dim);
 }
 .lmn-admin .lmna-storage__total strong {
   margin-right: 4px;
-  color: var(--a-fg);
   font-size: 28px;
   font-weight: 650;
   letter-spacing: -0.02em;
@@ -785,14 +841,13 @@
 }
 .lmn-admin .lmna-storage__tile dd {
   margin: 2px 0 0;
-  color: var(--a-dim);
 }
 .lmn-admin .lmna-storage__tile dd strong {
-  color: var(--a-fg);
   font-size: 18px;
   font-weight: 650;
 }
 .lmn-admin .lmna-storage__tile .lmna-storage__hint {
+  color: var(--a-dim);
   font-size: 12.5px;
 }
 
@@ -878,17 +933,87 @@
 .lmn-admin .lmna-storage__bar-row + .lmna-storage__bar-row {
   margin-top: 10px;
 }
+/* The bar's hit area reaches 6px above and below it (a thin bar is a small target), without moving it. */
+.lmn-admin .lmna-bar-wrap {
+  position: relative;
+  margin: -6px 0;
+  padding: 6px 0;
+}
 .lmn-admin .lmna-bar {
   display: flex;
   height: 8px;
   overflow: hidden;
   border-radius: 999px;
 }
+.lmn-admin .lmna-bar:focus-visible {
+  outline: 2px solid var(--a-accent);
+  outline-offset: 3px;
+}
+/* No ring for a click or a tap; browsers without :focus-visible drop this rule and keep their own ring. */
+.lmn-admin .lmna-bar:focus:not(:focus-visible) {
+  outline: none;
+}
+/* While a part's tooltip shows, the others step back. */
+.lmn-admin .lmna-bar-wrap.is-pointing .lmna-bar__seg:not(.is-active) {
+  opacity: 0.45;
+}
+
+/* A part's numbers, over it (StorageSettings.tsx keeps it inside the window, and puts it under the bar when there's no
+   room above). Opaque, like the save bar; only for the eye, since the bar's name reads the numbers out. */
+.lmn-admin .lmna-tip {
+  position: absolute;
+  z-index: 5;
+  bottom: 100%;
+  left: 0;
+  width: max-content;
+  max-width: 320px;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 7px 11px;
+  border: 1px solid var(--a-line-strong);
+  border-radius: 10px;
+  background: var(--a-bg, #181818);
+  box-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.6);
+  color: var(--a-dim);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  pointer-events: none;
+}
+.lmn-admin .lmna-tip strong {
+  color: var(--a-fg);
+  font-weight: 650;
+}
+.lmn-admin .lmna-tip .lmna-swatch {
+  margin-right: 6px;
+}
+/* Its arrow, pointing at the part (--tip-arrow, from its left edge). */
+.lmn-admin .lmna-tip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: var(--tip-arrow, 50%);
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border: solid var(--a-line-strong);
+  border-width: 0 1px 1px 0;
+  background: var(--a-bg, #181818);
+  transform: rotate(45deg);
+}
+.lmn-admin .lmna-tip.is-below {
+  top: 100%;
+  bottom: auto;
+}
+.lmn-admin .lmna-tip.is-below::after {
+  top: 0;
+  border-width: 1px 0 0 1px;
+}
 /* A 2px gap between parts (a margin: Chromium 68 has no gap in flexbox); a sliver still shows. */
 .lmn-admin .lmna-bar__seg {
   flex: none;
   min-width: 3px;
   height: 100%;
+  transition: opacity 0.15s;
 }
 .lmn-admin .lmna-bar__seg + .lmna-bar__seg {
   margin-left: 2px;

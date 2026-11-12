@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { detailsHash, getLayout } from '../compat/jellyfin';
 import { formatDateTime, formatNumber } from '../util/locale';
 import type { AdminApi, StorageBreakdown, StorageBucket, StorageReport, StorageStatus } from './adminApi';
@@ -19,8 +19,8 @@ export const POLL_MS = 2000;
 
 /**
  * Storage: where the space goes, by library, video codec and resolution, and the biggest titles. Read-only. The server
- * scans in the background and keeps the result for 10 minutes; the card asks for it once it's (nearly) on screen, and
- * again every couple of seconds while a scan runs and the page is visible.
+ * scans in the background and keeps the result for 10 minutes; the card asks for it as it mounts (AdminApp mounts it
+ * when its tab is first opened), and again every couple of seconds while a scan runs and the page is visible.
  */
 export function StorageSettings({ api, pollMs = POLL_MS }: { api: AdminApi; pollMs?: number }) {
   const [status, setStatus] = useState<StorageStatus | null>(null);
@@ -58,24 +58,9 @@ export function StorageSettings({ api, pollMs = POLL_MS }: { api: AdminApi; poll
     }
   };
 
-  // Asked for once the card comes near the screen: opening the settings page for something else doesn't start a scan.
   useEffect(() => {
     live.current = true;
-    const root = rootRef.current;
-    let observer: IntersectionObserver | undefined;
-    if (root && typeof IntersectionObserver === 'function') {
-      observer = new IntersectionObserver(
-        (entries) => {
-          if (!entries.some((e) => e.isIntersecting)) return;
-          observer?.disconnect();
-          void load(false);
-        },
-        { rootMargin: '400px 0px' },
-      );
-      observer.observe(root);
-    } else {
-      void load(false);
-    }
+    void load(false);
     const onVisibility = (): void => {
       if (document.hidden || !pollDue.current) return;
       pollDue.current = false;
@@ -84,7 +69,6 @@ export function StorageSettings({ api, pollMs = POLL_MS }: { api: AdminApi; poll
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
       live.current = false;
-      observer?.disconnect();
       clearTimeout(timer.current);
       document.removeEventListener('visibilitychange', onVisibility);
     };
@@ -106,7 +90,7 @@ export function StorageSettings({ api, pollMs = POLL_MS }: { api: AdminApi; poll
             {report && report.Totals.Files > 0 && (
               <p class="lmna-storage__total">
                 <strong>{formatBytes(report.Totals.Size)}</strong>{' '}
-                <span>in {formatFiles(report.Totals.Files)}</span>
+                <span class="lmna-storage__files">in {formatFiles(report.Totals.Files)}</span>
               </p>
             )}
             {report && (
@@ -179,15 +163,16 @@ function Report({ report, tv }: { report: StorageReport; tv: boolean }) {
         <div class="lmna-storage__tile lmna-storage__tile--pool">
           <dt>H.264 at 1080p and above</dt>
           <dd>
-            <strong>{formatBytes(totals.H264AtLeast1080p.Size)}</strong> in{' '}
-            {formatFiles(totals.H264AtLeast1080p.Files)}
+            <strong>{formatBytes(totals.H264AtLeast1080p.Size)}</strong>{' '}
+            <span class="lmna-storage__files">in {formatFiles(totals.H264AtLeast1080p.Files)}</span>
           </dd>
           <dd class="lmna-storage__hint">The usual re-encode candidates.</dd>
         </div>
         <div class="lmna-storage__tile">
           <dt>HDR</dt>
           <dd>
-            <strong>{formatBytes(totals.Hdr.Size)}</strong> in {formatFiles(totals.Hdr.Files)}
+            <strong>{formatBytes(totals.Hdr.Size)}</strong>{' '}
+            <span class="lmna-storage__files">in {formatFiles(totals.Hdr.Files)}</span>
           </dd>
           <dd class="lmna-storage__hint">HDR10, HDR10+, Dolby Vision and HLG.</dd>
         </div>
@@ -351,12 +336,14 @@ function Library({ name, storage, tv }: { name: string; storage: StorageBreakdow
       </p>
       {storage.Files > 0 && (
         <>
-          <Bar name={`${name} by codec`} buckets={storage.Codecs} label={codecLabel} kind="codec" />
+          <Bar library={name} by="codec" buckets={storage.Codecs} label={codecLabel} kind="codec" tv={tv} />
           <Bar
-            name={`${name} by resolution`}
+            library={name}
+            by="resolution"
             buckets={storage.Resolutions}
             label={resolutionLabel}
             kind="res"
+            tv={tv}
           />
         </>
       )}
@@ -364,20 +351,32 @@ function Library({ name, storage, tv }: { name: string; storage: StorageBreakdow
   );
 }
 
+/** How far a bar's tooltip keeps from the window's edges, and from the bar. */
+const TIP_MARGIN = 8;
+
 /**
  * A thin segmented bar (one library's files split by codec or resolution), with a legend that carries the numbers:
  * colour is never the only way to tell the parts apart.
+ *
+ * Pointing at a part (or tapping it, on a touch screen) shows a tooltip with its numbers; tapping elsewhere hides it.
+ * From the keyboard the bar is one Tab stop, its arrows going from part to part. The tooltip is only for the eye: the
+ * bar's name already reads every part out, as the legend shows them, so a screen reader hears it once. Not on a TV,
+ * where the library is a D-pad stop of its own and its legend says the same.
  */
 function Bar({
-  name,
+  library,
+  by,
   buckets,
   label,
   kind,
+  tv,
 }: {
-  name: string;
+  library: string;
+  by: string;
   buckets: StorageBucket[];
   label: (key: string) => string;
   kind: 'codec' | 'res';
+  tv: boolean;
 }) {
   const percent = shares(buckets);
   const parts = buckets
@@ -387,17 +386,137 @@ function Bar({
       text: `${label(b.Key)} ${formatBytes(b.Size)}, ${formatFiles(b.Files)}`,
     }))
     .filter((p) => p.bucket.Files > 0);
+  const [active, setActive] = useState<number | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
+  // The pointer that last went down on the bar: a touch toggles the tooltip, a mouse only points.
+  const pointer = useRef('');
+  const shown = active !== null && active < parts.length ? parts[active]! : null;
+
+  /** The part under the pointer, or the nearest one (the 2px gaps between parts, the hit area above and below). */
+  const partAt = (x: number): number | null => {
+    const segs = barRef.current?.children;
+    if (!segs || !segs.length) return null;
+    let best = 0;
+    let distance = Infinity;
+    for (let i = 0; i < segs.length; i++) {
+      const r = segs[i]!.getBoundingClientRect();
+      const d = x < r.left ? r.left - x : x > r.right ? x - r.right : 0;
+      if (d < distance) {
+        distance = d;
+        best = i;
+      }
+    }
+    return best;
+  };
+
+  // Tapped elsewhere (another bar included): hidden.
+  useEffect(() => {
+    if (active === null) return undefined;
+    const onDown = (e: Event): void => {
+      if (!wrapRef.current?.contains(e.target as Node)) setActive(null);
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, [active !== null]);
+
+  // Over its part, and inside the window: shifted in from an edge (its arrow still points at the part), and under the
+  // bar when there's no room above it.
+  useLayoutEffect(() => {
+    const tip = tipRef.current;
+    const seg = active === null ? null : barRef.current?.children[active];
+    const wrap = wrapRef.current;
+    if (!tip || !seg || !wrap) return;
+    const box = wrap.getBoundingClientRect();
+    const part = seg.getBoundingClientRect();
+    const width = tip.offsetWidth;
+    const viewport = document.documentElement.clientWidth || window.innerWidth;
+    const centre = (part.left + part.right) / 2;
+    const left = Math.max(TIP_MARGIN, Math.min(centre - width / 2, viewport - TIP_MARGIN - width));
+    tip.style.left = `${left - box.left}px`;
+    tip.style.setProperty('--tip-arrow', `${Math.max(10, Math.min(width - 10, centre - left))}px`);
+    const below = part.top - tip.offsetHeight - TIP_MARGIN < 0;
+    tip.classList.toggle('is-below', below);
+  }, [active, shown?.bucket.Key]);
+
+  const onKeyDown = (e: KeyboardEvent): void => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const last = parts.length - 1;
+    const at = active ?? -1;
+    const next =
+      e.key === 'ArrowRight'
+        ? Math.min(at + 1, last)
+        : e.key === 'ArrowLeft'
+          ? Math.max(at - 1, 0)
+          : e.key === 'Home'
+            ? 0
+            : e.key === 'End'
+              ? last
+              : null;
+    if (e.key === 'Escape' && active !== null) {
+      // The tooltip goes, and Escape goes no further (a dialog round the page would close).
+      e.preventDefault();
+      e.stopPropagation();
+      setActive(null);
+      return;
+    }
+    if (next === null) return;
+    e.preventDefault();
+    setActive(next);
+  };
+
   return (
     <div class="lmna-storage__bar-row">
-      <div class="lmna-bar" role="img" aria-label={`${name}: ${parts.map((p) => p.text).join('; ')}`}>
-        {parts.map((p) => (
-          <span
-            key={p.bucket.Key}
-            class={`lmna-bar__seg lmna-seg--${kind}-${p.bucket.Key}`}
-            style={{ width: `${p.share}%` }}
-            title={p.text}
-          />
-        ))}
+      <div
+        ref={wrapRef}
+        class={`lmna-bar-wrap${shown ? ' is-pointing' : ''}`}
+        onPointerDown={(e) => {
+          pointer.current = e.pointerType;
+          if (e.pointerType === 'mouse') return;
+          const at = partAt(e.clientX);
+          setActive((current) => (current === at ? null : at));
+        }}
+        onPointerMove={(e) => {
+          if (e.pointerType === 'mouse') setActive(partAt(e.clientX));
+        }}
+        onPointerLeave={(e) => {
+          // A part picked from the keyboard stays up; one only pointed at goes with the pointer.
+          const fromKeys = document.activeElement === barRef.current && !pointer.current;
+          if (e.pointerType === 'mouse' && !fromKeys) setActive(null);
+        }}
+      >
+        <div
+          ref={barRef}
+          class="lmna-bar"
+          role="img"
+          aria-label={`${library} by ${by}: ${parts.map((p) => p.text).join('; ')}`}
+          tabIndex={tv ? undefined : 0}
+          onKeyDown={tv ? undefined : onKeyDown}
+          // From the keyboard, the first part shows at once; a click or tap has picked its own part already.
+          onFocus={() => {
+            if (!pointer.current) setActive((current) => current ?? 0);
+          }}
+          onBlur={() => {
+            pointer.current = '';
+            setActive(null);
+          }}
+        >
+          {parts.map((p, i) => (
+            <span
+              key={p.bucket.Key}
+              class={`lmna-bar__seg lmna-seg--${kind}-${p.bucket.Key}${i === active ? ' is-active' : ''}`}
+              style={{ width: `${p.share}%` }}
+            />
+          ))}
+        </div>
+        {shown && (
+          <div ref={tipRef} class="lmna-tip" aria-hidden="true">
+            <span class={`lmna-swatch lmna-seg--${kind}-${shown.bucket.Key}`} />
+            <strong>{label(shown.bucket.Key)}</strong>
+            {` · ${formatBytes(shown.bucket.Size)} · ${formatFiles(shown.bucket.Files)} · ${shown.share}% of ${library}`}
+          </div>
+        )}
       </div>
       <ul class="lmna-legend" aria-hidden="true">
         {parts.map((p) => (

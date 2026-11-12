@@ -68,3 +68,55 @@ export function setParam(section: SectionDef, name: string, value: string): Sect
 
 export const normalizeId = (id: string | null | undefined): string =>
   (id ?? '').replace(/-/g, '').toLowerCase();
+
+/** A Jellyfin item id, with or without dashes, in either case. */
+const GUID = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
+
+/**
+ * A value as the comparison sees it. Empty, null and absent are one value: a field typed into and cleared again comes
+ * back as '' where the server sent null (a section's title, the Seerr address), and a write-only key field (Seerr's,
+ * Trakt's) the server never sends at all. Ids compare as normalizeId writes them, since a picker's id and the stored one
+ * may differ in dashes or case. Object keys are sorted, and keys without a value dropped.
+ */
+function comparable(value: unknown): unknown {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'string') return GUID.test(value) ? normalizeId(value) : value;
+  if (Array.isArray(value)) return value.map(comparable);
+  if (typeof value !== 'object') return value;
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(value).sort()) {
+    const v = comparable((value as Record<string, unknown>)[key]);
+    if (v !== null) out[key] = v;
+  }
+  return out;
+}
+
+/** What a configuration says, without the differences that don't change it. See sameConfig. */
+function canonical(config: LumenConfig): string {
+  const c = normalizeConfig(config);
+  return JSON.stringify(
+    comparable({
+      ...c,
+      // The colour input writes lower case; the server may store upper.
+      AccentColor: c.AccentColor?.toLowerCase(),
+      // Only says something with a stored key to remove; false is the same as not there.
+      ClearTraktClientId: !!c.ClearTraktClientId || null,
+      // A section's parameters are a set (setParam moves an edited one to the end, getParam ignores case).
+      Sections: c.Sections.map((s) => ({
+        ...s,
+        Params: s.Params.map((p) => ({ Name: p.Name.toLowerCase(), Value: p.Value })).sort((a, b) =>
+          a.Name < b.Name ? -1 : a.Name > b.Name ? 1 : 0,
+        ),
+      })),
+    }),
+  );
+}
+
+/**
+ * Whether two configurations would save the same: what "unsaved changes" means. A switch turned on and off again, a
+ * section moved down and back up, a value typed and deleted, or a key typed into its field and cleared again all leave
+ * the configuration the same as it was loaded.
+ */
+export function sameConfig(a: LumenConfig, b: LumenConfig): boolean {
+  return a === b || canonical(a) === canonical(b);
+}

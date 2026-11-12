@@ -499,6 +499,27 @@ describe('AdminApp', () => {
       expect(api.saveConfig).toHaveBeenCalledTimes(1);
     });
 
+    it('after a save it couldn’t reload, shows the keys as saved, and compares later changes with what was sent', async () => {
+      const getConfig = vi.fn(async () => config());
+      const api = fakeApi({ getConfig });
+      const { container } = render(<AdminApp api={api} />);
+
+      const key = await screen.findByLabelText('Seerr API key');
+      getConfig.mockRejectedValueOnce(new Error('x'));
+      fireEvent.input(key, { target: { value: 'new-key' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      expect(await screen.findByRole('status')).toHaveTextContent('Settings saved.');
+
+      // The key is the server's now: the field is blank, and says one is saved.
+      expect(key).toHaveValue('');
+      expect(key).toHaveAttribute('placeholder', 'Saved (leave blank to keep it)');
+      const toggle = screen.getByRole('switch', { name: 'Replace the home screen' });
+      fireEvent.click(toggle);
+      expect(container.querySelector('.lmna-savebar')).toHaveClass('is-shown');
+      fireEvent.click(toggle);
+      expect(screen.getByRole('status')).toHaveTextContent('');
+    });
+
     it('does nothing when the reset is not confirmed', async () => {
       const api = fakeApi();
       render(<AdminApp api={api} confirm={() => false} />);
@@ -776,5 +797,191 @@ describe('AdminApp save bar', () => {
     fireEvent.keyDown(document, { key: 's', metaKey: true });
     await waitFor(() => expect(api.saveConfig).toHaveBeenCalledTimes(1));
     expect(await screen.findByRole('status')).toHaveTextContent('Settings saved.');
+  });
+});
+
+describe('AdminApp unsaved changes', () => {
+  const shown = (container: Element): boolean =>
+    container.querySelector('.lmna-savebar')!.classList.contains('is-shown');
+
+  it('go away when a change is undone by hand: a switch, a section moved, a value typed and deleted', async () => {
+    const { container } = render(<AdminApp api={fakeApi()} />);
+    await screen.findByText('Genre rows');
+
+    const toggle = screen.getByRole('switch', { name: 'Replace the home screen' });
+    fireEvent.click(toggle);
+    expect(shown(container)).toBe(true);
+    fireEvent.click(toggle);
+    expect(shown(container)).toBe(false);
+    expect(screen.getByRole('status')).toHaveTextContent('');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+    expect(shown(container)).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching up' }));
+    expect(shown(container)).toBe(false);
+
+    // The server sent no address at all; the field sends '' once emptied.
+    const address = screen.getByLabelText('Seerr address');
+    fireEvent.input(address, { target: { value: 'http://seerr:5055' } });
+    expect(shown(container)).toBe(true);
+    fireEvent.input(address, { target: { value: '' } });
+    expect(shown(container)).toBe(false);
+  });
+
+  it('go away when a Seerr or Trakt key is typed and cleared again', async () => {
+    const api = fakeApi({
+      getConfig: vi.fn(async () => ({ ...config(), SeerrApiKeySet: true, TraktClientIdSet: true })),
+    });
+    const { container } = render(<AdminApp api={api} />);
+    for (const label of ['Seerr API key', 'Trakt API key']) {
+      const field = await screen.findByLabelText(label);
+      fireEvent.input(field, { target: { value: 'secret' } });
+      expect(shown(container)).toBe(true);
+      fireEvent.input(field, { target: { value: '' } });
+      expect(shown(container)).toBe(false);
+    }
+    // Removing the saved Trakt key is a change.
+    fireEvent.click(screen.getByRole('button', { name: 'Remove key' }));
+    expect(shown(container)).toBe(true);
+  });
+
+  it('leave Ctrl+S doing nothing once undone', async () => {
+    const api = fakeApi();
+    const { container } = render(<AdminApp api={api} />);
+    await screen.findByText('Genre rows');
+    Object.defineProperty(container.querySelector('form')!, 'offsetParent', { get: () => document.body });
+    const toggle = screen.getByRole('switch', { name: 'Replace the home screen' });
+    fireEvent.click(toggle);
+    fireEvent.click(toggle);
+
+    const key = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true });
+    document.dispatchEvent(key);
+    expect(key.defaultPrevented).toBe(true);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(api.saveConfig).not.toHaveBeenCalled();
+  });
+
+  it('take a failed save’s problems with them when undone, but not a failed reset', async () => {
+    const api = fakeApi({
+      saveConfig: vi.fn(async () => ({
+        ok: false as const,
+        errors: ['Hero count must be between 1 and 10.'],
+      })),
+    });
+    const { container } = render(<AdminApp api={api} />);
+    await screen.findByText('Genre rows');
+    const toggle = screen.getByRole('switch', { name: 'Replace the home screen' });
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+
+    fireEvent.click(toggle);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(shown(container)).toBe(false);
+  });
+});
+
+describe('AdminApp tabs', () => {
+  const tab = (name: string): HTMLElement => screen.getByRole('tab', { name });
+
+  it('opens on Settings, and measures storage only once Storage is first opened', async () => {
+    const api = fakeApi();
+    const onTab = vi.fn();
+    render(<AdminApp api={api} onTab={onTab} />);
+    await screen.findByText('Genre rows');
+
+    expect(screen.getByRole('tablist', { name: 'Lumen' })).toHaveClass('focuscontainer-x');
+    expect(tab('Settings')).toHaveAttribute('aria-selected', 'true');
+    expect(tab('Settings')).toHaveAttribute('tabindex', '0');
+    expect(tab('Storage')).toHaveAttribute('aria-selected', 'false');
+    expect(tab('Storage')).toHaveAttribute('tabindex', '-1');
+    expect(screen.getByRole('tabpanel')).toHaveAccessibleName('Settings');
+    expect(screen.getByRole('button', { name: 'Reset to defaults' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Storage' })).toBeNull();
+    expect(api.getStorage).not.toHaveBeenCalled();
+
+    fireEvent.click(tab('Storage'));
+    expect(onTab).toHaveBeenCalledWith('storage');
+    expect(tab('Storage')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel')).toHaveAccessibleName('Storage');
+    expect(screen.getByRole('group', { name: 'Storage' })).toBeInTheDocument();
+    // Reset and the settings belong to the Settings tab.
+    expect(screen.queryByRole('button', { name: 'Reset to defaults' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Home sections' })).toBeNull();
+    await waitFor(() => expect(api.getStorage).toHaveBeenCalledTimes(1));
+
+    // Back and forth: Storage stays as it was, rather than measuring again.
+    fireEvent.click(tab('Settings'));
+    expect(onTab).toHaveBeenLastCalledWith('settings');
+    fireEvent.click(tab('Storage'));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(api.getStorage).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the tab named in the URL', async () => {
+    const api = fakeApi();
+    render(<AdminApp api={api} hash="#/configurationpage?name=Lumen&tab=storage" onTab={vi.fn()} />);
+    await screen.findByRole('group', { name: 'Storage' });
+    expect(tab('Storage')).toHaveAttribute('aria-selected', 'true');
+    await waitFor(() => expect(api.getStorage).toHaveBeenCalledTimes(1));
+  });
+
+  it('moves between tabs with the arrows, Home and End, round from either end', async () => {
+    const onTab = vi.fn();
+    render(<AdminApp api={fakeApi()} onTab={onTab} />);
+    await screen.findByText('Genre rows');
+    tab('Settings').focus();
+
+    fireEvent.keyDown(tab('Settings'), { key: 'ArrowRight' });
+    expect(tab('Storage')).toHaveAttribute('aria-selected', 'true');
+    expect(tab('Storage')).toHaveFocus();
+    fireEvent.keyDown(tab('Storage'), { key: 'ArrowRight' });
+    expect(tab('Settings')).toHaveFocus();
+    fireEvent.keyDown(tab('Settings'), { key: 'ArrowLeft' });
+    expect(tab('Storage')).toHaveFocus();
+    fireEvent.keyDown(tab('Storage'), { key: 'Home' });
+    expect(tab('Settings')).toHaveFocus();
+    fireEvent.keyDown(tab('Settings'), { key: 'End' });
+    expect(tab('Storage')).toHaveFocus();
+    expect(onTab).toHaveBeenLastCalledWith('storage');
+  });
+
+  it('TV layout: the D-pad isn’t sent round from either end', async () => {
+    document.documentElement.classList.add('layout-tv');
+    try {
+      render(<AdminApp api={fakeApi()} onTab={vi.fn()} />);
+      await screen.findByText('Genre rows');
+      // fireEvent says whether the event went on unhandled (not cancelled).
+      expect(fireEvent.keyDown(tab('Settings'), { key: 'ArrowRight' })).toBe(false);
+      expect(tab('Storage')).toHaveFocus();
+      // Past the end it's jellyfin-web's: the event is left alone.
+      expect(fireEvent.keyDown(tab('Storage'), { key: 'ArrowRight' })).toBe(true);
+      expect(tab('Storage')).toHaveAttribute('aria-selected', 'true');
+    } finally {
+      document.documentElement.classList.remove('layout-tv');
+    }
+  });
+
+  it('keeps unsaved changes, and the save bar, on the Storage tab', async () => {
+    const api = fakeApi();
+    const { container } = render(<AdminApp api={api} onTab={vi.fn()} />);
+    await screen.findByText('Genre rows');
+    fireEvent.click(screen.getByRole('button', { name: 'Move Continue Watching down' }));
+
+    fireEvent.click(tab('Storage'));
+    const bar = container.querySelector('.lmna-savebar')!;
+    expect(bar).toHaveClass('is-shown');
+    expect(bar).toHaveTextContent('Unsaved changes on the Settings tab');
+    expect(screen.getByRole('status')).toHaveTextContent('Unsaved changes on the Settings tab');
+
+    fireEvent.click(tab('Settings'));
+    expect(screen.getByRole('button', { name: 'Move Continue Watching up' })).toBeEnabled();
+    expect(bar).toHaveTextContent('Unsaved changes');
+
+    // Saved from Storage, all the same.
+    fireEvent.click(tab('Storage'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(api.saveConfig).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(api.saveConfig).mock.calls[0]![0].Sections[0]!.Id).toBe('s2');
   });
 });

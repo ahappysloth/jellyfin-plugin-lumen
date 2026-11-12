@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { AdminApi, DiagnosticEntry, LumenConfig, Option, SectionTypeDef } from './adminApi';
-import { normalizeConfig } from './configModel';
+import { normalizeConfig, sameConfig } from './configModel';
 
 export type PickerKind = 'Library' | 'Collection' | 'Playlist';
 export type Lookups = Record<PickerKind, Option[]>;
@@ -136,10 +136,17 @@ export function useAdminConfig(api: AdminApi) {
     setState((s) => {
       // While a save is in flight its result replaces the form; edits made meanwhile would be silently lost.
       if (!s.config || isBusy(s.status)) return s;
+      const config = { ...s.config, ...changes };
+      // Unsaved means different from what was last loaded or saved, not merely edited: undoing a change by hand
+      // takes the save bar away again, as Discard would.
+      const dirty = !s.saved || !sameConfig(config, s.saved);
       return {
         ...s,
-        config: { ...s.config, ...changes },
-        dirty: true,
+        config,
+        dirty,
+        // Back where it was saved, a failed save's problems are about changes that are gone (as after Discard). A
+        // failed reset's isn't: it stands whatever the form holds.
+        errors: dirty ? s.errors : s.errors.filter((e) => e === RESET_FAILED),
         status: s.status === 'saved' ? 'ready' : s.status,
       };
     });
@@ -172,13 +179,21 @@ export function useAdminConfig(api: AdminApi) {
       });
     } catch {
       // The save went through; only the refresh failed. Say so rather than "Saving failed". What was sent is what's
-      // saved now (less the API key, which the server keeps and never sends back).
+      // saved now, less the keys, which the server keeps and never sends back: the form shows it as the server would,
+      // so the key fields are blank and a change after it compares with what's really saved.
+      const sent: LumenConfig = {
+        ...config,
+        SeerrApiKey: null,
+        SeerrApiKeySet: config.SeerrApiKeySet || !!config.SeerrApiKey,
+        TraktClientId: null,
+        TraktClientIdSet: config.ClearTraktClientId
+          ? false
+          : config.TraktClientIdSet || !!config.TraktClientId,
+        ClearTraktClientId: false,
+      };
       patch({
-        saved: {
-          ...config,
-          SeerrApiKey: null,
-          SeerrApiKeySet: config.SeerrApiKeySet || !!config.SeerrApiKey,
-        },
+        config: sent,
+        saved: sent,
         savedUrl: config.SeerrUrl,
         errors: [],
         warnings: [...state.warnings.filter((w) => w !== RELOAD_AFTER_SAVE_FAILED), RELOAD_AFTER_SAVE_FAILED],
