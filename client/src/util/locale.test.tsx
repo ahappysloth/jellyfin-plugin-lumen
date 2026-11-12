@@ -16,6 +16,7 @@ import {
   languageLocale,
   usableLocale,
 } from './locale';
+import { secondaryStrings } from '../views/secondary/secondaryStrings';
 
 interface FakeWindowOptions {
   globalize?: Record<string, unknown>;
@@ -164,7 +165,7 @@ describe("Lumen's dates and numbers", () => {
     expect(strings.titleCount(1234)).toBe('1.234 titles');
     expect(strings.genreCount(1234)).toBe('1.234 genres');
     expect(strings.studioCount(1234)).toBe('1.234 studios');
-    expect(strings.resultCount(1234)).toBe('1.234 results');
+    expect(secondaryStrings.resultCount(1234)).toBe('1.234 results');
     expect(airDate('2010-03-04T00:00:00.0000000Z')).toBe('4. März 2010');
     const now = new Date(2026, 10, 10, 21, 0, 0).getTime();
     expect(endsAt({ positionMs: 10 * 60_000, durationMs: 52 * 60_000, rate: 1 }, now)).toBe('Ends at 21:42');

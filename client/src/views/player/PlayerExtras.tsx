@@ -9,7 +9,7 @@ import { findOwnSession } from '../../playback/play';
 import { strings } from '../../strings';
 import { formatTime } from '../../util/locale';
 import type { ViewContext } from '../context';
-import { openWatchTogether } from '../syncplay/WatchTogether';
+import { openWatchTogether } from '../secondary/lazySecondary';
 import { othersInGroup, type SyncPlayState } from '../syncplay/syncPlayState';
 import { usePanel } from './PlayerPanels';
 import type { PlayerSnapshot } from './playerState';

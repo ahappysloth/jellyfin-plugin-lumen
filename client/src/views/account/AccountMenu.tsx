@@ -16,7 +16,7 @@ import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { initials } from '../details/CastRow';
 import type { SyncPlayState } from '../syncplay/syncPlayState';
-import { openWatchTogether } from '../syncplay/WatchTogether';
+import { openWatchTogether } from '../secondary/lazySecondary';
 import { type Account, accountAccess, avatarUrl, loadAccount } from './account';
 
 /**

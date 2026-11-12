@@ -11,6 +11,7 @@ import { PageHeader } from '../browse/Toolbar';
 import { useGridPage } from '../browse/useGridPage';
 import type { ViewContext } from '../context';
 import { markedUnwatched, useUserDataChanges } from '../userDataStore';
+import { secondaryStrings } from '../secondary/secondaryStrings';
 
 const cardsIn = (root: HTMLElement | null): HTMLElement[] =>
   Array.from(root?.querySelectorAll<HTMLElement>('.lmn-card') ?? []);
@@ -27,8 +28,8 @@ export function playedDay(item: BaseItem, now: Date = new Date()): { key: string
   const key = dayKey(date);
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  if (key === dayKey(now)) return { key, label: strings.today };
-  if (key === dayKey(yesterday)) return { key, label: strings.yesterday };
+  if (key === dayKey(now)) return { key, label: secondaryStrings.today };
+  if (key === dayKey(yesterday)) return { key, label: secondaryStrings.yesterday };
   const year = date.getFullYear() === now.getFullYear() ? undefined : 'numeric';
   return { key, label: formatDate(date, { weekday: 'short', month: 'short', day: 'numeric', year }) };
 }
@@ -56,7 +57,7 @@ export function historyCells(items: BaseItem[]): GridCell[] {
           Type: 'Series',
           ServerId: item.ServerId,
         },
-        caption: strings.episodeCount(count),
+        caption: secondaryStrings.episodeCount(count),
         artItem: item,
       });
     i = end;
@@ -134,8 +135,8 @@ export function HistoryView({ ctx }: { ctx: ViewContext }) {
             <span class="lmn-browse__empty-icon">
               <Icon name="history" size={28} />
             </span>
-            <p class="lmn-browse__empty-title">{strings.noHistory}</p>
-            <p>{strings.noHistoryHint}</p>
+            <p class="lmn-browse__empty-title">{secondaryStrings.noHistory}</p>
+            <p>{secondaryStrings.noHistoryHint}</p>
           </>
         }
       />

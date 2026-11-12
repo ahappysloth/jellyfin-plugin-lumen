@@ -4,13 +4,13 @@ import type { BaseItem, HomeRow } from '../../api/types';
 import { Card } from '../../components/Card';
 import { LoadError } from '../../components/LoadError';
 import { useAutoFocus } from '../../components/useAutoFocus';
-import { strings } from '../../strings';
 import { infoHash, useCardMenu } from '../cardMenu';
 import type { ViewContext } from '../context';
 import { captionFor, Row } from '../home/Row';
 import { PageHeader } from './Toolbar';
 import { formatDate } from '../../util/locale';
 import { registerSessionCache } from '../../util/sessionCaches';
+import { secondaryStrings } from '../secondary/secondaryStrings';
 
 type Collection = 'movies' | 'tvshows';
 
@@ -43,12 +43,12 @@ export async function loadSuggestions(
       ctx.api.getMovieRecommendations(id).catch(none([])),
     ]);
     return [
-      row('resume', strings.continueWatching, resume.Items),
-      row('latest', strings.latestMovies, latest),
+      row('resume', secondaryStrings.continueWatching, resume.Items),
+      row('latest', secondaryStrings.latestMovies, latest),
       ...recommendations.map((r, i) =>
         row(
           `rec-${r.CategoryId ?? i}`,
-          strings.recommendation(r.RecommendationType, r.BaselineItemName),
+          secondaryStrings.recommendation(r.RecommendationType, r.BaselineItemName),
           r.Items,
         ),
       ),
@@ -60,9 +60,9 @@ export async function loadSuggestions(
     ctx.api.getLatestIn(id, 'Episode').catch(none([] as BaseItem[])),
   ]);
   return [
-    row('resume', strings.continueWatching, resume.Items),
-    row('nextup', strings.nextUp, nextUp.Items),
-    row('latest', strings.latestEpisodes, latest),
+    row('resume', secondaryStrings.continueWatching, resume.Items),
+    row('nextup', secondaryStrings.nextUp, nextUp.Items),
+    row('latest', secondaryStrings.latestEpisodes, latest),
   ].filter((r) => r.Items.length > 0);
 }
 
@@ -111,7 +111,7 @@ export function SuggestionsTab({
       {failed && <LoadError onRetry={() => setAttempt((n) => n + 1)} />}
       {rows && rows.length === 0 && (
         <div class="lmn-browse__empty">
-          <p>{strings.noSuggestions}</p>
+          <p>{secondaryStrings.noSuggestions}</p>
         </div>
       )}
       {rows?.map((r) => (
@@ -146,9 +146,9 @@ export function groupByAirDay(
     const key = dayKey(date);
     const label =
       key === dayKey(now)
-        ? strings.today
+        ? secondaryStrings.today
         : key === dayKey(tomorrow)
-          ? strings.tomorrow
+          ? secondaryStrings.tomorrow
           : formatDate(date, { weekday: 'short', month: 'short', day: 'numeric' });
     const group = groups.get(key) ?? { label, items: [] };
     group.items.push(item);
@@ -195,7 +195,7 @@ export function UpcomingTab({
       {failed && <LoadError onRetry={() => setAttempt((n) => n + 1)} />}
       {items && groups.length === 0 && (
         <div class="lmn-browse__empty">
-          <p>{strings.noUpcoming}</p>
+          <p>{secondaryStrings.noUpcoming}</p>
         </div>
       )}
       {groups.map((group) => (

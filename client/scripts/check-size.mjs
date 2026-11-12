@@ -1,6 +1,6 @@
 // Fails when what every page loads (lumen.js, the chunks it loads at startup, lumen.css), or one of the chunks loaded
-// when they're needed (the player, the trailer preview, the restart banner, the catalog title page, the profile pages),
-// exceeds its gzipped budget.
+// when they're needed (the player, the trailer preview, the restart banner, the catalog title page, the profile pages,
+// the item menu, the secondary views), or one of the stylesheets linked where they're used, exceeds its gzipped budget.
 import { readdirSync, readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 
@@ -18,20 +18,29 @@ const oneChunk = (name) => {
 };
 const coreChunk = oneChunk('main');
 // Loaded when they're needed: views/player/lazyPlayer.tsx, views/home/lazyTrailer.tsx, takeover/restartWatch.ts,
-// views/catalog/lazyTitle.tsx, views/profile/lazyProfile.tsx, views/itemMenu/lazyItemMenu.ts.
+// views/catalog/lazyTitle.tsx, views/profile/lazyProfile.tsx, views/itemMenu/lazyItemMenu.ts,
+// views/secondary/lazySecondary.tsx.
 const playerChunk = oneChunk('PlayerView');
 const trailerChunk = oneChunk('TrailerPreview');
 const restartChunk = oneChunk('RestartBanner');
 const titleChunk = oneChunk('TitleView');
 const profileChunk = oneChunk('ProfilePages');
 const itemMenuChunk = oneChunk('itemMenu');
+const secondaryChunk = oneChunk('SecondaryViews');
 // Startup is lumen.js and the core it imports, which the server preloads with it. Another chunk would be a download
 // the core waits for (vite.config.ts keeps it to one).
 const others = chunks.filter(
   (f) =>
-    ![coreChunk, playerChunk, trailerChunk, restartChunk, titleChunk, profileChunk, itemMenuChunk].includes(
-      f,
-    ),
+    ![
+      coreChunk,
+      playerChunk,
+      trailerChunk,
+      restartChunk,
+      titleChunk,
+      profileChunk,
+      itemMenuChunk,
+      secondaryChunk,
+    ].includes(f),
 );
 if (others.length) {
   console.error(`unexpected chunks: ${others.join(', ')}`);
@@ -74,6 +83,14 @@ console.log(`lumen profile: ${kb(profile)} gzipped (budget ${PROFILE_BUDGET / 10
 const ITEM_MENU_BUDGET = 5 * 1024;
 const itemMenu = gz(`dist/${itemMenuChunk}`);
 console.log(`lumen item menu: ${kb(itemMenu)} gzipped (budget ${ITEM_MENU_BUDGET / 1024} KB)`);
+// Search, person and collection pages, a library's Suggestions and Upcoming tabs, History and the Watch together menu,
+// with their stylesheet (views/secondary/lazySecondary.tsx): fetched once the first page is up. Moving them out of the
+// core freed about 4.7 KB at startup, with their strings and styles.
+const SECONDARY_BUDGET = 9 * 1024;
+const secondary = gz(`dist/${secondaryChunk}`) + gz('dist/lumen-secondary.css');
+console.log(
+  `lumen secondary views + styles: ${kb(secondary)} gzipped (budget ${SECONDARY_BUDGET / 1024} KB)`,
+);
 // The guard and the web plugin's definer are inlined into every index.html, so they share a small budget.
 const GUARD_BUDGET = 4 * 1024;
 const guard = gz('dist/lumen-guard.js') + gz('dist/lumen-web-plugin.js');
@@ -92,6 +109,7 @@ if (
   title > TITLE_BUDGET ||
   profile > PROFILE_BUDGET ||
   itemMenu > ITEM_MENU_BUDGET ||
+  secondary > SECONDARY_BUDGET ||
   guard > GUARD_BUDGET ||
   dashboard > DASHBOARD_BUDGET
 ) {

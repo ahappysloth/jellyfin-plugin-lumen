@@ -35,12 +35,19 @@ const NEWER_PROPERTIES = new Set([
 
 const failures = [];
 // Every one of these must be there and checked: a missing file would otherwise pass unnoticed.
-const REQUIRED = ['lumen.js', GUARD, 'lumen-admin.js', 'lumen.css', 'lumen-dashboard.css'];
+const REQUIRED = [
+  'lumen.js',
+  GUARD,
+  'lumen-admin.js',
+  'lumen.css',
+  'lumen-dashboard.css',
+  'lumen-secondary.css',
+];
 for (const file of REQUIRED) {
   if (!existsSync(`dist/${file}`)) failures.push(`dist/${file} is missing: run \`npm run build\` first`);
 }
 // The content-named chunks: the core, the player and the trailer preview (vite.config.ts).
-for (const chunk of ['main', 'PlayerView', 'TrailerPreview']) {
+for (const chunk of ['main', 'PlayerView', 'TrailerPreview', 'SecondaryViews']) {
   if (!readdirSync('dist').some((f) => f.startsWith(`lumen-chunk-${chunk}-`) && f.endsWith('.js'))) {
     failures.push(`no lumen-chunk-${chunk}-*.js in dist: run \`npm run build\` first`);
   }

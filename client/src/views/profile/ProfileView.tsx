@@ -16,7 +16,7 @@ import { type Account, accountAccess, avatarUrl, loadAccount } from '../account/
 import type { ViewContext } from '../context';
 import { initials } from '../details/CastRow';
 import { useSyncPlayState } from '../syncplay/syncPlayState';
-import { openWatchTogether } from '../syncplay/WatchTogether';
+import { openWatchTogether } from '../secondary/lazySecondary';
 import { PROFILE_ICONS } from './profileIcons';
 import { profileStrings } from './profileStrings';
 

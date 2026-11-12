@@ -3,7 +3,7 @@
  *
  * PATHS downloads at startup whole, so an icon only a lazily loaded view shows lives in that view's own set, made with
  * defineIcons in a module only its chunk imports (views/player/playerIcons.ts, views/profile/profileIcons.ts,
- * views/itemMenu/itemMenuIcons.ts), and is passed as `name={PLAYER_ICONS.cast}`. An icon the core needs too belongs
+ * views/itemMenu/itemMenuIcons.ts, views/secondary/secondaryIcons.ts), and is passed as `name={PLAYER_ICONS.cast}`. An icon the core needs too belongs
  * here.
  */
 import type { JSX } from 'preact';
@@ -19,7 +19,6 @@ const PATHS = {
    */
   watchTogether:
     'M7 1.75a3.25 3.25 0 1 1 0 6.5 3.25 3.25 0 0 1 0-6.5Zm0 2a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5ZM2 14a5 5 0 0 1 10 0h-2a3 3 0 0 0-6 0ZM17 9.75a3.25 3.25 0 1 1 0 6.5 3.25 3.25 0 0 1 0-6.5Zm0 2a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5ZM12 22a5 5 0 0 1 10 0h-2a3 3 0 0 0-6 0ZM14.87 2A10.4 10.4 0 0 1 20.82 6.49 1 1 0 0 1 19.12 7.55 8.4 8.4 0 0 0 14.32 3.93 1 1 0 0 1 14.87 2ZM9.13 22A10.4 10.4 0 0 1 3.18 17.51 1 1 0 0 1 4.88 16.45 8.4 8.4 0 0 0 9.68 20.07 1 1 0 0 1 9.13 22Z',
-  stop: 'M6 6h12v12H6z',
   /** A clock with an arrow running back round it. */
   history:
     'M4 12A9 9 0 1 1 6.64 18.36L8.05 16.95A7 7 0 1 0 6 12ZM1.5 12h7L5 15.5ZM12 7h2v4.6l3.2 1.9-1 1.7-4.2-2.5Z',

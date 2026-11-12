@@ -3,6 +3,11 @@
   max-width: calc(880px + 2 * var(--lmn-gutter));
   margin: 0 auto;
 }
+/* Its sections sit inside the page gutter already. */
+.lmn-profile .lmn-row__title {
+  margin-right: 0;
+  margin-left: 0;
+}
 .lmn-profile__header {
   display: flex;
   align-items: center;
@@ -116,8 +121,7 @@
   gap: 12px;
   margin-top: 32px;
 }
-.layout-tv .lmn-profile__link:focus,
-.layout-tv .lmn-search__input:focus {
+.layout-tv .lmn-profile__link:focus {
   outline: 3px solid var(--lmn-focus);
   outline-offset: 3px;
 }
