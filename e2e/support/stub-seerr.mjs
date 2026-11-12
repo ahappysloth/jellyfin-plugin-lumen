@@ -25,11 +25,21 @@
 //          409 { message } if this user already requested the same mediaId + seasons; recorded for /__stub/requests
 //   (Catalog and request routes act as a user: they need the key and an X-Api-User header, 400 without it.)
 //   GET  /t/p/:size/:file                       → a tiny PNG (TMDB image stand-in)
-//   GET  /trakt/{movies|shows}/watched/weekly?limit= → Trakt's weekly most watched (stand-in for the Top 10 rows, which
-//        LUMEN_TRAKT_API_BASE points here): needs `trakt-api-version: 2` and `trakt-api-key: stub-trakt-key`, else 401.
-//        Movies: Lumen Beta (tmdb 900002), The Matrix (603), a title Seerr doesn't know (999999), Lumen Alpha (imdb
-//        tt9000001), The Matrix Reloaded (604). Shows: Lumen Saga (1399), Lumen Show (tmdb 900010). The fixture media
-//        has no ids: the Top 10 spec gives the library items theirs.
+//   Trakt (LUMEN_TRAKT_API_BASE points here, under /trakt): every call needs `trakt-api-version: 2` and
+//   `trakt-api-key: stub-trakt-key`, else 401. Lists take ?page=&limit= and answer with Trakt's X-Pagination-* headers.
+//   The fixture media has no ids: the Top 10 and Trakt specs give the library items theirs.
+//   GET  /trakt/{movies|shows}/watched/{weekly|monthly|yearly|all} → most watched (Top 10 rows, Top charts):
+//        weekly movies: Lumen Beta (tmdb 900002), The Matrix (603), a title Seerr doesn't know (999999), Lumen Alpha (imdb
+//        tt9000001), The Matrix Reloaded (604). Weekly shows: Lumen Saga (1399), Lumen Show (tmdb 900010).
+//        monthly movies: Reloaded, Alpha, Matrix, Beta. yearly movies: Matrix, Beta. all-time movies: 30 titles, The
+//        Matrix, Stub Request 760–784, Alpha (27th), the unknown title, Beta (29th), Reloaded. Other shows' charts:
+//        Lumen Show, Lumen Saga.
+//   GET  /trakt/movies/boxoffice                → The Matrix, Lumen Beta, Stub Request 790, the unknown title
+//   GET  /trakt/{movies|shows}/anticipated      → movies Lumen Future (605), Stub Request 791, 792; shows Lumen Saga
+//   GET  /trakt/{movies|shows}/trending         → movies Lumen Alpha, The Matrix Reloaded; shows Lumen Show, Lumen Saga
+//   GET  /trakt/users/lumen-tester/lists/lumen-picks[/items/movie,show] → "Lumen Picks": Lumen Saga (show), Lumen Beta,
+//        Stub Request 793; /trakt/lists/4242 is the same list by id. users/lumen-tester/lists/secret is private (401),
+//        any other list 404.
 //   POST /__stub/users  { [jellyfinUserId]: { id, permissions } }   → replaces the user map (test control)
 //   POST /__stub/jellyfin  { name, serverId }                       → sets the linked Jellyfin server (test control)
 //   POST /__stub/library  { tmdbId, jellyfinMediaId }                → makes that title available (mediaInfo status 5,
@@ -117,23 +127,52 @@ const details = {
     mediaInfo: { ...SAGA.mediaInfo, requests: [{ status: 2, seasons: [{ seasonNumber: 2, status: 2 }] }] },
   },
 };
-const watched = (kind, title, year, ids, watchers) => ({
-  watcher_count: watchers, play_count: watchers * 2, collected_count: 0,
-  [kind]: { title, year, ids: { trakt: watchers, slug: title.toLowerCase().replace(/\W+/g, '-'), imdb: null, tmdb: null, ...ids } },
+const traktTitle = (title, year, ids) => ({
+  title, year, ids: { trakt: ids.tmdb ?? 1, slug: title.toLowerCase().replace(/\W+/g, '-'), imdb: null, tmdb: null, ...ids },
 });
-const traktWeekly = {
-  movies: [
-    watched('movie', 'Lumen Beta', 2002, { tmdb: 900002 }, 5000),
-    watched('movie', 'The Matrix', 1999, { tmdb: 603, imdb: 'tt0133093' }, 4000),
-    watched('movie', 'Stub Unknown To Seerr', 2026, { tmdb: 999999 }, 3000),
-    watched('movie', 'Lumen Alpha', 2001, { tmdb: 900001, imdb: 'tt9000001' }, 2000),
-    watched('movie', 'The Matrix Reloaded', 2003, { tmdb: 604, imdb: 'tt0234215' }, 1000),
-  ],
-  shows: [
-    watched('show', 'Lumen Saga', 2011, { tmdb: 1399 }, 3000),
-    watched('show', 'Lumen Show', 2010, { tmdb: 900010, imdb: 'tt9000010' }, 2000),
-  ],
+// Trakt's titles, as [title, year, ids].
+const T = {
+  beta: ['Lumen Beta', 2002, { tmdb: 900002 }],
+  matrix: ['The Matrix', 1999, { tmdb: 603, imdb: 'tt0133093' }],
+  unknown: ['Stub Unknown To Seerr', 2026, { tmdb: 999999 }],
+  alpha: ['Lumen Alpha', 2001, { tmdb: 900001, imdb: 'tt9000001' }],
+  reloaded: ['The Matrix Reloaded', 2003, { tmdb: 604, imdb: 'tt0234215' }],
+  future: ['Lumen Future', Number(inAYear.slice(0, 4)), { tmdb: 605 }],
+  saga: ['Lumen Saga', 2011, { tmdb: 1399 }],
+  show: ['Lumen Show', 2010, { tmdb: 900010, imdb: 'tt9000010' }],
 };
+const stubRequest = (id) => [REQUEST_TITLES[id] ?? `Stub Request ${id}`, 2020, { tmdb: id }];
+/** A list's entries: each title under `movie` or `show`, with what that list adds (watchers, revenue…). */
+const entries = (kind, titles, extra = () => ({})) =>
+  titles.map(([title, year, ids], i) => ({ ...extra(i), [kind]: traktTitle(title, year, ids) }));
+const watchedMovies = {
+  weekly: [T.beta, T.matrix, T.unknown, T.alpha, T.reloaded],
+  monthly: [T.reloaded, T.alpha, T.matrix, T.beta],
+  yearly: [T.matrix, T.beta],
+  all: [T.matrix, ...Array.from({ length: 25 }, (_, i) => stubRequest(760 + i)), T.alpha, T.unknown, T.beta, T.reloaded],
+};
+const traktLists = {
+  'movies/watched/weekly': entries('movie', watchedMovies.weekly, (i) => ({ watcher_count: 5000 - i * 1000 })),
+  'movies/watched/monthly': entries('movie', watchedMovies.monthly, (i) => ({ watcher_count: 9000 - i * 1000 })),
+  'movies/watched/yearly': entries('movie', watchedMovies.yearly, (i) => ({ watcher_count: 90000 - i * 1000 })),
+  'movies/watched/all': entries('movie', watchedMovies.all, (i) => ({ watcher_count: 900000 - i * 1000 })),
+  'shows/watched/weekly': entries('show', [T.saga, T.show], (i) => ({ watcher_count: 3000 - i * 1000 })),
+  'shows/watched/monthly': entries('show', [T.show, T.saga]),
+  'shows/watched/yearly': entries('show', [T.show, T.saga]),
+  'shows/watched/all': entries('show', [T.show, T.saga]),
+  'movies/boxoffice': entries('movie', [T.matrix, T.beta, stubRequest(790), T.unknown], (i) => ({ revenue: 90000000 - i * 1000000 })),
+  'movies/anticipated': entries('movie', [T.future, stubRequest(791), stubRequest(792)], (i) => ({ list_count: 900 - i })),
+  'shows/anticipated': entries('show', [T.saga], () => ({ list_count: 800 })),
+  'movies/trending': entries('movie', [T.alpha, T.reloaded], () => ({ watchers: 42 })),
+  'shows/trending': entries('show', [T.show, T.saga], () => ({ watchers: 42 })),
+};
+// A user's list: entries of either type, in the list's order.
+const PICKS = [
+  { rank: 1, type: 'show', show: entries('show', [T.saga])[0].show },
+  { rank: 2, type: 'movie', movie: entries('movie', [T.beta])[0].movie },
+  { rank: 3, type: 'movie', movie: entries('movie', [stubRequest(793)])[0].movie },
+];
+const PICKS_INFO = { name: 'Lumen Picks', privacy: 'public', ids: { trakt: 4242, slug: 'lumen-picks' } };
 // A title's MediaStatus as Seerr has it (see the header). `base` is the fixture's; a show that's partly available stays
 // so, as in Seerr.
 const mediaStatus = (tmdbId, base) => {
@@ -212,9 +251,20 @@ const withLibrary = (media) => {
 const requestKey = (user, body) =>
   JSON.stringify([user, body.mediaType, body.mediaId, Array.isArray(body.seasons) ? [...body.seasons].sort((a, b) => a - b) : body.seasons ?? null]);
 
-const json = (res, status, body) => {
-  res.writeHead(status, { 'Content-Type': 'application/json' });
+const json = (res, status, body, headers = {}) => {
+  res.writeHead(status, { 'Content-Type': 'application/json', ...headers });
   res.end(JSON.stringify(body));
+};
+/** One page of a Trakt list, with Trakt's pagination headers (?page= from 1, ?limit= 10 by default). */
+const paged = (res, url, all) => {
+  const limit = Math.max(1, Number(url.searchParams.get('limit') ?? 10));
+  const page = Math.max(1, Number(url.searchParams.get('page') ?? 1));
+  return json(res, 200, all.slice((page - 1) * limit, page * limit), {
+    'X-Pagination-Page': String(page),
+    'X-Pagination-Limit': String(limit),
+    'X-Pagination-Page-Count': String(Math.max(1, Math.ceil(all.length / limit))),
+    'X-Pagination-Item-Count': String(all.length),
+  });
 };
 
 createServer((req, res) => {
@@ -252,12 +302,20 @@ createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'image/png' });
     return res.end(PNG);
   }
-  const trakt = path.match(/^\/trakt\/(movies|shows)\/watched\/weekly$/);
-  if (trakt && req.method === 'GET') {
+  if (path.startsWith('/trakt/') && req.method === 'GET') {
     if (req.headers['trakt-api-key'] !== STUB_TRAKT_KEY || req.headers['trakt-api-version'] !== '2') {
       return json(res, 401, { error: 'invalid_api_key' });
     }
-    return json(res, 200, traktWeekly[trakt[1]].slice(0, Number(url.searchParams.get('limit') ?? 10)));
+    const resource = path.slice('/trakt/'.length);
+    const list = resource.match(/^(?:users\/([^/]+)\/lists\/([^/]+)|lists\/([^/]+))(\/items\/movie,show)?$/);
+    if (list) {
+      const picks = (list[1] === 'lumen-tester' && list[2] === 'lumen-picks') || list[3] === '4242';
+      if (list[1] === 'lumen-tester' && list[2] === 'secret') return json(res, 401, { error: 'private list' });
+      if (!picks) return json(res, 404, { error: 'not found' });
+      return list[4] ? paged(res, url, PICKS) : json(res, 200, PICKS_INFO);
+    }
+    if (traktLists[resource]) return paged(res, url, traktLists[resource]);
+    return json(res, 404, { error: 'not found' });
   }
   if (path === '/api/v1/status') return json(res, 200, { version: '3.5.1-stub', commitTag: 'stub' });
   if (req.headers['x-api-key'] !== STUB_API_KEY) return json(res, 403, { message: 'You do not have permission' });

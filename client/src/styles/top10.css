@@ -1,13 +1,15 @@
-/* ---- Top 10 rows (views/home/Top10Item.tsx) --------------------------------------------------------------------- */
+/* ---- Top 10 and Trakt rows (views/home/Top10Item.tsx) ----------------------------------------------------------- */
 /* Each poster stands beside its rank: a tall numeral lit from above, bright at the top and falling off into a faint
    silhouette at the poster's foot, the way light falls off a lit surface. Focus or hover on the card lets the light
    run down into the accent. The numeral is decoration (aria-hidden); the card's name carries the rank. (No outline
    stroke: system fonts' digits have overlapping contours that a stroke draws.) */
-.lmn-row--top10 {
+.lmn-row--top10,
+.lmn-row--trakt {
   --lmn-top10-w: 172px;
 }
 /* The arrows sit over the posters' art. */
-.lmn-row--top10 .lmn-row__arrow {
+.lmn-row--top10 .lmn-row__arrow,
+.lmn-row--trakt .lmn-row__arrow {
   height: calc(var(--lmn-top10-w) * 1.5);
 }
 .lmn-top10 {
@@ -48,6 +50,10 @@
   pointer-events: none;
   -webkit-user-select: none;
   user-select: none;
+}
+/* Trakt's other rows (Box Office, Trending…): the same posters and Request button, without the numerals. */
+.lmn-top10--plain {
+  margin-right: 10px;
 }
 /* Two digits share the width of about one and a half. */
 .lmn-top10--wide .lmn-top10__rank {
@@ -115,7 +121,8 @@
 
 /* Phones: smaller posters, so more than one rank shows at a time. */
 @media (max-width: 720px) {
-  .lmn-row--top10 {
+  .lmn-row--top10,
+  .lmn-row--trakt {
     --lmn-top10-w: 124px;
   }
   .lmn-row--top10 .lmn-row__scroller {

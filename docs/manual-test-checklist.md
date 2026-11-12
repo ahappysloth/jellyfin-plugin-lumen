@@ -41,7 +41,7 @@ Run against the release build on the latest stable Jellyfin.
 
 Add Top 10 Movies and Top 10 Shows under Home sections first.
 
-- [ ] With a real Trakt Client ID (trakt.tv/oauth/applications) in Settings → Top 10, Check key names this week's most
+- [ ] With a real Trakt Client ID (trakt.tv/oauth/applications) in Settings → Trakt, Check key names this week's most
       watched movie; a mistyped key says Trakt rejected it. The field never shows the saved key, only "Saved", and
       Remove key + Save clears it.
 - [ ] Home shows both rows with big numerals beside the posters, in Trakt's order. Titles the server has open their
@@ -52,6 +52,27 @@ Add Top 10 Movies and Top 10 Shows under Home sections first.
 - [ ] A user with parental controls or limited library access never sees a library card they can't open.
 - [ ] TV layout: the arrows reach every card, and Down from an unowned card reaches its Request button. A screen reader
       reads each card as "1, Title", not the numeral on its own.
+
+## Top charts and Trakt rows (Trakt and Seerr)
+
+- [ ] With a Trakt key, a Top 10 row's title reads "… See all ›" and opens Top charts on that row's chart (This week).
+      Without a key there's no See all, and `#/home?lumen=charts` says the page isn't found.
+- [ ] Top charts: Movies / Shows and This week / This month / This year / All time each show their own chart, ranked
+      as on Trakt (compare with trakt.tv/movies/watched/monthly…). All time loads more as you scroll, up to 100. A title
+      on the server opens its page; Back returns to the same chart and period.
+- [ ] With Seerr, titles the server doesn't have show Request under the card; requesting one turns the card to
+      Requested (and to a progress bar once it downloads). Without Seerr, only titles on the server show, at their true
+      rank (e.g. 4, 9, 23), not renumbered.
+- [ ] Add Box Office, Most Anticipated Movies and Shows, Trending Movies and Shows, and a Trakt list (paste a public
+      list's address, e.g. https://trakt.tv/users/…/lists/…) under Home sections. Each row shows posters in Trakt's
+      order without numerals; the list row is titled with the list's name unless you give it one.
+- [ ] Saving a Trakt list with an address that isn't a list (a watchlist, a movie page, another site) says
+      "Enter a public Trakt list's address…". A private or deleted list's row is hidden, and the server log says so once.
+- [ ] Without Seerr, Most Anticipated rows are hidden and the others show only titles on the server. Without a Trakt
+      key, all of these rows are hidden.
+- [ ] Phone (iPhone): Top charts' switches stack and the grid shows three posters a row; the rank tab stays readable.
+- [ ] TV layout: from a Top 10 card, Up reaches See all; on Top charts the arrows reach both switches, every card and
+      each Request button (Down from its card), and the next page loads as focus moves down the grid.
 
 ## Request progress (a real Seerr connected to Radarr/Sonarr)
 

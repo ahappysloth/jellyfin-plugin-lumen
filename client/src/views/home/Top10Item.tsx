@@ -10,7 +10,21 @@ import { useCatalogState } from '../catalog/catalog';
 /** The "Top 10 this week" rows (server: Top10Providers.cs). Their cards are ranked in the order the server sends them. */
 export const isTop10Row = (row: HomeRow): boolean => row.Type === 'Top10Movies' || row.Type === 'Top10Shows';
 
-/** A Top 10 row's cards, ranked 1..n in the order the server sent them. */
+/**
+ * Trakt's other rows (server: TraktRowProviders.cs): Box Office, Most Anticipated, Trending and Trakt lists. Their cards
+ * are Top 10's, posters with a Request button under the ones not on the server, but without the numerals.
+ */
+export const isTraktRow = (row: HomeRow): boolean =>
+  [
+    'TraktBoxOffice',
+    'TraktAnticipatedMovies',
+    'TraktAnticipatedShows',
+    'TraktTrendingMovies',
+    'TraktTrendingShows',
+    'TraktList',
+  ].indexOf(row.Type) >= 0;
+
+/** A Top 10 row's cards, ranked 1..n in the order the server sent them; a Trakt row's, in order without ranks. */
 export function Top10Items({
   row,
   client,
@@ -32,13 +46,14 @@ export function Top10Items({
   canRequest?: (item: CatalogItem) => boolean;
   onRequest?: (item: CatalogItem) => void;
 }) {
+  const ranked = isTop10Row(row);
   return (
     <>
       {(row.Entries ?? []).map((entry, i) => (
         <Top10Item
           key={entry.Catalog?.Key ?? entry.Item?.Id}
           entry={entry}
-          rank={i + 1}
+          rank={ranked ? i + 1 : undefined}
           client={client}
           catalogImageToken={catalogImageToken}
           badge={entry.Item ? badges?.[entry.Item.Id] : undefined}
@@ -54,7 +69,8 @@ export function Top10Items({
 
 interface Props {
   entry: HomeRowEntry;
-  rank: number;
+  /** Top 10's place, shown as the big numeral; none in Trakt's other rows. */
+  rank?: number;
   client: Pick<JellyfinApiClient, 'getUrl'>;
   catalogImageToken?: string | null;
   badge?: BadgeKey;
@@ -66,7 +82,7 @@ interface Props {
 }
 
 /**
- * One ranked card: a big numeral, then a poster card. A title on the server is its normal card; one that isn't is a
+ * One ranked card: a big numeral (Top 10 only), then a poster card. A title on the server is its normal card; one that isn't is a
  * catalog card with a Request button under it, so it can be requested without leaving the home screen. The numeral is
  * decoration (aria-hidden): the rank is read as the start of the card's name instead ("3, Title"). The button sits below
  * the card, not over it, so the TV's D-pad reaches it (Down from the card).
@@ -84,10 +100,14 @@ export function Top10Item({
 }: Props) {
   const catalog = entry.Catalog;
   return (
-    <div class={`lmn-top10${rank >= 10 ? ' lmn-top10--wide' : ''}`}>
-      <span class="lmn-top10__rank" aria-hidden="true">
-        {rank}
-      </span>
+    <div
+      class={`lmn-top10${rank === undefined ? ' lmn-top10--plain' : rank >= 10 ? ' lmn-top10--wide' : ''}`}
+    >
+      {rank !== undefined && (
+        <span class="lmn-top10__rank" aria-hidden="true">
+          {rank}
+        </span>
+      )}
       <div class="lmn-top10__card">
         {catalog ? (
           <CatalogEntry
@@ -114,7 +134,8 @@ export function Top10Item({
   );
 }
 
-function CatalogEntry({
+/** A catalog card with the Request button under it (Top 10, Trakt's rows and Top charts). */
+export function CatalogEntry({
   item,
   rank,
   client,
@@ -123,7 +144,7 @@ function CatalogEntry({
   onRequest,
 }: {
   item: CatalogItem;
-  rank: number;
+  rank?: number;
   client: Pick<JellyfinApiClient, 'getUrl'>;
   imageToken: string | null | undefined;
   onSelect: (item: CatalogItem) => void;

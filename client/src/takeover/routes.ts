@@ -33,6 +33,11 @@ export type Route =
   | { kind: 'history' }
   /** Lumen's own: the user's requests and how each is going (request features; rides on home like History). */
   | { kind: 'requests' }
+  /**
+   * Lumen's own: Trakt's most watched movies or shows of a period (needs a Trakt key; rides on home like History). Which
+   * chart and period are the page's to read (views/charts/chartsRoute.ts), keeping the inline guard small.
+   */
+  | { kind: 'charts' }
   /** A stock settings page Lumen restyles and frames with its own nav; the page itself stays jellyfin-web's. */
   | { kind: 'settings'; page: SettingsPage }
   /** jellyfin-web's video player: Lumen draws its controls over it; playback stays jellyfin-web's. */
@@ -44,6 +49,9 @@ export type Route =
   | { kind: 'notFound' }
   | { kind: 'other' };
 export type TakeoverRoute = Exclude<Route, { kind: 'other' }>;
+export type ChartType = 'movies' | 'shows';
+/** Trakt's periods: This week, This month, This year, All time. */
+export type ChartPeriod = 'weekly' | 'monthly' | 'yearly' | 'all';
 
 const ITEM_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
 export type SettingsPage =
@@ -84,6 +92,7 @@ export function parseRoute(hash: string): Route {
     const lumenPage = query.get(PIGGY_BACKED_PARAMS.lumenPage);
     if (lumenPage === 'history') return { kind: 'history' };
     if (lumenPage === 'requests') return { kind: 'requests' };
+    if (lumenPage === 'charts') return { kind: 'charts' };
     if (tab === null || tab === '0') return { kind: 'home' };
     if (tab === '1') return { kind: 'favorites' };
     return { kind: 'other' };
@@ -144,6 +153,11 @@ export function routeKey(route: TakeoverRoute): string {
     default:
       return route.kind;
   }
+}
+
+/** The Top charts page, on one chart and period (This week by default). */
+export function chartsHash(chart: ChartType, period: ChartPeriod = 'weekly'): string {
+  return `#${STOCK_ROUTES.home}?${PIGGY_BACKED_PARAMS.lumenPage}=charts&chart=${chart}&period=${period}`;
 }
 
 /** The Lumen route for a catalog title. */

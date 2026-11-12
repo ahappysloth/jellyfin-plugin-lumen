@@ -90,6 +90,23 @@ describe('App', () => {
     expect(await screen.findByRole('navigation', { name: 'Main' })).toBeInTheDocument();
   });
 
+  it('has no Top charts page without a Trakt key', () => {
+    render(<App route={{ kind: 'charts' }} ctx={context()} />);
+
+    expect(screen.getByRole('region', { name: 'Page not found' })).toBeInTheDocument();
+  });
+
+  it('opens Top charts with a Trakt key, its file loaded when first needed', async () => {
+    window.location.hash = '#/home?lumen=charts&chart=shows';
+    const ctx = context({
+      'Lumen/Charts/shows/weekly': { Entries: [], TotalCount: 0, StartIndex: 0 },
+    });
+    render(<App route={{ kind: 'charts' }} ctx={{ ...ctx, config: { ...ctx.config, Charts: true } }} />);
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Top charts' })).toBeInTheDocument();
+    expect(await screen.findByText('Nothing here yet')).toBeInTheDocument();
+  });
+
   it("moves focus to the next page's heading", () => {
     const ctx = context();
     const { rerender } = render(<App route={{ kind: 'favorites' }} ctx={ctx} />);

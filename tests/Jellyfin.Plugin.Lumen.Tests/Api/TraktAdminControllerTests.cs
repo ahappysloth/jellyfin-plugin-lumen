@@ -1,6 +1,6 @@
 using Jellyfin.Plugin.Lumen.Api;
 using Jellyfin.Plugin.Lumen.Configuration;
-using Jellyfin.Plugin.Lumen.Top10;
+using Jellyfin.Plugin.Lumen.Trakt;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Xunit;
@@ -9,6 +9,7 @@ namespace Jellyfin.Plugin.Lumen.Tests.Api;
 
 public class TraktAdminControllerTests
 {
+    private static readonly TraktQuery OneOfThisWeek = TraktQuery.Watched(TraktListKind.Movies, TraktPeriod.Weekly) with { Limit = 1 };
     private readonly ILumenConfigReader _config = Substitute.For<ILumenConfigReader>();
     private readonly ITraktClient _trakt = Substitute.For<ITraktClient>();
 
@@ -16,7 +17,7 @@ public class TraktAdminControllerTests
     public async Task Test_UsesTheTypedKey_AndNamesThisWeeksTopMovie()
     {
         _config.Current.Returns(new PluginConfiguration { TraktClientId = "stored-key-0" });
-        _trakt.GetWeeklyWatchedAsync("typed-key-00", TraktListKind.Movies, 1, Arg.Any<CancellationToken>()).Returns([new TraktTitle("Inception", 2010, 27205, null)]);
+        _trakt.GetTitlesAsync("typed-key-00", OneOfThisWeek, Arg.Any<CancellationToken>()).Returns([new TraktTitle("Inception", 2010, 27205, null)]);
 
         var result = (await Controller().Test(new TraktTestRequestDto(" typed-key-00 "), CancellationToken.None)).Value!;
 
@@ -27,11 +28,11 @@ public class TraktAdminControllerTests
     public async Task Test_WithoutATypedKey_UsesTheStoredOne()
     {
         _config.Current.Returns(new PluginConfiguration { TraktClientId = "stored-key-0" });
-        _trakt.GetWeeklyWatchedAsync(default!, default, default, default).ReturnsForAnyArgs([]);
+        _trakt.GetTitlesAsync(default!, default!, default).ReturnsForAnyArgs([]);
 
         Assert.True((await Controller().Test(new TraktTestRequestDto(null), CancellationToken.None)).Value!.Ok);
 
-        await _trakt.Received(1).GetWeeklyWatchedAsync("stored-key-0", TraktListKind.Movies, 1, Arg.Any<CancellationToken>());
+        await _trakt.Received(1).GetTitlesAsync("stored-key-0", OneOfThisWeek, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -41,7 +42,7 @@ public class TraktAdminControllerTests
         Assert.Equal("Paste a Trakt Client ID first.", (await Controller().Test(new TraktTestRequestDto(string.Empty), CancellationToken.None)).Value!.Error);
         Assert.Empty(_trakt.ReceivedCalls());
 
-        _trakt.GetWeeklyWatchedAsync(default!, default, default, default).ThrowsAsyncForAnyArgs(new TraktException("Trakt rejected the API key."));
+        _trakt.GetTitlesAsync(default!, default!, default).ThrowsAsyncForAnyArgs(new TraktException("Trakt rejected the API key."));
         var failed = (await Controller().Test(new TraktTestRequestDto("bad-key-0000"), CancellationToken.None)).Value!;
         Assert.Equal(new TraktTestResultDto(false, null, "Trakt rejected the API key."), failed);
     }

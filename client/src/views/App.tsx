@@ -19,6 +19,7 @@ import { LoadingScreen } from './player/LoadingScreen';
 import { clearStarting, useStarting } from '../playback/starting';
 import { LazyProfileView, LazySettingsFrame } from './profile/lazyProfile';
 import { LazySecondary, prefetchSecondary } from './secondary/lazySecondary';
+import { LazyCharts } from './charts/lazyCharts';
 import { Nav, type NavActive } from './Nav';
 import { PageError, useFailedPage } from './pageError';
 import { usePageChange } from './usePageChange';
@@ -28,6 +29,8 @@ function navActive(route: TakeoverRoute): NavActive {
   if (route.kind === 'genre') return route.parentId ?? 'home';
   // The account menu's pages light its button (the Me tab on phones).
   if (route.kind === 'settings' || route.kind === 'history' || route.kind === 'requests') return 'profile';
+  // Top charts are reached from home's Top 10 rows.
+  if (route.kind === 'charts') return 'home';
   // A title's own page isn't one of the nav's places (the nav shows there only when the page couldn't load).
   if (route.kind === 'details' || route.kind === 'title') return null;
   return route.kind;
@@ -67,6 +70,13 @@ function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
       return <LazySecondary ctx={ctx} view={(m) => <m.HistoryView ctx={ctx} />} liftOnLoad />;
     case 'requests':
       return <LazyMyRequests ctx={ctx} />;
+    case 'charts':
+      // Only with a Trakt key; without one there's no such page.
+      return ctx.config.Charts ? (
+        <LazyCharts ctx={ctx} />
+      ) : (
+        <PageError ctx={ctx} title={strings.pageNotFoundTitle} message={strings.pageNotFound} />
+      );
     case 'settings':
       return <LazySettingsFrame page={route.page} />;
     case 'player':
@@ -93,7 +103,13 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
   // Home and details lift the veil when their data lands, a genre once it's known to be Lumen's; the library pages
   // draw their header at once (History once its file is in: views/secondary).
   useEffect(() => {
-    if (route.kind === 'library' || route.kind === 'favorites' || route.kind === 'notFound') liftVeil();
+    if (
+      route.kind === 'library' ||
+      route.kind === 'favorites' ||
+      route.kind === 'notFound' ||
+      (route.kind === 'charts' && !ctx.config.Charts)
+    )
+      liftVeil();
   }, [route.kind]);
   // The pages most visits never open come in a file of their own: fetch it as soon as the browser is idle, so they open
   // at once. That's alongside this page's own requests, not after them; measured, it doesn't slow this page.

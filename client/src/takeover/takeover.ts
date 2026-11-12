@@ -52,6 +52,7 @@ const ROUTE_KINDS: TakeoverRoute['kind'][] = [
   'profile',
   'history',
   'requests',
+  'charts',
   'title',
   'settings',
   'player',
@@ -68,6 +69,9 @@ const ROUTE_CLASSES = [
 export function routeEnabled(kind: TakeoverRoute['kind'], config: ClientConfig): boolean {
   switch (kind) {
     case 'home':
+      return config.HomeTakeover;
+    // Top charts are reached from home's Top 10 rows: Lumen's home links there.
+    case 'charts':
       return config.HomeTakeover;
     case 'details':
     case 'title':

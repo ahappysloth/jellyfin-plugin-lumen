@@ -4,8 +4,9 @@ import { Card, Field, inputValue } from './controls';
 import { NO_PASSWORD_MANAGER } from './RequestsSettings';
 
 /**
- * The Trakt key behind the Top 10 rows. Like Seerr's, it's write-only: the server only says whether one is saved, a
- * blank field keeps it, and Remove key clears it on the next save.
+ * The Trakt key behind the Top 10 rows, Top charts and the other Trakt rows (Trakt design note, 2026-11-12). Like
+ * Seerr's, it's write-only: the server only says whether one is saved, a blank field keeps it, and Remove key clears it
+ * on the next save.
  */
 export function Top10Settings({
   api,
@@ -32,12 +33,12 @@ export function Top10Settings({
 
   return (
     <Card
-      title="Top 10"
-      intro="The Top 10 Movies and Top 10 Shows rows rank what Trakt's users watched most this week. Without a Trakt key they rank Seerr's trending titles instead, and with neither they stay hidden. Add them under Home sections."
+      title="Trakt"
+      intro="With a Trakt key, Lumen adds a Top charts page (Trakt's most watched movies and shows of the week, month, year or all time, linked from the Top 10 rows) and these home sections: Top 10 Movies and Shows, Box Office, Most Anticipated Movies and Shows, Trending Movies and Shows, and Trakt list (any public list). Add them under Home sections. Without a key, the Top 10 rows rank Seerr's trending titles instead, and the rest stay hidden."
     >
       <Field
         label="Trakt API key"
-        hint="A free key: create an app at trakt.tv/oauth/applications and paste its Client ID. Lumen only uses it to fetch the weekly most-watched lists."
+        hint="A free key: create an app at trakt.tv/oauth/applications and paste its Client ID. Lumen only uses it to read Trakt's public charts and lists, from the server: it never reaches anyone's browser."
       >
         <input
           type="password"

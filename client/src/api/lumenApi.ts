@@ -4,6 +4,7 @@ import type {
   CatalogMediaType,
   CatalogSearch,
   CatalogTitle,
+  ChartPage,
   MyRequests,
   ClientConfig,
   HomeResponse,
@@ -223,6 +224,16 @@ export class LumenApi {
   }
 
   /** The user's own requested titles with their progress. Rejects with the Response (404: no request features). */
+  /** A page of Trakt's most watched movies or shows of a period (Top charts). */
+  getChart(
+    type: 'movies' | 'shows',
+    period: 'weekly' | 'monthly' | 'yearly' | 'all',
+    startIndex: number,
+    limit: number,
+  ): Promise<ChartPage> {
+    return this.get(`Lumen/Charts/${type}/${period}`, () => ({ startIndex, limit }));
+  }
+
   getMyRequests(): Promise<MyRequests> {
     return this.get('Lumen/Requests/Mine');
   }

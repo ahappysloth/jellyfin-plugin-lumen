@@ -42,6 +42,14 @@ public class AuthorizationAttributeTests
     }
 
     [Fact]
+    public void ChartsController_RequiresAuthentication()
+    {
+        var attribute = Assert.Single(typeof(ChartsController).GetCustomAttributes<AuthorizeAttribute>());
+
+        Assert.Null(attribute.Policy);
+    }
+
+    [Fact]
     public void HomeController_RequiresAuthentication()
     {
         var attribute = Assert.Single(typeof(HomeController).GetCustomAttributes<AuthorizeAttribute>());

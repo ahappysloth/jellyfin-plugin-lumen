@@ -7,7 +7,7 @@ import { resetSessionCaches } from '../../util/sessionCaches';
 import { HomeView } from './HomeView';
 import { setCachedHome } from './homeStore';
 import { Row } from './Row';
-import { isTop10Row } from './Top10Item';
+import { isTop10Row, isTraktRow } from './Top10Item';
 
 const matrix: CatalogItem = {
   Key: 'movie-603',
@@ -115,6 +115,61 @@ describe('Top 10 rows', () => {
   });
 });
 
+describe('Trakt rows', () => {
+  const trending: HomeRow = { ...top10, Id: 't2', Type: 'TraktTrendingMovies', Title: 'Trending Movies' };
+
+  it('recognises Trakt’s other section types, and not Top 10 or the catalog rows', () => {
+    for (const Type of [
+      'TraktBoxOffice',
+      'TraktAnticipatedMovies',
+      'TraktAnticipatedShows',
+      'TraktTrendingMovies',
+      'TraktTrendingShows',
+      'TraktList',
+    ])
+      expect(isTraktRow({ ...top10, Type })).toBe(true);
+    expect(isTraktRow(top10)).toBe(false);
+    expect(isTraktRow({ ...top10, Type: 'CatalogTrending' })).toBe(false);
+  });
+
+  it('shows Top 10’s poster cards and Request button, without numerals or ranks', () => {
+    const onRequest = vi.fn();
+    const { container } = render(
+      <Row
+        row={trending}
+        client={createFakeClient()}
+        onSelect={vi.fn()}
+        catalogImageToken="tok"
+        canRequest={() => true}
+        onRequest={onRequest}
+      />,
+    );
+
+    const row = screen.getByRole('region', { name: 'Trending Movies' });
+    expect(row).toHaveClass('lmn-row--trakt');
+    expect(row).not.toHaveClass('lmn-row--top10');
+    expect(container.querySelector('.lmn-top10__rank')).toBeNull();
+    expect(within(row).getByRole('link', { name: 'Alpha' })).toHaveClass('lmn-card--poster');
+    fireEvent.click(within(row).getByRole('button', { name: 'Request The Matrix' }));
+    expect(onRequest).toHaveBeenCalledWith(matrix);
+  });
+
+  it('links a row’s title to Top charts when asked, with See all', () => {
+    render(<Row row={top10} client={createFakeClient()} onSelect={vi.fn()} seeAll="#/home?lumen=charts" />);
+
+    const link = screen.getByRole('link', { name: 'Top 10 Movies This Week, see all in Top charts' });
+    expect(link).toHaveAttribute('href', '#/home?lumen=charts');
+    expect(link).toHaveTextContent('Top 10 Movies This WeekSee all');
+  });
+
+  it('has a plain title otherwise', () => {
+    render(<Row row={top10} client={createFakeClient()} onSelect={vi.fn()} />);
+
+    expect(screen.getByRole('heading', { name: 'Top 10 Movies This Week' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /see all/ })).toBeNull();
+  });
+});
+
 describe('Top 10 on the home screen', () => {
   beforeEach(() => setCachedHome('nobody', { ConfigVersion: 0, Hero: [], Rows: [] }));
   afterEach(() => resetSessionCaches());
@@ -127,6 +182,40 @@ describe('Top 10 on the home screen', () => {
     CanRequest: true,
   };
   const homeWithTop10: HomeResponse = { ConfigVersion: 1, Hero: [], Rows: [top10] };
+
+  it('links the Top 10 rows to their Top chart only when there is a Trakt key', async () => {
+    const shows: HomeRow = { ...top10, Id: 't3', Type: 'TraktTrendingShows', Title: 'Trending Shows' };
+    const home: HomeResponse = {
+      ConfigVersion: 1,
+      Hero: [],
+      Rows: [top10, { ...top10, Id: 't4', Type: 'Top10Shows', Title: 'Top 10 Shows This Week' }, shows],
+    };
+    const client = createFakeClient(
+      routes({
+        'Lumen/Home': home,
+        'Lumen/Requests/Status': { Enabled: false, CanRequestMovies: false, CanRequestTv: false },
+      }),
+    );
+    const { unmount } = render(
+      <HomeView ctx={makeContext(client, { config: { ...makeContext(client).config, Charts: true } })} />,
+    );
+
+    expect(await screen.findByRole('link', { name: /^Top 10 Movies This Week, see all/ })).toHaveAttribute(
+      'href',
+      '#/home?lumen=charts&chart=movies&period=weekly',
+    );
+    expect(screen.getByRole('link', { name: /^Top 10 Shows This Week, see all/ })).toHaveAttribute(
+      'href',
+      '#/home?lumen=charts&chart=shows&period=weekly',
+    );
+    // Trakt's other rows have no chart of their own.
+    expect(screen.queryByRole('link', { name: /^Trending Shows/ })).toBeNull();
+    unmount();
+
+    render(<HomeView ctx={makeContext(client)} />);
+    await screen.findByRole('region', { name: 'Top 10 Movies This Week' });
+    expect(screen.queryByRole('link', { name: /see all/ })).toBeNull();
+  });
 
   it('requests a title from its card in place, and the card takes the new state', async () => {
     const requests: unknown[] = [];

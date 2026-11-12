@@ -21,7 +21,7 @@ public class CompressOverHttpsAttributeTests
 {
     /// <summary>Pins which actions compress over HTTPS: each must hold no secret (see the attribute's remarks).</summary>
     [Fact]
-    public void AppliesOnlyToTheHomeAndCatalogReads()
+    public void AppliesOnlyToTheHomeChartsAndCatalogReads()
     {
         var compressed = typeof(HomeController).Assembly.GetTypes()
             .Where(t => t.IsAssignableTo(typeof(ControllerBase)))
@@ -32,6 +32,7 @@ public class CompressOverHttpsAttributeTests
 
         Assert.Equal(
             [
+                $"{nameof(ChartsController)}.{nameof(ChartsController.GetChart)}",
                 $"{nameof(HomeController)}.{nameof(HomeController.GetHome)}",
                 $"{nameof(RequestsController)}.{nameof(RequestsController.GetTitle)}",
                 $"{nameof(RequestsController)}.{nameof(RequestsController.Search)}",

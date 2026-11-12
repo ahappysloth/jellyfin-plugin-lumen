@@ -36,6 +36,12 @@ public sealed class ClientConfigDto
     /// </summary>
     public bool Requests { get; init; }
 
+    /// <summary>
+    /// A Trakt key is saved: the Top charts page exists, and the Top 10 rows link to it. The key itself never leaves the
+    /// server.
+    /// </summary>
+    public bool Charts { get; init; }
+
     public string BuildHash { get; init; } = string.Empty;
 
     public static ClientConfigDto From(PluginConfiguration config, string buildHash) => new()
@@ -52,6 +58,7 @@ public sealed class ClientConfigDto
         TrailerDelaySeconds = config.TrailerDelaySeconds,
         HeroWaitForTrailer = config.HeroWaitForTrailer,
         Requests = config.Enabled && Jellyfin.Plugin.Lumen.Requests.SeerrEndpoint.From(config) is not null,
+        Charts = config.Enabled && !string.IsNullOrWhiteSpace(config.TraktClientId),
         BuildHash = buildHash,
     };
 }

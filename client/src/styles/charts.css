@@ -1,0 +1,43 @@
+/* ---- Top charts (views/charts/ChartsView.tsx), linked with its file (views/charts/lazyCharts.tsx) --------------- */
+/* A grid of posters, each with its Trakt rank on a tab over the art's top-left corner (the card's name carries the
+   rank too: this is decoration). Titles not on the server have the Top 10 rows' Request button under them. */
+.lmn-charts__cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.lmn-charts__rank {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  min-width: 34px;
+  padding: 5px 9px 6px;
+  border-radius: var(--lmn-radius) 0 10px 0;
+  background: rgba(10, 10, 14, 0.82);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  text-align: center;
+  pointer-events: none;
+}
+/* The top three stand out in the accent. */
+.lmn-charts__cell.is-top .lmn-charts__rank {
+  background: var(--lmn-accent);
+}
+.lmn-charts__cell .lmn-top10__request {
+  align-self: flex-start;
+  margin-top: 8px;
+}
+
+/* Phones (the two switches stack, each a full row: browse.css): a smaller tab on the smaller posters. */
+@media (max-width: 720px) {
+  .lmn-charts__rank {
+    min-width: 28px;
+    padding: 4px 7px 5px;
+    font-size: 13px;
+  }
+}
