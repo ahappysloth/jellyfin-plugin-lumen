@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/preact';
 import { useRef } from 'preact/hooks';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useDragScroll } from './useDragScroll';
 
 function Scroller({ onClick }: { onClick: () => void }) {
@@ -65,9 +65,15 @@ describe('useDragScroll', () => {
   });
 
   describe('after the release', () => {
+    // jsdom lays nothing out: a row 4000px wide in a 1000px window, so a glide has room either way.
+    beforeEach(() => {
+      vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(4000);
+      vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+    });
     afterEach(() => {
       vi.useRealTimers();
       vi.unstubAllGlobals();
+      vi.restoreAllMocks();
     });
 
     /** Drags 150px left over 32 ms, then waits `pause` ms before letting go; returns where the row was let go. */
@@ -118,6 +124,44 @@ describe('useDragScroll', () => {
       const caught = scroller.scrollLeft;
       vi.advanceTimersByTime(500);
       expect(scroller.scrollLeft).toBe(caught);
+    });
+
+    it("doesn't open the card a press lands on to catch a glide, but the next click does", () => {
+      vi.useFakeTimers();
+      const onClick = vi.fn();
+      render(<Scroller onClick={onClick} />);
+      const scroller = screen.getByTestId('scroller');
+      const card = screen.getByRole('button');
+      scroller.scrollLeft = 300;
+      flick(scroller, 0);
+      vi.advanceTimersByTime(50);
+
+      fireEvent.pointerDown(card, { ...mouse, clientX: 10 });
+      fireEvent.pointerUp(card, { ...mouse, clientX: 10 });
+      fireEvent.click(card);
+      expect(onClick).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(10);
+      fireEvent.pointerDown(card, { ...mouse, clientX: 10 });
+      fireEvent.pointerUp(card, { ...mouse, clientX: 10 });
+      fireEvent.click(card);
+      expect(onClick).toHaveBeenCalledTimes(1);
+    });
+
+    it("stops at the end of the row, and a late frame moves it only a frame's worth", () => {
+      vi.useFakeTimers();
+      render(<Scroller onClick={vi.fn()} />);
+      const scroller = screen.getByTestId('scroller');
+      scroller.scrollLeft = 2950;
+      flick(scroller, 0);
+      vi.advanceTimersByTime(3000);
+      expect(scroller.scrollLeft).toBe(3000);
+
+      scroller.scrollLeft = 300;
+      const released = flick(scroller, 0);
+      vi.advanceTimersByTime(1); // the first frame, ~16 ms of fake time
+      // About 3 px/ms over at most 50 ms of frame, not the seconds a stalled frame could report.
+      expect(scroller.scrollLeft - released).toBeLessThan(200);
     });
 
     it('stops where it was let go with reduced motion', () => {

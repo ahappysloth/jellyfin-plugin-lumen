@@ -26,6 +26,8 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): void {
     /** The drag's recent positions (time, clientX), for the speed at release. */
     let samples: [number, number][] = [];
     let glide = 0;
+    /** The press under way stopped a glide: like a tap that stops a touch fling, its click opens nothing. */
+    let caught = false;
 
     const stopGlide = (): void => {
       cancelAnimationFrame(glide);
@@ -34,15 +36,18 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): void {
     const startGlide = (speed: number): void => {
       if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
       let last = performance.now();
+      // Kept unrounded here: browsers that round scrollLeft would otherwise lose the slow end of the glide.
+      let pos = el.scrollLeft;
       const step = (now: number): void => {
-        const dt = Math.max(0, now - last);
+        // Capped, so a late frame (a background tab, a busy TV) moves it a frame's worth, not a leap.
+        const dt = Math.min(50, Math.max(0, now - last));
         last = now;
-        const before = el.scrollLeft;
-        el.scrollLeft = before - speed * dt;
+        const max = el.scrollWidth - el.clientWidth;
+        pos = Math.min(max, Math.max(0, pos - speed * dt));
+        el.scrollLeft = pos;
         speed *= Math.pow(GLIDE_DECAY, dt / 16);
         // Stops when it's slowed right down, or run into either end.
-        glide =
-          Math.abs(speed) > GLIDE_STOP_SPEED && el.scrollLeft !== before ? requestAnimationFrame(step) : 0;
+        glide = Math.abs(speed) > GLIDE_STOP_SPEED && pos > 0 && pos < max ? requestAnimationFrame(step) : 0;
       };
       glide = requestAnimationFrame(step);
     };
@@ -76,7 +81,15 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): void {
     const onUp = (e: PointerEvent): void => {
       if (!start || e.pointerId !== start.id) return;
       start = null;
-      if (!dragging) return;
+      const stoppedGlide = caught;
+      caught = false;
+      if (!dragging) {
+        if (stoppedGlide) {
+          suppress = true;
+          setTimeout(() => (suppress = false), 0);
+        }
+        return;
+      }
       dragging = false;
       suppress = true;
       el.classList.remove('is-dragging');
@@ -101,13 +114,18 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): void {
     const onDragStart = (e: DragEvent): void => e.preventDefault();
     // A press anywhere (on the row, or its arrows), a key (focus moving along it) or the wheel takes over from a glide.
     const onWheel = (): void => stopGlide();
+    // Runs before the row's own pointerdown (window, capture), so it notes whether this press caught a glide.
+    const onAnyDown = (e: PointerEvent): void => {
+      caught = glide !== 0 && e.target instanceof Node && el.contains(e.target);
+      stopGlide();
+    };
 
     // A release anywhere ends a pending press (capture only starts once the drag does).
     const onWindowUp = (e: PointerEvent): void => {
       if (start && e.pointerId === start.id && !dragging) start = null;
     };
     window.addEventListener('pointerup', onWindowUp);
-    window.addEventListener('pointerdown', stopGlide, true);
+    window.addEventListener('pointerdown', onAnyDown, true);
     window.addEventListener('keydown', stopGlide, true);
     el.addEventListener('pointerdown', onDown);
     el.addEventListener('pointermove', onMove);
@@ -120,7 +138,7 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): void {
       stopGlide();
       el.removeEventListener('wheel', onWheel);
       window.removeEventListener('pointerup', onWindowUp);
-      window.removeEventListener('pointerdown', stopGlide, true);
+      window.removeEventListener('pointerdown', onAnyDown, true);
       window.removeEventListener('keydown', stopGlide, true);
       el.removeEventListener('pointerdown', onDown);
       el.removeEventListener('pointermove', onMove);
