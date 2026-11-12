@@ -44,6 +44,12 @@ const cache = new Map<string, Chart>();
  * asking for the same page again.
  */
 const pending = new Set<string>();
+/**
+ * The views on screen (one, but a view left mid-load and the one opened next can overlap), told when a page lands or
+ * fails. Module-wide like `pending`: a page asked for by a view that has since gone (Back, then the chart again, before
+ * it lands) must still reach the view showing its chart, which waits for it rather than asking again.
+ */
+const listeners = new Set<(key: string, ok: boolean) => void>();
 /** Which session a page was asked for in: one that lands after sign-out (clearCharts) is dropped. */
 let session = 0;
 /** The card last opened from a chart, and where the page was, for Back. */
@@ -80,17 +86,24 @@ export function ChartsView({ ctx }: { ctx: ViewContext }) {
   const [data, setData] = useState<Chart | null>(() => cache.get(key) ?? null);
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  // Re-renders when a page lands or fails (`pending` is module-wide, so `loading` below is read from it).
+  // Re-renders when a page is asked for (`pending` is module-wide, so `loading` below is read from it).
   const [, setPages] = useState(0);
   const latest = useRef(key);
   latest.current = key;
-  const mounted = useRef(true);
-  useEffect(
-    () => () => {
-      mounted.current = false;
-    },
-    [],
-  );
+  // A page of the chart on screen landed or failed, whichever view asked for it: its copy is drawn, or Try again shown.
+  // Declared before the effect that loads, so it's listening first.
+  useEffect(() => {
+    const settled = (forKey: string, ok: boolean): void => {
+      if (forKey !== latest.current) return;
+      setPages((n) => n + 1);
+      if (ok) setData(cache.get(forKey) ?? null);
+      else setError(true);
+    };
+    listeners.add(settled);
+    return () => {
+      listeners.delete(settled);
+    };
+  }, []);
   const loading = pending.has(key);
 
   // The chart and period in the URL, without a navigation (takeover/routes.ts chartsHash).
@@ -108,14 +121,13 @@ export function ChartsView({ ctx }: { ctx: ViewContext }) {
     pending.add(forKey);
     setPages((n) => n + 1);
     setError(false);
-    const done = (): void => {
+    const settle = (ok: boolean): void => {
       pending.delete(forKey);
-      if (mounted.current) setPages((n) => n + 1);
+      listeners.forEach((settled) => settled(forKey, ok));
     };
     ctx.api.getChart(type, span, from, CHART_PAGE).then(
       (page) => {
         if (asked !== session) return;
-        done();
         // Into the chart's copy as it is now (another page may have landed meanwhile), whether or not it's showing.
         const now = from === 0 ? null : (cache.get(forKey) ?? null);
         const seen = new Set((now?.entries ?? []).map(entryKey));
@@ -126,12 +138,11 @@ export function ChartsView({ ctx }: { ctx: ViewContext }) {
           fetchedAt: now?.fetchedAt ?? Date.now(),
         };
         cache.set(forKey, chart);
-        if (mounted.current && latest.current === forKey) setData(chart);
+        settle(true);
       },
       () => {
         if (asked !== session) return;
-        done();
-        if (mounted.current && latest.current === forKey) setError(true);
+        settle(false);
       },
     );
   };
@@ -188,19 +199,26 @@ export function ChartsView({ ctx }: { ctx: ViewContext }) {
   const opened = useRef(false);
   if (data) opened.current = true;
   useAutoFocus(rootRef, opened.current, ctx.layout, restore?.card);
+  // Once: `restore` is kept for the view's life, and the chart it's for drawn again later (after a chart still loading
+  // was picked, then this one again) is not Back, so it doesn't jump to where the user once was.
+  const restored = useRef(false);
   useLayoutEffect(() => {
-    if (!data || restore?.key !== key) return undefined;
+    if (!data || restore?.key !== key || restored.current) return undefined;
+    restored.current = true;
     const top = restore.scrollY;
     window.scrollTo({ top });
     // On Back, jellyfin-web shows its own home page (under this one) again, and scrolls to the top as it does
     // (libraryMenu's viewshow) — sometimes after this has run. Back where the user was, after it.
+    let later = 0;
     const again = (): void => {
-      window.setTimeout(() => window.scrollTo({ top }));
+      window.clearTimeout(later);
+      later = window.setTimeout(() => window.scrollTo({ top }));
     };
     document.addEventListener('viewshow', again);
     const stop = window.setTimeout(() => document.removeEventListener('viewshow', again), 2000);
     return () => {
       window.clearTimeout(stop);
+      window.clearTimeout(later);
       document.removeEventListener('viewshow', again);
     };
   }, [data !== null]);

@@ -36,8 +36,15 @@ public sealed class TraktLists : ITraktLists
 {
     public static readonly TimeSpan RetryAfter = TimeSpan.FromMinutes(10);
 
-    /// <summary>A day: longer than any list's freshness, so a list in use is never forgotten between two home loads.</summary>
-    public static readonly TimeSpan ForgetAfter = TimeSpan.FromHours(24);
+    /// <summary>
+    /// A month. A list is forgotten only so a removed row or a changed list address doesn't stay in memory for good; a
+    /// list still in use must keep its last good copy through a quiet spell (a weekend away, a server nobody opens for a
+    /// few days), or the next home load waits on Trakt and, if Trakt is down then, falls back or hides the row. Holding
+    /// it longer was chosen over forgetting only the lists no home section or chart uses any more: that would tie this
+    /// cache to every user's home layout for little gain. It stays bounded: lists come only from the charts (a fixed few)
+    /// and the home sections' addresses, which only admins set, and each copy is at most a few hundred titles.
+    /// </summary>
+    public static readonly TimeSpan ForgetAfter = TimeSpan.FromDays(30);
 
     /// <summary>How often, at most, lists are checked for ones to forget.</summary>
     private static readonly TimeSpan PruneEvery = TimeSpan.FromHours(1);

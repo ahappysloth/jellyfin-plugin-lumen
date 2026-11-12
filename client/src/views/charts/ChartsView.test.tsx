@@ -222,6 +222,117 @@ describe('ChartsView', () => {
     scrollTo.mockRestore();
   });
 
+  it('Back puts the page where it was once: picking the chart again later doesn’t jump there', async () => {
+    const { ctx } = setup((request) =>
+      request.url.includes('/shows/')
+        ? (new Promise<ChartPage>(() => undefined) as unknown as ChartPage)
+        : page([owned(1, 'Alpha'), owned(2, 'Beta')]),
+    );
+    const first = render(<ChartsView ctx={ctx} />);
+    const scrollY = vi.spyOn(window, 'scrollY', 'get').mockReturnValue(900);
+    fireEvent.click(await screen.findByRole('link', { name: '2, Beta' }));
+    scrollY.mockRestore();
+    first.unmount();
+
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+    render(<ChartsView ctx={ctx} />);
+    expect(scrollTo).toHaveBeenCalledWith({ top: 900 });
+    scrollTo.mockClear();
+
+    // Shows (still loading: nothing drawn), then Movies again, drawn from its copy: no jump back to 900.
+    fireEvent.click(screen.getByRole('button', { name: 'Shows' }));
+    await waitFor(() =>
+      expect(screen.getByRole('list', { name: 'Top shows this week' })).toHaveAttribute('aria-busy', 'true'),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Movies' }));
+    await screen.findByRole('link', { name: '2, Beta' });
+    document.dispatchEvent(new CustomEvent('viewshow'));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(scrollTo).not.toHaveBeenCalled();
+    scrollTo.mockRestore();
+  });
+
+  it('left while its first page loads and opened again: the page that lands is shown', async () => {
+    let release: (p: ChartPage) => void = () => undefined;
+    let asked = 0;
+    const { ctx } = setup(() => {
+      asked++;
+      return new Promise<ChartPage>((resolve) => (release = resolve)) as unknown as ChartPage;
+    });
+    const first = render(<ChartsView ctx={ctx} />);
+    await waitFor(() => expect(asked).toBe(1));
+    first.unmount();
+
+    render(<ChartsView ctx={ctx} />);
+    const list = screen.getByRole('list', { name: 'Top movies this week' });
+    expect(list).toHaveAttribute('aria-busy', 'true');
+    await act(async () => {
+      release(page([owned(1, 'Alpha')]));
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(await within(list).findByRole('link', { name: '1, Alpha' })).toBeInTheDocument();
+    expect(list).toHaveAttribute('aria-busy', 'false');
+    expect(asked).toBe(1);
+  });
+
+  it('left while its first page loads and opened again: a failure offers Try again', async () => {
+    let fail: () => void = () => undefined;
+    const { ctx } = setup(
+      () =>
+        new Promise<ChartPage>(
+          (_, reject) => (fail = () => reject(new Error('503'))),
+        ) as unknown as ChartPage,
+    );
+    const first = render(<ChartsView ctx={ctx} />);
+    first.unmount();
+
+    render(<ChartsView ctx={ctx} />);
+    await act(async () => {
+      fail();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(await screen.findByRole('button', { name: 'Try again' })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Top movies this week' })).toHaveAttribute('aria-busy', 'false');
+  });
+
+  it('Back from a card while the next page loads: the page lands in the grid, and the rest still load', async () => {
+    const starts: number[] = [];
+    let releaseSecond: () => void = () => undefined;
+    const titles = (from: number, count: number) =>
+      Array.from({ length: count }, (_, i) => owned(from + i + 1, `T${from + i + 1}`));
+    const { ctx } = setup((request) => {
+      const start = Number(new URL(request.url).searchParams.get('startIndex'));
+      starts.push(start);
+      if (start === CHART_PAGE)
+        return new Promise<ChartPage>((resolve) => {
+          releaseSecond = () => resolve(page(titles(CHART_PAGE, CHART_PAGE), 60, CHART_PAGE));
+        }) as unknown as ChartPage;
+      return page(titles(start, Math.min(CHART_PAGE, 60 - start)), 60, start);
+    });
+    const first = render(<ChartsView ctx={ctx} />);
+    await screen.findByRole('list', { name: 'Top movies this week' });
+    await waitFor(() => expect(observers).toHaveLength(1));
+    act(scrollToEnd);
+    await waitFor(() => expect(starts).toEqual([0, CHART_PAGE]));
+    fireEvent.click(screen.getByRole('link', { name: '2, T2' }));
+    first.unmount();
+
+    render(<ChartsView ctx={ctx} />);
+    const list = screen.getByRole('list', { name: 'Top movies this week' });
+    expect(list).toHaveAttribute('aria-busy', 'true');
+    await act(async () => {
+      releaseSecond();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(2 * CHART_PAGE));
+    expect(list).toHaveAttribute('aria-busy', 'false');
+    // The grid's end is watched again: the third page loads.
+    await waitFor(() => expect(observers).toHaveLength(1));
+    act(scrollToEnd);
+    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(60));
+    expect(starts).toEqual([0, CHART_PAGE, 2 * CHART_PAGE]);
+  });
+
   it('TV: Back from a catalog card focuses it too', async () => {
     const { ctx } = setup(() => page([owned(1, 'Alpha'), { Rank: 2, Catalog: catalog(603, 'The Matrix') }]));
     const tv = { ...ctx, layout: 'tv' as const };

@@ -40,14 +40,24 @@
 
 /* Phones (the two switches stack, each a full row: browse.css): two columns on a phone rather than the browse grids'
    three, so a card is wide enough for its rank and request state side by side, and for its whole meta line
-   ("★ 7.2 · 2002 · Movie"); more on a larger screen. A smaller tab on the smaller posters. */
+   ("★ 7.2 · 2002 · Movie"); more on a larger screen. A smaller tab on the smaller posters. The charts' chips keep
+   to one line each, however narrow (the period chips have short labels on phones: browse.css). */
 @media (max-width: 720px) {
   .lmn-browse-grid.lmn-charts__grid {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+  .lmn-charts .lmn-segmented .lmn-chip {
+    white-space: nowrap;
   }
   .lmn-charts__rank {
     min-width: 28px;
     padding: 4px 7px 5px;
     font-size: 13px;
+  }
+}
+/* Small phones (320–480 px): always two columns. The rule above gives one column of huge posters below about 340 px. */
+@media (max-width: 480px) {
+  .lmn-browse-grid.lmn-charts__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

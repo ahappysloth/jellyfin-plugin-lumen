@@ -191,8 +191,6 @@
   .lmn-segmented .lmn-chip {
     flex: 1;
     justify-content: center;
-    /* One line each, however narrow: a label that doesn't fit has a short one (below). */
-    white-space: nowrap;
   }
   .lmn-browse__selects {
     flex-wrap: nowrap;

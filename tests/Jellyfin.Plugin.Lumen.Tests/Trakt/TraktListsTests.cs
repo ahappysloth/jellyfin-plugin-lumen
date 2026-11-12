@@ -289,21 +289,36 @@ public class TraktListsTests
     }
 
     [Fact]
-    public async Task AListNobodyAsksForInADay_IsForgotten()
+    public async Task AListNobodyAsksForInAMonth_IsForgotten()
     {
         _trakt.GetTitlesAsync(default!, default!, default).ReturnsForAnyArgs(List("A"));
         await _lists.GetAsync(Weekly(TraktListKind.Movies), CancellationToken.None);
         await _lists.GetAsync(Weekly(TraktListKind.Shows), CancellationToken.None);
         Assert.Equal(2, _lists.CachedCount);
 
-        // Shows are still on someone's home after 20 hours; movies aren't.
-        _time.Advance(TimeSpan.FromHours(20));
+        // Shows are still on someone's home after 25 days; movies aren't.
+        _time.Advance(TimeSpan.FromDays(25));
         await _lists.GetAsync(Weekly(TraktListKind.Shows), CancellationToken.None);
         await WaitForAsync(async () => (await _lists.GetAsync(Weekly(TraktListKind.Shows), CancellationToken.None))!.Titles.Count == 1 && _trakt.ReceivedCalls().Count() == 3);
-        _time.Advance(TimeSpan.FromHours(5));
+        _time.Advance(TimeSpan.FromDays(6));
         await _lists.GetAsync(Weekly(TraktListKind.Shows), CancellationToken.None);
 
         Assert.Equal(1, _lists.CachedCount);
+    }
+
+    [Fact]
+    public async Task AListNobodyAskedForInDays_StillHasItsLastCopy_WhenTraktIsDown()
+    {
+        _trakt.GetTitlesAsync(default!, default!, default).ReturnsForAnyArgs(List("A"));
+        await _lists.GetAsync(Weekly(TraktListKind.Movies), CancellationToken.None);
+        _trakt.GetTitlesAsync(default!, default!, default).ThrowsAsyncForAnyArgs(new TraktException("Trakt returned HTTP 502.") { Status = System.Net.HttpStatusCode.BadGateway });
+
+        // A quiet weekend and more: another list is asked for meanwhile (a prune runs), then this one again.
+        _time.Advance(TimeSpan.FromDays(3));
+        await _lists.GetAsync(Weekly(TraktListKind.Shows), CancellationToken.None);
+        var list = await _lists.GetAsync(Weekly(TraktListKind.Movies), CancellationToken.None);
+
+        Assert.Equal("A", list!.Titles[0].Title);
     }
 
     [Fact]
