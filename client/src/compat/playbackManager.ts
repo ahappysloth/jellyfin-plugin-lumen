@@ -90,6 +90,8 @@ export interface Player {
   name?: string;
   id?: string;
   isLocalPlayer?: boolean;
+  /** Its position in ms, as of its media element's last `timeupdate` (jellyfin-web's HTML players); no stream offset. */
+  currentTime?(): number;
 }
 
 /** A media source's stream, as Playback info shows it. */
