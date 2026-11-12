@@ -12,6 +12,7 @@ import { WEB_PLUGIN_KEY, WEB_PLUGIN_NAME, type WebPluginSlot } from '../../clien
 import { ADMIN, KID, loadState } from '../support/api';
 import { CANNOT_PLAY, cannotPlay } from '../support/browsers';
 import { login } from '../support/login';
+import { forgetPlayback } from '../support/playback';
 import { openFresh } from '../support/stock-pages';
 
 /**
@@ -24,6 +25,10 @@ const byPage = (probe: ProbePage) =>
   Object.entries(STOCK_SELECTORS).filter(
     ([name]) => STOCK_SELECTOR_META[name as keyof typeof STOCK_SELECTORS].probe === probe,
   );
+
+// Two tests play Lumen Alpha: off the admin's History and Continue watching again afterwards (the others, unplayed, are
+// left as they were).
+test.afterEach(async ({ page }) => forgetPlayback(page, [loadState().items['Lumen Alpha']!]));
 
 async function expectSelectorsOn(page: Page, probe: ProbePage): Promise<void> {
   for (const [name, { selector }] of byPage(probe)) {

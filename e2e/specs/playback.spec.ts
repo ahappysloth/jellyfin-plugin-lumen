@@ -3,9 +3,12 @@ import { expect, test } from '@playwright/test';
 import { ADMIN, loadState } from '../support/api';
 import { CANNOT_PLAY, cannotPlay } from '../support/browsers';
 import { login } from '../support/login';
+import { endPlayback, forgetPlayback } from '../support/playback';
 import { expectPresentButHidden } from '../support/stock';
 
 test.skip(cannotPlay, CANNOT_PLAY);
+// Each test plays Lumen Alpha: off the admin's History and Continue watching again afterwards.
+test.afterEach(async ({ page }) => forgetPlayback(page, [loadState().items['Lumen Alpha']!]));
 
 test("Play hands off to jellyfin-web's own player", { tag: '@smoke' }, async ({ page }) => {
   const { items } = loadState();
@@ -273,5 +276,6 @@ test('Cast moves what is playing to another Jellyfin session', async ({ page, br
   await expect(tvPage).toHaveURL(/#\/video/, { timeout: 20_000 });
   await expect.poll(() => tvPage.locator('video.htmlvideoplayer').evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 20_000 }).toBeGreaterThan(0);
   await expect(page).not.toHaveURL(/#\/video/, { timeout: 20_000 });
+  await endPlayback(tvPage);
   await tv.close();
 });

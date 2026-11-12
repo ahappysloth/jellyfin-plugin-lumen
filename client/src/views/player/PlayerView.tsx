@@ -433,7 +433,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
         if (e.key === ' ' && keyboardFocus.current && (e.target as Element).closest('button'))
           Object.defineProperty(e, 'keyCode', { value: IGNORED_KEY_CODE });
       }}
-      class={`lmn-osd${shown ? '' : ' is-idle'}${tapHidden ? ' is-tapped' : ''}${panel ? ' has-panel' : ''}${progress.started ? '' : ' is-loading'}${syncPlay.group ? ' has-syncplay' : ''}`}
+      class={`lmn-osd${shown ? '' : ' is-idle'}${tapHidden ? ' is-tapped' : ''}${panel ? ' has-panel' : ''}${progress.started ? '' : ' is-loading'}`}
     >
       {!progress.started && <LoadingScreen ctx={ctx} snap={snap} starting={starting} />}
       {progress.started && progress.buffering && !switching.state?.shown && (
