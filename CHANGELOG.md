@@ -2,6 +2,29 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.4.1] - 2026-11-12
+
+### Added
+- Top 10 Movies and Top 10 Shows home rows: what Trakt's users watched most this week, ranked, with a Request button
+  under titles you don't have yet. Without a Trakt key they rank Seerr's trending titles instead. Add them under
+  Home sections; a Top 10 card in Lumen's settings takes the Trakt key and checks it.
+- Discard in the settings save bar puts back the settings as last saved.
+- Storage has a tab of its own on Lumen's settings page, and only measures once it's opened. The page remembers the
+  open tab across a reload, and unsaved settings stay (with the save bar) while you look at Storage.
+- Pointing at, tapping or arrowing through a part of a library's storage bar shows its codec or resolution, size,
+  file count and share.
+
+### Changed
+- The home banner's pager is thin bars again, with Pause on their right (first on TVs).
+- Rows scroll freely and stay where you let go; a quick mouse flick glides a little.
+- A home section type that would only repeat the same row (Continue Watching, Next Up, …) can be added once.
+- Storage's headline sizes are in the normal text colour rather than grey.
+
+### Fixed
+- "You May Like" cards no longer overlap on details pages.
+- Undoing a change in the settings by hand (a switch toggled back, a section moved back, a value or key typed and
+  deleted) no longer leaves "Unsaved changes" showing.
+
 ## [0.4.0] - 2026-11-12
 
 ### Added
