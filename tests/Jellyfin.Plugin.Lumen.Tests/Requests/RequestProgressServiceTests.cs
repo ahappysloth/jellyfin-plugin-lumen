@@ -172,6 +172,21 @@ public class RequestProgressServiceTests
     }
 
     [Fact]
+    public async Task ASeasonDownloading_IsShown_OverANewerSeasonWaitingForApproval()
+    {
+        var downloads = new List<SeerrDownload> { Download(1000, 400, "downloading", null, "s1", 1, 1) };
+        var approved = Season(5, 1, downloads);
+        var second = Season(6, 2, downloads);
+        var pending = new SeerrUserRequest { Id = second.Id, Status = SeerrRequestStatus.Pending, Type = "tv", CreatedAt = second.CreatedAt, Seasons = second.Seasons, Media = second.Media };
+        Requests(7, pending, approved);
+
+        var title = Assert.Single((await Get(7)).Requests);
+
+        Assert.Equal(RequestProgressState.Downloading, title.Status);
+        Assert.Equal(60, title.Percent);
+    }
+
+    [Fact]
     public async Task Invalidate_AsksSeerrAgain()
     {
         Requests(7);

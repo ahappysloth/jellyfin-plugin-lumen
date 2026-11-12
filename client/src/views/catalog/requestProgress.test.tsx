@@ -212,15 +212,22 @@ describe('request progress', () => {
     expect(mineCalls()).toHaveLength(1);
   });
 
-  it('tries a failed first check again a couple of times, later each time, then stops', async () => {
+  it('tries a failed first check again, later each time, without giving up (Seerr may still be starting)', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(1);
     answers = [{ status: 502 }];
     start();
     await advance(1000);
-    await advance(10 * NORMAL_MS);
+    await advance(30 * 60_000);
 
-    expect(mineCalls()).toHaveLength(3);
-    expect(spacing()).toEqual([RETRY_MS, 2 * RETRY_MS]);
+    expect(spacing().slice(0, 6)).toEqual([
+      RETRY_MS,
+      2 * RETRY_MS,
+      4 * RETRY_MS,
+      8 * RETRY_MS,
+      16 * RETRY_MS,
+      MAX_RETRY_MS,
+    ]);
+    expect(mineCalls().length).toBeLessThan(15);
   });
 
   it('backs off when checks fail after an answer, instead of asking again at once', async () => {

@@ -16,15 +16,14 @@ import { catalogHash } from './catalog';
  *   My requests shows a download in progress (usePollFast);
  * - with nothing in flight, never again, until the user files a request (refreshRequestProgress) or opens My requests;
  * - after a failed check, later and later (RETRY_MS doubling up to MAX_RETRY_MS, each wait between half and all of
- *   that, so the tabs and devices that saw an outage don't all come back at once), until one works.
+ *   that, so the tabs and devices that saw an outage don't all come back at once), until one works: also before any
+ *   answer (Seerr may still be starting after a reboot, and a TV's session lasts).
  * A 404 means the user has no request features: nothing more this session.
  */
 export const NORMAL_MS = 45_000;
 export const FAST_MS = 10_000;
 export const RETRY_MS = 15_000;
 export const MAX_RETRY_MS = 5 * 60_000;
-/** Failed checks before any answer after which there are no more until the page reloads. */
-const FIRST_TRIES = 3;
 
 const IN_FLIGHT: RequestProgressStatus[] = ['Requested', 'Queued', 'Downloading', 'Processing'];
 export const isInFlight = (status: RequestProgressStatus): boolean => IN_FLIGHT.indexOf(status) >= 0;
@@ -45,7 +44,7 @@ let receivedAt = 0;
 /** null: not asked yet; false: no request features for this user (404). */
 let available: boolean | null = null;
 let failed = false;
-/** Checks in a row that failed (before any answer: a few retries, then none until the page reloads). */
+/** Checks in a row that failed, for the back-off. */
 let failures = 0;
 /** After a failed check, when the next may be (Date.now()); set once per failure, so showing the page again keeps it. */
 let retryAt = 0;
@@ -70,11 +69,8 @@ function schedule(): void {
   if (!ctx || available === false || document.hidden) return;
   const list = requests ?? [];
   const fast = fastPages.size > 0 && list.some((r) => isMoving(r.Status));
-  // A failed check is tried again, backing off: until one works once there's been an answer (the failed one may have
-  // been for a request just filed), a few times before that.
-  const follow = failed
-    ? requests !== null || failures < FIRST_TRIES
-    : list.some((r) => isInFlight(r.Status));
+  // A failed check is tried again, backing off, until one works.
+  const follow = failed || list.some((r) => isInFlight(r.Status));
   if (!fast && !follow) return;
   const wait = failed ? retryAt - Date.now() : (fast ? FAST_MS : NORMAL_MS) - (Date.now() - receivedAt);
   timer = window.setTimeout(() => void check(), Math.max(0, wait));

@@ -234,10 +234,14 @@ public sealed class SeerrClient : ISeerrClient
     private static bool IsOutage(SeerrException e) => e.Status is null || (int)e.Status >= 500;
 
     /// <summary>
-    /// Whether a failed per-user call counts against the breaker: only Seerr being unreachable or too slow, which no
-    /// user's data causes. A 5xx or an answer Lumen can't read may be down to that one user's requests.
+    /// Whether a failed per-user call counts against the breaker: Seerr unreachable or too slow, or a proxy in front of it
+    /// saying so (502, 503, 504), none of which a user's data causes. Another 5xx or an answer Lumen can't read may be
+    /// down to that one user's requests.
     /// </summary>
-    private static bool IsUserScopedOutage(SeerrException e) => e.Status is null && e.InnerException is not JsonException;
+    private static bool IsUserScopedOutage(SeerrException e) =>
+        e.Status is null
+            ? e.InnerException is not JsonException
+            : e.Status is HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout;
 
     private async Task<SeerrUser?> LookUpUserAsync(SeerrEndpoint endpoint, Guid jellyfinUserId, bool guarded, CancellationToken cancellationToken)
     {

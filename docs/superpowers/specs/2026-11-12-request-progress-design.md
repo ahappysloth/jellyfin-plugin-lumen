@@ -76,10 +76,11 @@ There's no push from Seerr, so the client polls, and both sides keep it gentle:
 
 - **Server** (`RequestProgressService`): each user's Seerr answer is cached for **8 s**, and calls that arrive while one
   is on its way share it (one Seerr call per user per 8 s at most, whatever their devices and tabs do). Titles and art
-  come from the shared 10-minute title cache. A failed answer is cached too, for **15 s**, so one user's tabs can't
-  keep a failing call going. Calls go through the Seerr circuit breaker, but as this one is per user, only Seerr being
-  unreachable or too slow counts against it: a 5xx may be down to that user's data and shouldn't pause request
-  features for everyone, and it doesn't count as a success either (a proxy's 502 for a Seerr that's down). Filing a
+  come from the shared 10-minute title cache. A failed answer is cached too, for **5 s** (shorter than the client's
+  first retry, so that retry really asks Seerr), so one user's tabs can't keep a failing call going. Calls go through
+  the Seerr circuit breaker, but as this one is per user, only Seerr being down counts against it: unreachable, too
+  slow, or a proxy in front of it answering 502, 503 or 504. Another 5xx may be down to that user's data and shouldn't
+  pause request features for everyone, and it doesn't count as a success either. Filing a
   request through Lumen, or saving Lumen's settings, starts the user's cache over.
 - **Client** (`views/catalog/requestProgress.ts`), only where Seerr is set up (`ClientConfig.Requests`, so servers
   without Seerr never ask):
@@ -89,8 +90,8 @@ There's no push from Seerr, so the client polls, and both sides keep it gentle:
   - with nothing in flight, **no more checks** until the user files a request or opens My requests;
   - a 404 (no Seerr account) stops it for the session; a failed check is tried again after **15 s**, doubling up to
     **5 min**, each wait a random half to all of that, so tabs and devices that saw the same outage don't all come back
-    at once; a success goes back to the normal pace. Before any answer, a failed first check is tried twice more, then
-    left;
+    at once; a success goes back to the normal pace. A failed first check is retried the same way (Seerr may still be
+    starting after a reboot, and a TV's session lasts);
   - a "ready" answer that arrives while the page is hidden pops up when it shows again.
 - **Old TVs:** a card subscribes to its own title's entry and re-renders only when that changes; the first check waits
   for idle time; nothing ticks between checks.

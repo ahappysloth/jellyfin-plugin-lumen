@@ -138,7 +138,7 @@ public sealed class SeerrClientSafetyTests : IDisposable
 
     [Theory]
     [InlineData(HttpStatusCode.InternalServerError)]
-    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.NotImplemented)]
     public async Task OneUsersRequests_FailingWithA5xx_DontTripTheBreakerForEveryone(HttpStatusCode status)
     {
         _http.Respond = _ => new HttpResponseMessage(status);
@@ -151,18 +151,35 @@ public sealed class SeerrClientSafetyTests : IDisposable
         Assert.False(_client.BreakerFor(Endpoint).IsOpen);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.GatewayTimeout)]
+    public async Task OneUsersRequests_AProxySayingSeerrIsDown_TripsTheBreaker(HttpStatusCode status)
+    {
+        // No user's data makes a proxy answer 502, 503 or 504: that's Seerr down behind it, as an unreachable Seerr is.
+        _http.Respond = _ => new HttpResponseMessage(status);
+
+        for (var i = 0; i < SeerrCircuitBreaker.Threshold; i++)
+        {
+            await Assert.ThrowsAsync<SeerrException>(() => _client.GetUserRequestsAsync(Endpoint, 7, CancellationToken.None));
+        }
+
+        Assert.True(_client.BreakerFor(Endpoint).IsOpen);
+    }
+
     [Fact]
     public async Task OneUsersRequests_A5xx_NeitherCountsNorResetsTheCount()
     {
-        // Two shared calls fail, then a per-user 5xx (which may be a proxy in front of a Seerr that's down): the next
-        // shared failure still trips it.
+        // Two shared calls fail, then a per-user 500 (which may be down to that user's requests): the next shared
+        // failure still trips it.
         _http.Respond = _ => throw new HttpRequestException("down");
         for (var i = 0; i < SeerrCircuitBreaker.Threshold - 1; i++)
         {
             await Assert.ThrowsAsync<SeerrException>(() => _client.SearchAsync(Endpoint, 7, "x", 1, CancellationToken.None));
         }
 
-        _http.Respond = _ => new HttpResponseMessage(HttpStatusCode.BadGateway);
+        _http.Respond = _ => new HttpResponseMessage(HttpStatusCode.InternalServerError);
         await Assert.ThrowsAsync<SeerrException>(() => _client.GetUserRequestsAsync(Endpoint, 7, CancellationToken.None));
         Assert.False(_client.BreakerFor(Endpoint).IsOpen);
 

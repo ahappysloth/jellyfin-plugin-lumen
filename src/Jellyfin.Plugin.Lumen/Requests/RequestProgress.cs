@@ -23,6 +23,16 @@ public static class RequestProgressState
 
     /// <summary>Whether the request may still change on its own (worth checking on again).</summary>
     public static bool IsInFlight(string state) => state is Requested or Queued or Downloading or Processing;
+
+    /// <summary>How far along an in-flight state is (higher first when choosing what a title shows); 0 when not in flight.</summary>
+    public static int InFlightRank(string state) => state switch
+    {
+        Downloading => 4,
+        Processing => 3,
+        Queued => 2,
+        Requested => 1,
+        _ => 0,
+    };
 }
 
 /// <summary>

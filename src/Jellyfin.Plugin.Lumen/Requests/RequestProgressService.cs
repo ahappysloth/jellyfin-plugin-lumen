@@ -44,10 +44,10 @@ public sealed class RequestProgressService : IRequestProgressService
     public static readonly TimeSpan Ttl = TimeSpan.FromSeconds(8);
 
     /// <summary>
-    /// How long a user's failed Seerr call is answered from the cache: one user's polling can't keep a failing Seerr
-    /// call going (the client backs off too).
+    /// How long a user's failed Seerr call is answered from the cache: several tabs or devices of one user can't keep a
+    /// failing Seerr call going. Shorter than the client's first retry (at least 7.5 s), so that retry really asks Seerr.
     /// </summary>
-    public static readonly TimeSpan FailureTtl = TimeSpan.FromSeconds(15);
+    public static readonly TimeSpan FailureTtl = TimeSpan.FromSeconds(5);
 
     /// <summary>More requests than this remembered and the memory starts over (it only refines progress).</summary>
     private const int MaxMemories = 20_000;
@@ -205,14 +205,15 @@ public sealed class RequestProgressService : IRequestProgressService
                 }
             }
 
-            // One entry per title (a show's seasons are often separate requests): the request still in flight if any, else
-            // the newest. A show with several season requests in flight shows the progress of all of them.
+            // One entry per title (a show's seasons are often separate requests): the request furthest along of those in
+            // flight (a season downloading beats one waiting for approval), else the newest. A show with several season
+            // requests in flight shows the progress of all of them.
             return tracked
                 .GroupBy(t => t.Key)
                 .Select(g =>
                 {
                     var all = g.ToList();
-                    var primary = all.OrderByDescending(t => RequestProgressState.IsInFlight(t.Progress.State)).ThenByDescending(t => t.Request.Id).First();
+                    var primary = all.OrderByDescending(t => RequestProgressState.InFlightRank(t.Progress.State)).ThenByDescending(t => t.Request.Id).First();
                     var together = all.Where(t => t.Request.Is4k == primary.Request.Is4k && RequestProgressState.IsInFlight(t.Progress.State)).ToList();
                     var shown = primary.Progress;
                     if (together.Count > 1 && together.All(t => RequestProgress.SeasonsOf(t.Request) is not null))
