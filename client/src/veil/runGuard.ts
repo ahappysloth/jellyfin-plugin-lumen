@@ -14,12 +14,14 @@ export { SAFETY_TIMER_KEY };
 export const SAFETY_MS = 8000;
 
 export function runGuard(win: Window, doc: Document): void {
-  const follow = (): void => {
+  // `parsing`: only this first, synchronous run, from the guard's own script as the parser runs it (skinCss.ts).
+  const apply = (parsing: boolean): void => {
     applySignInSkin(doc, win.location.hash);
     applyDashboardSkin(doc, win.location.hash);
-    applySkinCss(doc, win.location.hash);
+    applySkinCss(doc, win.location.hash, parsing);
   };
-  follow();
+  const follow = (): void => apply(false);
+  apply(true);
   // Follow navigation on our own too, so the sign-in and admin looks come off even if lumen.js never loads. jellyfin-web
   // navigates with history.pushState, which fires no event, so wrap it (and replaceState) as well.
   win.addEventListener('hashchange', follow);

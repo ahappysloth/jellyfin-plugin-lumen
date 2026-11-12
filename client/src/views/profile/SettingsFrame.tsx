@@ -3,7 +3,7 @@ import { PREFERENCES_HASH, SELECTORS } from '../../compat/jellyfin';
 import { Icon } from '../../components/icons';
 import { strings } from '../../strings';
 import type { SettingsPage } from '../../takeover/routes';
-import { linkSkinCss, STOCK_CSS } from '../../veil/skinCss';
+import { ensureStockCss } from '../../veil/skinCss';
 import { enhanceStockSelects } from './stockSelects';
 
 /**
@@ -14,7 +14,7 @@ export function SettingsFrame({ page }: { page: SettingsPage }) {
   const [title, hint] = strings.settings[page];
   // The inline guard links the page's stylesheet when the server has the stock pages restyled, unless a
   // Content-Security-Policy blocked it: then this does.
-  useEffect(() => linkSkinCss(document, STOCK_CSS, true), []);
+  useEffect(() => ensureStockCss(document), []);
   // jellyfin-web renders the settings page itself; give its selects Lumen's dropdown while this frame is up.
   useEffect(() => {
     const root = document.querySelector<HTMLElement>(SELECTORS.reactRoot);

@@ -24,8 +24,11 @@ export default defineConfig({
         chunkFileNames: 'lumen-chunk-[name]-[hash].js',
         // One core file: main.tsx and everything it imports, which the later files (the player, the trailer preview)
         // import from. Left to itself, Rolldown puts the code all three share (Preact) in a file of its own, a second
-        // download the page waits for before Lumen can start.
-        codeSplitting: { groups: [{ name: 'main', test: /[\\/]src[\\/]main\.tsx$/ }] },
+        // download the page waits for before Lumen can start. veil/stockCss.ts joins it too: the item menu's file and
+        // the profile pages' file both import it, and it's too small to be a download of its own.
+        codeSplitting: {
+          groups: [{ name: 'main', test: /[\\/]src[\\/](main\.tsx|veil[\\/]stockCss\.ts)$/ }],
+        },
         // Library mode leaves ES output unminified for bundlers downstream; this one goes straight to browsers.
         minify: true,
         // It also keeps every `/* @__PURE__ */` annotation (there for a downstream bundler's tree-shaking), about
