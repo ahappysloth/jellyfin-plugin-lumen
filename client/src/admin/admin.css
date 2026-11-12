@@ -850,6 +850,11 @@
   font-size: 14px;
   font-weight: 650;
 }
+.lmn-admin .lmna-storage__overlap {
+  margin: 0 0 8px;
+  color: var(--a-dim);
+  font-size: 12.5px;
+}
 
 /* One library: its total, then a thin bar each for codecs and resolutions. */
 .lmn-admin .lmna-storage__library {
