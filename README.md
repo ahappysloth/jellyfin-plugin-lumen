@@ -100,3 +100,5 @@ Works on macOS and Linux, including WSL2. See [docs/development.md](docs/develop
 GPL-3.0. See [LICENSE](LICENSE).
 
 Lumen's interface font is [Inter](https://github.com/rsms/inter) 4.1, Copyright (c) 2016 The Inter Project Authors, under the SIL Open Font License 1.1 (see [client/src/assets/fonts/LICENSE-Inter.txt](client/src/assets/fonts/LICENSE-Inter.txt)). Lumen ships a subset of it (`client/scripts/subset-inter.sh`).
+
+Lumen's icons are [Lucide](https://lucide.dev)'s, under the ISC license (some of them from Feather, MIT). See [LICENSES/lucide.txt](LICENSES/lucide.txt), which the plugin also carries inside its DLL.

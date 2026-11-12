@@ -15,6 +15,8 @@
   <ItemGroup>
     <None Remove="Configuration\configPage.html" />
     <EmbeddedResource Include="Configuration\configPage.html" />
+    <!-- The client's icons are Lucide's: their license notice goes wherever the plugin does (README, License). -->
+    <EmbeddedResource Include="..\..\LICENSES\lucide.txt" LogicalName="Lumen.Licenses.lucide.txt" />
   </ItemGroup>
   <PropertyGroup>
     <ClientDir>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'client'))</ClientDir>

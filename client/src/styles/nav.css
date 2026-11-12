@@ -176,9 +176,10 @@ button.lmn-nav__item {
     flex: 1;
     flex-direction: column;
     align-items: center;
-    gap: 3px;
+    /* With the 24px icon, these keep the tab bar 64px tall (the now-playing bar and the page's padding below). */
+    gap: 2px;
     min-width: 0;
-    padding: 6px 2px 4px;
+    padding: 5px 2px 4px;
     border-radius: 10px;
     color: var(--lmn-text-3);
     font-size: 11px;
