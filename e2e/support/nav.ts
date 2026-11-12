@@ -31,7 +31,7 @@ export async function openSettingsMenu(page: Page): Promise<void> {
     return;
   }
   await accountButton(page).click();
-  await accountMenu(page).getByRole('menuitem', { name: 'Settings' }).click();
+  await accountMenu(page).getByRole('menuitem', { name: 'Settings', exact: true }).click();
 }
 
 const NAVS = /^(Main|Tabs)$/;

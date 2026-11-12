@@ -144,11 +144,15 @@ describe('AccountMenu', () => {
     expect(names(menu)).toEqual(['History', 'Settings', 'Profile']);
   });
 
-  it('adds the Dashboard and Metadata manager for administrators only', async () => {
+  it('adds the Dashboard, Lumen settings and Metadata manager for administrators only', async () => {
     const { button } = setup({ user: ROOT });
     const menu = await openByClick(button, 'Root');
     expect(screen.getByText('Administrator')).toBeInTheDocument();
     expect(within(menu).getByRole('menuitem', { name: 'Dashboard' })).toHaveAttribute('href', '#/dashboard');
+    expect(within(menu).getByRole('menuitem', { name: 'Lumen settings' })).toHaveAttribute(
+      'href',
+      '#/configurationpage?name=Lumen',
+    );
     expect(within(menu).getByRole('menuitem', { name: 'Metadata manager' })).toHaveAttribute(
       'href',
       '#/metadata',
@@ -162,6 +166,7 @@ describe('AccountMenu', () => {
       const menu = await openByClick(button, 'Root');
       expect(screen.getByText('Administrator')).toBeInTheDocument();
       expect(within(menu).queryByRole('menuitem', { name: 'Dashboard' })).toBeNull();
+      expect(within(menu).queryByRole('menuitem', { name: 'Lumen settings' })).toBeNull();
       expect(within(menu).queryByRole('menuitem', { name: 'Metadata manager' })).toBeNull();
       expect(names(menu)).toContain('Profile');
     } finally {
@@ -173,6 +178,7 @@ describe('AccountMenu', () => {
     const { button } = setup();
     const menu = await openByClick(button);
     expect(within(menu).queryByRole('menuitem', { name: 'Dashboard' })).toBeNull();
+    expect(within(menu).queryByRole('menuitem', { name: 'Lumen settings' })).toBeNull();
     expect(within(menu).queryByRole('menuitem', { name: 'Metadata manager' })).toBeNull();
     expect(screen.queryByText('Administrator')).toBeNull();
   });

@@ -2,6 +2,18 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.4.2] - 2026-11-12
+
+### Added
+- Request progress (with Seerr): your requests say where they stand (Requested, Queued, Downloading, Processing,
+  Ready, or Declined/Failed) on their posters in every row and on their title page, with a progress bar and the time
+  left while they download (from Radarr's and Sonarr's queues, when Seerr is connected to them); a show counts its
+  episodes. A title page updates while it's open.
+- My requests in the account menu (and on the Me page on phones) lists your requests, newest first.
+- A pop-up says when something you requested is ready to watch, with Open, once per title across your devices.
+- Lumen settings in the account menu (and the Me page) for administrators: Lumen's settings page in one click,
+  instead of Dashboard → Plugins → Lumen.
+
 ## [0.4.1] - 2026-11-12
 
 ### Added

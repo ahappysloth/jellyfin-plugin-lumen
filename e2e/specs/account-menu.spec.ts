@@ -40,10 +40,15 @@ test.describe('wide screens', () => {
       'Settings',
       'Profile',
       'Dashboard',
+      'Lumen settings',
       'Metadata manager',
       'Sign out',
     ]);
     await expect(accountMenu(page).getByRole('menuitem', { name: 'Dashboard' })).toHaveAttribute('href', '#/dashboard');
+    await expect(accountMenu(page).getByRole('menuitem', { name: 'Lumen settings' })).toHaveAttribute(
+      'href',
+      '#/configurationpage?name=Lumen',
+    );
 
     // Moving down into the menu keeps it open, even pausing in the gap between button and menu for longer than the
     // close delay (300 ms).
@@ -56,7 +61,7 @@ test.describe('wide screens', () => {
     await page.mouse.move(x, gapY, { steps: 8 });
     await page.waitForTimeout(450);
     await expect(accountMenu(page)).toBeVisible();
-    const settings = (await accountMenu(page).getByRole('menuitem', { name: 'Settings' }).boundingBox())!;
+    const settings = (await accountMenu(page).getByRole('menuitem', { name: 'Settings', exact: true }).boundingBox())!;
     await page.mouse.move(x, settings.y + settings.height / 2, { steps: 8 });
     await page.waitForTimeout(450);
     await expect(accountMenu(page)).toBeVisible();
@@ -80,6 +85,7 @@ test.describe('wide screens', () => {
     await expect(focused).toHaveCount(1);
     await expect(focused).not.toHaveAccessibleName('History');
     await expect(accountMenu(page).getByRole('menuitem', { name: 'Dashboard' })).toHaveCount(0);
+    await expect(accountMenu(page).getByRole('menuitem', { name: 'Lumen settings' })).toHaveCount(0);
     await expect(page.locator('.lmn-account__header')).not.toContainText('Administrator');
 
     await page.keyboard.press('Escape');
@@ -199,6 +205,7 @@ test.describe('wide screens', () => {
     // No admin pages on a TV, as in jellyfin-web, though this is an administrator.
     await expect(accountMenu(page).getByRole('menuitem', { name: 'Profile' })).toBeVisible();
     await expect(accountMenu(page).getByRole('menuitem', { name: 'Dashboard' })).toHaveCount(0);
+    await expect(accountMenu(page).getByRole('menuitem', { name: 'Lumen settings' })).toHaveCount(0);
     await expect(accountMenu(page).getByRole('menuitem', { name: 'Metadata manager' })).toHaveCount(0);
 
     await page.keyboard.press('Escape');
@@ -215,7 +222,20 @@ test.describe('wide screens', () => {
     await expect(profile.getByRole('link', { name: /Playback/ })).toBeVisible();
     await expect(profile.getByText('Administrator')).toBeVisible();
     await expect(page.getByRole('link', { name: /Dashboard/ })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /Lumen settings/ })).toHaveCount(0);
     await expect(page.getByRole('link', { name: /Metadata manager/ })).toHaveCount(0);
+  });
+
+  test('Lumen settings in the menu opens Lumen’s settings page straight away', { tag: '@smoke' }, async ({ page }) => {
+    await login(page, ADMIN);
+    const button = accountButton(page);
+    await button.click();
+    await accountMenu(page).getByRole('menuitem', { name: 'Lumen settings' }).click();
+
+    await expect(page).toHaveURL(/#\/configurationpage\?name=Lumen$/);
+    const root = page.locator('[id="lmn-admin-root"]:visible');
+    await expect(root.getByRole('tab', { name: 'Settings' })).toHaveAttribute('aria-selected', 'true');
+    await expect(root.getByRole('group', { name: 'Home sections' })).toBeVisible();
   });
 
   test("History: a show marked watched is one card for its episodes, which opens the show", async ({ page }) => {
