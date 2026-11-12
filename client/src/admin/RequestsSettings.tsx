@@ -6,7 +6,7 @@ import { Card, Field, NumberField, Switch, inputValue } from './controls';
  * Keeps browsers and password managers (1Password, LastPass, Bitwarden, Dashlane) from filling a Jellyfin login into
  * the Seerr fields. "new-password" is the one autocomplete value Chrome and Safari reliably respect on password inputs.
  */
-const NO_PASSWORD_MANAGER = {
+export const NO_PASSWORD_MANAGER = {
   'data-1p-ignore': 'true',
   'data-lpignore': 'true',
   'data-bwignore': 'true',

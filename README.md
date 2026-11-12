@@ -6,6 +6,7 @@ Lumen gives Jellyfin's web interface a cinematic redesign:
 - **Browsing:** Movies, Shows and Collections pages with an endless poster grid, watched/genre filters and sorting; genre pages (All / Movies / Shows); and a Favorites page.
 - **Search:** results grouped by Movies, Shows, Episodes and People as you type.
 - **Requests (optional, with Seerr):** search also finds titles the server doesn't have, with a title page and a request dialog; home rows for My Requests, Trending, Popular and Coming Soon. Requests are filed as the signed-in user, so their Seerr permissions and quotas apply.
+- **Top 10 this week (optional):** ranked "Top 10 Movies" and "Top 10 Shows" home rows of what Trakt's users watched most this week (with a free Trakt API key in Lumen's settings), or Seerr's trending titles without one. Titles on the server open and play like any card; with Seerr, the rest can be requested right from the row.
 - **Player:** Lumen's controls over Jellyfin's own video player (quality, audio and subtitle tracks, speed, next episode, picture in picture, AirPlay). Playback itself stays Jellyfin's.
 - **Sign-in and settings:** Jellyfin's sign-in page and its user settings pages wear Lumen's look (CSS only; the forms stay Jellyfin's), and "Add to Home Screen" installs with Lumen's icon.
 

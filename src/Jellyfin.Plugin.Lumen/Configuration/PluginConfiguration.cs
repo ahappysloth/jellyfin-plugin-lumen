@@ -121,12 +121,48 @@ public class PluginConfiguration : BasePluginConfiguration
     [XmlIgnore]
     public bool SeerrApiKeySet { get; set; }
 
-    /// <summary>A copy that is safe to send to the admin page: everything except the Seerr API key.</summary>
+    /// <summary>
+    /// Gets or sets the Trakt API key (an app's client id) for the Top 10 rows. A secret like <see cref="SeerrApiKey"/>:
+    /// persisted in the XML config, never serialized to JSON. The admin page writes it through
+    /// <see cref="TraktClientIdInput"/>; a save with an empty key keeps the stored one unless
+    /// <see cref="ClearTraktClientId"/> is set (see LumenConfigStore).
+    /// </summary>
+    [JsonIgnore]
+    public string? TraktClientId { get; set; }
+
+    /// <summary>Gets or sets the Trakt key in JSON, write-only like <see cref="SeerrApiKeyInput"/>.</summary>
+    [XmlIgnore]
+    [JsonPropertyName("TraktClientId")]
+    [SuppressMessage("Design", "CA1044:Properties should not be write only", Justification = "Reads as null on purpose.")]
+    public string? TraktClientIdInput
+    {
+        get => null;
+        set => TraktClientId = value;
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether a Trakt key is stored. Only meaningful on a <see cref="WithoutSecrets"/>
+    /// copy; never persisted, and ignored on save.
+    /// </summary>
+    [XmlIgnore]
+    public bool TraktClientIdSet { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether a save removes the stored Trakt key (an empty key otherwise keeps it). Never
+    /// persisted: the store acts on it and resets it.
+    /// </summary>
+    [XmlIgnore]
+    public bool ClearTraktClientId { get; set; }
+
+    /// <summary>A copy that is safe to send to the admin page: everything except the Seerr API key and the Trakt key.</summary>
     public PluginConfiguration WithoutSecrets()
     {
         var copy = (PluginConfiguration)MemberwiseClone();
         copy.SeerrApiKeySet = !string.IsNullOrEmpty(SeerrApiKey);
         copy.SeerrApiKey = null;
+        copy.TraktClientIdSet = !string.IsNullOrEmpty(TraktClientId);
+        copy.TraktClientId = null;
+        copy.ClearTraktClientId = false;
         return copy;
     }
 }

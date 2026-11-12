@@ -165,6 +165,9 @@ export const strings = {
     metadata: ['Metadata manager', 'Edit titles, artwork and details'],
   },
   request: 'Request',
+  requestNamed: (title: string) => `Request ${title}`,
+  /** Starts a Top 10 card's name: "3, Title". */
+  rankOf: (rank: number) => `${formatNumber(rank)}, `,
   requested: 'Requested',
   downloading: 'Downloading',
   partlyAvailable: 'Partly available',

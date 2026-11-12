@@ -13,13 +13,17 @@ interface Props {
   imageToken: string | null | undefined;
   variant: CardVariant;
   onSelect: (item: CatalogItem) => void;
+  /** A Top 10 card's place, read before its title (the big numeral beside it is decoration). */
+  rank?: number;
+  /** Leaves out the outlined "Request" tab (a Top 10 card has a Request button under it instead). */
+  hideRequestTab?: boolean;
 }
 
 /**
  * A title from Seerr's catalog in Lumen's card style, with a tab for its request state: an outlined "Request", or a
  * filled "Requested" / "Downloading" / "Partial" (partly available).
  */
-export function CatalogCard({ item, client, imageToken, variant, onSelect }: Props) {
+export function CatalogCard({ item, client, imageToken, variant, onSelect, rank, hideRequestTab }: Props) {
   const state = useCatalogState(item);
   // Most open the title page, whose code loads on its own (lazyTitle.tsx): have it ready.
   useEffect(prefetchTitle, []);
@@ -36,7 +40,9 @@ export function CatalogCard({ item, client, imageToken, variant, onSelect }: Pro
       type="button"
       class={`lmn-card lmn-card--${variant} lmn-card--catalog`}
       data-catalog-key={item.Key}
-      aria-label={label ? `${item.Title}, ${label}` : item.Title}
+      aria-label={
+        (rank === undefined ? '' : strings.rankOf(rank)) + (label ? `${item.Title}, ${label}` : item.Title)
+      }
       onClick={() => onSelect(item)}
     >
       <span class="lmn-card__art">
@@ -50,7 +56,7 @@ export function CatalogCard({ item, client, imageToken, variant, onSelect }: Pro
         ) : (
           <span class="lmn-card__placeholder">{item.Title}</span>
         )}
-        {label && (
+        {label && !(hideRequestTab && state === 'None') && (
           <span class={`lmn-card__state${state === 'None' ? '' : ' is-filled'}`} aria-hidden="true">
             {tab}
           </span>

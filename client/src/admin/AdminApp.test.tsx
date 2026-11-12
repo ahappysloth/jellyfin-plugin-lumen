@@ -88,6 +88,7 @@ function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     getPlaylists: vi.fn(async () => []),
     testSeerr: vi.fn(async () => ({ Ok: true, Version: '3.5.1', Error: null })),
     getSeerrUsers: vi.fn(async () => ({ JellyfinServerName: null, SameJellyfinServer: null, Unmapped: [] })),
+    testTrakt: vi.fn(async () => ({ Ok: true, TopMovie: 'Inception', Error: null })),
     checkForUpdates: vi.fn(async () => update()),
     installUpdate: vi.fn(async () => update({ UpdateAvailable: false, RestartPending: true })),
     restartServer: vi.fn(async () => undefined),
@@ -238,6 +239,23 @@ describe('AdminApp', () => {
 
     expect(await screen.findByText('Seerr rejected the API key.')).toBeInTheDocument();
     expect(api.testSeerr).toHaveBeenCalledWith('http://seerr:5055', 'k1');
+  });
+
+  it('saves a typed Trakt key, and removing the saved one sends the clear flag', async () => {
+    const api = fakeApi({ getConfig: vi.fn(async () => ({ ...config(), TraktClientIdSet: true })) });
+    render(<AdminApp api={api} />);
+
+    const field = await screen.findByLabelText('Trakt API key');
+    expect(field).toHaveAttribute('type', 'password');
+    expect(field).toHaveAttribute('placeholder', 'Saved (leave blank to keep it)');
+    fireEvent.click(screen.getByRole('button', { name: 'Remove key' }));
+    expect(screen.getByText('The key will be removed when you save.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(api.saveConfig).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(api.saveConfig).mock.calls[0]![0]).toMatchObject({
+      TraktClientId: '',
+      ClearTraktClientId: true,
+    });
   });
 
   it('explains when Seerr is linked to a different Jellyfin server instead of suggesting an import', async () => {

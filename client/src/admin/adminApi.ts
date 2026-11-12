@@ -56,6 +56,18 @@ export interface LumenConfig {
   SeerrApiKey?: string | null;
   SeerrApiKeySet?: boolean;
   ImageCacheMb?: number;
+  /** The Trakt key for the Top 10 rows: write-only like SeerrApiKey (empty on save keeps the stored one). */
+  TraktClientId?: string | null;
+  TraktClientIdSet?: boolean;
+  /** Set to remove the stored Trakt key on save. */
+  ClearTraktClientId?: boolean;
+}
+
+export interface TraktTestResult {
+  Ok: boolean;
+  /** This week's most watched movie, as proof the key works. */
+  TopMovie: string | null;
+  Error: string | null;
 }
 
 export interface SeerrTestResult {
@@ -183,6 +195,8 @@ export interface AdminApi {
   getPlaylists(): Promise<Option[]>;
   testSeerr(url: string, apiKey: string): Promise<SeerrTestResult>;
   getSeerrUsers(): Promise<SeerrUsers>;
+  /** Checks a Trakt key (the stored one when empty) without saving it. */
+  testTrakt(clientId: string): Promise<TraktTestResult>;
   checkForUpdates(): Promise<UpdateStatus>;
   installUpdate(version: string): Promise<UpdateStatus>;
   restartServer(): Promise<void>;
@@ -255,6 +269,14 @@ export function createAdminApi(client: JellyfinApiClient): AdminApi {
         dataType: 'json',
       })) as SeerrTestResult,
     getSeerrUsers: () => getJson('Lumen/Admin/Seerr/Users'),
+    testTrakt: async (clientId) =>
+      (await client.ajax({
+        type: 'POST',
+        url: client.getUrl('Lumen/Admin/Trakt/Test'),
+        data: JSON.stringify({ ClientId: clientId || null }),
+        contentType: 'application/json',
+        dataType: 'json',
+      })) as TraktTestResult,
     checkForUpdates: () => getJson('Lumen/Admin/Updates'),
     installUpdate: async (version) =>
       (await client.ajax({

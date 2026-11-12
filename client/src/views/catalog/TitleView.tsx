@@ -21,8 +21,11 @@ import {
   useCatalogState,
 } from './catalog';
 import { CatalogCard } from './CatalogCard';
-import { RequestDialog } from './RequestDialog';
+import { RequestDialog, requestedState } from './RequestDialog';
 import { titleStrings } from './titleStrings';
+
+// The request dialog for a card's Request button (lazyTitle.tsx's LazyQuickRequest) comes in this chunk too.
+export { QuickRequest } from './QuickRequest';
 
 /**
  * A catalog title's page (requests spec §5.3): the details-page header with Request (or the request's state) in place
@@ -84,12 +87,7 @@ export function TitleView({
   const onRequested = (result: RequestResult, seasons: number[] | null): void => {
     const updated: CatalogTitle = {
       ...title,
-      State:
-        title.State === 'PartlyAvailable'
-          ? 'PartlyAvailable'
-          : result.State === 'None'
-            ? 'Requested'
-            : result.State,
+      State: requestedState(title, result),
       Seasons: title.Seasons.map((s) =>
         s.State === 'None' && (seasons === null || seasons.includes(s.Number))
           ? { ...s, State: 'Requested' }

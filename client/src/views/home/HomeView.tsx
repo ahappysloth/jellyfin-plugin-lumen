@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import type { BaseItem, HomeResponse, HomeRow } from '../../api/types';
+import type { BaseItem, CatalogItem, HomeResponse, HomeRow, RequestStatus } from '../../api/types';
 import { detailsHash } from '../../compat/jellyfin';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { showToast } from '../../components/Toast';
@@ -10,7 +10,8 @@ import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { cardMenuHandler, infoHash } from '../cardMenu';
-import { catalogHash, useCatalogImageToken } from '../catalog/catalog';
+import { catalogHash, loadRequestStatus, useCatalogImageToken } from '../catalog/catalog';
+import { LazyQuickRequest } from '../catalog/lazyTitle';
 import { Hero } from './Hero';
 import {
   clearCachedHome,
@@ -28,10 +29,35 @@ import { Row } from './Row';
 
 export function HomeView({ ctx }: { ctx: ViewContext }) {
   const [home, setHome] = useState<HomeResponse | null>(() => usableCachedHome(ctx.userId) ?? null);
-  const catalogImageToken = useCatalogImageToken(
-    ctx,
-    !!home?.Rows.some((row) => row.Entries?.some((entry) => entry.Catalog)),
-  );
+  const hasCatalog = !!home?.Rows.some((row) => row.Entries?.some((entry) => entry.Catalog));
+  const catalogImageToken = useCatalogImageToken(ctx, hasCatalog);
+  // What the user may request decides whether Top 10 cards offer Request (the status is loaded once per user anyway).
+  const [requests, setRequests] = useState<RequestStatus | null>(null);
+  useEffect(() => {
+    if (!hasCatalog) return undefined;
+    let cancelled = false;
+    void loadRequestStatus(ctx).then((status) => !cancelled && setRequests(status));
+    return () => {
+      cancelled = true;
+    };
+  }, [ctx.userId, hasCatalog]);
+  const canRequest = (item: CatalogItem): boolean =>
+    !!requests?.Enabled && (item.MediaType === 'movie' ? requests.CanRequestMovies : requests.CanRequestTv);
+  const [requesting, setRequesting] = useState<CatalogItem | null>(null);
+  const closeRequest = (): void => {
+    const key = requesting?.Key;
+    setRequesting(null);
+    // Back to the card's Request button, or to the card if the request took it away.
+    const root = rootRef.current;
+    if (!key || !root) return;
+    const back =
+      root.querySelector<HTMLElement>(`[data-request-key="${key}"]`) ??
+      root.querySelector<HTMLElement>(`.lmn-row--top10 [data-catalog-key="${key}"]`);
+    window.setTimeout(() => {
+      if (!document.activeElement || document.activeElement === document.body)
+        back?.focus({ preventScroll: true });
+    });
+  };
   const rootRef = useRef<HTMLDivElement>(null);
   const previous = getSelection(ctx.userId);
   useAutoFocus(rootRef, home !== null, ctx.layout, previous?.itemId, previous?.rowId);
@@ -127,9 +153,12 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
             onSelect={select}
             onMenu={onMenu}
             onSelectCatalog={(item) => ctx.navigate(catalogHash(item))}
+            canRequest={canRequest}
+            onRequest={setRequesting}
           />
         </ErrorBoundary>
       ))}
+      {requesting && <LazyQuickRequest item={requesting} ctx={ctx} onClose={closeRequest} />}
     </div>
   );
 }

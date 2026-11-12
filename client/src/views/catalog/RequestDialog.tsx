@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { RequestError } from '../../api/lumenApi';
-import type { CatalogTitle, RequestResult } from '../../api/types';
+import type { CatalogState, CatalogTitle, RequestResult } from '../../api/types';
 import { isBackKey } from '../../compat/jellyfin';
 import { Icon } from '../../components/icons';
 import { strings } from '../../strings';
@@ -14,6 +14,12 @@ interface Props {
   onClose: () => void;
   /** After Seerr accepted the request; `seasons` is null for a movie. */
   onRequested: (result: RequestResult, seasons: number[] | null) => void;
+}
+
+/** A title's state once Seerr has accepted a request for it (a partly available show stays partly available). */
+export function requestedState(title: CatalogTitle, result: RequestResult): CatalogState {
+  if (title.State === 'PartlyAvailable') return 'PartlyAvailable';
+  return result.State === 'None' ? 'Requested' : result.State;
 }
 
 type Phase =

@@ -68,6 +68,12 @@ public sealed partial class ConfigValidator
             }
         }
 
+        // It goes in a request header: printable ASCII only, so it can't break the request. (Trakt's are 64 hex digits.)
+        if (!string.IsNullOrEmpty(config.TraktClientId) && !TraktKey().IsMatch(config.TraktClientId))
+        {
+            errors.Add("The Trakt API key should be the Client ID of a Trakt app (trakt.tv/oauth/applications).");
+        }
+
         // A POSTed config can carry JSON nulls that the non-nullable types do not rule out.
         List<SectionDefinition?>? sections = config.Sections!;
         if (sections is null)
@@ -186,4 +192,7 @@ public sealed partial class ConfigValidator
 
     [GeneratedRegex("^#[0-9a-fA-F]{6}$")]
     private static partial Regex HexColor();
+
+    [GeneratedRegex("^[\\x21-\\x7E]{8,200}$")]
+    private static partial Regex TraktKey();
 }

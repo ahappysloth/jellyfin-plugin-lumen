@@ -22,6 +22,8 @@ interface CardProps {
   current?: boolean;
   /** Shows this item's art instead of `item`'s (History's card for several episodes of a show: the latest's still). */
   artItem?: BaseItem;
+  /** A Top 10 card's place, read before its title (the big numeral beside it is decoration). */
+  rank?: number;
 }
 
 const LONG_PRESS_MS = 550;
@@ -115,6 +117,7 @@ export function Card({
   onMenu,
   current,
   artItem,
+  rank,
 }: CardProps) {
   const { consumeClick, ...handlers } = useMenuHandlers(item, onMenu);
   const art = cardArt(artItem ?? item, variant);
@@ -147,6 +150,7 @@ export function Card({
         href={infoHash(item)}
         class={`lmn-card lmn-card--${variant}${current ? ' is-current' : ''}`}
         aria-current={current ? 'page' : undefined}
+        aria-label={rank === undefined ? undefined : strings.rankOf(rank) + name}
         aria-describedby={description ? descriptionId : undefined}
         data-item-id={item.Id}
         onClick={(e) => {

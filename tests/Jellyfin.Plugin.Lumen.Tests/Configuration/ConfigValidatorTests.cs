@@ -26,6 +26,19 @@ public class ConfigValidatorTests
     }
 
     [Theory]
+    [InlineData(null, true)]
+    [InlineData("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", true)]
+    [InlineData("short", false)]
+    [InlineData("has a space in it", false)]
+    [InlineData("line\r\nbreak-header", false)]
+    public void TraktKey_MustBeHeaderSafe(string? key, bool valid)
+    {
+        var errors = new ConfigValidator([]).Validate(new PluginConfiguration { TraktClientId = key });
+
+        Assert.Equal(valid, !errors.Any(e => e.Contains("Trakt", StringComparison.Ordinal)));
+    }
+
+    [Theory]
     [InlineData("http://seerr:5055", true)]
     [InlineData("https://seerr.example/base/", true)]
     [InlineData("ftp://seerr", false)]

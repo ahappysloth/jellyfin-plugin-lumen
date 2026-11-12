@@ -22,6 +22,11 @@
 //          409 { message } if this user already requested the same mediaId + seasons; recorded for /__stub/requests
 //   (Catalog and request routes act as a user: they need the key and an X-Api-User header, 400 without it.)
 //   GET  /t/p/:size/:file                       → a tiny PNG (TMDB image stand-in)
+//   GET  /trakt/{movies|shows}/watched/weekly?limit= → Trakt's weekly most watched (stand-in for the Top 10 rows, which
+//        LUMEN_TRAKT_API_BASE points here): needs `trakt-api-version: 2` and `trakt-api-key: stub-trakt-key`, else 401.
+//        Movies: Lumen Beta (tmdb 900002), The Matrix (603), a title Seerr doesn't know (999999), Lumen Alpha (imdb
+//        tt9000001), The Matrix Reloaded (604). Shows: Lumen Saga (1399), Lumen Show (tmdb 900010). The fixture media
+//        has no ids: the Top 10 spec gives the library items theirs.
 //   POST /__stub/users  { [jellyfinUserId]: { id, permissions } }   → replaces the user map (test control)
 //   POST /__stub/jellyfin  { name, serverId }                       → sets the linked Jellyfin server (test control)
 //   POST /__stub/library  { tmdbId, jellyfinMediaId }                → makes that title available (mediaInfo status 5,
@@ -32,6 +37,7 @@
 import { createServer } from 'node:http';
 
 export const STUB_API_KEY = 'stub-key';
+export const STUB_TRAKT_KEY = 'stub-trakt-key';
 const PORT = Number(process.env.LUMEN_STUB_SEERR_PORT ?? 5055);
 // 1×1 transparent PNG.
 const PNG = Buffer.from(
@@ -89,6 +95,23 @@ const details = {
     mediaInfo: { ...SAGA.mediaInfo, requests: [{ status: 2, seasons: [{ seasonNumber: 2, status: 2 }] }] },
   },
 };
+const watched = (kind, title, year, ids, watchers) => ({
+  watcher_count: watchers, play_count: watchers * 2, collected_count: 0,
+  [kind]: { title, year, ids: { trakt: watchers, slug: title.toLowerCase().replace(/\W+/g, '-'), imdb: null, tmdb: null, ...ids } },
+});
+const traktWeekly = {
+  movies: [
+    watched('movie', 'Lumen Beta', 2002, { tmdb: 900002 }, 5000),
+    watched('movie', 'The Matrix', 1999, { tmdb: 603, imdb: 'tt0133093' }, 4000),
+    watched('movie', 'Stub Unknown To Seerr', 2026, { tmdb: 999999 }, 3000),
+    watched('movie', 'Lumen Alpha', 2001, { tmdb: 900001, imdb: 'tt9000001' }, 2000),
+    watched('movie', 'The Matrix Reloaded', 2003, { tmdb: 604, imdb: 'tt0234215' }, 1000),
+  ],
+  shows: [
+    watched('show', 'Lumen Saga', 2011, { tmdb: 1399 }, 3000),
+    watched('show', 'Lumen Show', 2010, { tmdb: 900010, imdb: 'tt9000010' }, 2000),
+  ],
+};
 const page = (results, pageNumber = 1) => ({
   page: pageNumber, totalPages: results.length ? 1 : 0, totalResults: results.length, results,
 });
@@ -140,6 +163,13 @@ createServer((req, res) => {
   if (path.startsWith('/t/p/')) {
     res.writeHead(200, { 'Content-Type': 'image/png' });
     return res.end(PNG);
+  }
+  const trakt = path.match(/^\/trakt\/(movies|shows)\/watched\/weekly$/);
+  if (trakt && req.method === 'GET') {
+    if (req.headers['trakt-api-key'] !== STUB_TRAKT_KEY || req.headers['trakt-api-version'] !== '2') {
+      return json(res, 401, { error: 'invalid_api_key' });
+    }
+    return json(res, 200, traktWeekly[trakt[1]].slice(0, Number(url.searchParams.get('limit') ?? 10)));
   }
   if (path === '/api/v1/status') return json(res, 200, { version: '3.5.1-stub', commitTag: 'stub' });
   if (req.headers['x-api-key'] !== STUB_API_KEY) return json(res, 403, { message: 'You do not have permission' });

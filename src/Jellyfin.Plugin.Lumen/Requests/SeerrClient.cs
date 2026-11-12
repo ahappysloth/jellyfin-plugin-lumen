@@ -115,8 +115,12 @@ public sealed class SeerrClient : ISeerrClient
         return new SeerrRequestResult(created.Id, created.Status, created.Media?.Status);
     }
 
-    public async Task<SeerrPage> DiscoverAsync(SeerrEndpoint endpoint, int seerrUserId, SeerrDiscoverList list, CancellationToken cancellationToken)
+    public Task<SeerrPage> DiscoverAsync(SeerrEndpoint endpoint, int seerrUserId, SeerrDiscoverList list, CancellationToken cancellationToken) =>
+        DiscoverPageAsync(endpoint, seerrUserId, list, 1, cancellationToken);
+
+    public async Task<SeerrPage> DiscoverPageAsync(SeerrEndpoint endpoint, int seerrUserId, SeerrDiscoverList list, int page, CancellationToken cancellationToken)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(page, 1);
         var resource = list switch
         {
             SeerrDiscoverList.Trending => "api/v1/discover/trending",
@@ -126,7 +130,7 @@ public sealed class SeerrClient : ISeerrClient
             SeerrDiscoverList.UpcomingTv => "api/v1/discover/tv/upcoming",
             _ => throw new ArgumentOutOfRangeException(nameof(list)),
         };
-        return await GetCachedAsync<SeerrPage>(endpoint, resource + "?page=1", seerrUserId, cancellationToken).ConfigureAwait(false);
+        return await GetCachedAsync<SeerrPage>(endpoint, resource + "?page=" + page.ToString(CultureInfo.InvariantCulture), seerrUserId, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<SeerrUserRequest>> GetUserRequestsAsync(SeerrEndpoint endpoint, int seerrUserId, CancellationToken cancellationToken)

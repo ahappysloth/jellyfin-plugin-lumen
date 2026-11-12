@@ -29,6 +29,13 @@ public sealed class LumenConfigStore : ILumenConfigStore
             configuration.SeerrApiKey = stored.SeerrApiKey;
         }
 
+        // The Trakt key works the same way, except that it isn't tied to an address, so the admin page clears it with an
+        // explicit flag rather than by sending an empty key.
+        configuration.TraktClientId = configuration.ClearTraktClientId
+            ? null
+            : string.IsNullOrWhiteSpace(configuration.TraktClientId) ? stored.TraktClientId : configuration.TraktClientId.Trim();
+        configuration.ClearTraktClientId = false;
+
         var errors = _validator.Validate(configuration);
         if (errors.Count > 0)
         {

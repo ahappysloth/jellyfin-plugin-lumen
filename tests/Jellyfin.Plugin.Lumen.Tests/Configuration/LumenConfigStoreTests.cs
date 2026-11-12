@@ -109,6 +109,65 @@ public class LumenConfigStoreTests
         Assert.Contains("<SeerrApiKey>stored</SeerrApiKey>", writer.ToString(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Save_WithoutATraktKey_KeepsTheStoredOne_AndTheClearFlagRemovesIt()
+    {
+        var store = CreateStore();
+        Assert.True(store.Save(new PluginConfiguration { TraktClientId = "  0123456789abcdef  " }).Success);
+        Assert.Equal("0123456789abcdef", _persistence.Stored.TraktClientId);
+
+        var fromAdminPage = _persistence.Stored.WithoutSecrets();
+        Assert.True(fromAdminPage.TraktClientIdSet);
+        Assert.Null(fromAdminPage.TraktClientId);
+        Assert.True(store.Save(fromAdminPage).Success);
+        Assert.Equal("0123456789abcdef", _persistence.Stored.TraktClientId);
+
+        var clearing = _persistence.Stored.WithoutSecrets();
+        clearing.ClearTraktClientId = true;
+        Assert.True(store.Save(clearing).Success);
+        Assert.Null(_persistence.Stored.TraktClientId);
+        Assert.False(_persistence.Stored.ClearTraktClientId);
+    }
+
+    [Fact]
+    public void Save_WithANewTraktKey_ReplacesTheStoredOne()
+    {
+        var store = CreateStore();
+        Assert.True(store.Save(new PluginConfiguration { TraktClientId = "0123456789abcdef" }).Success);
+
+        Assert.True(store.Save(new PluginConfiguration { TraktClientId = "fedcba9876543210" }).Success);
+
+        Assert.Equal("fedcba9876543210", _persistence.Stored.TraktClientId);
+    }
+
+    [Fact]
+    public void TraktKey_IsWriteOnlyInJson_ButStillPersisted()
+    {
+        var config = new PluginConfiguration { TraktClientId = "trakt-secret-key", SeerrApiKey = "seerr-secret-key" };
+
+        // Jellyfin's own GET /Plugins/{id}/Configuration serializes the stored object itself; the admin page gets a copy.
+        foreach (var sent in new[] { config, config.WithoutSecrets() })
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(sent);
+            Assert.DoesNotContain("trakt-secret-key", json, StringComparison.Ordinal);
+            Assert.DoesNotContain("seerr-secret-key", json, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("\"TraktClientIdSet\":true", System.Text.Json.JsonSerializer.Serialize(config.WithoutSecrets()), StringComparison.Ordinal);
+        Assert.Equal("trakt-secret-key", config.TraktClientId);
+
+        var posted = System.Text.Json.JsonSerializer.Deserialize<PluginConfiguration>("{\"TraktClientId\":\"typed\",\"ClearTraktClientId\":true}")!;
+        Assert.Equal("typed", posted.TraktClientId);
+        Assert.True(posted.ClearTraktClientId);
+
+        var xml = new System.Xml.Serialization.XmlSerializer(typeof(PluginConfiguration));
+        using var writer = new StringWriter();
+        xml.Serialize(writer, config);
+        Assert.Contains("<TraktClientId>trakt-secret-key</TraktClientId>", writer.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("TraktClientIdSet", writer.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("ClearTraktClientId", writer.ToString(), StringComparison.Ordinal);
+    }
+
     private LumenConfigStore CreateStore() => new(
         new LumenConfigReader(_persistence, _libraries, NullLogger<LumenConfigReader>.Instance),
         new ConfigValidator(new[] { SectionTypes.ContinueWatching, SectionTypes.NextUp, SectionTypes.RecentlyAdded, SectionTypes.BecauseYouWatched, SectionTypes.NewForYou, SectionTypes.Genre }

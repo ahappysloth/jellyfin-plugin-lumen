@@ -9,6 +9,7 @@ import { HeroSettings } from './HeroSettings';
 import { HomeSectionsSettings } from './HomeSectionsSettings';
 import { RequestsSettings } from './RequestsSettings';
 import { StorageSettings } from './StorageSettings';
+import { Top10Settings } from './Top10Settings';
 import { UpdatesSettings } from './UpdatesSettings';
 import { wantsCheck } from './updatesLink';
 import { isBusy, RESET_FAILED, useAdminConfig } from './useAdminConfig';
@@ -206,6 +207,7 @@ export function AdminApp({
         savedUrl={admin.savedUrl}
         update={update}
       />
+      <Top10Settings key={`top10-${revision}`} api={api} config={config} update={update} />
       <StorageSettings api={api} />
       <DiagnosticsSettings diagnostics={admin.diagnostics} />
 
