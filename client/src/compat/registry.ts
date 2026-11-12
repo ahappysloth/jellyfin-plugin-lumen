@@ -68,6 +68,14 @@ export const STOCK_SELECTORS = {
   dialogContainer: { selector: '.dialogContainer' },
   formDialogHeader: { selector: '.formDialogHeader' },
   floatingDialog: { selector: '.dialog-fullscreen-lowres' },
+  /**
+   * The confirmation and alert dialog (components/dialog/dialog.js: Delete a title or a user, among others), restyled as
+   * Lumen's own: the only .formDialog whose content it centres. Its answers are typed buttons: Cancel, and Delete for a
+   * destructive one.
+   */
+  confirmDialog: { selector: '.formDialog.align-items-center' },
+  cancelButton: { selector: '.button-cancel' },
+  deleteButton: { selector: '.button-delete' },
   actionSheet: { selector: '.actionSheet' },
   actionSheetItem: { selector: '.actionSheetMenuItem' },
   muiMenu: { selector: '.MuiMenu-paper' },

@@ -274,6 +274,131 @@ html[data-lmn-skin] .dialogContainer .emby-button.raised.button-delete {
     color: #fff !important;
   }
 }
+/*
+ * ---- Confirmations and alerts (components/dialog/dialog.js: Delete a title or a user, Mark as played, alerts) ------
+ * Lumen's confirmation (components/ConfirmDialog.tsx): a rounded panel floating at any size, the title and text to the
+ * left, the answers at the bottom right, Cancel grey and Delete filled in Lumen's red. jellyfin-web fills the screen
+ * with it below 80em × 45em (.dialog-fullscreen-lowres) and on a TV (.dialog-fullscreen), both with !important, hence
+ * these. dialog.js is the only one that centres a .formDialog's content (.align-items-center), so nothing else changes.
+ */
+html[data-lmn-skin] .dialog.formDialog.align-items-center {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  display: block;
+  width: 100% !important;
+  max-width: 420px;
+  height: auto !important;
+  max-height: calc(100% - 32px);
+  margin: 16px !important;
+  padding: 28px;
+  overflow-y: auto;
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 20px;
+  box-shadow: 0 32px 64px -16px rgba(0, 0, 0, 0.9);
+}
+/* Its header, content and footer are laid out inline (margins, paddings, a centred text, a max-width for the buttons). */
+html[data-lmn-skin] .dialog.formDialog.align-items-center .formDialogHeader {
+  display: block;
+  margin: 0 0 8px;
+  padding: 0 !important;
+  border: 0;
+}
+html[data-lmn-skin] .dialog.formDialog.align-items-center .formDialogHeaderTitle {
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 22px;
+  line-height: 1.25;
+  text-align: left;
+}
+html[data-lmn-skin] .dialog.formDialog.align-items-center .formDialogContent {
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0;
+  overflow: visible;
+}
+html[data-lmn-skin] .dialog.formDialog.align-items-center .dialogContentInner {
+  max-width: none;
+  margin: 0;
+  padding: 0 !important;
+  text-align: left !important;
+}
+html[data-lmn-skin] .dialog.formDialog.align-items-center .text {
+  margin: 0 0 24px;
+  color: var(--lmn-text-2);
+  font-size: 15px;
+  line-height: 1.5;
+}
+html[data-lmn-skin] .dialog.formDialog.align-items-center .formDialogFooter {
+  position: static;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  width: auto;
+  margin: 0 !important;
+  padding: 0;
+  background: none !important;
+}
+/* Lumen's buttons (.lmn-button): 44px, 8px corners; a margin between them, not gap (Chromium 68). */
+html[data-lmn-skin] .dialog.formDialog.align-items-center .formDialogFooterItem {
+  flex: none;
+  justify-content: center;
+  min-width: 0;
+  max-width: none;
+  height: 44px;
+  min-height: 44px;
+  margin: 0 !important;
+  padding: 0 22px;
+  text-align: center;
+  border: 0;
+  border-radius: 8px !important;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+}
+html[data-lmn-skin] .dialog.formDialog.align-items-center .formDialogFooterItem + .formDialogFooterItem {
+  margin-left: 10px !important;
+}
+html[data-lmn-skin] .dialog.formDialog.align-items-center .emby-button.button-cancel {
+  background: rgba(109, 109, 110, 0.7) !important;
+  color: #fff !important;
+}
+html[data-lmn-skin] .dialog.formDialog.align-items-center .emby-button.button-delete {
+  border: 0;
+  background: var(--lmn-danger) !important;
+  color: #fff !important;
+}
+@media (hover: hover) {
+  html[data-lmn-skin] .dialog.formDialog.align-items-center .emby-button.button-cancel:hover {
+    background: rgba(109, 109, 110, 0.5) !important;
+  }
+  /* Still red, darker, so the white label only gains contrast (as .lmn-button--danger). */
+  html[data-lmn-skin] .dialog.formDialog.align-items-center .emby-button.button-delete:hover {
+    background: var(--lmn-danger) !important;
+    filter: brightness(0.85);
+  }
+}
+/* Lumen's ring, clear of the button, from the keyboard (and on a TV below, from the D-pad). */
+html[data-lmn-skin] .dialog.formDialog.align-items-center .emby-button:focus-visible {
+  outline: 2px solid var(--lmn-focus) !important;
+  outline-offset: 2px;
+}
+/* A TV marks focus with the ring (below), not jellyfin-web's 1.2× zoom, which would push the answers into each other. */
+html.layout-tv[data-lmn-skin] .dialog.formDialog.align-items-center .emby-button:focus {
+  transform: none;
+}
+/* Phones: the two answers share the row, each easy to hit. */
+@media (max-width: 480px) {
+  html[data-lmn-skin] .dialog.formDialog.align-items-center {
+    padding: 24px 20px 20px;
+  }
+  html[data-lmn-skin] .dialog.formDialog.align-items-center .formDialogFooterItem {
+    flex: 1 1 0;
+  }
+}
+
 /* TV layout: no :focus-visible on its browsers, and D-pad focus must always show (over jellyfin-web's
    `outline: none !important` on its buttons). */
 html.layout-tv[data-lmn-skin] .dialogContainer .emby-button:not(.actionSheetMenuItem):focus,
