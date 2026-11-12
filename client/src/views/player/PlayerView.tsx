@@ -11,7 +11,7 @@ import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { formatRuntime } from '../details/badges';
 import { AudioSubtitlesPanel, QualityPanel, qualityLabel } from './PlayerPanels';
-import { PENDING_MAX_MS, ProgressBar } from './ProgressBar';
+import { ARRIVED_MS, PENDING_MAX_MS, ProgressBar } from './ProgressBar';
 import { SkipIcon } from './SkipIcon';
 import { setUserData, useUserData } from '../userDataStore';
 import { clearStarting, useStarting } from '../../playback/starting';
@@ -28,6 +28,8 @@ import { PLAYER_ICONS } from './playerIcons';
 import { playerStrings } from './playerStrings';
 import { lockLandscape, unlockOrientation } from './orientation';
 import { isTouchLike, type LastTap, surfaceTap } from './touch';
+import { SKIP_KEYS, skipTarget } from './skip';
+import { throttle, volumeIcon } from './volume';
 
 /**
  * How often the controls re-read jellyfin-web's player (cheap: it reads cached state). They only redraw when what
@@ -338,13 +340,13 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
     if (snap?.paused && wasPaused.current === false) setTapHidden(false);
     wasPaused.current = snap?.paused;
   }, [snap?.paused]);
-  // "−10 s" or "+30 s" by the side a double tap skipped on; quick taps on add up. It's what the seek did (the skip
-  // lengths are the user's jellyfin-web settings, which Lumen can't read; and near the end a skip falls short).
+  // "−10 s" or "+10 s" by the side a double tap skipped on; quick taps on add up. It's how far the seek went: near
+  // the start or the end a skip falls short.
   const [skipped, setSkipped] = useState<{ seconds: number; n: number } | null>(null);
   const skippedTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => clearTimeout(skippedTimer.current), []);
   const showSkipped = (seconds: number): void => {
-    if (!seconds) return; // a stream that restarts to seek (or another player): nothing to measure
+    if (!seconds) return; // already at the start or the end, or a stream that can't seek: nothing to show
     setSkipped((s) => ({
       seconds: s && s.seconds < 0 === seconds < 0 ? s.seconds + seconds : seconds,
       n: (s?.n ?? 0) + 1,
@@ -400,6 +402,28 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
     return () => document.body.removeEventListener('keydown', onKey);
   }, [ctx.layout]);
 
+  /** Skips 10 s back or on (skip.ts) and says how far it went, in seconds; set as each render has the player. */
+  const skipRef = useRef<(direction: 'back' | 'forward') => number>(() => 0);
+  /** The last skip, while it may still be on its way: quick presses add up from it (as the seek bar's steps do). */
+  const lastSkip = useRef<{ ms: number; at: number } | null>(null);
+  // The arrow keys (and J and L) skip as the buttons do, 10 s, not by jellyfin-web's skip lengths (skip.ts). On <body>,
+  // ahead of jellyfin-web's shortcuts on `document`; the seek bar, the volume slider and the panels keep the arrows they
+  // use. In the TV layout the arrows move focus instead.
+  useEffect(() => {
+    if (ctx.layout === 'tv') return;
+    const onKey = (e: KeyboardEvent): void => {
+      const direction = SKIP_KEYS[e.key];
+      if (!direction || e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+      if ((e.target as Element).closest?.('input, textarea, select, [contenteditable]')) return;
+      if (document.querySelector('.dialogContainer .dialog.opened')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      skipRef.current(direction);
+    };
+    document.body.addEventListener('keydown', onKey);
+    return () => document.body.removeEventListener('keydown', onKey);
+  }, [ctx.layout]);
+
   // Until the first frame: the title's backdrop and a spinner, not a black screen.
   if (!snap || !pm.current)
     return pm.current ? <LoadingScreen ctx={ctx} snap={null} starting={starting} /> : null;
@@ -413,6 +437,20 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
     } catch {
       // a player that doesn't support it: nothing to do
     }
+  };
+  skipRef.current = (direction) => {
+    const live = readPlayerState(manager, player);
+    if (!live.canSeek) return 0;
+    const recent = lastSkip.current;
+    const from =
+      recent && Date.now() - recent.at < PENDING_MAX_MS && Math.abs(live.positionMs - recent.ms) > ARRIVED_MS
+        ? recent.ms
+        : live.positionMs;
+    const to = skipTarget(from, live.durationMs, direction);
+    lastSkip.current = { ms: to, at: Date.now() };
+    seekingUntil.current = Date.now() + PENDING_MAX_MS;
+    act(() => manager.seek(Math.round(to * 10_000), player))();
+    return Math.round((to - from) / 1000);
   };
 
   const item = snap.item;
@@ -497,15 +535,9 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
               setVisible(false);
               return setTapHidden(true);
             case 'back':
-            case 'forward': {
-              seekingUntil.current = Date.now() + PENDING_MAX_MS;
-              // The <video>'s own clock: it moves as the seek is made, where jellyfin-web's waits for the next tick.
-              const video = document.querySelector<HTMLVideoElement>('video.htmlvideoplayer');
-              const from = video?.currentTime ?? 0;
-              act(() => (tap.action === 'back' ? manager.rewind(player) : manager.fastForward(player)))();
-              showSkipped(Math.round((video?.currentTime ?? 0) - from));
+            case 'forward':
+              showSkipped(skipRef.current(tap.action));
               return wake();
-            }
           }
         }}
         onDblClick={() => {
@@ -525,14 +557,14 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             else ctx.navigate(HOME_HASH);
           }}
         >
-          <Icon name={PLAYER_ICONS.arrowLeft} size={26} />
+          <Icon name={PLAYER_ICONS.arrowLeft} size={28} />
         </button>
         <div class="lmn-player__titles">
           <h1 class="lmn-player__title">{title}</h1>
           {subtitle && <p class="lmn-player__subtitle">{subtitle}</p>}
           {syncPlay.group && (
             <p class="lmn-player__syncplay">
-              <Icon name="watchTogether" size={16} />
+              <Icon name="watchTogether" size={18} />
               {othersInGroup(syncPlay).length > 0
                 ? playerStrings.watchingWith(othersInGroup(syncPlay))
                 : strings.inGroup(syncPlay.group.GroupName)}
@@ -547,7 +579,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             aria-expanded={panel === 'quality'}
             onClick={() => setPanel(panel === 'quality' ? null : 'quality')}
           >
-            <Icon name={PLAYER_ICONS.quality} size={20} />
+            <Icon name={PLAYER_ICONS.quality} size={22} />
             {/* Phones show the icon only; the name is always there for screen readers. */}
             <span class="lmn-visually-hidden">{`${playerStrings.quality} ${qualityLabel(snap)}`}</span>
             <span class="lmn-player__pill-label" aria-hidden="true">
@@ -564,7 +596,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             aria-expanded={panel === 'tracks'}
             onClick={() => setPanel(panel === 'tracks' ? null : 'tracks')}
           >
-            <Icon name={PLAYER_ICONS.closedCaption} size={20} />
+            <Icon name={PLAYER_ICONS.closedCaption} size={22} />
             <span class="lmn-visually-hidden">{playerStrings.audioSubtitles}</span>
             <span class="lmn-player__pill-label" aria-hidden="true">
               {playerStrings.audioSubtitles}
@@ -579,7 +611,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
             aria-expanded={panel === 'settings'}
             onClick={() => setPanel(panel === 'settings' ? null : 'settings')}
           >
-            <Icon name="settings" size={20} />
+            <Icon name="settings" size={22} />
           </button>
           {panel === 'quality' && (
             <QualityPanel
@@ -644,13 +676,13 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
               aria-label={snap.paused ? playerStrings.play : playerStrings.pause}
               onClick={act(() => manager.playPause(player))}
             >
-              <Icon name={snap.paused ? 'play' : 'pause'} size={28} />
+              <Icon name={snap.paused ? 'play' : 'pause'} size={26} />
             </button>
             <button
               type="button"
               class="lmn-player__icon"
               aria-label={playerStrings.rewind}
-              onClick={act(() => manager.rewind(player))}
+              onClick={() => skipRef.current('back')}
             >
               <SkipIcon direction="back" />
             </button>
@@ -658,7 +690,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
               type="button"
               class="lmn-player__icon"
               aria-label={playerStrings.forward}
-              onClick={act(() => manager.fastForward(player))}
+              onClick={() => skipRef.current('forward')}
             >
               <SkipIcon direction="forward" />
             </button>
@@ -673,7 +705,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
                 title={playerStrings.nextEpisode}
                 onClick={act(() => manager.nextTrack(player))}
               >
-                <Icon name={PLAYER_ICONS.skipNext} size={24} />
+                <Icon name={PLAYER_ICONS.skipNext} size={26} />
                 <span class="lmn-player__next-label">{playerStrings.nextEpisode}</span>
               </button>
             )}
@@ -686,7 +718,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
                 title={playerStrings.pip}
                 onClick={act(() => manager.togglePictureInPicture?.(player))}
               >
-                <Icon name={PLAYER_ICONS.pip} size={22} />
+                <Icon name={PLAYER_ICONS.pip} size={26} />
               </button>
             )}
             {manager.toggleAirPlay && 'WebKitPlaybackTargetAvailabilityEvent' in window && (
@@ -697,7 +729,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
                 title={playerStrings.airplay}
                 onClick={act(() => manager.toggleAirPlay?.(player))}
               >
-                <Icon name={PLAYER_ICONS.airplay} size={22} />
+                <Icon name={PLAYER_ICONS.airplay} size={26} />
               </button>
             )}
             {castAvailable && (
@@ -708,7 +740,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
                 title={playerStrings.cast}
                 onClick={(e) => void openCastMenu(ctx, manager, snap, e.currentTarget)}
               >
-                <Icon name={PLAYER_ICONS.cast} size={22} />
+                <Icon name={PLAYER_ICONS.cast} size={26} />
               </button>
             )}
             <button
@@ -717,7 +749,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
               aria-label={fullscreen ? playerStrings.exitFullscreen : playerStrings.fullscreen}
               onClick={act(() => manager.toggleFullscreen(player))}
             >
-              <Icon name={fullscreen ? PLAYER_ICONS.fullscreenExit : PLAYER_ICONS.fullscreen} size={24} />
+              <Icon name={fullscreen ? PLAYER_ICONS.fullscreenExit : PLAYER_ICONS.fullscreen} size={26} />
             </button>
           </div>
         </div>
@@ -729,8 +761,58 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
 /** The keys a range input handles itself. */
 const SLIDER_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'];
 
+/** How often a drag sends the volume to the player (each pointer move is an input). */
+const VOLUME_SEND_MS = 50;
+/** How long, at most, the slider keeps the value it was let go at when the player reports nothing new. */
+const VOLUME_RESYNC_MS = 1000;
+
 function Volume({ manager, snap, tv }: { manager: PlaybackManager; snap: PlayerSnapshot; tv: boolean }) {
-  const level = snap.muted ? 0 : snap.volume;
+  const reported = snap.muted ? 0 : snap.volume;
+  // What the user set, shown instead of the player's reading while they change it and until the player reports it. The
+  // controls redraw with an older reading in between (on the volume change itself, and every poll), and the slider
+  // given that value jumped back under the pointer and then forward again.
+  const [held, setHeld] = useState<number | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const player = useRef(snap.player);
+  player.current = snap.player;
+  /** When the last value went to the player, and when the snapshot drawn now was read (near enough: first drawn). */
+  const sentAt = useRef(0);
+  const read = useRef({ snap, at: 0 });
+  if (read.current.snap !== snap) read.current = { snap, at: Date.now() };
+  const send = useRef(
+    throttle((value: number) => {
+      sentAt.current = Date.now();
+      try {
+        // Read now, not from the snapshot: a drag from muted would unmute and then mute again.
+        if (value > 0 && manager.isMuted(player.current)) manager.toggleMute(player.current);
+        manager.setVolume(value, player.current);
+      } catch {
+        // a player that doesn't support it: nothing to do
+      }
+    }, VOLUME_SEND_MS),
+  );
+  // A drag ends wherever the button comes up, on the slider or off it.
+  const startDrag = (): void => {
+    setDragging(true);
+    const end = (): void => {
+      document.removeEventListener('pointerup', end, true);
+      document.removeEventListener('pointercancel', end, true);
+      send.current.flush();
+      setDragging(false);
+    };
+    document.addEventListener('pointerup', end, true);
+    document.addEventListener('pointercancel', end, true);
+  };
+  // Once the drag (or a key) is done and sent, the player's reading takes over: the first one taken after the last
+  // send (it may differ: the wheel, or a player that keeps its own steps), or one that matches. Or after a moment.
+  useEffect(() => {
+    if (held === null || dragging) return;
+    if (!send.current.pending() && (read.current.at > sentAt.current || Math.abs(reported - held) <= 1))
+      return setHeld(null);
+    const timer = setTimeout(() => setHeld(null), VOLUME_RESYNC_MS);
+    return () => clearTimeout(timer);
+  }, [held, dragging, snap]);
+  const level = held ?? reported;
   return (
     <div class="lmn-player__volume">
       <button
@@ -739,7 +821,7 @@ function Volume({ manager, snap, tv }: { manager: PlaybackManager; snap: PlayerS
         aria-label={snap.muted ? playerStrings.unmute : playerStrings.mute}
         onClick={() => manager.toggleMute(snap.player)}
       >
-        <Icon name={level === 0 ? 'volumeOff' : 'volumeOn'} size={24} />
+        <Icon name={volumeIcon(level, held === null && snap.muted)} size={26} />
       </button>
       <input
         class="lmn-player__volume-slider"
@@ -750,6 +832,7 @@ function Volume({ manager, snap, tv }: { manager: PlaybackManager; snap: PlayerS
         value={level}
         aria-label={playerStrings.volume}
         style={{ '--lmn-fill': `${level}%` }}
+        onPointerDown={startDrag}
         onKeyDown={(e) => {
           // The slider's own keys are the slider's: jellyfin-web's shortcuts would also seek (arrows left and right,
           // Home, End), skip chapters (Page Up and Down) or change the volume a second time (arrows up and down). In
@@ -759,8 +842,8 @@ function Volume({ manager, snap, tv }: { manager: PlaybackManager; snap: PlayerS
         }}
         onInput={(e) => {
           const value = Number(e.currentTarget.value);
-          if (snap.muted && value > 0) manager.toggleMute(snap.player);
-          manager.setVolume(value, snap.player);
+          setHeld(value);
+          send.current.call(value);
         }}
       />
     </div>
@@ -790,7 +873,7 @@ function FavoriteButton({ ctx, item }: { ctx: ViewContext; item: NonNullable<Pla
       title={playerStrings.favorite}
       onClick={() => void setUserData(ctx, asItem, 'IsFavorite', !favorite)}
     >
-      <Icon name={favorite ? 'heart' : 'heartOutline'} size={22} />
+      <Icon name={favorite ? 'heartFilled' : 'heart'} size={26} />
     </button>
   );
 }
@@ -805,7 +888,7 @@ function VolumePill({ volume }: { volume: { level: number; muted: boolean; shown
       aria-label={playerStrings.volume}
       aria-live="polite"
     >
-      <Icon name={volume?.muted || level === 0 ? 'volumeOff' : 'volumeOn'} size={18} />
+      <Icon name={volumeIcon(level, !!volume?.muted)} size={20} />
       <span class="lmn-volume-pill__track" aria-hidden="true">
         <span class="lmn-volume-pill__fill" style={{ width: `${level}%` }} />
       </span>
