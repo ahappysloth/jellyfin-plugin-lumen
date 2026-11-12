@@ -20,14 +20,15 @@
 }
 /* Chromium 68 (webOS 5) and Safari 13 have no color-mix: a property using one of these would be dropped (invalid at
    computed-value time, so a plain declaration before it can't stand in), leaving rows, buttons and the switches' track
-   with no border or background. Greys that read on light and dark alike stand in. (--a-dim's text falls back to the
-   full text colour.) */
+   with no border or background. Greys that read on light and dark alike stand in. --a-dim is the full text colour
+   (a grey would be too faint for text on a light dashboard); without it the callouts' accent border would go. */
 @supports not (color: color-mix(in srgb, red, red)) {
   .lmn-admin {
     --a-surface: rgba(128, 128, 128, 0.08);
     --a-surface-2: rgba(128, 128, 128, 0.14);
     --a-line: rgba(128, 128, 128, 0.24);
     --a-line-strong: rgba(128, 128, 128, 0.45);
+    --a-dim: currentColor;
   }
 }
 .lmn-admin *,

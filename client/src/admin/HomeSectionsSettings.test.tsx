@@ -304,7 +304,7 @@ describe('HomeSectionsSettings', () => {
     expect(screen.getByRole('button', { name: 'Move Moods down' })).toHaveFocus();
   });
 
-  it('doesn’t move rows while a save is in flight, or say they moved', () => {
+  it('doesn’t move rows while a save is in flight, or say they moved: it says to try again', () => {
     const { names, announced, changes, setBusy } = renderCard();
     const handle = screen.getByRole('button', { name: 'Move Next Up' });
     handle.focus();
@@ -319,11 +319,20 @@ describe('HomeSectionsSettings', () => {
       'aria-disabled',
       'true',
     );
+    // A move tried is answered, once a press: a press again is read out again (the text changes), a held key's
+    // repeats aren't.
     fireEvent.keyDown(handle, { key: 'ArrowDown' });
+    expect(announced()).toBe('Saving, try again in a moment.');
+    fireEvent.keyDown(handle, { key: 'ArrowDown', repeat: true });
+    expect(announced()).toBe('Saving, try again in a moment.');
+    fireEvent.keyDown(handle, { key: 'ArrowDown' });
+    expect(announced()).toBe('Saving, try again in a moment.\u00a0');
+    fireEvent.keyDown(handle, { key: 'ArrowDown', repeat: true });
+    expect(announced()).toBe('Saving, try again in a moment.\u00a0');
     fireEvent.click(screen.getByRole('button', { name: 'Move Next Up down' }));
+    expect(announced()).toBe('Saving, try again in a moment.');
     expect(names()).toEqual(['Next Up', 'Continue Watching', 'Moods']);
     expect(changes.length).toBe(count);
-    expect(announced()).toBe('Next Up moved to position 1 of 3.');
     // Escape can't put it back: it's put down where it is.
     fireEvent.keyDown(handle, { key: 'Escape' });
     expect(announced()).toBe('Next Up put down at position 1 of 3.');
@@ -376,7 +385,7 @@ describe('HomeSectionsSettings', () => {
       const other = screen.getByRole('button', { name: 'Move Continue Watching' });
       fireEvent.pointerDown(other, { ...MOUSE, clientY: 120 });
       fireEvent.pointerUp(window, { ...MOUSE, buttons: 0, clientY: 120 });
-      fireEvent.click(other);
+      fireEvent.click(other, { detail: 1 });
       expect(names()).toEqual(['Continue Watching', 'Next Up', 'Moods']);
       expect(changes).toEqual([]);
       // That click was a click: it picked its row up. Put it back down for the next round.
@@ -395,15 +404,36 @@ describe('HomeSectionsSettings', () => {
     await act(() => new Promise((resolve) => setTimeout(resolve)));
     fireEvent.pointerMove(window, { ...MOUSE, clientY: 220 });
     fireEvent.pointerUp(window, { ...MOUSE, buttons: 0, clientY: 220 });
-    fireEvent.click(handle);
+    fireEvent.click(handle, { detail: 1 });
     expect(handle).toHaveAttribute('aria-pressed', 'false');
     expect(names()).toEqual(['Continue Watching', 'Next Up', 'Moods']);
     // A click of its own, later, is one.
     await act(() => new Promise((resolve) => setTimeout(resolve)));
     fireEvent.pointerDown(handle, { ...MOUSE, clientY: 220 });
     fireEvent.pointerUp(window, { ...MOUSE, buttons: 0, clientY: 220 });
-    fireEvent.click(handle);
+    fireEvent.click(handle, { detail: 1 });
     expect(handle).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('picks a row up with Enter on its handle after a drag the window lost (no pointer down since)', () => {
+    layRowsOut();
+    const { announced } = renderCard();
+    const lose: Array<() => void> = [
+      () => fireEvent.blur(window),
+      () => fireEvent.contextMenu(window),
+      () => fireEvent.pointerMove(window, { ...MOUSE, buttons: 0, clientY: 105 }),
+    ];
+    for (const lost of lose) {
+      const handle = dragBy('Moods', 220, 110);
+      lost();
+      expect(announced()).toBe('Move cancelled. Moods is back at position 3 of 3.');
+      // Back in the window, the handle still focused: Enter's click (detail 0, from no pointer) is a click.
+      handle.focus();
+      fireEvent.click(handle, { detail: 0 });
+      expect(handle).toHaveAttribute('aria-pressed', 'true');
+      fireEvent.click(handle, { detail: 0 });
+      expect(handle).toHaveAttribute('aria-pressed', 'false');
+    }
   });
 
   it('takes a drag down when Discard remounts the card mid-drag: letting go brings nothing back', () => {

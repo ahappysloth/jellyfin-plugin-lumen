@@ -58,7 +58,8 @@ let cardCount = 0;
  * handle picks the row up; the up and down arrows (or the ↑ ↓ buttons that show, for a tap or a screen reader) move it,
  * Enter puts it down, Escape (or Back) puts it back where it was. Each step is announced. Every change goes through
  * `update`, so the save bar and Discard see a row dragged away and back again as no change at all. While a save is in
- * flight (`busy`) `update` takes no changes, so rows don't move then: their move controls say so (aria-disabled).
+ * flight (`busy`) `update` takes no changes, so rows don't move then: their move controls say so (aria-disabled), and
+ * a move tried is answered "try again".
  */
 export function HomeSectionsSettings({
   config,
@@ -92,7 +93,7 @@ export function HomeSectionsSettings({
   movingRef.current = moving;
   const busyRef = useRef(busy);
   busyRef.current = busy;
-  // The section whose handle a drag just ended on: the click that follows isn't a click on the handle.
+  // The section whose handle a drag just ended on: the pointer's click that follows isn't a click on the handle.
   const dragged = useRef('');
   // The drag in progress (its pointer still down, moved or not): how to end it, and how to only take it down.
   const dragging = useRef<{ finish: (commit: boolean) => void; teardown: () => void } | null>(null);
@@ -135,9 +136,18 @@ export function HomeSectionsSettings({
     return () => document.removeEventListener('pointerdown', onDown, true);
   }, [moving?.id]);
 
+  /**
+   * Says `text`, again if it's what was said last: a live region reads out a change, so the same words a second time
+   * get a no-break space on the end (or lose it).
+   */
+  const sayAgain = (text: string): void => setMessage((said) => (said === text ? `${text}\u00a0` : text));
+
   const moveTo = (id: string, to: number, focus: PendingFocus['control']): void => {
-    // Saving: the move wouldn't happen, so it isn't announced either.
-    if (busy) return;
+    // Saving: the move wouldn't happen. Said so, once a press (a held key's repeats are let go: SectionRow).
+    if (busy) {
+      sayAgain('Saving, try again in a moment.');
+      return;
+    }
     const from = sections.findIndex((s) => s.Id === id);
     if (from < 0) return;
     const section = sections[from]!;
@@ -361,7 +371,9 @@ export function HomeSectionsSettings({
   /**
    * After a drag (dropped or cancelled), the click its pointer ends with isn't a click on the handle: it would pick the
    * row up. `pointerId` null: the pointer is up already, and the click is dispatched straight after. Otherwise (Escape,
-   * the window losing the pointer) it's ignored until that pointer goes up, or another one goes down.
+   * the window losing the pointer) a pointer's click is ignored until that pointer goes up, or another one goes down.
+   * Only a pointer's: the window lost the drag, its pointer may never come back, and Enter or Space on the handle
+   * (a click with `detail` 0) is always a click.
    */
   const suppressClick = (id: string, pointerId: number | null): void => {
     dragged.current = id;
@@ -423,8 +435,9 @@ export function HomeSectionsSettings({
               onChange={(s) => update({ Sections: sections.map((x) => (x.Id === s.Id ? s : x)) })}
               onRemove={() => remove(index)}
               onPointerDown={(e) => startDrag(e, section.Id)}
-              onHandleClick={() => {
-                if (dragged.current === section.Id) return;
+              onHandleClick={(e) => {
+                // `detail` 0: from the keyboard (or a screen reader), not the pointer a drag ended with.
+                if (e.detail !== 0 && dragged.current === section.Id) return;
                 if (moving?.id === section.Id) drop();
                 else pickUp(index);
               }}
@@ -487,7 +500,7 @@ function SectionRow(props: {
   onChange: (section: SectionDef) => void;
   onRemove: () => void;
   onPointerDown: (e: PointerEvent) => void;
-  onHandleClick: () => void;
+  onHandleClick: (e: MouseEvent) => void;
   onMove: (to: number, focus: PendingFocus['control']) => void;
   onCancelMove: () => void;
   onLeave: () => void;
@@ -516,6 +529,8 @@ function SectionRow(props: {
     // Not on to jellyfin-web's D-pad navigation (on a TV) or the page's scrolling.
     e.preventDefault();
     e.stopPropagation();
+    // Saving, a move is answered "try again": once for a held key, not for each of its repeats.
+    if (props.busy && e.repeat && to !== null) return;
     if (to === null) props.onCancelMove();
     else props.onMove(to, focus);
   };
