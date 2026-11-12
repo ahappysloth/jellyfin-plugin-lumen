@@ -2,6 +2,13 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.4.3] - 2026-11-12
+
+### Fixed
+- Lumen's settings page now updates with Lumen. Behind a proxy that caches scripts by itself (Nginx Proxy Manager's
+  "Cache Assets"), browsers could keep the previous version's settings page for hours after an update, without the
+  Storage tab or the Top 10 card.
+
 ## [0.4.2] - 2026-11-12
 
 ### Added

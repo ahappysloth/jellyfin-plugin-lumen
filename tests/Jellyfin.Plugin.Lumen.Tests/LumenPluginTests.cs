@@ -39,6 +39,21 @@ public class LumenPluginTests
     }
 
     [Fact]
+    public void ConfigPage_LoadsItsScriptWithLumensVersion_SoNoCacheInFrontKeepsAnOldOne()
+    {
+        var paths = Substitute.For<IApplicationPaths>();
+        paths.PluginsPath.Returns("/tmp/lumen-tests/plugins");
+        var page = Assert.Single(new LumenPlugin(paths, Substitute.For<IXmlSerializer>()).GetPages());
+        using var stream = typeof(LumenPlugin).Assembly.GetManifestResourceStream(page.EmbeddedResourcePath)!;
+        var html = new StreamReader(stream).ReadToEnd();
+
+        // A fixed address (no ?v=) stays in a proxy's cache past an update.
+        Assert.DoesNotContain("lumen-admin.js\"", html, StringComparison.Ordinal);
+        Assert.Contains("'../Lumen/Assets/lumen-admin.js?v=' +", html, StringComparison.Ordinal);
+        Assert.Contains("meta[name=\"lumen-version\"]", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void JellyfinsOwnConfigEndpoint_GoesThroughLumensSaveRules()
     {
         // The real chain, as POST /Plugins/{id}/Configuration runs it: plugin, LumenConfigStore, LumenPluginPersistence, plugin.
