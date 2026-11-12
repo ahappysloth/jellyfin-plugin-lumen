@@ -242,6 +242,7 @@ describe('PlayerView', () => {
       let at = 600_000;
       pm.currentTime.mockImplementation(() => at);
       pm.seek.mockImplementation((ticks: number) => void (at = ticks / 10_000));
+      Object.assign(pm.player, { currentTime: () => at }); // a stream with no offset
       vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
       render(<PlayerView ctx={makeContext(createFakeClient(), { layout })} />);
       await act(async () => {
@@ -251,6 +252,16 @@ describe('PlayerView', () => {
     };
     const seconds = (pm: ReturnType<typeof fakeManager>) =>
       pm.seek.mock.calls.map(([ticks]) => ticks / 10_000_000);
+    /**
+     * A seek reaching the <video>, at `s` into its stream. jellyfin-web's position is its player's as of the video's
+     * last `timeupdate`: it still has the one from before the seek until the video plays on.
+     */
+    const videoSeeks = (s: number): void => {
+      const video = document.body.appendChild(document.createElement('video'));
+      Object.defineProperty(video, 'currentTime', { value: s });
+      video.dispatchEvent(new Event('seeking'));
+      video.remove();
+    };
 
     it("go 10 s each way, whatever jellyfin-web's skip lengths", async () => {
       const { pm } = await open();
@@ -303,22 +314,31 @@ describe('PlayerView', () => {
     });
 
     it("go from where another seek went (jellyfin-web's own keys, Watch together), even with a skip on its way", async () => {
-      const { pm, setAt } = await open();
-      pm.seek.mockImplementation(() => undefined);
+      const { pm } = await open();
+      pm.seek.mockImplementation(() => undefined); // jellyfin-web's position stays at 10:00 throughout
       const forward = screen.getByRole('button', { name: 'Forward 10 seconds' });
       fireEvent.click(forward);
-      const video = document.body.appendChild(document.createElement('video'));
-      setAt(0); // Home
-      video.dispatchEvent(new Event('seeking'));
+      videoSeeks(0); // Home
       fireEvent.click(forward);
       expect(seconds(pm)).toEqual([610, 10]);
-      // A skip's own seek doesn't count as another: quick presses still add up.
-      setAt(10_000);
-      video.dispatchEvent(new Event('seeking'));
-      setAt(0); // not there yet
+      // A skip's own seek is where the skip went: quick presses still add up.
+      videoSeeks(10);
       fireEvent.click(forward);
       expect(seconds(pm)).toEqual([610, 10, 20]);
-      video.remove();
+    });
+
+    it('go from where the last skip went once the video has it, though jellyfin-web still has the position from before', async () => {
+      const { pm } = await open();
+      pm.seek.mockImplementation(() => undefined);
+      // A converted stream that started at 5:00: jellyfin-web adds that to the player's position, and the video's.
+      Object.assign(pm.player, { currentTime: () => 300_000 });
+      fireEvent.click(screen.getByRole('button', { name: 'Forward 10 seconds' }));
+      videoSeeks(310); // the skip to 10:10 reaches the video; jellyfin-web still says 10:00
+      fireEvent.click(screen.getByRole('button', { name: 'Back 10 seconds' }));
+      videoSeeks(300);
+      fireEvent.click(screen.getByRole('button', { name: 'Back 10 seconds' }));
+      // From 10:00 again, the second would go to 9:50, and the third to 9:40.
+      expect(seconds(pm)).toEqual([610, 600, 590]);
     });
 
     it('add up three quick presses while the first is still on its way', async () => {

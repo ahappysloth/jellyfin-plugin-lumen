@@ -74,7 +74,10 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   const positionShown = useRef(true);
   /** Until when a seek may still be on its way: the seek bar needs the position to see it arrive, even when hidden. */
   const seekingUntil = useRef(0);
-  /** The last skip, while it may still be on its way: quick presses add up from it (as the seek bar's steps do). */
+  /**
+   * Where the last skip (or other seek) went, while it may still be on its way: quick presses add up from it (as the
+   * seek bar's steps do).
+   */
   const lastSkip = useRef<{ ms: number; at: number } | null>(null);
   const readNow = useRef<() => void>(() => undefined);
 
@@ -107,15 +110,21 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
       last = { player, key };
       setSnap(next);
     };
-    // Any other seek (jellyfin-web's Home, End and chapter keys, a Watch together member's) ends the skips' adding up:
-    // the next skip goes from where that one went. A skip's own seek lands at its target. <video> events don't bubble.
-    const onSeeking = (): void => {
+    // The next skip goes from where any seek went: a skip's own, the seek bar's, jellyfin-web's Home, End and chapter
+    // keys', a Watch together member's. Not from jellyfin-web's position, which until the video next plays on is still
+    // the one from before the seek (its player keeps the last `timeupdate`'s), but from the <video>, with the
+    // manager's offset for a converted stream (its position less the player's). <video> events don't bubble.
+    const onSeeking = (e: Event): void => {
       const manager = pm.current!;
       try {
-        if (Math.abs(manager.currentTime(manager.getCurrentPlayer()!) - lastSkip.current!.ms) >= ARRIVED_MS)
-          lastSkip.current = null;
+        const player = manager.getCurrentPlayer()!;
+        const ms =
+          manager.currentTime(player) -
+          player.currentTime!() +
+          (e.target as HTMLMediaElement).currentTime * 1000;
+        lastSkip.current = { ms, at: Date.now() };
       } catch {
-        // no skip on its way, or no player
+        // no player
       }
     };
     readNow.current = read;
