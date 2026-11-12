@@ -18,6 +18,19 @@ export function normalizeCode(raw: string): string {
   return raw.replace(/\D+/g, '').slice(0, CODE_LENGTH);
 }
 
+/**
+ * What the field keeps after an edit turned `old` into `raw`, with the caret at `caret`. On a full code, what was just
+ * typed or pasted starts a new one: after "That code isn't valid", the next code goes in without deleting the old one
+ * first (the field's text sits invisible under the cells, so a caret or selection in it can't be seen).
+ */
+export function nextCode(old: string, raw: string, caret: number): string {
+  const added = raw.length - old.length;
+  return (
+    (old.length === CODE_LENGTH && added > 0 && normalizeCode(raw.slice(caret - added, caret))) ||
+    normalizeCode(raw)
+  );
+}
+
 export function isCompleteCode(code: string): boolean {
   return CODE.test(code);
 }
@@ -76,7 +89,8 @@ const HTTP = /^https?:\/\/[^/?#]/i;
 
 /**
  * The meta tag the server adds when the admin set "Public address for QR codes" (Injection/HtmlInjector.cs): checked
- * on save (util/publicAddress.ts and the server's ConfigValidator), so here only that it's http(s).
+ * and normalized (no trailing slash, no jellyfin-web `/web` on the end) on save and again as the server puts it in the
+ * page (util/publicAddress.ts and the server's ConfigValidator), so here only that it's http(s).
  */
 export function publicAddressSetting(doc: Document): string | null {
   const meta = doc.querySelector<HTMLMetaElement>(`meta[name="${QUICK_CONNECT.addressMeta}"]`);
@@ -111,6 +125,13 @@ export const POLL_MS = 3000;
  * stops and offers "Get a new code", so a TV left on its sign-in screen doesn't ask the server for codes all night.
  */
 export const MAX_REFRESHES = 2;
+/**
+ * While the server can't be reached (or errs), each question waits twice as long as the last, up to MAX_POLL_MS, and
+ * after MAX_FAILURES in a row (6 + 12 + 24 + 48 s, then a minute each: about 10 minutes, counted from the waits, not
+ * the device's clock) the screen stops and offers "Get a new code" (its code has expired by then anyway).
+ */
+export const MAX_POLL_MS = 60_000;
+export const MAX_FAILURES = 13;
 
 export type SignInState =
   | { kind: 'starting' }
@@ -121,7 +142,9 @@ export type SignInState =
   | { kind: 'disabled' }
   /** The server couldn't be reached to start. */
   | { kind: 'failed' }
-  | { kind: 'signingIn' };
+  | { kind: 'signingIn' }
+  /** Approved, but trading it for a sign-in failed. */
+  | { kind: 'signInFailed' };
 
 export interface SignInApi {
   initiate(): Promise<{ Secret: string; Code: string }>;
@@ -132,8 +155,11 @@ export interface SignInApi {
 export interface SignInFlowOptions {
   api: SignInApi;
   onState: (state: SignInState) => void;
-  /** The code was approved: sign in with the secret (ApiClient.quickConnect). Rejecting puts the screen in `failed`. */
-  onApproved: (secret: string) => Promise<void>;
+  /**
+   * The code was approved: sign in with the secret (ApiClient.quickConnect). `live` turns false once the flow is stopped
+   * (the screen closed). Rejecting puts the screen in `signInFailed`.
+   */
+  onApproved: (secret: string, live: () => boolean) => Promise<void>;
 }
 
 /**
@@ -151,6 +177,8 @@ export function createSignInFlow(options: SignInFlowOptions): { start: () => voi
   let run = 0;
   let timer: number | undefined;
   let refreshes = 0;
+  /** Questions in a row that got no answer (or a 5xx). */
+  let failing = 0;
   let secret: string | null = null;
   let waitingForVisible = false;
 
@@ -162,11 +190,14 @@ export function createSignInFlow(options: SignInFlowOptions): { start: () => voi
 
   const schedule = (current: number): void => {
     clearTimeout(timer);
-    timer = window.setTimeout(() => {
-      if (current !== run) return;
-      if (doc.hidden) waitingForVisible = true;
-      else void poll(current);
-    }, POLL_MS);
+    timer = window.setTimeout(
+      () => {
+        if (current !== run) return;
+        if (doc.hidden) waitingForVisible = true;
+        else void poll(current);
+      },
+      Math.min(POLL_MS * 2 ** failing, MAX_POLL_MS),
+    );
   };
 
   const initiate = async (current: number): Promise<void> => {
@@ -197,12 +228,14 @@ export function createSignInFlow(options: SignInFlowOptions): { start: () => voi
       const approvedSecret = secret;
       secret = null;
       try {
-        await onApproved(approvedSecret);
+        await onApproved(approvedSecret, () => current === run);
       } catch {
-        if (current === run) onState({ kind: 'failed' });
+        if (current === run) onState({ kind: 'signInFailed' });
       }
       return;
     }
+    // An answer: the server is there.
+    if (status === 200 || status === 404) failing = 0;
     if (status === 404) {
       // The code expired (or the server restarted, which forgets every request): a new one, up to MAX_REFRESHES.
       secret = null;
@@ -218,7 +251,12 @@ export function createSignInFlow(options: SignInFlowOptions): { start: () => voi
       onState({ kind: 'disabled' });
       return;
     }
-    // Not approved yet, or a blip (no answer, a 5xx): ask again.
+    // Not approved yet: ask again. No answer, or a 5xx: ask again later each time, and in the end stop.
+    if (status !== 200 && ++failing > MAX_FAILURES) {
+      secret = null;
+      onState({ kind: 'expired' });
+      return;
+    }
     schedule(current);
   };
 
@@ -229,6 +267,7 @@ export function createSignInFlow(options: SignInFlowOptions): { start: () => voi
       clearTimeout(timer);
       waitingForVisible = false;
       refreshes = 0;
+      failing = 0;
       secret = null;
       doc.removeEventListener('visibilitychange', onVisibility);
       doc.addEventListener('visibilitychange', onVisibility);

@@ -5,12 +5,21 @@
 export const MAX_PUBLIC_ADDRESS_BYTES = 75;
 
 /**
+ * The address as it's kept and used: trimmed, without trailing slashes, and without jellyfin-web's own `/web`,
+ * `/web/` or `/web/index.html` at the end, which an address copied from the browser's address bar has: the QR code adds
+ * `/web/` itself, and `…/web/web/` is a dead link. The server does the same (ConfigValidator.NormalizeQuickConnectAddress).
+ */
+export function normalizePublicAddress(value: string): string {
+  return value.trim().replace(/(\/web(\/(index\.html)?)?)?\/*$/i, '');
+}
+
+/**
  * "Public address for QR codes" (Lumen's settings, General): empty (not set), or an http(s) address, optionally with a
  * base path, as phones reach the server. No user name or password, query or fragment, and short enough for the QR code,
  * as the server checks too on save. The admin page checks it as it's typed.
  */
 export function isPublicAddress(value: string): boolean {
-  const text = value.trim();
+  const text = normalizePublicAddress(value);
   if (!text) return true;
   let url: URL;
   try {

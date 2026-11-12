@@ -37,7 +37,6 @@ export interface SignInDeps {
  */
 export function openSignInScreen(deps: SignInDeps): () => void {
   const host = document.createElement('div');
-  host.className = 'lmn-qc-host';
   document.body.appendChild(host);
   let open = true;
   const close = (refocus = true): void => {
@@ -59,9 +58,12 @@ function SignInScreen({ deps, onClose }: { deps: SignInDeps; onClose: (refocus?:
       createSignInFlow({
         api: signInApi(deps.client),
         onState: setState,
-        // As jellyfin-web's own dialog does once a code is approved (registry.ts QUICK_CONNECT).
-        onApproved: async (secret) => {
+        // As jellyfin-web's own dialog does once a code is approved (registry.ts QUICK_CONNECT). The flow only gets here
+        // while the screen is open; if it closes (Cancel, Back, the page changing) while the sign-in is on its way, it
+        // doesn't take the page anywhere.
+        onApproved: async (secret, live) => {
           const result = await deps.client.quickConnect(secret);
+          if (!live()) return;
           deps.dashboard.onServerChanged(result.User.Id, result.AccessToken, deps.client);
           onClose(false);
           deps.dashboard.navigate(deps.target);
@@ -103,21 +105,15 @@ function SignInScreen({ deps, onClose }: { deps: SignInDeps; onClose: (refocus?:
     e.stopPropagation();
     // One or two buttons: any of these keys moves to the other.
     const [first, second] = Array.from(panel.current!.querySelectorAll('button'));
-    (document.activeElement === first ? (second ?? first) : first)!.focus();
+    (document.activeElement === first ? second || first : first)!.focus();
   };
 
   const code = state.kind === 'code' ? state.code : null;
   // No QR code where the address is too long for it (or isn't http(s)): the code alone, typed in.
   const qr = useMemo(() => (code && base ? qrCode(approveUrl(base, code)) : null), [code]);
-  const status = {
-    starting: qcStrings.starting,
-    signingIn: qcStrings.signingIn,
-    expired: qcStrings.expired,
-    disabled: qcStrings.outcome.disabled,
-    failed: qcStrings.failedSignIn,
-    code: null,
-  }[state.kind];
-  const retry = state.kind === 'expired' || state.kind === 'failed';
+  const status = code ? null : qcStrings.state[state.kind as Exclude<SignInState['kind'], 'code'>];
+  // Codes ran out, or something failed: start again.
+  const retry = /^(expired|failed|signInFailed)$/.test(state.kind);
 
   return (
     <div class="lmn-qc-signin">

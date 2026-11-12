@@ -20,11 +20,12 @@ type Problem = keyof typeof qcStrings.outcome;
  * `#/quickconnect`: approve the code another device shows, signing it in. A code can arrive in the address (the QR code
  * on a TV, or a link), and that's exactly what a phishing link looks like, so the page treats it as a suggestion: it
  * fills the field, comes out of the address bar, and waits for Approve, under the account it will sign in and a warning.
- * The address's `userId` is ignored. Administrators can pick another account, as on jellyfin-web's page.
+ * The address's `userId` is ignored. Administrators can pick another account, as on jellyfin-web's page. (A link opened
+ * while the page shows opens it afresh: lazyQuickConnect.tsx.)
  */
 export function ApprovePage({ ctx }: { ctx: ViewContext }) {
   const [linked] = useState(() => codeFromHash(window.location.hash));
-  const [code, setCode] = useState(linked ?? '');
+  const [code, setCode] = useState(linked || '');
   const [me, setMe] = useState<UserInfo | null>(null);
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [userId, setUserId] = useState(ctx.userId);
@@ -63,14 +64,16 @@ export function ApprovePage({ ctx }: { ctx: ViewContext }) {
   }, [ctx.userId]);
 
   useAutoFocus(root, me !== null, ctx.layout);
-  // Approved: focus moves to Done, so the next press doesn't land on a button that's gone.
+  // Approved: focus moves to Done's link, so the next press doesn't land on a button that's gone. The status is always
+  // on the page and only filled in, so it's announced; the link is described by its text too, in case moving focus
+  // cuts the announcement short.
   useEffect(() => {
-    if (approvedAs) root.current?.querySelector<HTMLElement>('[role="status"] a')?.focus();
+    if (approvedAs) root.current?.querySelector<HTMLElement>('[aria-describedby="lmn-qc-done"]')?.focus();
   }, [approvedAs]);
 
   if (!me) return <div class="lmn-browse lmn-browse__pending" aria-busy="true" />;
 
-  const target = users.find((u) => u.Id === userId) ?? me;
+  const target = users.find((u) => u.Id === userId) || me;
   const avatar = avatarUrl(ctx, target, 56);
 
   const submit = async (e: Event): Promise<void> => {
@@ -110,12 +113,9 @@ export function ApprovePage({ ctx }: { ctx: ViewContext }) {
     );
   else if (approvedAs)
     body = (
-      <div role="status">
-        <p>{qcStrings.approved(approvedAs)}</p>
-        <a class="lmn-button lmn-button--primary" href={PREFERENCES_HASH}>
-          {strings.settingsMenu}
-        </a>
-      </div>
+      <a class="lmn-button lmn-button--primary" href={PREFERENCES_HASH} aria-describedby="lmn-qc-done">
+        {strings.settingsMenu}
+      </a>
     );
   else
     body = (
@@ -130,7 +130,8 @@ export function ApprovePage({ ctx }: { ctx: ViewContext }) {
             setProblem(null);
           }}
           describedBy={problem ? 'lmn-qc-error lmn-qc-warning' : 'lmn-qc-warning'}
-          invalid={problem !== null}
+          // Only for what's wrong with the code itself, not "Couldn't reach the server" and the like.
+          invalid={problem === 'incomplete' || problem === 'invalid' || problem === 'used'}
         />
         {problem && (
           <p id="lmn-qc-error" class="lmn-qc-approve__error" role="alert">
@@ -172,6 +173,9 @@ export function ApprovePage({ ctx }: { ctx: ViewContext }) {
           />
         )}
       </div>
+      <p id="lmn-qc-done" role="status">
+        {approvedAs && qcStrings.approved(approvedAs)}
+      </p>
       {body}
       <p>{qcStrings.how}</p>
     </div>

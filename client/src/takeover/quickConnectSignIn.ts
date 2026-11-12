@@ -47,6 +47,9 @@ export function signInDeps(win: Window, button: HTMLElement): SignInDeps | null 
   };
 }
 
+/** On <html> while jellyfin-web shows "Use Quick Connect" (styles/stock-skin.css makes it the TV's main button then). */
+export const QUICK_CONNECT_SHOWN_CLASS = 'lmn-qc-shown';
+
 /**
  * On jellyfin-web's sign-in page, "Use Quick Connect" opens Lumen's screen (views/quickconnect/SignInScreen.tsx)
  * instead of jellyfin-web's dialog, which can't get a new code when one expires, keeps asking the server after it's
@@ -55,33 +58,52 @@ export function signInDeps(win: Window, button: HTMLElement): SignInDeps | null 
  * and stops it there. Only where Lumen restyles the sign-in page (`data-lmn-skin`: a strict CSP that blocks the inline
  * guard leaves it off, and the stock dialog with it) and everything it needs is there; and if its file can't load, the
  * click is handed back to jellyfin-web.
+ *
+ * `sync` (at the start and on every page change) also says whether the button shows: jellyfin-web hides it while the server has Quick
+ * Connect off, and on a TV Sign In then has to stay the main button.
  */
 export function createQuickConnectSignIn(
   doc: Document,
   win: Window,
   load: LoadScreen = loadQuickConnect,
-): () => void {
+): { sync: (hash: string) => void; stop: () => void } {
   /** Set while a click is passed through to jellyfin-web. */
   let passThrough = false;
+  /** Set while the screen's file loads: a second press then does nothing, so only one screen ever opens. */
+  let loading = false;
+  let stopped = false;
   let close: (() => void) | null = null;
+  let observer: MutationObserver | null = null;
+
+  const onSignInPage = (): boolean =>
+    !stopped &&
+    doc.documentElement.hasAttribute('data-lmn-skin') &&
+    splitHash(win.location.hash).path === QUICK_CONNECT.loginRoute;
 
   const onClick = (e: MouseEvent): void => {
     if (passThrough) return;
     const button = (e.target as Element | null)?.closest?.<HTMLElement>(
       STOCK_SELECTORS.quickConnectButton.selector,
     );
-    if (!button || !doc.documentElement.hasAttribute('data-lmn-skin')) return;
-    if (splitHash(win.location.hash).path !== QUICK_CONNECT.loginRoute) return;
-    const deps = signInDeps(win, button);
-    if (!deps) return;
+    if (!button || !onSignInPage() || !signInDeps(win, button)) return;
     e.preventDefault();
     e.stopImmediatePropagation();
+    if (loading) return;
+    loading = true;
     close?.();
+    // The file can take a while on a slow connection, and by the time it's in, the person may have signed in with
+    // their password, or left: the screen opens (and asks for a code) only if the sign-in page is still there.
+    const stillThere = (): SignInDeps | null =>
+      button.isConnected && onSignInPage() ? signInDeps(win, button) : null;
     load().then(
       (module) => {
-        close = module.openSignInScreen(deps);
+        loading = false;
+        const deps = stillThere();
+        if (deps) close = module.openSignInScreen(deps);
       },
       () => {
+        loading = false;
+        if (!stillThere()) return;
         passThrough = true;
         try {
           button.click();
@@ -92,9 +114,41 @@ export function createQuickConnectSignIn(
     );
   };
 
-  doc.addEventListener('click', onClick, true);
-  return () => {
-    doc.removeEventListener('click', onClick, true);
-    close?.();
+  const showsButton = (): void => {
+    doc.documentElement.classList.toggle(
+      QUICK_CONNECT_SHOWN_CLASS,
+      !!doc.querySelector(`.page:not(.hide) ${STOCK_SELECTORS.quickConnectButton.selector}:not(.hide)`),
+    );
   };
+
+  doc.addEventListener('click', onClick, true);
+  const signIn = {
+    sync(hash: string) {
+      // Watched only on the sign-in page: jellyfin-web shows the button once the server says Quick Connect is on.
+      const on = splitHash(hash).path === QUICK_CONNECT.loginRoute && !!doc.body;
+      if (on && !observer) {
+        observer = new MutationObserver(showsButton);
+        observer.observe(doc.body, {
+          attributes: true,
+          attributeFilter: ['class'],
+          childList: true,
+          subtree: true,
+        });
+      } else if (!on) {
+        observer?.disconnect();
+        observer = null;
+      }
+      showsButton();
+    },
+    stop() {
+      stopped = true;
+      doc.removeEventListener('click', onClick, true);
+      observer?.disconnect();
+      doc.documentElement.classList.remove(QUICK_CONNECT_SHOWN_CLASS);
+      close?.();
+    },
+  };
+  // Now as well as on every page change: opened on the sign-in page, Lumen's first full sync waits for a sign-in.
+  signIn.sync(win.location.hash);
+  return signIn;
 }

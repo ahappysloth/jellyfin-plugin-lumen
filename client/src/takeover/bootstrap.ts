@@ -167,11 +167,12 @@ export function startLumen(options: BootstrapOptions): () => void {
   const pluginsButton = createPluginsButton(doc);
   const restartWatch = createRestartWatch(doc, win);
   // "Use Quick Connect" on the sign-in page opens Lumen's screen (needs no session either).
-  const stopQuickConnect = createQuickConnectSignIn(doc, win);
+  const quickConnect = createQuickConnectSignIn(doc, win);
   const skinStockPages = (): void => {
     applyDashboardSkin(doc, win.location.hash);
     pluginsButton.sync(win.location.hash);
     restartWatch.sync(win.location.hash);
+    quickConnect.sync(win.location.hash);
     applySignInSkin(doc, win.location.hash);
     const client = getApiClient(win);
     if (!client || !isSignInRoute(win.location.hash) || !doc.documentElement.hasAttribute('data-lmn-skin'))
@@ -293,7 +294,7 @@ export function startLumen(options: BootstrapOptions): () => void {
     stopViewportCover();
     pluginsButton.stop();
     restartWatch.stop();
-    stopQuickConnect();
+    quickConnect.stop();
     session?.takeover?.dispose();
   };
 }

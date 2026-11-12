@@ -93,9 +93,10 @@ public static partial class HtmlInjector
 
         // Before the guard, which reads it.
         var versionMeta = styleStockPages ? $"<meta name=\"lumen-version\" content=\"{version}\">" : string.Empty;
-        if (styleStockPages && !string.IsNullOrEmpty(quickConnectAddress) && Configuration.ConfigValidator.IsQuickConnectAddress(quickConnectAddress))
+        var qrAddress = Configuration.ConfigValidator.NormalizeQuickConnectAddress(quickConnectAddress);
+        if (styleStockPages && qrAddress is not null && Configuration.ConfigValidator.IsQuickConnectAddress(qrAddress))
         {
-            versionMeta += $"<meta name=\"{QuickConnectAddressMeta}\" content=\"{WebUtility.HtmlEncode(quickConnectAddress)}\">";
+            versionMeta += $"<meta name=\"{QuickConnectAddressMeta}\" content=\"{WebUtility.HtmlEncode(qrAddress)}\">";
         }
 
         var accent = styleStockPages && accentColor is not null && HexColor().IsMatch(accentColor)

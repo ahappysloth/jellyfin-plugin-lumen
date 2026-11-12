@@ -246,6 +246,16 @@ describe('AdminApp', () => {
     expect(field).toHaveAccessibleDescription(/http:\/\/ or https:\/\//);
     fireEvent.input(field, { target: { value: 'http://tv.tail1234.ts.net:8096/jf' } });
     expect(field).not.toHaveAttribute('aria-invalid');
+    expect(field).toHaveAccessibleDescription(
+      /QR codes will open: http:\/\/tv\.tail1234\.ts\.net:8096\/jf\/web\/#\/quickconnect$/,
+    );
+    // Copied from the address bar, with jellyfin-web's /web/: what the QR code opens shows it's dropped.
+    fireEvent.input(field, { target: { value: 'http://tv.tail1234.ts.net:8096/jf/web/' } });
+    expect(field).not.toHaveAttribute('aria-invalid');
+    expect(field).toHaveAccessibleDescription(
+      /open: http:\/\/tv\.tail1234\.ts\.net:8096\/jf\/web\/#\/quickconnect$/,
+    );
+    fireEvent.input(field, { target: { value: 'http://tv.tail1234.ts.net:8096/jf' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(api.saveConfig).toHaveBeenCalledTimes(1));
     expect(vi.mocked(api.saveConfig).mock.calls[0]![0].QuickConnectAddress).toBe(

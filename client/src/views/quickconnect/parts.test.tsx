@@ -65,6 +65,33 @@ describe('CodeInput', () => {
     expect(active[0]).toBe(container.querySelectorAll('[aria-hidden="true"] span')[3]);
   });
 
+  it('starts a new code with a digit typed or a code pasted onto a full one (after "That code isn’t valid")', () => {
+    const { container } = render(<Field />);
+    const input = screen.getByLabelText<HTMLInputElement>('Code');
+    type(input, '999999');
+    type(input, '9999997');
+    expect(input.value).toBe('7');
+    expect(cells(container)).toEqual(['7', '', '', '', '', '']);
+    type(input, '712345');
+    // Pasted with the caret somewhere in the middle of the old code.
+    input.value = '712654 321345';
+    input.setSelectionRange(10, 10);
+    fireEvent.input(input);
+    expect(input.value).toBe('654321');
+    // A letter typed onto a full code changes nothing.
+    type(input, '654321x');
+    expect(input.value).toBe('654321');
+  });
+
+  it("keeps the caret at the end: Left and Right don't move it", () => {
+    render(<Field />);
+    const input = screen.getByLabelText<HTMLInputElement>('Code');
+    type(input, '123');
+    for (const key of ['ArrowLeft', 'ArrowRight']) expect(fireEvent.keyDown(input, { key }), key).toBe(false);
+    expect(fireEvent.keyDown(input, { key: '4' })).toBe(true);
+    expect(fireEvent.keyDown(input, { key: 'ArrowDown' })).toBe(true);
+  });
+
   it('keeps a selection, so a new code typed over a whole one replaces it', () => {
     render(<Field />);
     const input = screen.getByLabelText<HTMLInputElement>('Code');

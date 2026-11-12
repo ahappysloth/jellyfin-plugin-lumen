@@ -108,6 +108,9 @@ public class HtmlInjectorTests
         Assert.Contains(Meta, HtmlInjector.Inject(Page, "h", "guard()", styleStockPages: true, quickConnectAddress: "https://jf.example.com/base"), StringComparison.Ordinal);
         Assert.DoesNotContain("lumen-quick-connect-address", HtmlInjector.Inject(Page, "h", "guard()", quickConnectAddress: "https://jf.example.com/base"), StringComparison.Ordinal);
         Assert.DoesNotContain("lumen-quick-connect-address", HtmlInjector.Inject(Page, "h", "guard()", styleStockPages: true), StringComparison.Ordinal);
+
+        // Normalized as it goes in, even if it was stored before that was done on save.
+        Assert.Contains(Meta, HtmlInjector.Inject(Page, "h", "guard()", styleStockPages: true, quickConnectAddress: "https://jf.example.com/base/web/"), StringComparison.Ordinal);
         var bad = HtmlInjector.Inject(Page, "h", "guard()", styleStockPages: true, quickConnectAddress: "https://x\"><script>x()</script>");
         Assert.DoesNotContain("lumen-quick-connect-address", bad, StringComparison.Ordinal);
         Assert.DoesNotContain("x()", bad, StringComparison.Ordinal);

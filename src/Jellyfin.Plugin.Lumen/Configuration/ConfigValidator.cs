@@ -39,15 +39,28 @@ public sealed partial class ConfigValidator
         && string.IsNullOrEmpty(uri.Fragment);
 
     /// <summary>
-    /// Whether <paramref name="value"/> may be the public address for Quick Connect's QR codes: empty (not set), or an
-    /// http(s) URL (<see cref="IsHttpUrl"/>, a base path allowed) short enough for the QR code. No <c>?</c> or <c>#</c>,
-    /// even empty ones, which <see cref="Uri"/> drops: the client appends <c>/web/#/quickconnect…</c> to it as text.
+    /// The public address for Quick Connect's QR codes as it's stored and used: trimmed, without trailing slashes, and
+    /// without jellyfin-web's own <c>/web</c>, <c>/web/</c> or <c>/web/index.html</c> at the end, which an address
+    /// copied from the browser's address bar has. The client adds <c>/web/</c> itself, and <c>…/web/web/</c> is a dead
+    /// link. Blank is null (not set). The client does the same (client/src/util/publicAddress.ts).
     /// </summary>
-    public static bool IsQuickConnectAddress(string? value) =>
-        string.IsNullOrEmpty(value)
-        || (IsHttpUrl(value)
-            && value.IndexOfAny(['?', '#', '"', '<', '>', ' ']) < 0
-            && System.Text.Encoding.UTF8.GetByteCount(value) <= MaxQuickConnectAddressBytes);
+    public static string? NormalizeQuickConnectAddress(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : TrailingWebPath().Replace(value.Trim(), string.Empty);
+
+    /// <summary>
+    /// Whether <paramref name="value"/> may be the public address for Quick Connect's QR codes: empty (not set), or an
+    /// http(s) URL (<see cref="IsHttpUrl"/>, a base path allowed) short enough for the QR code once normalized
+    /// (<see cref="NormalizeQuickConnectAddress"/>). No <c>?</c> or <c>#</c>, even empty ones, which <see cref="Uri"/>
+    /// drops: the client appends <c>/web/#/quickconnect…</c> to it as text.
+    /// </summary>
+    public static bool IsQuickConnectAddress(string? value)
+    {
+        var address = NormalizeQuickConnectAddress(value);
+        return address is null
+            || (IsHttpUrl(address)
+                && address.IndexOfAny(['?', '#', '"', '<', '>', ' ']) < 0
+                && System.Text.Encoding.UTF8.GetByteCount(address) <= MaxQuickConnectAddressBytes);
+    }
 
     public IReadOnlyList<string> Validate(PluginConfiguration config)
     {
@@ -222,4 +235,7 @@ public sealed partial class ConfigValidator
 
     [GeneratedRegex("^[\\x21-\\x7E]{8,200}$")]
     private static partial Regex TraktKey();
+
+    [GeneratedRegex("(/web(/(index\\.html)?)?)?/*$", RegexOptions.IgnoreCase)]
+    private static partial Regex TrailingWebPath();
 }

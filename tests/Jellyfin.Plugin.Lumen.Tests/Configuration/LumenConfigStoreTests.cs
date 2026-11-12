@@ -110,11 +110,15 @@ public class LumenConfigStoreTests
     }
 
     [Fact]
-    public void Save_TrimsTheQuickConnectAddress_AndStoresBlankAsNotSet()
+    public void Save_NormalizesTheQuickConnectAddress_AndStoresBlankAsNotSet()
     {
         var store = CreateStore();
         Assert.True(store.Save(new PluginConfiguration { QuickConnectAddress = "  https://jf.example.com  " }).Success);
         Assert.Equal("https://jf.example.com", _persistence.Stored.QuickConnectAddress);
+
+        // Copied from the address bar: stored without jellyfin-web's /web/, which the QR code adds itself.
+        Assert.True(store.Save(new PluginConfiguration { QuickConnectAddress = "https://jf.example.com/base/web/" }).Success);
+        Assert.Equal("https://jf.example.com/base", _persistence.Stored.QuickConnectAddress);
         Assert.True(store.Save(new PluginConfiguration { QuickConnectAddress = "   " }).Success);
         Assert.Null(_persistence.Stored.QuickConnectAddress);
     }

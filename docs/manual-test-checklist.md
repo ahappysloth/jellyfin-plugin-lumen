@@ -90,16 +90,21 @@ camera, the home-screen app and a TV across the room.
       Approve. The address bar never keeps the code after the page has read it.
 - [ ] Lumen's settings → General → Public address for QR codes: a LAN or Tailscale address the phone can reach (e.g.
       `http://tv-box.tailnet.ts.net:8096`) saves, and the TV's QR code opens it; `jellyfin.example.com` (no http) is
-      flagged and refused on save. Empty: the QR code opens the address the TV itself uses.
+      flagged and refused on save. Empty: the QR code opens the address the TV itself uses. Pasted from the address bar
+      with `/web/` on the end: the hint shows "QR codes will open: …/web/#/quickconnect" (one `/web/`), and so does the
+      QR code.
 - [ ] Leave the TV on its Quick Connect screen for over 30 minutes: it gets a new code twice (every 10 minutes), then
       says "That code has expired." with "Get a new code". The network panel shows no more Quick Connect requests after
       Cancel, Back or leaving the page.
-- [ ] As an administrator, "Signs in as" offers every user; picking a child's account signs the TV in as them. A
-      non-administrator has no picker.
+- [ ] As an administrator, "Signs in as" offers every user but disabled ones; picking a child's account signs the TV in
+      as them. A non-administrator has no picker.
 - [ ] Dashboard → General → turn Quick Connect off: the open TV screen says it's turned off; the approve page says so
       too, with "Turn it on in Dashboard → General" for administrators (not on a TV). The sign-in page has no Quick
-      Connect button (jellyfin-web hides it). Turn it back on.
-- [ ] A wrong code says "isn't valid or has expired"; approving the same code twice says "already been used".
+      Connect button (jellyfin-web hides it), and on a TV Sign In is the main button again. Turn it back on.
+- [ ] Unplug the server (or stop it) with the TV on its Quick Connect screen: it asks less and less often, and after
+      about 10 minutes says "That code has expired." with "Get a new code".
+- [ ] A wrong code says "isn't valid or has expired"; approving the same code twice says "already been used". Typing
+      the right code straight after the error replaces the wrong one (no deleting first).
 
 ## Request progress (a real Seerr connected to Radarr/Sonarr)
 

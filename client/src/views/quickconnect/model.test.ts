@@ -7,13 +7,17 @@ import {
   createSignInFlow,
   groupCode,
   isCompleteCode,
+  MAX_FAILURES,
+  MAX_POLL_MS,
   MAX_REFRESHES,
+  nextCode,
   normalizeCode,
   POLL_MS,
   publicAddressSetting,
   qrBase,
   statusOf,
   type SignInApi,
+  type SignInFlowOptions,
   type SignInState,
 } from './model';
 
@@ -30,6 +34,28 @@ describe('the code', () => {
     expect(isCompleteCode('123456')).toBe(true);
     expect(isCompleteCode('12345')).toBe(false);
     expect(groupCode('123456')).toBe('123 456');
+  });
+});
+
+describe('typing and pasting into the field', () => {
+  it('adds to a code that is not full, wherever the caret is', () => {
+    expect(nextCode('123', '1234', 4)).toBe('1234');
+    expect(nextCode('', '123 456', 7)).toBe('123456');
+    expect(nextCode('12345', '1234a5', 5)).toBe('12345');
+  });
+
+  it('starts a new code with what is typed or pasted onto a full one, the caret at the end or not', () => {
+    expect(nextCode('123456', '1234567', 7)).toBe('7');
+    expect(nextCode('123456', '1237456', 4)).toBe('7');
+    expect(nextCode('123456', '123456654 321', 13)).toBe('654321');
+    expect(nextCode('123456', '654 321123456', 7)).toBe('654321');
+  });
+
+  it("keeps a full code when what's typed has no digits, and deletes as usual", () => {
+    expect(nextCode('123456', '123456a', 7)).toBe('123456');
+    expect(nextCode('123456', '12345', 5)).toBe('12345');
+    // The whole code selected and a digit typed over it.
+    expect(nextCode('123456', '9', 1)).toBe('9');
   });
 });
 
@@ -130,7 +156,7 @@ describe('createSignInFlow', () => {
       connect: vi.fn(connect),
     };
     const states: SignInState[] = [];
-    const onApproved = vi.fn(async () => undefined);
+    const onApproved = vi.fn<SignInFlowOptions['onApproved']>(async () => undefined);
     const flow = createSignInFlow({ api, onState: (s) => states.push(s), onApproved });
     return { api, states, onApproved, flow, last: () => states[states.length - 1] };
   }
@@ -147,7 +173,7 @@ describe('createSignInFlow', () => {
     approved = true;
     await vi.advanceTimersByTimeAsync(POLL_MS);
     expect(last()).toEqual({ kind: 'signingIn' });
-    expect(onApproved).toHaveBeenCalledWith('secret1');
+    expect(onApproved).toHaveBeenCalledWith('secret1', expect.any(Function));
     await vi.advanceTimersByTimeAsync(POLL_MS * 3);
     expect(api.connect).toHaveBeenCalledTimes(3);
   });
@@ -176,14 +202,64 @@ describe('createSignInFlow', () => {
     expect(last()).toEqual({ kind: 'code', code: '100004' });
   });
 
-  it('keeps asking through a blip (no answer, a 5xx), and never times the code itself', async () => {
+  it('keeps asking through a blip (no answer, a 5xx), less and less often, and never times the code itself', async () => {
+    let fail = true;
+    const { api, flow, last } = setup(async () =>
+      fail ? Promise.reject(new TypeError('Failed to fetch')) : { Authenticated: false },
+    );
+    flow.start();
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    expect(api.connect).toHaveBeenCalledTimes(1);
+    // Then after 6, 12, 24 and 48 seconds, and a minute from then on.
+    for (const wait of [6000, 12_000, 24_000, 48_000, MAX_POLL_MS, MAX_POLL_MS]) {
+      await vi.advanceTimersByTimeAsync(wait - 1);
+      const asked = api.connect.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(1);
+      expect(api.connect, `after ${wait} ms`).toHaveBeenCalledTimes(asked + 1);
+    }
+    expect(last()).toEqual({ kind: 'code', code: '100001' });
+    // An answer, and it's every few seconds again.
+    fail = false;
+    await vi.advanceTimersByTimeAsync(MAX_POLL_MS);
+    const asked = api.connect.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(POLL_MS * 3);
+    expect(api.connect).toHaveBeenCalledTimes(asked + 3);
+    expect(api.initiate).toHaveBeenCalledTimes(1);
+    flow.stop();
+  });
+
+  it('stops with "Get a new code" after about 10 minutes without an answer', async () => {
     const { api, flow, last } = setup(async () => Promise.reject(new TypeError('Failed to fetch')));
     flow.start();
-    await vi.advanceTimersByTimeAsync(0);
-    await vi.advanceTimersByTimeAsync(15 * 60_000);
+    await vi.advanceTimersByTimeAsync(9 * 60_000);
     expect(last()).toEqual({ kind: 'code', code: '100001' });
+    await vi.advanceTimersByTimeAsync(2 * 60_000);
+    expect(last()).toEqual({ kind: 'expired' });
+    expect(api.connect).toHaveBeenCalledTimes(MAX_FAILURES + 1);
+    await vi.advanceTimersByTimeAsync(30 * 60_000);
+    expect(api.connect).toHaveBeenCalledTimes(MAX_FAILURES + 1);
     expect(api.initiate).toHaveBeenCalledTimes(1);
-    expect(api.connect.mock.calls.length).toBeGreaterThan(200);
+  });
+
+  it("says it couldn't sign in when the approved code can't be traded for a sign-in", async () => {
+    const { flow, last, onApproved } = setup(async () => ({ Authenticated: true }));
+    onApproved.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    flow.start();
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    expect(last()).toEqual({ kind: 'signInFailed' });
+  });
+
+  it('tells the sign-in it was stopped (the screen closed) while it was on its way', async () => {
+    let live: () => boolean = () => true;
+    const { flow, onApproved } = setup(async () => ({ Authenticated: true }));
+    onApproved.mockImplementationOnce(async (_secret: string, isLive: () => boolean) => {
+      live = isLive;
+    });
+    flow.start();
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    expect(live()).toBe(true);
+    flow.stop();
+    expect(live()).toBe(false);
   });
 
   it('says Quick Connect is off on a 401, at the start or later', async () => {

@@ -54,6 +54,8 @@ public class ConfigValidatorTests
     [InlineData("https://jellyfin.example.com", true)]
     [InlineData("http://192.168.1.20:8096", true)]
     [InlineData("http://tv-box.tail1234.ts.net:8096/jellyfin/", true)]
+    [InlineData("https://jellyfin.example.com/web/", true)]
+    [InlineData("https://jellyfin.example.com/web/index.html", true)]
     [InlineData("jellyfin.example.com", false)]
     [InlineData("ftp://jellyfin.example.com", false)]
     [InlineData("https://user:pass@jellyfin.example.com", false)]
@@ -66,6 +68,28 @@ public class ConfigValidatorTests
         Assert.Equal(valid, ConfigValidator.IsQuickConnectAddress(address));
         var errors = new ConfigValidator([]).Validate(new PluginConfiguration { QuickConnectAddress = address });
         Assert.Equal(valid, !errors.Any(e => e.Contains("QR codes", StringComparison.Ordinal)));
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("   ", null)]
+    [InlineData("https://jellyfin.example.com", "https://jellyfin.example.com")]
+    [InlineData(" https://jellyfin.example.com/ ", "https://jellyfin.example.com")]
+    [InlineData("https://jellyfin.example.com/web", "https://jellyfin.example.com")]
+    [InlineData("https://jellyfin.example.com/web/", "https://jellyfin.example.com")]
+    [InlineData("https://jellyfin.example.com/WEB/index.html", "https://jellyfin.example.com")]
+    [InlineData("http://192.168.1.20:8096/jf/web/", "http://192.168.1.20:8096/jf")]
+    [InlineData("http://192.168.1.20:8096/jf//", "http://192.168.1.20:8096/jf")]
+    [InlineData("https://example.com/webby/", "https://example.com/webby")]
+    public void NormalizeQuickConnectAddress_DropsJellyfinWebsOwnPathAndTrailingSlashes(string? address, string? expected) =>
+        Assert.Equal(expected, ConfigValidator.NormalizeQuickConnectAddress(address));
+
+    [Fact]
+    public void QuickConnectAddress_IsMeasuredWithoutTheWebPathItLoses()
+    {
+        var fits = "https://" + new string('a', 55) + ".example.com";
+        Assert.True(ConfigValidator.IsQuickConnectAddress(fits + "/web/"));
+        Assert.False(ConfigValidator.IsQuickConnectAddress("https://" + new string('a', 56) + ".example.com/web/"));
     }
 
     [Fact]
