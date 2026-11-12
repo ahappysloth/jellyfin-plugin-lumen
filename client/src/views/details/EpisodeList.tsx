@@ -65,7 +65,7 @@ export function EpisodeList({ episodes, client, onPlay, detailsHref }: Props) {
                 href={detailsHref(episode)}
                 aria-label={strings.episodeDetails(episode.Name)}
               >
-                <Icon name="info" size={18} />
+                <Icon name="info" size={22} />
               </a>
             )}
           </li>

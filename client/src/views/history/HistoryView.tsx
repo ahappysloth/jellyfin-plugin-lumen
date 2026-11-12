@@ -133,7 +133,7 @@ export function HistoryView({ ctx }: { ctx: ViewContext }) {
         empty={
           <>
             <span class="lmn-browse__empty-icon">
-              <Icon name="history" size={28} />
+              <Icon name="history" size={32} />
             </span>
             <p class="lmn-browse__empty-title">{secondaryStrings.noHistory}</p>
             <p>{secondaryStrings.noHistoryHint}</p>

@@ -197,7 +197,7 @@ function TitleHeader({
           aria-label={strings.back}
           onClick={() => goBack(ctx)}
         >
-          <Icon name="back" size={18} />
+          <Icon name="back" size={20} />
         </button>
       </div>
       <div class="lmn-details__info">
@@ -206,7 +206,7 @@ function TitleHeader({
         <p class="lmn-meta lmn-details__meta">
           {meta.map((part, i) => (
             <span key={part}>
-              {i === 0 && title.Rating ? <Icon name="star" size={13} class="lmn-star" /> : null}
+              {i === 0 && title.Rating ? <Icon name="star" size={14} class="lmn-star" /> : null}
               {part}
             </span>
           ))}
@@ -239,7 +239,7 @@ function TitleHeader({
           ) : null}
           {!owned && label && state !== 'None' && (
             <span class="lmn-title__state" role="status">
-              <Icon name={state === 'Downloading' ? 'film' : 'check'} size={16} />
+              <Icon name={state === 'Downloading' ? 'film' : 'check'} size={18} />
               {label}
             </span>
           )}

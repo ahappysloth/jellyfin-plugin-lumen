@@ -160,7 +160,7 @@ export function Dropdown<T extends string>({
         {!hideLabel && <span class="lmn-dropdown__label">{label}</span>}
         {/* Reads "Genre All genres", not "GenreAll genres" (the flex layout ignores the space). */}{' '}
         <span class="lmn-dropdown__value">{selected?.label}</span>
-        <Icon name="chevronDown" size={14} class="lmn-dropdown__chevron" />
+        <Icon name="chevronDown" size={16} class="lmn-dropdown__chevron" />
       </button>
       {open && (
         <ul
@@ -189,7 +189,7 @@ export function Dropdown<T extends string>({
               }}
             >
               <span>{option.label}</span>
-              {option.value === value && <Icon name="check" size={16} class="lmn-dropdown__check" />}
+              {option.value === value && <Icon name="check" size={18} class="lmn-dropdown__check" />}
             </li>
           ))}
         </ul>

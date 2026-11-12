@@ -1,8 +1,9 @@
 /**
- * The 10-second skip glyph: an open ring with a line arrowhead and a real "10" set in the UI font (a filled path "10"
- * blurs at control sizes). Forward mirrors the ring, not the number.
+ * The 10-second skip glyph: Lucide's rotate-ccw ring and arrowhead, stroked like the other icons (components/icons.tsx),
+ * around a real "10" set in the UI font (a filled path "10" blurs at control sizes). Forward mirrors the ring, not the
+ * number.
  */
-export function SkipIcon({ direction, size = 30 }: { direction: 'back' | 'forward'; size?: number }) {
+export function SkipIcon({ direction, size = 28 }: { direction: 'back' | 'forward'; size?: number }) {
   return (
     <svg
       class="lmn-icon lmn-skip-icon"
@@ -12,22 +13,20 @@ export function SkipIcon({ direction, size = 30 }: { direction: 'back' | 'forwar
       aria-hidden="true"
       focusable="false"
     >
-      <g
+      <path
         transform={direction === 'forward' ? 'matrix(-1 0 0 1 24 0)' : undefined}
+        d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5"
         fill="none"
         stroke="currentColor"
-        stroke-width="1.8"
+        stroke-width="2"
         stroke-linecap="round"
         stroke-linejoin="round"
-      >
-        <path d="M10.2 4.7A8.2 8.2 0 1 1 4.6 9.2" />
-        <path d="M10.4 1.9 7.6 4.6l2.8 2.7" />
-      </g>
+      />
       <text
         x="12"
-        y="16.3"
+        y="15"
         text-anchor="middle"
-        font-size="7.6"
+        font-size="8"
         font-weight="700"
         letter-spacing="-.3"
         fill="currentColor"

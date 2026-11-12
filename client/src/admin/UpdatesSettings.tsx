@@ -139,7 +139,7 @@ function UpdateSummary({ status, installing }: { status: UpdateStatus; installin
     <>
       {status.RestartPending ? (
         <p class="lmn-admin__updates-ok">
-          <Icon name="check" size={16} />
+          <Icon name="check" size={18} />
           Lumen {status.Latest} is installed. Restart Jellyfin to finish.
         </p>
       ) : status.UpdateAvailable ? (
@@ -148,7 +148,7 @@ function UpdateSummary({ status, installing }: { status: UpdateStatus; installin
         </p>
       ) : status.Latest ? (
         <p class="lmn-admin__updates-ok">
-          <Icon name="check" size={16} />
+          <Icon name="check" size={18} />
           Lumen {status.Installed} is the latest version.
         </p>
       ) : (

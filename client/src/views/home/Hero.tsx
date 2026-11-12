@@ -394,7 +394,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
             }
             onClick={() => setStopped((s) => !s)}
           >
-            <Icon name={stopped ? 'play' : 'pause'} size={14} />
+            <Icon name={stopped ? 'play' : 'pause'} size={16} />
           </button>
           {/* Tabs with roving focus: Tab reaches the current one, arrows pick another (and pause rotation). On a TV
               they're a row like any other: past either end the D-pad moves on (Left from the first pill to Pause)
@@ -564,7 +564,7 @@ function Slide({
           <p class="lmn-meta lmn-hero__meta">
             {meta.map((part, i) => (
               <span key={part}>
-                {i === 0 && item.CommunityRating ? <Icon name="star" size={13} class="lmn-star" /> : null}
+                {i === 0 && item.CommunityRating ? <Icon name="star" size={14} class="lmn-star" /> : null}
                 {part}
               </span>
             ))}
@@ -590,7 +590,7 @@ function Slide({
             onClick={() => onInfo(item)}
             {...offscreen}
           >
-            <Icon name="info" />
+            <Icon name="info" size={22} />
             <span class="lmn-button__label">{strings.moreInfo}</span>
           </button>
         </div>

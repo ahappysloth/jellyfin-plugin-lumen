@@ -161,7 +161,7 @@ export function SeriesDetails({ series, initialSeasonId, ctx, reload }: Props) {
               aria-expanded={seasonMoreButton.expanded}
               onClick={(e) => seasonMoreButton.open(e.currentTarget)}
             >
-              <Icon name="more" size={18} />
+              <Icon name="more" size={20} />
             </button>
           )}
         </div>

@@ -139,7 +139,7 @@ function EmptyFavorites() {
   return (
     <>
       <span class="lmn-browse__empty-icon">
-        <Icon name="heart" size={28} />
+        <Icon name="heart" size={32} />
       </span>
       <p class="lmn-browse__empty-title">{strings.noFavorites}</p>
       <p>{strings.noFavoritesHint}</p>

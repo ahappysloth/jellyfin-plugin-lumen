@@ -116,7 +116,7 @@ export function SettingsPanel({
               closeToPill();
             }}
           >
-            <Icon name="watchTogether" size={18} />
+            <Icon name="watchTogether" size={20} />
             <span class="lmn-panel__option-label">{strings.watchTogether}</span>
             {syncPlay.group && (
               <span class="lmn-panel__option-detail">
@@ -135,7 +135,7 @@ export function SettingsPanel({
             closeToPill();
           }}
         >
-          <Icon name="info" size={18} />
+          <Icon name="info" size={20} />
           <span class="lmn-panel__option-label">
             {info ? playerStrings.hidePlaybackInfo : playerStrings.playbackInfo}
           </span>
@@ -316,7 +316,7 @@ export function PlaybackInfoCard({
           aria-label={playerStrings.hidePlaybackInfo}
           onClick={onClose}
         >
-          <Icon name="close" size={18} />
+          <Icon name="close" size={20} />
         </button>
       </header>
       <dl>

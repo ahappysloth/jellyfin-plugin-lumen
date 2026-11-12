@@ -120,7 +120,7 @@ export function DetailsHeader(props: Props) {
           aria-label={strings.back}
           onClick={props.onBack}
         >
-          <Icon name="back" size={18} />
+          <Icon name="back" size={20} />
         </button>
         {trailerPlaying && (
           <div class="lmn-details__trailer-controls">
@@ -130,7 +130,7 @@ export function DetailsHeader(props: Props) {
               aria-label={paused ? strings.playTrailer : strings.pauseTrailer}
               onClick={() => setPaused((p) => !p)}
             >
-              <Icon name={paused ? 'play' : 'pause'} size={18} />
+              <Icon name={paused ? 'play' : 'pause'} size={20} />
             </button>
             <button
               type="button"
@@ -138,7 +138,7 @@ export function DetailsHeader(props: Props) {
               aria-label={muted ? strings.unmute : strings.mute}
               onClick={() => setMuted((m) => !m)}
             >
-              <Icon name={muted ? 'volumeOff' : 'volumeOn'} size={18} />
+              <Icon name={muted ? 'volumeOff' : 'volumeHigh'} size={20} />
             </button>
           </div>
         )}
@@ -155,7 +155,7 @@ export function DetailsHeader(props: Props) {
         <p class="lmn-meta lmn-details__meta">
           {meta.map((part, i) => (
             <span key={part}>
-              {i === 0 && item.CommunityRating ? <Icon name="star" size={13} class="lmn-star" /> : null}
+              {i === 0 && item.CommunityRating ? <Icon name="star" size={14} class="lmn-star" /> : null}
               {part}
             </span>
           ))}
@@ -234,7 +234,7 @@ export function DetailsHeader(props: Props) {
             onClick={props.toggleFavorite}
           >
             <Icon
-              name={props.favorite ? 'heart' : 'heartOutline'}
+              name={props.favorite ? 'heartFilled' : 'heart'}
               class={props.favorite ? 'lmn-heart' : undefined}
             />
             <span class="lmn-button__label">{favorite}</span>

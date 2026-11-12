@@ -142,7 +142,7 @@ export function EpisodeDetails({ episode, ctx, reload }: DetailsProps & { episod
               href={detailsHash(neighbors.previous.Id, neighbors.previous.ServerId)}
               aria-label={`${strings.previousEpisode}: ${label(neighbors.previous)}`}
             >
-              <Icon name="chevronLeft" size={18} />
+              <Icon name="chevronLeft" size={20} />
               <span>{label(neighbors.previous)}</span>
             </a>
           ) : (
@@ -155,7 +155,7 @@ export function EpisodeDetails({ episode, ctx, reload }: DetailsProps & { episod
               aria-label={`${strings.nextEpisode}: ${label(neighbors.next)}`}
             >
               <span>{label(neighbors.next)}</span>
-              <Icon name="chevronRight" size={18} />
+              <Icon name="chevronRight" size={20} />
             </a>
           )}
         </nav>

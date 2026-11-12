@@ -172,7 +172,7 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
           field.current?.blur(); // closes the phone keyboard
         }}
       >
-        <Icon name="search" size={22} class="lmn-search__icon" />
+        <Icon name="search" size={24} class="lmn-search__icon" />
         <input
           ref={field}
           class="lmn-search__input"
@@ -195,7 +195,7 @@ export function SearchView({ initialQuery, ctx }: { initialQuery: string; ctx: V
               field.current?.focus();
             }}
           >
-            <Icon name="close" size={18} />
+            <Icon name="close" size={20} />
           </button>
         )}
       </form>
