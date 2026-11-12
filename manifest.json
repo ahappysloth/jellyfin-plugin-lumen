@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/ahappysloth/jellyfin-plugin-lumen/main/assets/lumen-plugin.png",
     "versions": [
       {
+        "version": "0.4.2.0",
+        "changelog": "\n### Added\n- Request progress (with Seerr): your requests say where they stand (Requested, Queued, Downloading, Processing,\n  Ready, or Declined/Failed) on their posters in every row and on their title page, with a progress bar and the time\n  left while they download (from Radarr's and Sonarr's queues, when Seerr is connected to them); a show counts its\n  episodes. A title page updates while it's open.\n- My requests in the account menu (and on the Me page on phones) lists your requests, newest first.\n- A pop-up says when something you requested is ready to watch, with Open, once per title across your devices.\n- Lumen settings in the account menu (and the Me page) for administrators: Lumen's settings page in one click,\n  instead of Dashboard → Plugins → Lumen.",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/ahappysloth/jellyfin-plugin-lumen/releases/download/v0.4.2/lumen_0.4.2.0.zip",
+        "checksum": "c5564ac5e62bcb75c3d0e4959d0d7953",
+        "timestamp": "2026-11-12T18:06:55Z"
+      },
+      {
         "version": "0.4.1.0",
         "changelog": "\n### Added\n- Top 10 Movies and Top 10 Shows home rows: what Trakt's users watched most this week, ranked, with a Request button\n  under titles you don't have yet when Seerr is set up (without Seerr, only titles on the server are shown). Without a Trakt key they rank Seerr's trending titles instead. Add them under\n  Home sections; a Top 10 card in Lumen's settings takes the Trakt key and checks it.\n- Discard in the settings save bar puts back the settings as last saved.\n- Storage has a tab of its own on Lumen's settings page, and only measures once it's opened. The page remembers the\n  open tab across a reload, and unsaved settings stay (with the save bar) while you look at Storage.\n- Pointing at, tapping or arrowing through a part of a library's storage bar shows its codec or resolution, size,\n  file count and share.\n\n### Changed\n- The home banner's pager is thin bars again, with Pause on their right (first on TVs).\n- Rows scroll freely and stay where you let go; a quick mouse flick glides a little.\n- A home section type that would only repeat the same row (Continue Watching, Next Up, …) can be added once.\n- Storage's headline sizes are in the normal text colour rather than grey.\n\n### Fixed\n- \"You May Like\" cards no longer overlap on details pages.\n- Undoing a change in the settings by hand (a switch toggled back, a section moved back, a value or key typed and\n  deleted) no longer leaves \"Unsaved changes\" showing.",
         "targetAbi": "12.1.0.0",
