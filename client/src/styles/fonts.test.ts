@@ -32,10 +32,10 @@ describe("Lumen's fonts", () => {
     for (const face of faces) expect(ranges(descriptor(face, 'unicode-range')!)).toEqual(ranges(subset));
   });
 
-  it('keeps San Francisco first, then Inter, its stand-in and the system fonts', () => {
+  it("keeps Apple's San Francisco first (Safari's name, then Chrome's), then Inter, its stand-in and the system fonts", () => {
     const stack = /--lmn-font:\s*([^;]+);/.exec(baseCss)![1]!.replace(/\s+/g, ' ');
     expect(stack).toBe(
-      "-apple-system, 'Lumen Inter', 'Lumen Inter Fallback', system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif",
+      "-apple-system, BlinkMacSystemFont, 'Lumen Inter', 'Lumen Inter Fallback', system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif",
     );
   });
 

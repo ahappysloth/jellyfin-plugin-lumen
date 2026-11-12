@@ -1,5 +1,5 @@
-/* Inter, for devices without a good system font (TVs, Windows, Android, Linux). --lmn-font (base.css) puts
-   -apple-system first, and a browser downloads a font only for text that uses it, so Apple devices keep San Francisco
+/* Inter, for devices without a good system font (TVs, Windows, Android, Linux). --lmn-font (base.css) puts Apple's
+   system font first, and a browser downloads a font only for text that uses it, so Apple devices keep San Francisco
    and never fetch these. Elsewhere they download as Lumen's first text renders, behind the loading veil, which waits
    for them a little (veil/veil.ts); no preload, so pages that never show Lumen's text never fetch them.
 
