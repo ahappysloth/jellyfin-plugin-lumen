@@ -74,7 +74,8 @@ wait_healthy() {
 }
 
 # (Re)starts the Jellyfin container. TMDB_BASE and TRAKT_BASE (end-to-end tests only) point the image proxy and the Top
-# 10 rows' Trakt client at the stub Seerr.
+# 10 rows' Trakt client at the stub Seerr, and PUSH_BASE lets push subscriptions name its stand-in push service; with
+# it the push job's pass is an hour apart and a failed send is tried again after 2 s (docs/development.md).
 start_server() {
   local ip url
   ip="$(lan_ip)"
@@ -88,6 +89,7 @@ start_server() {
     -p 8096:8096 -p 7359:7359/udp ${url:+-e JELLYFIN_PublishedServerUrl="$url"} \
     ${TMDB_BASE:+-e LUMEN_TMDB_IMAGE_BASE="$TMDB_BASE"} \
     ${TRAKT_BASE:+-e LUMEN_TRAKT_API_BASE="$TRAKT_BASE"} \
+    ${PUSH_BASE:+-e LUMEN_PUSH_TEST_ENDPOINT="$PUSH_BASE" -e LUMEN_PUSH_TEST_PASS_SECONDS=3600 -e LUMEN_PUSH_TEST_RETRY_SECONDS=2} \
     -v "$DATA/config:/config" -v "$DATA/cache:/cache" -v "$DATA/media:/media:ro" \
     "$JELLYFIN_IMAGE" >/dev/null
   wait_healthy
@@ -110,7 +112,8 @@ up() {
 }
 
 e2e() {
-  TMDB_BASE=http://host.docker.internal:5055/t/p TRAKT_BASE=http://host.docker.internal:5055/trakt up
+  TMDB_BASE=http://host.docker.internal:5055/t/p TRAKT_BASE=http://host.docker.internal:5055/trakt \
+    PUSH_BASE=http://host.docker.internal:5055/push/ up
   local pw
   pw="$(node -p "require('$ROOT/e2e/package-lock.json').packages['node_modules/@playwright/test'].version" 2>/dev/null \
     || sed -n '/"node_modules\/@playwright\/test"/,/}/s/.*"version": "\(.*\)".*/\1/p' "$ROOT/e2e/package-lock.json")"
@@ -129,8 +132,8 @@ e2e() {
       cd /tmp/w && npm ci --no-audit --no-fund --loglevel=error && npx playwright test "$@"; rc=$?
       cp -r test-results/. /out/test-results/ 2>/dev/null; cp -r playwright-report/. /out/playwright-report/ 2>/dev/null
       exit $rc' bash "$@" || rc=$?
-  # Back to real TMDB artwork (and Trakt) for normal use.
-  TMDB_BASE='' TRAKT_BASE='' start_server
+  # Back to real TMDB artwork (and Trakt, and real push services only) for normal use.
+  TMDB_BASE='' TRAKT_BASE='' PUSH_BASE='' start_server
   return $rc
 }
 

@@ -16,6 +16,18 @@ public interface ILumenConfigStore : ILumenConfigReader
     ConfigSaveResult Save(PluginConfiguration configuration);
 
     void ResetToDefaults();
+
+    /// <summary>
+    /// Web Push's key pair and the webhook secret, made and saved the first time they're asked for. Never changed by
+    /// <see cref="Save"/> or <see cref="ResetToDefaults"/>: every browser's subscription is tied to the public key.
+    /// </summary>
+    PushSecrets GetPushSecrets();
+
+    /// <summary>
+    /// Replaces Web Push's key pair and the webhook secret. Every subscription made with the old public key stops
+    /// working, so the caller drops them all.
+    /// </summary>
+    PushSecrets ResetPushSecrets();
 }
 
 /// <summary>Raw load/save of the plugin's XML configuration.</summary>
@@ -34,3 +46,10 @@ public interface ILibraryCatalog
 
 /// <summary>Result of a configuration save.</summary>
 public sealed record ConfigSaveResult(bool Success, IReadOnlyList<string> Errors);
+
+/// <summary>What Web Push needs that no client may read: see <see cref="ILumenConfigStore.GetPushSecrets"/>.</summary>
+public sealed record PushSecrets(Jellyfin.Plugin.Lumen.Push.VapidKeys Keys, string WebhookSecret)
+{
+    /// <summary>Never prints the secret (the keys redact their own private half).</summary>
+    public override string ToString() => "PushSecrets { Keys = " + Keys + ", WebhookSecret = *** }";
+}

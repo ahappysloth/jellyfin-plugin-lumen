@@ -162,10 +162,38 @@ public class PluginConfiguration : BasePluginConfiguration
     [XmlIgnore]
     public bool ClearTraktClientId { get; set; }
 
-    /// <summary>A copy that is safe to send to the admin page: everything except the Seerr API key and the Trakt key.</summary>
+    /// <summary>
+    /// Gets or sets Web Push's public key (base64url; see Push/VapidKeys): browsers subscribe to notifications with it.
+    /// Lumen makes the pair itself, once (LumenConfigStore.GetPushSecrets), so neither half is ever read from or written
+    /// to JSON: a save from the admin page, or through Jellyfin's own plugin-configuration endpoint, keeps the stored pair.
+    /// </summary>
+    [JsonIgnore]
+    public string? VapidPublicKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets Web Push's private key (base64url). A secret like <see cref="SeerrApiKey"/>: persisted in the XML
+    /// config, never serialized to JSON, never sent to any client.
+    /// </summary>
+    [JsonIgnore]
+    public string? VapidPrivateKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets the secret Seerr's webhook sends so Lumen notifies at once (Api/PushController). Made with the key
+    /// pair, never serialized to JSON; only the admin page's push status shows it.
+    /// </summary>
+    [JsonIgnore]
+    public string? PushWebhookSecret { get; set; }
+
+    /// <summary>
+    /// A copy that is safe to send to the admin page: everything except the Seerr API key, the Trakt key and Web Push's
+    /// keys.
+    /// </summary>
     public PluginConfiguration WithoutSecrets()
     {
         var copy = (PluginConfiguration)MemberwiseClone();
+        copy.VapidPublicKey = null;
+        copy.VapidPrivateKey = null;
+        copy.PushWebhookSecret = null;
         copy.SeerrApiKeySet = !string.IsNullOrEmpty(SeerrApiKey);
         copy.SeerrApiKey = null;
         copy.TraktClientIdSet = !string.IsNullOrEmpty(TraktClientId);

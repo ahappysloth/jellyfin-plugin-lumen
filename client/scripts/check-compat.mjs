@@ -45,6 +45,8 @@ const REQUIRED = [
   'lumen-secondary.css',
   'lumen-charts.css',
   'lumen-quickconnect.css',
+  'lumen-push.css',
+  'lumen-push-sw.js',
 ];
 for (const file of REQUIRED) {
   if (!existsSync(`dist/${file}`)) failures.push(`dist/${file} is missing: run \`npm run build\` first`);
@@ -57,6 +59,7 @@ for (const chunk of [
   'SecondaryViews',
   'ChartsView',
   'QuickConnect',
+  'PushSettings',
 ]) {
   if (!readdirSync('dist').some((f) => f.startsWith(`lumen-chunk-${chunk}-`) && f.endsWith('.js'))) {
     failures.push(`no lumen-chunk-${chunk}-*.js in dist: run \`npm run build\` first`);

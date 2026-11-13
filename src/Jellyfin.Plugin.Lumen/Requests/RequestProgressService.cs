@@ -16,7 +16,38 @@ public interface IRequestProgressService
 
     /// <summary>Forgets the user's cached answer, so a request they just filed shows on the next check.</summary>
     void Invalidate(SeerrEndpoint endpoint, int seerrUserId);
+
+    /// <summary>
+    /// The user's titles that became ready and nobody has been told about, taken: the caller announces them (a push
+    /// notification), and no pop-up shows for them. From the same cached Seerr answer as <see cref="GetAsync"/>.
+    /// <paramref name="alsoWatch"/> are requests to announce even if Lumen never saw them in flight (Seerr's webhook
+    /// named them); only the user's own count. Say how it went for each: <see cref="Delivered"/>, or what couldn't be
+    /// announced with <see cref="GiveBack"/> or <see cref="Release"/>. Throws <see cref="SeerrException"/> when Seerr
+    /// can't say.
+    /// </summary>
+    Task<IReadOnlyList<ReadyTitle>> ClaimReadyAsync(Guid jellyfinUserId, User? user, SeerrEndpoint endpoint, int seerrUserId, IReadOnlyCollection<int>? alsoWatch, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// These requests, taken by <see cref="ClaimReadyAsync"/>, were announced: a device got the push. Until this (or
+    /// one of the two below) is said, a request counts as cut short if Jellyfin is killed, and is due again after.
+    /// </summary>
+    void Delivered(Guid jellyfinUserId, SeerrEndpoint endpoint, IEnumerable<int> requestIds);
+
+    /// <summary>These requests, taken by <see cref="ClaimReadyAsync"/>, weren't announced after all: they're due again.</summary>
+    void GiveBack(Guid jellyfinUserId, SeerrEndpoint endpoint, IEnumerable<int> requestIds);
+
+    /// <summary>
+    /// These requests, taken by <see cref="ClaimReadyAsync"/>, couldn't be pushed to any of the user's devices: they're
+    /// left to the pop-up, which shows them the next time the user has Lumen open, notifications on or not.
+    /// </summary>
+    void Release(Guid jellyfinUserId, SeerrEndpoint endpoint, IEnumerable<int> requestIds);
 }
+
+/// <summary>
+/// A title that's ready to watch, with the user's requests for it that are being announced. <c>Item</c> is null when
+/// Seerr couldn't describe the title in time.
+/// </summary>
+public sealed record ReadyTitle(string Key, IReadOnlyList<int> RequestIds, CatalogItemDto? Item);
 
 /// <summary>
 /// Builds the user's request list from one Seerr call, <c>GET /user/{id}/requests</c>, whose media carry Radarr's and
@@ -49,11 +80,19 @@ public sealed class RequestProgressService : IRequestProgressService
     /// </summary>
     public static readonly TimeSpan FailureTtl = TimeSpan.FromSeconds(5);
 
+    /// <summary>
+    /// A request that has waited this long for an admin's approval, or for a release to download (a title that isn't out
+    /// yet), isn't expected to be ready any minute: the push job asks about it every half hour, not every pass.
+    /// </summary>
+    public static readonly TimeSpan WaitingAfter = TimeSpan.FromDays(1);
+
     /// <summary>More requests than this remembered and the memory starts over (it only refines progress).</summary>
     private const int MaxMemories = 20_000;
 
     /// <summary>More users than this cached and the cache starts over.</summary>
     private const int MaxCached = 5_000;
+
+    private static readonly IReadOnlySet<int> EmptySet = new HashSet<int>();
 
     /// <summary>How long title lookups may take before the list is returned with the titles found so far.</summary>
     private static readonly TimeSpan DetailsBudget = TimeSpan.FromSeconds(4);
@@ -65,14 +104,16 @@ public sealed class RequestProgressService : IRequestProgressService
     private readonly ILumenConfigReader _config;
     private readonly CatalogMapper _mapper;
     private readonly IReadyAnnouncements _announcements;
+    private readonly IReadyPushSignal _push;
     private readonly TimeProvider _time;
 
-    public RequestProgressService(ISeerrClient seerr, ILumenConfigReader config, CatalogMapper mapper, IReadyAnnouncements announcements, TimeProvider time)
+    public RequestProgressService(ISeerrClient seerr, ILumenConfigReader config, CatalogMapper mapper, IReadyAnnouncements announcements, IReadyPushSignal push, TimeProvider time)
     {
         _seerr = seerr;
         _config = config;
         _mapper = mapper;
         _announcements = announcements;
+        _push = push;
         _time = time;
     }
 
@@ -87,7 +128,21 @@ public sealed class RequestProgressService : IRequestProgressService
             scope,
             tracked.Where(t => RequestProgressState.IsInFlight(t.Progress.State)).Select(t => t.Request.Id),
             tracked.Where(t => t.Progress.State == RequestProgressState.Ready).Select(t => t.Request.Id),
-            tracked.Where(t => t.Progress.State is RequestProgressState.Declined or RequestProgressState.Failed).Select(t => t.Request.Id));
+            Waiting(tracked));
+
+        // A user with notifications on is told by a push, on every device they turned them on in, and by no pop-up:
+        // the push job takes the requests itself (ClaimReadyAsync), so the two can never both announce one. Only what
+        // the job gave up on (no device could be reached for minutes) is the pop-up's, so the user still hears of it.
+        if (announce.Count > 0 && _push.Covers(jellyfinUserId))
+        {
+            var popUpOnly = _announcements.PopUpOnly(jellyfinUserId, scope);
+            if (announce.Any(id => !popUpOnly.Contains(id)))
+            {
+                _push.Wake(jellyfinUserId);
+            }
+
+            announce = popUpOnly.Count == 0 ? EmptySet : announce.Where(popUpOnly.Contains).ToHashSet();
+        }
 
         // Not disposed: lookups still running after the budget keep using it (it holds no OS handle).
         var gate = new SemaphoreSlim(MaxConcurrentDetails);
@@ -125,6 +180,55 @@ public sealed class RequestProgressService : IRequestProgressService
 
     public void Invalidate(SeerrEndpoint endpoint, int seerrUserId) => _cache.TryRemove(CacheKey(endpoint, seerrUserId), out _);
 
+    public async Task<IReadOnlyList<ReadyTitle>> ClaimReadyAsync(Guid jellyfinUserId, User? user, SeerrEndpoint endpoint, int seerrUserId, IReadOnlyCollection<int>? alsoWatch, CancellationToken cancellationToken)
+    {
+        var titles = await GetTrackedAsync(endpoint, seerrUserId, cancellationToken).ConfigureAwait(false);
+        var tracked = titles.SelectMany(t => t.All).ToList();
+
+        // As for the pop-up: a title is announced once all of it that's in flight is ready (a show with another season
+        // still downloading waits for that one), so it's one notification per title.
+        var ready = titles
+            .Where(t => t.Shown.State == RequestProgressState.Ready)
+            .SelectMany(t => t.All)
+            .Where(t => t.Progress.State == RequestProgressState.Ready)
+            .Select(t => t.Request.Id)
+            .ToList();
+        var claimed = _announcements.Claim(
+            jellyfinUserId,
+            endpoint.BaseUrl.ToString(),
+            tracked.Where(t => RequestProgressState.IsInFlight(t.Progress.State)).Select(t => t.Request.Id),
+            ready,
+            Waiting(tracked),
+            ready.Where(id => alsoWatch?.Contains(id) == true),
+            tracked.Where(t => t.Progress.State == RequestProgressState.Ready).Select(t => t.Request.Id).Except(ready));
+        if (claimed.Count == 0)
+        {
+            return [];
+        }
+
+        var due = titles.Where(t => t.All.Any(r => claimed.Contains(r.Request.Id))).ToList();
+        var gate = new SemaphoreSlim(MaxConcurrentDetails);
+        var lookups = due.Select(t => ResolveAsync(endpoint, seerrUserId, t.Primary, user, gate, cancellationToken)).ToList();
+        var all = Task.WhenAll(lookups);
+        await Task.WhenAny(all, Task.Delay(DetailsBudget, _time, cancellationToken)).ConfigureAwait(false);
+        _ = all.ContinueWith(t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+        return due
+            .Select((t, i) => new ReadyTitle(
+                t.Primary.Key,
+                t.All.Select(r => r.Request.Id).Where(claimed.Contains).ToList(),
+                lookups[i].IsCompletedSuccessfully ? lookups[i].Result : null))
+            .ToList();
+    }
+
+    public void Delivered(Guid jellyfinUserId, SeerrEndpoint endpoint, IEnumerable<int> requestIds) =>
+        _announcements.Delivered(jellyfinUserId, endpoint.BaseUrl.ToString(), requestIds);
+
+    public void GiveBack(Guid jellyfinUserId, SeerrEndpoint endpoint, IEnumerable<int> requestIds) =>
+        _announcements.GiveBack(jellyfinUserId, endpoint.BaseUrl.ToString(), requestIds);
+
+    public void Release(Guid jellyfinUserId, SeerrEndpoint endpoint, IEnumerable<int> requestIds) =>
+        _announcements.Release(jellyfinUserId, endpoint.BaseUrl.ToString(), requestIds);
+
     /// <summary>
     /// The user's requested titles with their progress: cached for <see cref="Ttl"/> (a failure for
     /// <see cref="FailureTtl"/>), one Seerr call at a time per user.
@@ -154,6 +258,18 @@ public sealed class RequestProgressService : IRequestProgressService
                 fresh.Start(FetchAsync(endpoint, seerrUserId), _time);
             }
         }
+    }
+
+    /// <summary>
+    /// The requests in flight that have only been waiting, for an approval or for a release to download, since over
+    /// <see cref="WaitingAfter"/> ago. One that's downloading or being imported never counts.
+    /// </summary>
+    private IEnumerable<int> Waiting(List<Tracked> tracked)
+    {
+        var before = _time.GetUtcNow() - WaitingAfter;
+        return tracked
+            .Where(t => t.Progress.State is RequestProgressState.Requested or RequestProgressState.Queued && t.Request.CreatedAt < before)
+            .Select(t => t.Request.Id);
     }
 
     private (string Endpoint, int User, int ConfigVersion) CacheKey(SeerrEndpoint endpoint, int seerrUserId) =>

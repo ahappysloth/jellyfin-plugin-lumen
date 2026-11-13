@@ -187,6 +187,32 @@ export interface StorageStatus {
   Error: string | null;
 }
 
+/** How one notification went (PushSendReport): on how many devices each way, and the push service's last complaint. */
+export interface PushSendReport {
+  At: string;
+  /** "ready" (a request became ready to watch) or "test". */
+  Kind: string;
+  Sent: number;
+  Gone: number;
+  Rejected: number;
+  Failed: number;
+  Status?: number | null;
+}
+
+/** Push notifications on this server (PushAdminStatusDto). */
+export interface PushAdminStatus {
+  Devices: number;
+  Users: number;
+  /** The job that sends them is running. */
+  Running: boolean;
+  /** Absent when nothing was sent since Jellyfin started. */
+  LastSend?: PushSendReport | null;
+  /** Seerr's webhook, relative to the server's address. */
+  WebhookPath: string;
+  /** What Seerr sends as its Authorization Header; absent while Seerr isn't set up. */
+  WebhookSecret?: string | null;
+}
+
 export type SaveResult = { ok: true } | { ok: false; errors: string[] };
 
 export interface AdminApi {
@@ -200,6 +226,11 @@ export interface AdminApi {
   getPlaylists(): Promise<Option[]>;
   testSeerr(url: string, apiKey: string): Promise<SeerrTestResult>;
   getSeerrUsers(): Promise<SeerrUsers>;
+  getPushStatus(): Promise<PushAdminStatus>;
+  /** Replaces the notification keys and the webhook secret; every device's subscription is dropped. */
+  resetPushKeys(): Promise<PushAdminStatus>;
+  /** A server path as an address, as this browser reaches the server. */
+  serverUrl(path: string): string;
   /** Checks a Trakt key (the stored one when empty) without saving it. */
   testTrakt(clientId: string): Promise<TraktTestResult>;
   checkForUpdates(): Promise<UpdateStatus>;
@@ -274,6 +305,14 @@ export function createAdminApi(client: JellyfinApiClient): AdminApi {
         dataType: 'json',
       })) as SeerrTestResult,
     getSeerrUsers: () => getJson('Lumen/Admin/Seerr/Users'),
+    getPushStatus: () => getJson('Lumen/Admin/Push'),
+    resetPushKeys: async () =>
+      (await client.ajax({
+        type: 'POST',
+        url: client.getUrl('Lumen/Admin/Push/ResetKeys'),
+        dataType: 'json',
+      })) as PushAdminStatus,
+    serverUrl: (path) => client.getUrl(path),
     testTrakt: async (clientId) =>
       (await client.ajax({
         type: 'POST',

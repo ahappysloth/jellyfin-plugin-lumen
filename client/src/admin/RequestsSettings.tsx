@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { AdminApi, LumenConfig, SeerrTestResult, SeerrUsers } from './adminApi';
 import { Card, Field, NumberField, Switch, inputValue } from './controls';
+import { PushSettings } from './PushSettings';
 
 /**
  * Keeps browsers and password managers (1Password, LastPass, Bitwarden, Dashlane) from filling a Jellyfin login into
@@ -25,12 +26,15 @@ export function RequestsSettings({
   config,
   savedUrl,
   update,
+  confirm,
 }: {
   api: AdminApi;
   config: LumenConfig;
   /** The Seerr address as last saved (the stored key belongs to it). */
   savedUrl: string | null | undefined;
   update: (patch: Partial<LumenConfig>) => void;
+  /** Asks before the notification keys are reset. */
+  confirm: (message: string) => boolean;
 }) {
   const [test, setTest] = useState<SeerrTestResult | 'testing' | null>(null);
   const [users, setUsers] = useState<SeerrUsers | null>(null);
@@ -138,6 +142,8 @@ export function RequestsSettings({
           </div>
         )
       )}
+
+      {savedAndEnabled && <PushSettings api={api} confirm={confirm} />}
 
       <div style={{ marginTop: '18px' }}>
         <NumberField

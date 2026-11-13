@@ -64,6 +64,17 @@ Added to a phone's home screen, Jellyfin opens as **Lumen**: its name and icon, 
 
 The app is called "Lumen". To name it after your server instead, turn on **Name the home-screen app after this server** in Lumen's settings (then re-add the icon). The official Jellyfin mobile apps aren't affected: they load the same page but don't install it.
 
+## Notifications
+
+With Seerr set up, each user can turn on **Notify me when requests are ready** on a device, in My requests or on their profile page: a notification says when something they requested is ready to watch, even with the app closed, and a tap opens it.
+
+- **iPhone and iPad:** notifications work in the Home Screen app (above), on iOS 16.4 or later. In a Safari tab, Lumen says so instead of showing the switch.
+- **Elsewhere:** Chrome, Edge, Firefox and Safari on a computer or on Android. Not on TVs.
+- The server must be reached over **https** (browsers have no notifications on plain http, except `localhost`), and must itself be able to reach the browsers' push services over https.
+- If a device's push service can't be reached, Lumen tries a few more times over some minutes; if no device could be told, the request shows as the pop-up in the app instead.
+- Lumen asks Seerr every 2 minutes on behalf of users with notifications on (every half hour about requests that have only been waiting, for approval or a release, for over a day). To hear at once, add Seerr's webhook: Dashboard → Plugins → Lumen → Requests → Notifications shows the address and secret to enter in Seerr (Settings → Notifications → Webhook, with "Request Available" ticked).
+- A notification's text is encrypted for the one device; the push service that relays it can't read it.
+
 ## Running alongside other plugins
 
 Lumen injects its own script, lists itself as a jellyfin-web plugin in `/web/config.json` (this is how it gets Jellyfin's player), and hides only the stock pages it replaces (home, details, the Movies, Shows and Collections libraries, genre lists, Favorites, search and the settings menu) while it shows its own. It can run next to plugins that use the File Transformation plugin, but plugins that also redesign the home screen will be hidden while Lumen's home is showing. If you use one of those, turn off "Replace the home screen" in Lumen's settings.
@@ -74,6 +85,7 @@ Links Lumen shares carry a couple of extra URL parameters that Jellyfin's own pa
 
 - **Content Security Policy.** Lumen adds two small inline scripts to Jellyfin's `index.html`: one registers Lumen's jellyfin-web plugin, the other makes its loading screen and the restyled sign-in, settings and Dashboard pages appear before the page paints (it links those pages' stylesheets where they're used). A proxy that sends a CSP with `script-src 'self'` blocks them: Lumen still loads, but without the loading veil, the restyled sign-in and Dashboard pages and jellyfin-web dialogs, and Lumen's Quick Connect screen on the sign-in page (jellyfin-web's own dialog shows instead) (and, rarely, jellyfin-web logs "failed loading plugins" when it reaches Lumen's plugin before Lumen's main script has registered it). Either allow `'unsafe-inline'` for scripts, or add both scripts' hashes. The browser console's CSP errors show the exact `'sha256-…'` values to add; they change with every Lumen release, and the second also with the "Restyle Jellyfin's sign-in, settings and Dashboard pages" setting (from a checkout, `cd client && npm run build && npm run guard-hash` prints all three). Lumen's tab icon and a few images are `data:` URLs, so `img-src` needs `data:` too.
 - **Fonts.** Except on Apple devices, which use their own system font, Lumen's pages use Inter, which Lumen serves itself from the same server (`/Lumen/Assets/lumen-font-*.woff2`). A CSP needs `font-src` (or `default-src`) to allow `'self'`.
+- **Notifications.** Lumen's service worker is `/Lumen/Push/sw.js` (under the base URL, if any). Browsers fetch it without signing in, so a proxy with its own login must let it through; a CSP needs `worker-src` (or `script-src`) to allow `'self'`. Nothing else about notifications passes through the proxy: the server sends them to the browsers' push services itself.
 - **Installing to a home screen.** Phones fetch the app's manifest (`/Lumen/Manifest`) and icons (`/Lumen/Assets/lumen-icon-*.png`) without signing in, so a proxy that asks for its own login must let those through, as it does `/web/`. With a base URL they're under it (`/jellyfin/Lumen/Manifest`). Lumen adds no inline content for this: the manifest and icons come from the same server, so a CSP only needs `manifest-src` (or `default-src`) to allow `'self'`.
 - **jellyfin-web served by the proxy.** Lumen adds itself to the web client that Jellyfin serves (`/web/`). If your proxy serves its own copy of jellyfin-web (with Jellyfin's hosted web client turned off), nothing injects Lumen into it, and the stock UI is shown. Serve `index.html` and `config.json` from the same place: Lumen lists its plugin in `config.json` only alongside the `index.html` that defines it.
 

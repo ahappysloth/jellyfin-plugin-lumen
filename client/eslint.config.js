@@ -30,6 +30,12 @@ export default tseslint.config(
     files: ['src/compat/webPluginDefiner.js'],
     rules: { '@typescript-eslint/no-unused-vars': ['error', { caughtErrors: 'none' }] },
   },
+  // Lumen's service worker: ES5 as well, copied to dist as it is, and running in a worker, not a page.
+  {
+    files: ['src/views/push/pushWorker.js'],
+    languageOptions: { globals: { ...globals.serviceworker } },
+    rules: { '@typescript-eslint/no-unused-vars': ['error', { caughtErrors: 'none' }] },
+  },
   // Lumen runs in Chromium 68 (LG webOS 5) and Safari 13 (vite.target.ts). The build compiles newer syntax down but
   // can't add missing functions. jellyfin-web's core-js has most of these by the time lumen.js runs, but not when the
   // inline guard does, and the guard shares code with the rest; so none of them, anywhere.
