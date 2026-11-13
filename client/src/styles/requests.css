@@ -1,0 +1,140 @@
+/* ---- My requests' search, filter chips and "Everyone's requests" (views/catalog/MyRequestsView.tsx) -------------
+   lumen-requests.css: linked by the page as its code runs (the title page's file, views/catalog/lazyTitle.tsx), and
+   the list waits for it. The chips are the library pages' (browse.css .lmn-segmented, .lmn-chip); the switch is the
+   notifications toggle's (push.css .lmn-push__switch), whose stylesheet the page links too. */
+.lmn-requests-tools {
+  max-width: 880px;
+  margin-bottom: 16px;
+}
+/* Margins, not flex gap (Chromium 68, Safari 13): the row's negative margin takes back its controls' outer ones. */
+.lmn-requests-tools__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: -6px 0 6px -16px;
+}
+.lmn-requests-tools__row > * {
+  margin: 6px 0 0 16px;
+}
+.lmn-requests-search {
+  position: relative;
+  display: flex;
+  flex: 1 1 280px;
+  align-items: center;
+  min-width: 0;
+}
+.lmn-requests-search__icon {
+  position: absolute;
+  left: 14px;
+  color: var(--lmn-text-3);
+  pointer-events: none;
+}
+.lmn-requests-search__input {
+  width: 100%;
+  height: 44px;
+  padding: 0 48px 0 44px;
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 12px;
+  background: var(--lmn-fill-2);
+  color: #fff;
+  font: 500 15px var(--lmn-font);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s,
+    box-shadow 0.2s;
+}
+.lmn-requests-search__input::placeholder {
+  color: var(--lmn-text-3);
+}
+/* The clear button below stands in for the browser's own. */
+.lmn-requests-search__input::-webkit-search-cancel-button {
+  display: none;
+}
+.lmn-requests-search__input:focus {
+  border-color: color-mix(in srgb, var(--lmn-accent) 70%, transparent);
+  background: var(--lmn-fill-3);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--lmn-accent) 18%, transparent);
+}
+.layout-tv .lmn-requests-search__input:focus {
+  outline: 3px solid var(--lmn-focus);
+  outline-offset: 3px;
+}
+/* A small glass button (buttons.css .lmn-icon-button): white with a dark cross under the pointer or the remote. */
+.lmn-requests-search__clear {
+  position: absolute;
+  right: 6px;
+  width: 32px;
+  height: 32px;
+}
+.lmn-requests-everyone {
+  display: flex;
+  flex: none;
+  align-items: center;
+  min-height: 44px;
+}
+.lmn-requests-everyone__label {
+  margin-right: 12px;
+  color: var(--lmn-text-2);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.lmn-segmented.lmn-requests-filters .lmn-chip {
+  flex: none;
+  white-space: nowrap;
+}
+.lmn-request__by {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin-top: 4px;
+  color: var(--lmn-text-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+.lmn-request__by > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lmn-request__avatar {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--lmn-fill-3);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  object-fit: cover;
+}
+.lmn-requests-empty .lmn-button {
+  margin-top: 4px;
+}
+/* Phones: all five chips on one line, scrolling sideways (not squeezed to the screen's width, as the library pages' are:
+   browse.css). Only there: a scrolling row clips its chips' focus rings, which a remote or keyboard needs whole. */
+@media (max-width: 720px) {
+  .lmn-segmented.lmn-requests-filters {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .lmn-requests-filters::-webkit-scrollbar {
+    display: none;
+  }
+}
+@media (max-width: 600px) {
+  .lmn-requests-search {
+    flex-basis: 100%;
+  }
+  /* iOS zooms into a field whose text is under 16px. */
+  .lmn-requests-search__input {
+    font-size: 16px;
+  }
+}

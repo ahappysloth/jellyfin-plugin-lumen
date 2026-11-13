@@ -65,6 +65,14 @@ public interface ISeerrClient
     Task<IReadOnlyList<SeerrUserRequest>> GetUserRequestsAsync(SeerrEndpoint endpoint, int seerrUserId, CancellationToken cancellationToken, int take = SeerrClient.RequestsTake);
 
     /// <summary>
+    /// Every user's <paramref name="take"/> most recent requests, newest first, each with who filed it and its media's
+    /// download queue (<c>GET /request</c>). As Seerr's API key itself, which is its owner's (an administrator in
+    /// Seerr, which lists everyone's): only ever for a Jellyfin administrator (RequestsController.GetAll). Through the
+    /// circuit breaker like <see cref="GetUserRequestsAsync"/>: only Seerr being unreachable or too slow counts.
+    /// </summary>
+    Task<IReadOnlyList<SeerrUserRequest>> GetAllRequestsAsync(SeerrEndpoint endpoint, int take, CancellationToken cancellationToken);
+
+    /// <summary>
     /// A title's details for a card (title, year, art, rating, genres), cached for 10 minutes per title and shared like
     /// <see cref="DiscoverAsync"/>. Its <c>MediaInfo</c> may be stale, so never read the request state from it.
     /// </summary>

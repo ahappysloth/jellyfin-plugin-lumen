@@ -8,6 +8,8 @@ import { target } from './vite.target.ts';
  * - lumen-quickconnect.css: Quick Connect's approve page and sign-in screen (styles/quickconnect.css), linked with its
  *   file (views/quickconnect/lazyQuickConnect.tsx).
  * - lumen-push.css: the notifications toggle (styles/push.css), linked with its file (views/push/lazyPush.tsx).
+ * - lumen-requests.css: My requests' search, filter chips and "Everyone's requests" (styles/requests.css), linked by
+ *   the page (views/catalog/MyRequestsView.tsx).
  * - lumen-segments.css: the player's Skip button and next-episode card (styles/segments.css), linked with their file
  *   (views/player/lazySegments.tsx).
  * - lumen-stock.css: jellyfin-web's sign-in, settings and admin pages' controls, and its dialogs and menus on every
@@ -28,6 +30,7 @@ export default defineConfig({
         'lumen-charts': 'src/styles/charts.css',
         'lumen-quickconnect': 'src/styles/quickconnect.css',
         'lumen-push': 'src/styles/push.css',
+        'lumen-requests': 'src/styles/requests.css',
         'lumen-segments': 'src/styles/segments.css',
       },
       output: { assetFileNames: '[name][extname]' },

@@ -78,7 +78,21 @@ public sealed record MyRequestDto(
     int? EpisodesDone,
     int? EpisodesTotal,
     DateTimeOffset? RequestedAt,
-    bool Announce);
+    bool Announce,
+    RequesterDto? RequestedBy = null);
+
+/// <summary>
+/// Who filed a request, in everyone's requests (GET /Lumen/Requests/All). <c>UserId</c> ("N" format) and
+/// <c>ImageTag</c> (for <c>/Users/{id}/Images/Primary</c>) are set when they're a Jellyfin user; otherwise <c>Name</c> is
+/// their Seerr name, or null when Seerr didn't say.
+/// </summary>
+public sealed record RequesterDto(string? Name, Guid? UserId, string? ImageTag);
+
+/// <summary>
+/// Response of GET /Lumen/Requests/All: every user's most recent requested titles, newest first, one entry per title and
+/// requester. <c>Partial</c>: some titles couldn't be described in time and are left out of this answer (ask again).
+/// </summary>
+public sealed record AllRequestsDto(IReadOnlyList<MyRequestDto> Requests, bool Partial);
 
 /// <summary>Response of GET /Lumen/Requests/Mine: the user's requested titles, newest first.</summary>
 public sealed record MyRequestsDto(IReadOnlyList<MyRequestDto> Requests);

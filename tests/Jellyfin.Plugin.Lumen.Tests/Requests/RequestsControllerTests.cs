@@ -1,10 +1,14 @@
 using System.Net;
 using System.Security.Claims;
+using Jellyfin.Data;
+using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.Lumen.Api;
 using Jellyfin.Plugin.Lumen.Home;
 using Jellyfin.Plugin.Lumen.Requests;
+using MediaBrowser.Common.Api;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -26,6 +30,7 @@ public sealed class RequestsControllerTests : IDisposable
     private readonly IRequestProgressService _progress = Substitute.For<IRequestProgressService>();
     private readonly IReadyAnnouncements _announcements = Substitute.For<IReadyAnnouncements>();
     private readonly IOnlineTrailers _trailers = Substitute.For<IOnlineTrailers>();
+    private readonly IEveryonesRequests _everyone = Substitute.For<IEveryonesRequests>();
     private readonly HomeCache _home = new(Substitute.For<IUserDataManager>(), Substitute.For<ILibraryManager>(), TimeProvider.System);
     private readonly Jellyfin.Database.Implementations.Entities.User _jellyfinUser = TestData.User();
     private readonly Guid _user;
@@ -561,14 +566,88 @@ public sealed class RequestsControllerTests : IDisposable
         _announcements.DidNotReceiveWithAnyArgs().Update(default, default!, default!, default!, default!);
     }
 
+    [Fact]
+    public async Task All_RequiresAJellyfinUser()
+    {
+        Assert.IsType<UnauthorizedResult>((await Create(signedIn: false).GetAll(CancellationToken.None)).Result);
+    }
+
+    [Fact]
+    public async Task All_IsForbidden_ToAnyoneButAnAdministrator_BeforeAskingSeerrAnything()
+    {
+        // Checked by the action itself, not only by the RequiresElevation policy on it.
+        GrantAccess();
+
+        var result = (await Create().GetAll(CancellationToken.None)).Result;
+
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(result).StatusCode);
+        AssertError<ObjectResult>(result);
+        await _users.DidNotReceiveWithAnyArgs().GetAccessAsync(default, default);
+        await _everyone.DidNotReceiveWithAnyArgs().GetAsync(default, default!, default, default);
+    }
+
+    [Fact]
+    public async Task All_IsForbidden_ToAUserJellyfinNoLongerKnows()
+    {
+        _userManager.GetUserById(_user).Returns((Jellyfin.Database.Implementations.Entities.User?)null);
+        GrantAccess();
+
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>((await Create().GetAll(CancellationToken.None)).Result).StatusCode);
+    }
+
+    [Fact]
+    public void All_CarriesJellyfinsAdministratorPolicy()
+    {
+        var attribute = Assert.Single(typeof(RequestsController).GetMethod(nameof(RequestsController.GetAll))!.GetCustomAttributes(typeof(AuthorizeAttribute), false));
+        Assert.Equal(Policies.RequiresElevation, ((AuthorizeAttribute)attribute).Policy);
+    }
+
+    [Fact]
+    public async Task All_IsNotFound_ForAnAdministratorWithoutCatalogAccess()
+    {
+        MakeAdministrator();
+        _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(RequestAccess.None);
+
+        Assert.IsType<NotFoundResult>((await Create().GetAll(CancellationToken.None)).Result);
+        await _everyone.DidNotReceiveWithAnyArgs().GetAsync(default, default!, default, default);
+    }
+
+    [Fact]
+    public async Task All_IsEveryonesRequests_AsTheAdministratorSeesThem_NeverCached()
+    {
+        MakeAdministrator();
+        GrantAccess();
+        var all = new AllRequestsDto([], false);
+        _everyone.GetAsync(_jellyfinUser, Endpoint, 9, Arg.Any<CancellationToken>()).Returns(all);
+        var controller = Create();
+
+        Assert.Same(all, (await controller.GetAll(CancellationToken.None)).Value);
+        Assert.Equal("no-store", controller.Response.Headers.CacheControl.ToString());
+    }
+
+    [Fact]
+    public async Task All_IsABadGateway_WhenSeerrFails()
+    {
+        MakeAdministrator();
+        GrantAccess();
+        _everyone.GetAsync(default, default!, default, default).ThrowsAsyncForAnyArgs(new SeerrException("down"));
+
+        var result = (await Create().GetAll(CancellationToken.None)).Result;
+
+        Assert.Equal(StatusCodes.Status502BadGateway, Assert.IsType<ObjectResult>(result).StatusCode);
+        AssertError<ObjectResult>(result);
+    }
+
     private static void AssertError<T>(ActionResult? result)
         where T : ObjectResult =>
         Assert.IsType<ErrorDto>(Assert.IsType<T>(result).Value);
 
+    private void MakeAdministrator() => _jellyfinUser.SetPermission(PermissionKind.IsAdministrator, true);
+
     private void GrantAccess() =>
         _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, true, true, 9, Endpoint));
 
-    private RequestsController Create(bool signedIn = true) => new(_users, _images, _seerr, _home, _userManager, new CatalogMapper(_library), _progress, _announcements, _trailers, NullLogger<RequestsController>.Instance)
+    private RequestsController Create(bool signedIn = true) => new(_users, _images, _seerr, _home, _userManager, new CatalogMapper(_library), _progress, _announcements, _trailers, _everyone, NullLogger<RequestsController>.Instance)
     {
         ControllerContext = new ControllerContext
         {

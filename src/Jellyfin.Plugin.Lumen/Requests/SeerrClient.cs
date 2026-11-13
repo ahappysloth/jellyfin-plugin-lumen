@@ -177,6 +177,25 @@ public sealed class SeerrClient : ISeerrClient
             .ToList();
     }
 
+    public async Task<IReadOnlyList<SeerrUserRequest>> GetAllRequestsAsync(SeerrEndpoint endpoint, int take, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(take, 1);
+
+        // Only take and skip, as for one user's: Seerr, Jellyseerr and Overseerr all define them for this route (with
+        // filter, sort and requestedBy; only Seerr and Jellyseerr add sortDirection and mediaType), and each checks
+        // calls against its spec, answering an unknown parameter with a 400. Without a filter Seerr lists requests in
+        // every state, newest (highest id) first; Lumen sorts and filters them itself.
+        var path = string.Create(CultureInfo.InvariantCulture, $"api/v1/request?take={take}&skip=0");
+
+        // No X-Api-User: as the API key, Seerr's owner, who may see every user's requests. Acting as the admin's own
+        // Seerr account instead would quietly list only theirs if it lacks Manage Requests.
+        var page = await SendAsync<SeerrUserRequestPage>(endpoint, HttpMethod.Get, path, null, null, true, cancellationToken, userScoped: true).ConfigureAwait(false) ?? throw Unexpected();
+        return (page.Results ?? [])
+            .OrderByDescending(r => r.CreatedAt ?? DateTimeOffset.MinValue)
+            .ThenByDescending(r => r.Id)
+            .ToList();
+    }
+
     public async Task<SeerrTitle> GetTitleSummaryAsync(SeerrEndpoint endpoint, int seerrUserId, string mediaType, int tmdbId, CancellationToken cancellationToken) =>
         await GetCachedAsync<SeerrTitle>(endpoint, "api/v1/" + ValidMediaType(mediaType) + "/" + tmdbId.ToString(CultureInfo.InvariantCulture), seerrUserId, cancellationToken)
             .ConfigureAwait(false);
@@ -340,7 +359,7 @@ public sealed class SeerrClient : ISeerrClient
 
     /// <summary>
     /// One Seerr call, through the endpoint's breaker when <paramref name="guarded"/>. A <paramref name="userScoped"/> call
-    /// (one user's own data) counts against the breaker only when Seerr is unreachable or too slow; another failure is
+    /// (one user's own data, or everyone's request list, whose 5xx may be one bad request's data) counts against the breaker only when Seerr is unreachable or too slow; another failure is
     /// left out of the count, neither failure nor success, since a proxy's 502 for a down Seerr shouldn't close it either.
     /// Error statuses (and 202 to a POST, Seerr's "nothing to request") become a <see cref="SeerrException"/> carrying
     /// Seerr's <c>message</c>.

@@ -198,7 +198,7 @@ public sealed class SeerrSeason
 /// <summary>Seerr's answer to <c>POST /request</c>: the request's status (1 = needs approval) and the title's MediaStatus.</summary>
 public sealed record SeerrRequestResult(int Id, int? RequestStatus, int? MediaStatus);
 
-/// <summary>A page of <c>GET /user/{id}/requests</c>. These results carry no title or art.</summary>
+/// <summary>A page of <c>GET /user/{id}/requests</c> or <c>GET /request</c>. These results carry no title or art.</summary>
 public sealed class SeerrUserRequestPage
 {
     public IReadOnlyList<SeerrUserRequest>? Results { get; init; }
@@ -223,6 +223,24 @@ public sealed class SeerrUserRequest
     public IReadOnlyList<SeerrSeasonStatus>? Seasons { get; init; }
 
     public SeerrRequestMedia? Media { get; init; }
+
+    /// <summary>Who filed it: read for everyone's requests (<c>GET /request</c>), which an administrator may list.</summary>
+    public SeerrRequester? RequestedBy { get; init; }
+}
+
+/// <summary>
+/// The Seerr user who filed a request: only what Lumen shows. Seerr's user object also carries their email address,
+/// which Lumen never reads.
+/// </summary>
+public sealed class SeerrRequester
+{
+    public int Id { get; init; }
+
+    /// <summary>Their username in Seerr, else their Plex or Jellyfin name, else their email (Seerr's own choice).</summary>
+    public string? DisplayName { get; init; }
+
+    /// <summary>The Jellyfin user they were imported from ("N" format), in Seerr and Jellyseerr; Overseerr has none.</summary>
+    public string? JellyfinUserId { get; init; }
 }
 
 /// <summary>The title a request is for: its TMDB id, MediaStatus and linked Jellyfin item.</summary>
