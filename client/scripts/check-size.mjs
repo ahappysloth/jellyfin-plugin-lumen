@@ -94,7 +94,9 @@ console.log(`lumen restart banner: ${kb(restart)} gzipped (budget ${RESTART_BUDG
 // views/catalog/lazyTitle.tsx; with My requests' stylesheet (lumen-requests.css), which that page links. 6 KB until
 // My requests' search, filter chips and "Everyone's requests" for administrators came here, as the file that holds
 // the page (the startup file has no room): about 2.1 KB of code and strings, and the 0.8 KB stylesheet counted here.
-const TITLE_BUDGET = 7.75 * 1024;
+// 8.2 KB since My requests' new layout (0.6.3): its rows' styles moved here out of lumen.css (about 0.3 KB, which the
+// startup file needed for the lone Back button's hover), plus the centred column, the status column and the loading rows.
+const TITLE_BUDGET = 8.2 * 1024;
 const title = gz(`dist/${titleChunk}`) + gz('dist/lumen-requests.css');
 console.log(
   `lumen catalog title + my requests styles: ${kb(title)} gzipped (budget ${TITLE_BUDGET / 1024} KB)`,

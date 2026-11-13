@@ -1,27 +1,17 @@
-/* ---- My requests' search, filter chips and "Everyone's requests" (views/catalog/MyRequestsView.tsx) -------------
+/* ---- My requests: its search, filter chips, "Everyone's requests" and rows (views/catalog/MyRequestsView.tsx) -----
    lumen-requests.css: linked by the page as its code runs (the title page's file, views/catalog/lazyTitle.tsx), and
-   the list waits for it. The chips are the library pages' (browse.css .lmn-segmented, .lmn-chip); the switch is the
-   notifications toggle's (push.css .lmn-push__switch), whose stylesheet the page links too. */
+   the list waits for it. The chips are the library pages' (browse.css .lmn-segmented, .lmn-chip); "Everyone's
+   requests" is a row like the notifications toggle's (push.css .lmn-push), whose stylesheet the page links too.
+   Everything sits in the page's centred column (browse.css .lmn-my-requests), so nothing here sets a side margin. */
 .lmn-requests-tools {
-  max-width: 880px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
-/* Margins, not flex gap (Chromium 68, Safari 13): the row's negative margin takes back its controls' outer ones. */
-.lmn-requests-tools__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  margin: -6px 0 6px -16px;
-}
-.lmn-requests-tools__row > * {
-  margin: 6px 0 0 16px;
-}
+/* As wide as the column: jellyfin-web's stylesheet holds every form to 54em. */
 .lmn-requests-search {
   position: relative;
   display: flex;
-  flex: 1 1 280px;
   align-items: center;
-  min-width: 0;
+  max-width: none;
 }
 .lmn-requests-search__icon {
   position: absolute;
@@ -69,22 +59,122 @@
   width: 32px;
   height: 32px;
 }
-.lmn-requests-everyone {
+/* The chips span the column, as the search row above and the rows below do. */
+.lmn-segmented.lmn-requests-filters {
   display: flex;
-  flex: none;
-  align-items: center;
-  min-height: 44px;
-}
-.lmn-requests-everyone__label {
-  margin-right: 12px;
-  color: var(--lmn-text-2);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
+  margin-top: 10px;
 }
 .lmn-segmented.lmn-requests-filters .lmn-chip {
-  flex: none;
+  flex: 1 0 auto;
+  justify-content: center;
   white-space: nowrap;
+}
+.lmn-requests-empty .lmn-button {
+  margin-top: 4px;
+}
+
+/* ---- The rows ---------------------------------------------------------------------------------------------------
+   A grid's gap is fine: Chromium 66 and Safari 12 have it (only flex gap is newer). One column that may be narrower
+   than its rows' words: a grid's own (auto) column is as wide as the longest title on one line, which ran every row
+   off the side of a phone instead of ending that title in an ellipsis. Top and bottom margins only (see above). */
+.lmn-requests {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Poster, what it is, how it stands, the way in. The status is a column as wide on every row, so the statuses and their
+   bars line up down the list, whatever the titles' lengths. */
+.lmn-request {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 248px 20px;
+  gap: 0 20px;
+  align-items: center;
+  padding: 12px 16px 12px 12px;
+  border-radius: 14px;
+  background: var(--lmn-fill);
+  color: inherit;
+  text-decoration: none;
+}
+.lmn-request:hover,
+.lmn-request:focus-visible {
+  background: var(--lmn-fill-3);
+  outline: none;
+}
+.layout-tv .lmn-request:focus {
+  outline: 3px solid var(--lmn-focus);
+  outline-offset: 2px;
+}
+.lmn-request__art {
+  position: relative;
+  width: 64px;
+  height: 96px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--lmn-fill-3);
+}
+.lmn-request__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lmn-request__art .lmn-card__placeholder {
+  font-size: 10px;
+}
+.lmn-request__body {
+  min-width: 0;
+}
+.lmn-request__title {
+  display: block;
+  overflow: hidden;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lmn-request__meta {
+  display: block;
+  margin-top: 6px;
+  color: var(--lmn-text-3);
+  font-size: 13px;
+}
+/* The status on the left, how far along on the right, the bar under both. */
+.lmn-request .lmn-request-progress {
+  margin: 0;
+}
+.lmn-request .lmn-request-progress__status {
+  align-items: baseline;
+}
+.lmn-request .lmn-request-progress__status > * {
+  margin-right: 0;
+}
+.lmn-request .lmn-request-progress__status > span {
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: 13px;
+}
+.lmn-request .lmn-request-progress__bar {
+  height: 4px;
+  margin-top: 8px;
+}
+.lmn-request__go {
+  color: var(--lmn-text-3);
+}
+.lmn-request:hover .lmn-request__go {
+  color: #fff;
+}
+/* While the list loads: three rows' worth, their words a shimmer (browse.css .lmn-skeleton-line). */
+.lmn-request--skeleton .lmn-skeleton-line {
+  width: 40%;
+  margin: 0;
+}
+.lmn-request--skeleton .lmn-skeleton-line + .lmn-skeleton-line {
+  width: 25%;
+  margin-top: 12px;
 }
 .lmn-request__by {
   display: flex;
@@ -114,9 +204,6 @@
   font-weight: 600;
   object-fit: cover;
 }
-.lmn-requests-empty .lmn-button {
-  margin-top: 4px;
-}
 /* Phones: all five chips on one line, scrolling sideways (not squeezed to the screen's width, as the library pages' are:
    browse.css). Only there: a scrolling row clips its chips' focus rings, which a remote or keyboard needs whole. */
 @media (max-width: 720px) {
@@ -128,10 +215,35 @@
   .lmn-requests-filters::-webkit-scrollbar {
     display: none;
   }
+  .lmn-segmented.lmn-requests-filters .lmn-chip {
+    flex: none;
+  }
 }
+/* Phones: in a row, the status goes under the words (the bar as wide as they are), beside a smaller poster, and the
+   chevron goes (the whole row is the link). */
 @media (max-width: 600px) {
-  .lmn-requests-search {
-    flex-basis: 100%;
+  .lmn-request {
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 0 14px;
+    align-items: start;
+    padding: 10px 14px 10px 10px;
+  }
+  .lmn-request__art {
+    grid-row: 1 / span 2;
+    width: 48px;
+    height: 72px;
+  }
+  .lmn-request__title {
+    font-size: 16px;
+  }
+  .lmn-request__meta {
+    margin-top: 4px;
+  }
+  .lmn-request .lmn-request-progress {
+    margin-top: 10px;
+  }
+  .lmn-request__go {
+    display: none;
   }
   /* iOS zooms into a field whose text is under 16px. */
   .lmn-requests-search__input {

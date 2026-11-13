@@ -18,6 +18,13 @@
   gap: 18px 24px;
   margin-bottom: 28px;
 }
+/* My requests is a list, not a grid: one centred column, header and all (MyRequestsView.tsx). Here, not in the page's
+   own stylesheet, so the header doesn't move as that loads. Its rules set no side margins, which would undo this. */
+.lmn-my-requests > * {
+  max-width: 880px;
+  margin-right: auto;
+  margin-left: auto;
+}
 .lmn-browse__title {
   margin: 0;
   color: #fff;
