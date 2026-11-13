@@ -1,40 +1,67 @@
 import { act, fireEvent, render, screen } from '@testing-library/preact';
-import { useEffect } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeClient } from '../../../test/fakeClient';
 import { testConfig } from '../../../test/viewContext';
-import type { BaseItem } from '../../api/types';
+import type { BaseItem, OnlineTrailer } from '../../api/types';
 import { DetailsHeader } from './DetailsHeader';
 
-// The trailer itself is TrailerPreview's (and its tests'): here it plays at once and shows what it was asked.
-vi.mock('../home/TrailerPreview', () => ({
-  TrailerPreview: (props: { paused?: boolean; muted?: boolean; onPlayingChange?: (on: boolean) => void }) => {
-    useEffect(() => props.onPlayingChange?.(true), []);
-    return (
-      <div data-testid="trailer" data-paused={String(!!props.paused)} data-muted={String(!!props.muted)} />
-    );
-  },
-  YouTubePreview: (props: {
-    youTubeId: string;
-    embedBase?: string | null;
-    class?: string;
-    paused?: boolean;
-    muted?: boolean;
-    onPlayingChange?: (on: boolean) => void;
-  }) => {
-    useEffect(() => props.onPlayingChange?.(true), []);
-    return (
-      <div
-        data-testid="youtube-trailer"
-        data-id={props.youTubeId}
-        data-base={String(props.embedBase)}
-        data-paused={String(!!props.paused)}
-        data-muted={String(!!props.muted)}
-        class={props.class}
-      />
-    );
+interface MockProps {
+  src?: string | null;
+  paused?: boolean;
+  muted?: boolean;
+  onPlayingChange?: (on: boolean) => void;
+}
+const LocalMock = (props: MockProps) => {
+  useEffect(() => props.onPlayingChange?.(true), []);
+  return (
+    <div
+      data-testid="trailer"
+      data-src={String(props.src)}
+      data-paused={String(!!props.paused)}
+      data-muted={String(!!props.muted)}
+    />
+  );
+};
+
+// The trailer itself is TrailerPreview's (and its tests'): here it plays at once and shows what it was asked. The
+// Pause and Mute buttons are the real ones.
+vi.mock('../home/TrailerPreview', async () => ({
+  TrailerControls: (
+    await vi.importActual<typeof import('../home/TrailerControls')>('../home/TrailerControls')
+  ).TrailerControls,
+  TrailerPreview: LocalMock,
+  // As OnlineTrailerPreview: IMDb's in the local trailer's <video>, else YouTube's.
+  OnlineTrailerPreview: (
+    props: MockProps & { lookup: () => Promise<OnlineTrailer>; embedBase?: string | null; class?: string },
+  ) => {
+    const [found, setFound] = useState<OnlineTrailer | null>(null);
+    useEffect(() => void props.lookup().then(setFound), []);
+    if (!found) return null;
+    if (found.ImdbUrl) return <LocalMock {...props} src={found.ImdbUrl} />;
+    return found.YouTubeId ? <YouTubeMock {...props} youTubeId={found.YouTubeId} /> : null;
   },
 }));
+const YouTubeMock = (props: {
+  youTubeId: string;
+  embedBase?: string | null;
+  class?: string;
+  paused?: boolean;
+  muted?: boolean;
+  onPlayingChange?: (on: boolean) => void;
+}) => {
+  useEffect(() => props.onPlayingChange?.(true), []);
+  return (
+    <div
+      data-testid="youtube-trailer"
+      data-id={props.youTubeId}
+      data-base={String(props.embedBase)}
+      data-paused={String(!!props.paused)}
+      data-muted={String(!!props.muted)}
+      class={props.class}
+    />
+  );
+};
 
 const movie: BaseItem = { Id: 'm1', Name: 'Lumen Alpha', Type: 'Movie', ImageTags: { Logo: 'l' } };
 
@@ -77,9 +104,27 @@ describe('DetailsHeader', () => {
     expect(screen.getByTestId('trailer')).toHaveAttribute('data-paused', 'false');
   });
 
+  it("plays the title's trailer from IMDb behind the header when it has no local one, with the same controls", async () => {
+    const lookup = vi.fn(() =>
+      Promise.resolve({ ImdbUrl: 'https://imdb-video.media-imdb.com/a.mp4', YouTubeId: null }),
+    );
+    renderHeader({
+      onlineTrailer: lookup,
+      config: { ...testConfig, TrailerPreview: true, YouTubeTrailers: true },
+    });
+
+    const trailer = await screen.findByTestId('trailer');
+    expect(trailer).toHaveAttribute('data-src', 'https://imdb-video.media-imdb.com/a.mp4');
+    expect(lookup).toHaveBeenCalledTimes(1);
+    fireEvent.click(await screen.findByRole('button', { name: 'Pause trailer' }));
+    expect(trailer).toHaveAttribute('data-paused', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Unmute trailer' }));
+    expect(trailer).toHaveAttribute('data-muted', 'false');
+  });
+
   it("plays the title's trailer from YouTube behind the header when it has no local one, with the same controls", async () => {
     renderHeader({
-      youTubeId: 'dQw4w9WgXcQ',
+      onlineTrailer: () => Promise.resolve({ YouTubeId: 'dQw4w9WgXcQ' }),
       config: {
         ...testConfig,
         TrailerPreview: true,
@@ -96,30 +141,42 @@ describe('DetailsHeader', () => {
     // The preview only: the Trailer button plays a local trailer in the player, and there is none.
     expect(screen.queryByRole('button', { name: 'Trailer' })).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pause trailer' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Pause trailer' }));
     expect(trailer).toHaveAttribute('data-paused', 'true');
     fireEvent.click(screen.getByRole('button', { name: 'Unmute trailer' }));
     expect(trailer).toHaveAttribute('data-muted', 'false');
   });
 
-  it('prefers the local trailer to the one on YouTube', async () => {
+  it('prefers the local trailer to one online, which it never asks for', async () => {
+    const lookup = vi.fn(() => Promise.resolve({ YouTubeId: 'dQw4w9WgXcQ' }));
     renderHeader({
+      item: { ...movie, LocalTrailerCount: 1 },
       trailerId: 't1',
-      youTubeId: 'dQw4w9WgXcQ',
-      config: { ...testConfig, TrailerPreview: true },
+      onlineTrailer: lookup,
+      config: { ...testConfig, TrailerPreview: true, YouTubeTrailers: true },
     });
 
-    expect(await screen.findByTestId('trailer')).toBeInTheDocument();
+    expect(await screen.findByTestId('trailer')).toHaveAttribute('data-src', 'undefined');
     expect(screen.queryByTestId('youtube-trailer')).toBeNull();
+    expect(lookup).not.toHaveBeenCalled();
   });
 
-  it('plays no trailer, local or from YouTube, with previews off', async () => {
-    renderHeader({ youTubeId: 'dQw4w9WgXcQ', config: { ...testConfig, TrailerPreview: false } });
+  it('asks for no trailer online with previews or online trailers off', async () => {
+    const lookup = vi.fn(() => Promise.resolve({ YouTubeId: 'dQw4w9WgXcQ' }));
+    renderHeader({
+      onlineTrailer: lookup,
+      config: { ...testConfig, TrailerPreview: false, YouTubeTrailers: true },
+    });
+    renderHeader({
+      onlineTrailer: lookup,
+      config: { ...testConfig, TrailerPreview: true, YouTubeTrailers: false },
+    });
 
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
     });
     expect(screen.queryByTestId('youtube-trailer')).toBeNull();
+    expect(lookup).not.toHaveBeenCalled();
   });
 
   it('offers the file as a Download link beside Play, named as it reads, its tooltip saying the size', () => {

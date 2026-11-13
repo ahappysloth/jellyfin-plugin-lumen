@@ -100,6 +100,54 @@ describe('TrailerPreview', () => {
     expect(video.getAttribute('src')).toBe('http://jf/Videos/t1/stream?static=true&ApiKey=token1');
   });
 
+  it("plays a trailer online (IMDb's MP4) from its own address, asking the server nothing, after the delay", async () => {
+    const client = createFakeClient();
+    const url = 'https://imdb-video.media-imdb.com/vi1/a.mp4?Expires=1&Signature=s';
+    const { container } = render(<TrailerPreview src={url} delaySeconds={2} client={client} />);
+    await startAfter(0);
+    // Nothing is fetched before the delay is up: no <video> at all yet.
+    expect(container.querySelector('video')).toBeNull();
+
+    await startAfter(2000);
+
+    const video = container.querySelector('video')!;
+    expect(video.getAttribute('src')).toBe(url);
+    expect(video.muted).toBe(true);
+    expect(video.getAttribute('preload')).toBe('none');
+    expect(client.requests).toHaveLength(0);
+  });
+
+  it('shows a trailer online only once it is under way, as a local one, and gives up on it after an error', async () => {
+    const time = vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0);
+    const onPlayingChange = vi.fn();
+    const onFinish = vi.fn();
+    const { container } = render(
+      <TrailerPreview
+        src="https://imdb-video.media-imdb.com/vi1/a.mp4"
+        delaySeconds={0}
+        client={createFakeClient()}
+        onPlayingChange={onPlayingChange}
+        onFinish={onFinish}
+      />,
+    );
+    await startAfter(0);
+    const video = container.querySelector('video')!;
+    expect(video).not.toHaveClass('is-shown');
+    time.mockReturnValue(0.3);
+    act(() => {
+      video.dispatchEvent(new Event('timeupdate'));
+    });
+    expect(video).toHaveClass('is-shown');
+    expect(onPlayingChange).toHaveBeenLastCalledWith(true);
+
+    // A lapsed address or a blocked CDN: no other way to play it, so the backdrop comes back.
+    act(() => {
+      container.querySelector('video')!.dispatchEvent(new Event('error'));
+    });
+    expect(container.querySelector('video')).toBeNull();
+    expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+
   it('plays the file as it is when the browser can play its container and codecs', async () => {
     const canPlayType = runAs(SAFARI);
     const { container } = render(

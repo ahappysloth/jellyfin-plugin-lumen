@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Jellyfin.Plugin.Lumen.Requests;
 
 /// <summary>Seerr's version, from <c>GET /api/v1/status</c>.</summary>
@@ -105,6 +107,22 @@ public sealed class SeerrTitle : SeerrMedia
 
     /// <summary>The show's seasons (TV only).</summary>
     public IReadOnlyList<SeerrSeason>? Seasons { get; init; }
+
+    /// <summary>The movie's IMDb id (movies only; a show's is in <see cref="ExternalIds"/>).</summary>
+    public string? ImdbId { get; init; }
+
+    public SeerrExternalIds? ExternalIds { get; init; }
+
+    /// <summary>Gets the title's IMDb title id, if Seerr gave one that is one (<see cref="Home.ImdbTrailers.IsTitleId"/>).</summary>
+    [JsonIgnore]
+    public string? ImdbTitleId =>
+        new[] { ImdbId, ExternalIds?.ImdbId }.Select(id => id?.Trim()).FirstOrDefault(Home.ImdbTrailers.IsTitleId);
+}
+
+/// <summary>A title's ids elsewhere (Seerr's <c>externalIds</c>).</summary>
+public sealed class SeerrExternalIds
+{
+    public string? ImdbId { get; init; }
 }
 
 /// <summary>Seerr's record of a title: availability, the linked Jellyfin item, per-season state and requests.</summary>

@@ -11,6 +11,9 @@ import type { ViewContext } from '../context';
 import { FailedPageMark } from '../pageError';
 import { initials } from '../details/CastRow';
 import { BackHome, goBack } from '../BackHome';
+import { DETAILS_TRAILER_DELAY_SECONDS } from '../details/DetailsHeader';
+import { LazyTrailer, LazyTrailerControls, useTrailerControls } from '../home/lazyTrailer';
+import { usePrefersReducedMotion } from '../../components/usePrefersReducedMotion';
 import {
   catalogHash,
   catalogImageUrl,
@@ -33,7 +36,8 @@ export { MyRequestsView } from './MyRequestsView';
 
 /**
  * A catalog title's page (requests spec §5.3): the details-page header with Request (or the request's state) in place
- * of Play, then cast and Seerr's recommendations. A title the server already has links to its library page.
+ * of Play, then cast and Seerr's recommendations. A title the server already has links to its library page. With "Use
+ * online trailers" on, its trailer plays muted behind the header, as on a library title's page: IMDb's, else YouTube's.
  */
 export function TitleView({
   mediaType,
@@ -183,6 +187,10 @@ function TitleHeader({
   onRequest: () => void;
 }) {
   const state = useCatalogState(title);
+  // Asked apart from the title (OnlineTrailerPreview), so the page doesn't wait for IMDb.
+  const reducedMotion = usePrefersReducedMotion();
+  const preview = ctx.config.TrailerPreview && ctx.config.YouTubeTrailers && !reducedMotion;
+  const trailer = useTrailerControls();
   // The user's own request shows its progress under the header instead of the state (RequestProgressBlock).
   const mine = useRequestProgress(title.Key);
   const meta = [
@@ -201,7 +209,7 @@ function TitleHeader({
         : null;
 
   return (
-    <header class="lmn-details__header">
+    <header class={`lmn-details__header${trailer.playing ? ' is-playing' : ''}`}>
       {title.Backdrop && imageToken && (
         <img
           class="lmn-details__backdrop"
@@ -209,9 +217,23 @@ function TitleHeader({
           alt=""
         />
       )}
+      {preview && (
+        <LazyTrailer
+          key={title.Key}
+          lookup={() => ctx.api.getOnlineTrailer(`Requests/Title/${title.MediaType}/${title.TmdbId}`)}
+          embedBase={ctx.config.YouTubeEmbedBase}
+          delaySeconds={DETAILS_TRAILER_DELAY_SECONDS}
+          client={ctx.client}
+          muted={trailer.muted}
+          paused={trailer.paused}
+          class="lmn-details__trailer"
+          onPlayingChange={trailer.setPlaying}
+        />
+      )}
       <div class="lmn-details__scrim" />
       <div class="lmn-details__topbar focuscontainer-x">
         <BackHome onBack={() => goBack(ctx)} />
+        <LazyTrailerControls state={trailer} />
       </div>
       <div class="lmn-details__info">
         {!owned && <p class="lmn-title__kicker">{titleStrings.notInLibrary}</p>}

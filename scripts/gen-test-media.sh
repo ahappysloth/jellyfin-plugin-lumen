@@ -2,6 +2,7 @@
 # Deterministic fixture media for dev and E2E:
 # - VP9/Opus WebM (Chromium can direct-play it; Playwright's Chromium has no H.264)
 # - NFO metadata (no internet lookups needed), poster/backdrop/logo images, and a local trailer.
+# - Stand-ins for IMDb's trailer MP4s (imdb/), which the tests' stub serves.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/env.sh"
@@ -129,4 +130,13 @@ for s in 1 2; do
   mkdir -p "$show/Season 0$s"
   for e in 1 2 3; do video "$show/Season 0$s/Lumen Show S0${s}E0${e}.webm" 15 $((s * 60 + e * 20)); done
 done
+# Stand-ins for IMDb's trailer MP4s, which the tests' stub serves (e2e/support/stub-seerr.mjs, /imdb/video/…): outside
+# the libraries, so Jellyfin never scans them. Two of the same 20 s: H.264 as IMDb's are (WebKit, Firefox), and VP9 in
+# MP4 for Playwright's Chromium, which has no H.264. faststart puts the index first, so a browser starts from the first
+# range it fetches, as it does with IMDb's.
+mkdir -p "$OUT/imdb"
+"$FFMPEG" -loglevel error -y -f lavfi -i "testsrc2=size=640x360:rate=24,hue=h=200" -t 20 \
+  -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 400k -an -movflags +faststart "$OUT/imdb/trailer-h264.mp4"
+"$FFMPEG" -loglevel error -y -f lavfi -i "testsrc2=size=640x360:rate=24,hue=h=200" -t 20 \
+  -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -b:v 300k -an -movflags +faststart "$OUT/imdb/trailer-vp9.mp4"
 echo "Fixture media written to $OUT"

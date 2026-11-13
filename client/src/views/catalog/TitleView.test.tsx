@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { makeContext, testConfig } from '../../../test/viewContext';
 import type { CatalogTitle } from '../../api/types';
@@ -231,5 +231,106 @@ describe('TitleView', () => {
     fail = false;
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByRole('heading', { name: 'The Matrix' })).toBeInTheDocument();
+  });
+
+  describe('a trailer online ("Use online trailers")', () => {
+    const online = { ...testConfig, TrailerPreview: true, YouTubeTrailers: true };
+    const URL_720 = 'https://imdb-video.media-imdb.com/vi1/a.mp4?Expires=1&Signature=s';
+    const open = (trailer: () => unknown, overrides: Parameters<typeof makeContext>[1] = {}) => {
+      const client = createFakeClient(
+        routes({
+          'Lumen/Requests/Title/movie/603': movie,
+          'Lumen/Requests/Title/movie/603/Trailer': trailer,
+        }),
+      );
+      return render(
+        <TitleView
+          mediaType="movie"
+          tmdbId={603}
+          ctx={makeContext(client, { config: online, ...overrides })}
+        />,
+      );
+    };
+
+    it("plays IMDb's behind the header, with Pause and Mute once it shows", async () => {
+      vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined); // jsdom has no media playback
+      const time = vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0);
+      try {
+        const asked = vi.fn(() => ({ ImdbUrl: URL_720, YouTubeId: null }));
+        const { container } = open(asked);
+        await screen.findByRole('heading', { name: 'The Matrix' });
+        const header = container.querySelector('.lmn-details__header')!;
+
+        const video = await waitFor(
+          () => {
+            const found = header.querySelector<HTMLVideoElement>('.lmn-details__trailer video');
+            expect(found).not.toBeNull();
+            return found!;
+          },
+          { timeout: 4000 },
+        );
+        expect(video.getAttribute('src')).toBe(URL_720);
+        expect(video.muted).toBe(true);
+        expect(asked).toHaveBeenCalledTimes(1);
+        // No controls while it loads: nothing shows yet.
+        expect(screen.queryByRole('button', { name: 'Pause trailer' })).toBeNull();
+
+        time.mockReturnValue(0.5);
+        act(() => {
+          video.dispatchEvent(new Event('timeupdate'));
+        });
+        expect(header).toHaveClass('is-playing');
+        const pause = screen.getByRole('button', { name: 'Pause trailer' });
+        const pauseVideo = vi.spyOn(HTMLMediaElement.prototype, 'pause');
+        fireEvent.click(pause);
+        expect(pauseVideo).toHaveBeenCalled();
+        expect(screen.getByRole('button', { name: 'Play trailer' })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Unmute trailer' }));
+        expect(video.muted).toBe(false);
+        expect(screen.getByRole('button', { name: 'Mute trailer' })).toBeInTheDocument();
+        // The YouTube link stays: it opens the trailer with sound, on YouTube.
+        expect(screen.getByRole('link', { name: 'Trailer' })).toBeInTheDocument();
+      } finally {
+        vi.restoreAllMocks();
+      }
+    });
+
+    it("plays YouTube's when IMDb has none, but not on a TV", async () => {
+      const youTube = () => ({ ImdbUrl: null, YouTubeId: 'dQw4w9WgXcQ' });
+      const { container, unmount } = open(youTube);
+      await waitFor(() => expect(container.querySelector('.lmn-details__trailer iframe')).not.toBeNull(), {
+        timeout: 4000,
+      });
+      unmount();
+
+      // The TV layout as jellyfin-web marks it, which the preview reads (as the hero does).
+      document.documentElement.classList.add('layout-tv');
+      try {
+        const asked = vi.fn(youTube);
+        const tv = open(asked, { layout: 'tv' });
+        await screen.findByRole('heading', { name: 'The Matrix' });
+        await waitFor(() => expect(asked).toHaveBeenCalled());
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        });
+        expect(tv.container.querySelector('.lmn-details__trailer')).toBeNull();
+      } finally {
+        document.documentElement.classList.remove('layout-tv');
+      }
+    });
+
+    it('asks for nothing with the setting or previews off', async () => {
+      for (const config of [
+        { ...online, YouTubeTrailers: false },
+        { ...online, TrailerPreview: false },
+      ]) {
+        const asked = vi.fn(() => ({ ImdbUrl: URL_720 }));
+        const view = open(asked, { config });
+        await screen.findByRole('heading', { name: 'The Matrix' });
+        expect(view.container.querySelector('.lmn-details__trailer')).toBeNull();
+        expect(asked).not.toHaveBeenCalled();
+        view.unmount();
+      }
+    });
   });
 });

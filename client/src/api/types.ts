@@ -160,8 +160,16 @@ export interface ChartPage {
 export interface HeroItem {
   Item: BaseItem;
   TrailerItemId: string | null;
-  /** Without a local trailer and with "Use YouTube trailers" on: the trailer's YouTube video id. */
+  /** Without a local trailer and with "Use online trailers" on: the trailer's YouTube video id (none on IMDb). */
   TrailerYouTubeId?: string | null;
+  /** Without a local trailer and with "Use online trailers" on: the trailer's MP4 on IMDb's video CDN. */
+  TrailerImdbUrl?: string | null;
+}
+
+/** A title's trailer online (GET Lumen/Items/{id}/Trailer, …/Requests/Title/{type}/{id}/Trailer): at most one is set. */
+export interface OnlineTrailer {
+  ImdbUrl?: string | null;
+  YouTubeId?: string | null;
 }
 
 /** Card badges the server computes for home items (see BadgeService). */
@@ -188,7 +196,10 @@ export interface ClientConfig {
   TrailerDelaySeconds: number;
   /** A hero slide whose trailer is playing stays until it ends (Hero.tsx). */
   HeroWaitForTrailer: boolean;
-  /** Titles without a local trailer preview theirs from YouTube (views/home/YouTubePreview.tsx). */
+  /**
+   * "Use online trailers": titles without a local trailer preview theirs from IMDb (a plain MP4, TrailerPreview.tsx), else
+   * YouTube (views/home/YouTubePreview.tsx). Named for the setting's first form, YouTube's alone.
+   */
   YouTubeTrailers?: boolean;
   /** Where YouTube's player loads from instead of YouTube: only set for the E2E tests' stub player. */
   YouTubeEmbedBase?: string | null;

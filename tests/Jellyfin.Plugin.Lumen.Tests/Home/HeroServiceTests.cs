@@ -15,10 +15,11 @@ namespace Jellyfin.Plugin.Lumen.Tests.Home;
 
 public class HeroServiceTests
 {
+    private const string ImdbUrl = "https://imdb-video.media-imdb.com/vi1/v_720p.mp4?Expires=1&Signature=s";
     private readonly ILibraryManager _library = Substitute.For<ILibraryManager>();
     private readonly ILinkedItemsReader _reader = Substitute.For<ILinkedItemsReader>();
     private readonly ITrailerLookup _trailers = Substitute.For<ITrailerLookup>();
-    private readonly IYouTubeTrailers _youTube = Substitute.For<IYouTubeTrailers>();
+    private readonly IOnlineTrailers _online = Substitute.For<IOnlineTrailers>();
     private readonly FakeTimeProvider _time = new(TestData.Now);
     private readonly User _user = TestData.User();
     private InternalItemsQuery? _query;
@@ -91,63 +92,79 @@ public class HeroServiceTests
     }
 
     [Fact]
-    public async Task YouTubeTrailers_Off_AreNotLookedUp()
+    public async Task OnlineTrailers_Off_AreNotLookedUp()
     {
         var movie = TestData.Movie("m").WithImages(ImageType.Backdrop);
         _library.GetItemList(Arg.Any<InternalItemsQuery>()).Returns(new BaseItem[] { movie });
-        _youTube.GetAsync(default!, default!, default).ReturnsForAnyArgs("dQw4w9WgXcQ");
+        _online.GetAsync(default(BaseItem)!, default!, default).ReturnsForAnyArgs(new OnlineTrailer(ImdbUrl, null));
 
         var off = await Create().GetHeroAsync(TestData.Context(_user), new PluginConfiguration(), CancellationToken.None);
         var noPreviews = await Create().GetHeroAsync(TestData.Context(_user), new PluginConfiguration { YouTubeTrailers = true, TrailerPreview = false }, CancellationToken.None);
 
-        Assert.Null(Assert.Single(off).TrailerYouTubeId);
-        Assert.Null(Assert.Single(noPreviews).TrailerYouTubeId);
-        Assert.Empty(_youTube.ReceivedCalls());
+        Assert.Equal(new HeroItem(movie, null), Assert.Single(off));
+        Assert.Equal(new HeroItem(movie, null), Assert.Single(noPreviews));
+        Assert.Empty(_online.ReceivedCalls());
     }
 
     [Fact]
-    public async Task YouTubeTrailers_On_FillInForSlidesWithoutALocalTrailer_WhichAlwaysWins()
+    public async Task OnlineTrailers_On_FillInForSlidesWithoutALocalTrailer_WhichAlwaysWins()
     {
         var local = TestData.Movie("local").WithImages(ImageType.Backdrop);
-        var remote = TestData.Movie("remote").WithImages(ImageType.Backdrop);
+        var imdb = TestData.Movie("imdb").WithImages(ImageType.Backdrop);
+        var youTube = TestData.Movie("youtube").WithImages(ImageType.Backdrop);
         var none = TestData.Movie("none").WithImages(ImageType.Backdrop);
         var trailerId = Guid.NewGuid();
-        _library.GetItemList(Arg.Any<InternalItemsQuery>()).Returns(new BaseItem[] { local, remote, none });
+        _library.GetItemList(Arg.Any<InternalItemsQuery>()).Returns(new BaseItem[] { local, imdb, youTube, none });
         _trailers.GetLocalTrailerId(local, _user).Returns(trailerId);
-        _youTube.GetAsync(local, _user, Arg.Any<CancellationToken>()).Returns("localHasOne");
-        _youTube.GetAsync(remote, _user, Arg.Any<CancellationToken>()).Returns("dQw4w9WgXcQ");
-        _youTube.GetAsync(none, _user, Arg.Any<CancellationToken>()).Returns((string?)null);
+        _online.GetAsync(local, _user, Arg.Any<CancellationToken>()).Returns(new OnlineTrailer(ImdbUrl, null));
+        _online.GetAsync(imdb, _user, Arg.Any<CancellationToken>()).Returns(new OnlineTrailer(ImdbUrl, null));
+        _online.GetAsync(youTube, _user, Arg.Any<CancellationToken>()).Returns(new OnlineTrailer(null, "dQw4w9WgXcQ"));
+        _online.GetAsync(none, _user, Arg.Any<CancellationToken>()).Returns(OnlineTrailer.None);
 
         var hero = await Create().GetHeroAsync(TestData.Context(_user), new PluginConfiguration { YouTubeTrailers = true }, CancellationToken.None);
 
-        Assert.Equal([new HeroItem(local, trailerId), new HeroItem(remote, null, "dQw4w9WgXcQ"), new HeroItem(none, null)], hero);
-        await _youTube.DidNotReceive().GetAsync(local, Arg.Any<User>(), Arg.Any<CancellationToken>());
+        Assert.Equal(
+            [new HeroItem(local, trailerId), new HeroItem(imdb, null, null, ImdbUrl), new HeroItem(youTube, null, "dQw4w9WgXcQ"), new HeroItem(none, null)],
+            hero);
+        await _online.DidNotReceive().GetAsync(local, Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task YouTubeLookup_ThatFailsOrOutlastsItsBudget_CostsOnlyThatSlideItsTrailer()
+    public async Task ASlide_GetsIMDbsTrailer_NotBoth()
+    {
+        var movie = TestData.Movie("m").WithImages(ImageType.Backdrop);
+        _library.GetItemList(Arg.Any<InternalItemsQuery>()).Returns(new BaseItem[] { movie });
+        _online.GetAsync(movie, _user, Arg.Any<CancellationToken>()).Returns(new OnlineTrailer(ImdbUrl, "dQw4w9WgXcQ"));
+
+        var hero = await Create().GetHeroAsync(TestData.Context(_user), new PluginConfiguration { YouTubeTrailers = true }, CancellationToken.None);
+
+        Assert.Equal(new HeroItem(movie, null, null, ImdbUrl), Assert.Single(hero));
+    }
+
+    [Fact]
+    public async Task OnlineLookup_ThatFailsOrOutlastsItsBudget_CostsOnlyThatSlideItsTrailer()
     {
         var slow = TestData.Movie("slow").WithImages(ImageType.Backdrop);
         var broken = TestData.Movie("broken").WithImages(ImageType.Backdrop);
         var quick = TestData.Movie("quick").WithImages(ImageType.Backdrop);
-        var pending = new TaskCompletionSource<string?>();
+        var pending = new TaskCompletionSource<OnlineTrailer>();
         _library.GetItemList(Arg.Any<InternalItemsQuery>()).Returns(new BaseItem[] { slow, broken, quick });
-        _youTube.GetAsync(slow, _user, Arg.Any<CancellationToken>()).Returns(pending.Task);
-        _youTube.GetAsync(broken, _user, Arg.Any<CancellationToken>()).ThrowsAsync(new InvalidOperationException("boom"));
-        _youTube.GetAsync(quick, _user, Arg.Any<CancellationToken>()).Returns("dQw4w9WgXcQ");
+        _online.GetAsync(slow, _user, Arg.Any<CancellationToken>()).Returns(pending.Task);
+        _online.GetAsync(broken, _user, Arg.Any<CancellationToken>()).ThrowsAsync(new InvalidOperationException("boom"));
+        _online.GetAsync(quick, _user, Arg.Any<CancellationToken>()).Returns(new OnlineTrailer(ImdbUrl, null));
         using var cancelled = new CancellationTokenSource();
 
         var build = Create().GetHeroAsync(TestData.Context(_user), new PluginConfiguration { YouTubeTrailers = true }, cancelled.Token);
         Assert.False(build.IsCompleted);
-        _time.Advance(HeroService.YouTubeBudget);
+        _time.Advance(HeroService.OnlineBudget);
         var hero = await build;
 
-        Assert.Equal([new HeroItem(slow, null), new HeroItem(broken, null), new HeroItem(quick, null, "dQw4w9WgXcQ")], hero);
+        Assert.Equal([new HeroItem(slow, null), new HeroItem(broken, null), new HeroItem(quick, null, null, ImdbUrl)], hero);
 
         // The slow lookup wasn't tied to this build: it runs on and fills the cache for the next one.
-        await _youTube.Received(1).GetAsync(slow, _user, CancellationToken.None);
-        pending.SetResult("lateTrailer");
+        await _online.Received(1).GetAsync(slow, _user, CancellationToken.None);
+        pending.SetResult(new OnlineTrailer(null, "lateTrailer"));
     }
 
-    private HeroService Create() => new(_library, _reader, _trailers, _youTube, _time);
+    private HeroService Create() => new(_library, _reader, _trailers, _online, _time);
 }

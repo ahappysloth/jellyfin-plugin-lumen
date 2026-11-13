@@ -32,4 +32,16 @@ public class YouTubeEmbedTests
     [InlineData("https://stub.example/?x=1")]
     [InlineData("https://stub.example/#x")]
     public void Normalize_IgnoresAnythingElse(string? value) => Assert.Null(YouTubeEmbed.Normalize(value));
+
+    [Theory]
+    [InlineData("http://host.docker.internal:5221/imdb/graphql", "http://host.docker.internal:5221/imdb/graphql")]
+    [InlineData("https://api.example/", "https://api.example/")]
+    public void TestAddress_Url_MayHaveAPath(string value, string expected) => Assert.Equal(new Uri(expected), TestAddress.Url(value));
+
+    [Theory]
+    [InlineData("http://example.com/imdb")]
+    [InlineData("https://api.example/?x=1")]
+    [InlineData("https://user@api.example/")]
+    [InlineData("file:///etc/passwd")]
+    public void TestAddress_Url_KeepsTheSameRules(string value) => Assert.Null(TestAddress.Url(value));
 }

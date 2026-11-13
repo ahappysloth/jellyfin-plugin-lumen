@@ -76,7 +76,8 @@ wait_healthy() {
 # (Re)starts the Jellyfin container. TMDB_BASE and TRAKT_BASE (end-to-end tests only) point the image proxy and the Top
 # 10 rows' Trakt client at the stub Seerr, and PUSH_BASE lets push subscriptions name its stand-in push service; with
 # it the push job's pass is an hour apart and a failed send is tried again after 2 s (docs/development.md).
-# YOUTUBE_BASE points the browser at the stub's stand-in for YouTube's player.
+# YOUTUBE_BASE points the browser at the stub's stand-in for YouTube's player. IMDB_API and IMDB_VIDEO point IMDb trailer
+# lookups at the stub's stand-in for IMDb's API, and tell the server where the browser finds its stand-in videos.
 start_server() {
   local ip url
   ip="$(lan_ip)"
@@ -92,6 +93,7 @@ start_server() {
     ${TRAKT_BASE:+-e LUMEN_TRAKT_API_BASE="$TRAKT_BASE"} \
     ${PUSH_BASE:+-e LUMEN_PUSH_TEST_ENDPOINT="$PUSH_BASE" -e LUMEN_PUSH_TEST_PASS_SECONDS=3600 -e LUMEN_PUSH_TEST_RETRY_SECONDS=2} \
     ${YOUTUBE_BASE:+-e LUMEN_YOUTUBE_EMBED_BASE="$YOUTUBE_BASE"} \
+    ${IMDB_API:+-e LUMEN_IMDB_API_BASE="$IMDB_API"} ${IMDB_VIDEO:+-e LUMEN_IMDB_VIDEO_BASE="$IMDB_VIDEO"} \
     -v "$DATA/config:/config" -v "$DATA/cache:/cache" -v "$DATA/media:/media:ro" \
     "$JELLYFIN_IMAGE" >/dev/null
   wait_healthy
@@ -114,9 +116,11 @@ up() {
 }
 
 e2e() {
-  # The browser runs in the Playwright container below, beside the stub: the stub player is at its localhost.
+  # The browser runs in the Playwright container below, beside the stub: the stub player (and IMDb's stand-in videos)
+  # are at its localhost.
   TMDB_BASE=http://host.docker.internal:5055/t/p TRAKT_BASE=http://host.docker.internal:5055/trakt \
-    PUSH_BASE=http://host.docker.internal:5055/push/ YOUTUBE_BASE=http://localhost:5055 up
+    PUSH_BASE=http://host.docker.internal:5055/push/ YOUTUBE_BASE=http://localhost:5055 \
+    IMDB_API=http://host.docker.internal:5055/imdb/graphql IMDB_VIDEO=http://localhost:5055 up
   local pw
   pw="$(node -p "require('$ROOT/e2e/package-lock.json').packages['node_modules/@playwright/test'].version" 2>/dev/null \
     || sed -n '/"node_modules\/@playwright\/test"/,/}/s/.*"version": "\(.*\)".*/\1/p' "$ROOT/e2e/package-lock.json")"
@@ -126,6 +130,7 @@ e2e() {
   local rc=0
   run --ipc=host --add-host=host.docker.internal:host-gateway -p 5055:5055 \
     -v "$ROOT/e2e:/src:ro" -v "$ROOT/client/src/compat:/client-compat:ro" -v "$ROOT/e2e/test-results:/out/test-results" -v "$ROOT/e2e/playwright-report:/out/playwright-report" \
+    -v "$DATA/media/imdb:/imdb-media:ro" -e LUMEN_STUB_IMDB_MEDIA=/imdb-media \
     -e LUMEN_E2E_BASE_URL=http://host.docker.internal:8096 -e LUMEN_E2E_MEDIA_PATH=/media \
     -e LUMEN_E2E_SEERR_URL=http://host.docker.internal:5055 \
     "mcr.microsoft.com/playwright:v$pw-noble" bash -c '
@@ -135,8 +140,8 @@ e2e() {
       cd /tmp/w && npm ci --no-audit --no-fund --loglevel=error && npx playwright test "$@"; rc=$?
       cp -r test-results/. /out/test-results/ 2>/dev/null; cp -r playwright-report/. /out/playwright-report/ 2>/dev/null
       exit $rc' bash "$@" || rc=$?
-  # Back to real TMDB artwork (and Trakt, YouTube, and real push services only) for normal use.
-  TMDB_BASE='' TRAKT_BASE='' PUSH_BASE='' YOUTUBE_BASE='' start_server
+  # Back to real TMDB artwork (and Trakt, YouTube, IMDb, and real push services only) for normal use.
+  TMDB_BASE='' TRAKT_BASE='' PUSH_BASE='' YOUTUBE_BASE='' IMDB_API='' IMDB_VIDEO='' start_server
   return $rc
 }
 

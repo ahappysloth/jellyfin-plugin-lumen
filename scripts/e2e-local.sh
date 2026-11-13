@@ -3,12 +3,14 @@
 # Extra arguments go to `playwright test`, e.g. `./scripts/e2e-local.sh specs/home.spec.ts --headed`.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-[[ -d "$ROOT/e2e/fixtures/media/movies" ]] || "$ROOT/scripts/gen-test-media.sh"
-# The tests' stub Seerr (started by Playwright on :5055) also stands in for TMDB's image CDN, Trakt's API and YouTube's
-# embedded player.
+# Made again when it predates the IMDb stand-ins (imdb/).
+[[ -d "$ROOT/e2e/fixtures/media/imdb" ]] || "$ROOT/scripts/gen-test-media.sh"
+# The tests' stub Seerr (started by Playwright on :5055) also stands in for TMDB's image CDN, Trakt's API, YouTube's
+# embedded player and IMDb's API and video CDN.
 LUMEN_TMDB_IMAGE_BASE=http://localhost:5055/t/p LUMEN_TRAKT_API_BASE=http://localhost:5055/trakt \
   LUMEN_PUSH_TEST_ENDPOINT=http://localhost:5055/push/ LUMEN_PUSH_TEST_PASS_SECONDS=3600 LUMEN_PUSH_TEST_RETRY_SECONDS=2 \
-  LUMEN_YOUTUBE_EMBED_BASE=http://localhost:5055 "$ROOT/scripts/dev.sh"
+  LUMEN_YOUTUBE_EMBED_BASE=http://localhost:5055 LUMEN_IMDB_API_BASE=http://localhost:5055/imdb/graphql \
+  LUMEN_IMDB_VIDEO_BASE=http://localhost:5055 "$ROOT/scripts/dev.sh"
 cd "$ROOT/e2e"
 [[ -d node_modules ]] || npm ci --no-audit --no-fund
 npx playwright install chromium

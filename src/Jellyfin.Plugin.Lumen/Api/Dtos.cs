@@ -30,7 +30,10 @@ public sealed class ClientConfigDto
 
     public bool HeroWaitForTrailer { get; init; }
 
-    /// <summary>Titles without a local trailer preview their trailer from YouTube (only with <see cref="TrailerPreview"/>).</summary>
+    /// <summary>
+    /// Titles without a local trailer preview their trailer online, from IMDb or else YouTube (only with
+    /// <see cref="TrailerPreview"/>). Named for the setting's first form, which was YouTube's alone.
+    /// </summary>
     public bool YouTubeTrailers { get; init; }
 
     /// <summary>Where to load YouTube's player from instead of YouTube (<see cref="YouTubeEmbed"/>); null everywhere but in tests.</summary>
@@ -84,13 +87,24 @@ public sealed class CompatReportDto
 }
 
 /// <summary>
-/// One hero slide. <c>TrailerYouTubeId</c> is a checked YouTube video id (<see cref="YouTubeId"/>), never a URL, and only
-/// set for a slide without a local trailer.
+/// One hero slide. Without a local trailer, at most one of: <c>TrailerImdbUrl</c>, an MP4 on IMDb's video CDN (checked by
+/// <see cref="ImdbTrailers"/>, never another address), or <c>TrailerYouTubeId</c>, a checked YouTube video id
+/// (<see cref="YouTubeId"/>), never a URL.
 /// </summary>
-public sealed record HeroItemDto(BaseItemDto Item, Guid? TrailerItemId, string? TrailerYouTubeId = null);
+public sealed record HeroItemDto(BaseItemDto Item, Guid? TrailerItemId, string? TrailerYouTubeId = null, string? TrailerImdbUrl = null);
 
-/// <summary>Response of GET /Lumen/Items/{itemId}/YouTubeTrailer: the trailer's YouTube video id, or null.</summary>
-public sealed record YouTubeTrailerDto(string? YouTubeId);
+/// <summary>
+/// Response of GET /Lumen/Items/{itemId}/Trailer and GET /Lumen/Requests/Title/{mediaType}/{tmdbId}/Trailer: the title's
+/// trailer online (<see cref="OnlineTrailer"/>), both null when there's none to play.
+/// </summary>
+public sealed record OnlineTrailerDto(string? ImdbUrl, string? YouTubeId)
+{
+    public static OnlineTrailerDto From(OnlineTrailer trailer)
+    {
+        ArgumentNullException.ThrowIfNull(trailer);
+        return new(trailer.ImdbUrl, trailer.ImdbUrl is null ? trailer.YouTubeId : null);
+    }
+}
 
 /// <summary>
 /// One home row. Catalog rows (discover lists, My Requests) have an empty <c>Items</c> and set <c>Entries</c>, one ordered

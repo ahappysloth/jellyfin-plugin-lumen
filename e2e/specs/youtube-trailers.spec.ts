@@ -35,7 +35,7 @@ async function configure(youTubeTrailers: boolean): Promise<void> {
     body: { ...saved, YouTubeTrailers: youTubeTrailers, HeroCount: 10, RequestsEnabled: true, SeerrUrl: SEERR_URL, SeerrApiKey: 'stub-key' },
   });
   // The hero gives Seerr a moment per build and takes what's known by then; asked here first, the answer is there.
-  if (youTubeTrailers) await api(`/Lumen/Items/${items[SHOW]}/YouTubeTrailer`, { token: admin.token });
+  if (youTubeTrailers) await api(`/Lumen/Items/${items[SHOW]}/Trailer`, { token: admin.token });
 }
 
 test.beforeAll(async () => {

@@ -239,20 +239,24 @@ describe('AdminApp', () => {
     expect(vi.mocked(api.saveConfig).mock.calls[0]![0].HeroWaitForTrailer).toBe(true);
   });
 
-  it('saves using YouTube trailers: off unless turned on, under trailer previews, saying what the browser loads', async () => {
+  it('saves using online trailers: off unless turned on, under trailer previews, saying what the browser loads', async () => {
     const api = fakeApi();
     render(<AdminApp api={api} />);
 
     const toggle = await screen.findByRole('switch', {
-      name: /Use YouTube trailers when there's no local one/,
+      name: /Use online trailers when there's no local one \(IMDb, then YouTube\)/,
     });
     expect(toggle).not.toBeChecked(); // a server from before the setting doesn't say: off
-    expect(screen.getByText(/loads the trailer from YouTube \(youtube-nocookie\.com\)/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /loads the trailer from IMDb's video servers \(imdb-video\.media-imdb\.com\), or else YouTube's/,
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(toggle);
     fireEvent.click(screen.getByRole('switch', { name: /Play muted trailer previews/ }));
-    expect(screen.queryByRole('switch', { name: /Use YouTube trailers/ })).toBeNull();
+    expect(screen.queryByRole('switch', { name: /Use online trailers/ })).toBeNull();
     fireEvent.click(screen.getByRole('switch', { name: /Play muted trailer previews/ }));
-    expect(screen.getByRole('switch', { name: /Use YouTube trailers/ })).toBeChecked();
+    expect(screen.getByRole('switch', { name: /Use online trailers/ })).toBeChecked();
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(api.saveConfig).toHaveBeenCalledTimes(1));

@@ -25,6 +25,7 @@ public sealed class RequestsControllerTests : IDisposable
     private readonly ILibraryManager _library = Substitute.For<ILibraryManager>();
     private readonly IRequestProgressService _progress = Substitute.For<IRequestProgressService>();
     private readonly IReadyAnnouncements _announcements = Substitute.For<IReadyAnnouncements>();
+    private readonly IOnlineTrailers _trailers = Substitute.For<IOnlineTrailers>();
     private readonly HomeCache _home = new(Substitute.For<IUserDataManager>(), Substitute.For<ILibraryManager>(), TimeProvider.System);
     private readonly Jellyfin.Database.Implementations.Entities.User _jellyfinUser = TestData.User();
     private readonly Guid _user;
@@ -290,6 +291,53 @@ public sealed class RequestsControllerTests : IDisposable
     }
 
     [Theory]
+    [InlineData("person", 1)]
+    [InlineData("movie", 0)]
+    public async Task TitleTrailer_RejectsInvalidInput(string mediaType, int tmdbId)
+    {
+        GrantAccess();
+
+        AssertError<BadRequestObjectResult>((await Create().GetTitleTrailer(mediaType, tmdbId, CancellationToken.None)).Result);
+        Assert.Empty(_trailers.ReceivedCalls());
+    }
+
+    [Fact]
+    public async Task TitleTrailer_IsHiddenWithoutCatalogAccess()
+    {
+        _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(RequestAccess.None);
+
+        Assert.IsType<NotFoundResult>((await Create().GetTitleTrailer("movie", 603, CancellationToken.None)).Result);
+        Assert.Empty(_trailers.ReceivedCalls());
+    }
+
+    [Fact]
+    public async Task TitleTrailer_LooksUpTheTitleFromSeerrsSharedCache_AsTheUser()
+    {
+        GrantAccess();
+        var title = new SeerrTitle { Id = 1399, ImdbId = null, ExternalIds = new SeerrExternalIds { ImdbId = "tt0944947" } };
+        _seerr.GetTitleSummaryAsync(Arg.Any<SeerrEndpoint>(), 9, "tv", 1399, Arg.Any<CancellationToken>()).Returns(title);
+        _trailers.GetAsync(title, Arg.Any<CancellationToken>()).Returns(new OnlineTrailer("https://imdb-video.media-imdb.com/a.mp4", "dQw4w9WgXcQ"));
+
+        var trailer = (await Create().GetTitleTrailer("tv", 1399, CancellationToken.None)).Value;
+
+        // IMDb's wins: the client never gets both.
+        Assert.Equal(new OnlineTrailerDto("https://imdb-video.media-imdb.com/a.mp4", null), trailer);
+        await _seerr.DidNotReceiveWithAnyArgs().GetTvAsync(default!, default, default, default);
+    }
+
+    [Fact]
+    public async Task TitleTrailer_SeerrNotFound_Is404_OtherFailures502()
+    {
+        GrantAccess();
+        _seerr.GetTitleSummaryAsync(Arg.Any<SeerrEndpoint>(), 9, "movie", 1, Arg.Any<CancellationToken>()).Returns<SeerrTitle>(_ => throw new SeerrException("nf", HttpStatusCode.NotFound));
+        _seerr.GetTitleSummaryAsync(Arg.Any<SeerrEndpoint>(), 9, "movie", 2, Arg.Any<CancellationToken>()).Returns<SeerrTitle>(_ => throw new SeerrException("down", HttpStatusCode.ServiceUnavailable));
+
+        AssertError<NotFoundObjectResult>((await Create().GetTitleTrailer("movie", 1, CancellationToken.None)).Result);
+        var failed = Assert.IsType<ObjectResult>((await Create().GetTitleTrailer("movie", 2, CancellationToken.None)).Result);
+        Assert.Equal(StatusCodes.Status502BadGateway, failed.StatusCode);
+    }
+
+    [Theory]
     [InlineData("person", 1, null)]
     [InlineData(null, 1, null)]
     [InlineData("movie", 0, null)]
@@ -520,7 +568,7 @@ public sealed class RequestsControllerTests : IDisposable
     private void GrantAccess() =>
         _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, true, true, 9, Endpoint));
 
-    private RequestsController Create(bool signedIn = true) => new(_users, _images, _seerr, _home, _userManager, new CatalogMapper(_library), _progress, _announcements, NullLogger<RequestsController>.Instance)
+    private RequestsController Create(bool signedIn = true) => new(_users, _images, _seerr, _home, _userManager, new CatalogMapper(_library), _progress, _announcements, _trailers, NullLogger<RequestsController>.Instance)
     {
         ControllerContext = new ControllerContext
         {

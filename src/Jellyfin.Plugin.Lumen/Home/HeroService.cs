@@ -10,30 +10,31 @@ namespace Jellyfin.Plugin.Lumen.Home;
 
 /// <summary>
 /// Picks hero items from the configured source; items need a backdrop, and those with a logo come first. Each slide gets
-/// its local trailer, or failing that (with "Use YouTube trailers" on) its trailer's YouTube id.
+/// its local trailer, or failing that (with "Use online trailers" on) its trailer on IMDb, else its trailer's YouTube id.
 /// </summary>
 public sealed class HeroService : IHeroService
 {
     /// <summary>
-    /// How long the slides' YouTube lookups may take together: well inside the home's own limit for the hero
-    /// (<see cref="HomeService.ProviderTimeout"/>), which would otherwise drop every slide for a slow Seerr. A lookup still
-    /// running by then goes on by itself and is cached, so the slide has its trailer on the next build (a minute later).
+    /// How long the slides' online trailer lookups (IMDb, then YouTube) may take together: well inside the home's own
+    /// limit for the hero (<see cref="HomeService.ProviderTimeout"/>), which would otherwise drop every slide for a slow
+    /// IMDb or Seerr. A lookup still running by then goes on by itself and is cached, so the slide has its trailer on the
+    /// next build (a minute later).
     /// </summary>
-    public static readonly TimeSpan YouTubeBudget = TimeSpan.FromSeconds(1.5);
+    public static readonly TimeSpan OnlineBudget = TimeSpan.FromSeconds(1.5);
 
     private const int CandidateMultiplier = 4;
     private readonly ILibraryManager _libraryManager;
     private readonly ILinkedItemsReader _reader;
     private readonly ITrailerLookup _trailers;
-    private readonly IYouTubeTrailers _youTube;
+    private readonly IOnlineTrailers _online;
     private readonly TimeProvider _time;
 
-    public HeroService(ILibraryManager libraryManager, ILinkedItemsReader reader, ITrailerLookup trailers, IYouTubeTrailers youTube, TimeProvider time)
+    public HeroService(ILibraryManager libraryManager, ILinkedItemsReader reader, ITrailerLookup trailers, IOnlineTrailers online, TimeProvider time)
     {
         _libraryManager = libraryManager;
         _reader = reader;
         _trailers = trailers;
-        _youTube = youTube;
+        _online = online;
         _time = time;
     }
 
@@ -55,18 +56,20 @@ public sealed class HeroService : IHeroService
             return hero;
         }
 
-        // A local trailer always wins. The lookups aren't cancelled with this build: see YouTubeBudget.
-        var lookups = hero.Select(h => h.TrailerItemId is null ? LookUpAsync(h.Item, context.User) : Task.FromResult<string?>(null)).ToList();
+        // A local trailer always wins. The lookups aren't cancelled with this build: see OnlineBudget.
+        var lookups = hero.Select(h => h.TrailerItemId is null ? LookUpAsync(h.Item, context.User) : Task.FromResult(OnlineTrailer.None)).ToList();
         try
         {
-            await Task.WhenAll(lookups).WaitAsync(YouTubeBudget, _time, cancellationToken).ConfigureAwait(false);
+            await Task.WhenAll(lookups).WaitAsync(OnlineBudget, _time, cancellationToken).ConfigureAwait(false);
         }
         catch (TimeoutException)
         {
             // Whatever is known by now.
         }
 
-        return hero.Select((h, i) => lookups[i].IsCompletedSuccessfully && lookups[i].Result is { Length: > 0 } id ? h with { TrailerYouTubeId = id } : h).ToList();
+        return hero.Select((h, i) => lookups[i].IsCompletedSuccessfully && lookups[i].Result is { } online
+            ? h with { TrailerImdbUrl = online.ImdbUrl, TrailerYouTubeId = online.ImdbUrl is null ? online.YouTubeId : null }
+            : h).ToList();
     }
 
     internal static IReadOnlyList<BaseItem> Rank(IEnumerable<BaseItem> candidates, int count)
@@ -79,15 +82,15 @@ public sealed class HeroService : IHeroService
     }
 
     /// <summary>One slide's lookup; a failure (there shouldn't be one) costs that slide its trailer, not the hero.</summary>
-    private async Task<string?> LookUpAsync(BaseItem item, User user)
+    private async Task<OnlineTrailer> LookUpAsync(BaseItem item, User user)
     {
         try
         {
-            return await _youTube.GetAsync(item, user, CancellationToken.None).ConfigureAwait(false);
+            return await _online.GetAsync(item, user, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
-            return null;
+            return OnlineTrailer.None;
         }
     }
 
