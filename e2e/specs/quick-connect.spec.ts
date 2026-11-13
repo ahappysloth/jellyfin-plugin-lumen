@@ -422,7 +422,6 @@ test.describe('the sign-in screen', () => {
 
     await expect(signInScreen(page).getByRole('status')).toHaveText('Approved. Signing in…');
     await expect(signInScreen(page).getByRole('button', { name: 'Cancel' })).toHaveCount(0);
-    await expect(signInScreen(page)).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(signInScreen(page)).toBeVisible();
 

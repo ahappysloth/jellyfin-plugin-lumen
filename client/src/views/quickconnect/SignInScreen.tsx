@@ -98,8 +98,7 @@ function SignInScreen({ deps, onClose }: { deps: SignInDeps; onClose: (refocus?:
 
   // The first button has focus whenever the buttons change (Cancel, or Get a new code once codes ran out).
   useLayoutEffect(() => {
-    // While signing in there are none: the panel holds focus, so it doesn't fall to the sign-in form behind.
-    (panel.current?.querySelector<HTMLElement>('button') || panel.current)?.focus({ preventScroll: true });
+    panel.current?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
   }, [state.kind]);
 
   // Every arrow and Tab stay among the screen's buttons: jellyfin-web's remote navigation would move focus to the
@@ -126,7 +125,6 @@ function SignInScreen({ deps, onClose }: { deps: SignInDeps; onClose: (refocus?:
         ref={panel}
         class="focuscontainer"
         role="dialog"
-        tabIndex={-1}
         aria-modal="true"
         aria-labelledby="lmn-qc-title"
         onKeyDown={onKeyDown}
