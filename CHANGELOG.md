@@ -2,6 +2,12 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.5.2] - 2026-11-13
+
+### Fixed
+- Swiping the home banner on an iPhone no longer flickers: the leaving slide went black and the arriving one lost its
+  shading and text for a moment. The slide now glides frame by frame, as it does under your finger.
+
 ## [0.5.1] - 2026-11-13
 
 ### Added

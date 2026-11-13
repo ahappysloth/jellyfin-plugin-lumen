@@ -91,21 +91,33 @@ public sealed class HomeServiceTests : IDisposable
             },
         };
 
+        // Only the slow row can time out: on a busy machine a real 200 ms could run out on the good one too.
+        var good = Returning("Good", TestData.Movie("g"));
+        good.TimeoutOverride = TimeSpan.FromDays(1);
         var service = new HomeService(
-            [slow, Returning("Good", TestData.Movie("g"))],
+            [slow, good],
             _store,
             _hero,
             _history,
             new FakeMapper(),
             _badges,
             _cache,
-            TimeProvider.System,
+            _time,
             NullLogger<HomeService>.Instance)
         {
-            Timeout = TimeSpan.FromMilliseconds(200),
+            Timeout = TimeSpan.FromSeconds(3),
         };
 
-        var home = await service.GetHomeAsync(_user, CancellationToken.None);
+        var building = service.GetHomeAsync(_user, CancellationToken.None);
+
+        // The clock is fake: move it on until the slow row's 3 s are up, whenever its timer started.
+        for (var i = 0; i < 2000 && !building.IsCompleted; i++)
+        {
+            _time.Advance(TimeSpan.FromSeconds(1));
+            await Task.Delay(5);
+        }
+
+        var home = await building;
 
         Assert.Equal(["Good"], home.Rows.Select(r => r.Type));
     }

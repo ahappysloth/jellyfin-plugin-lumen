@@ -58,8 +58,6 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
   const [dragX, setDragX] = useState(0);
   /** -1/1 while sliding to the previous/next slide; 0 at rest. */
   const [sliding, setSliding] = useState<-1 | 0 | 1>(0);
-  /** One frame with transitions off, while the track re-centres on the new slide after a slide. */
-  const [snap, setSnap] = useState(false);
   const drag = useRef<DragState | null>(null);
   const suppressClick = useRef(false);
   const slideTimer = useRef<number | undefined>(undefined);
@@ -111,13 +109,29 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
     ...(track.current?.querySelectorAll<HTMLElement>('.lmn-hero__slide.is-current button') ?? []),
   ];
 
+  /**
+   * Where the track is drawn: a share of its width (-100 is the next slide) plus pixels. Lumen draws it frame by frame,
+   * dragged or gliding, rather than leaving the glide to a CSS transition: iOS Safari hands a transition to its
+   * compositor, which then drops what's painted on the track (the leaving slide goes black, the arriving one loses its
+   * scrim and text) until it repaints a few frames later.
+   */
+  const at = useRef({ pct: 0, px: 0 });
+  const glide = useRef(0);
+  /** The next move is a jump, not a glide: the track re-centring on the slide that just arrived. */
+  const jump = useRef(false);
+  const place = (pct: number, px: number): void => {
+    at.current = { pct, px };
+    if (track.current) track.current.style.transform = `translateX(calc(${pct}% + ${px}px))`;
+  };
+
   const settle = (delta: -1 | 1): void => {
     clearTimeout(slideTimer.current);
+    cancelAnimationFrame(glide.current);
+    jump.current = true;
     // The leaving slide's buttons are disabled once it's off screen; focus on one would drop to the page (stranding a
     // TV remote), so it moves to the same button on the new slide.
     const focused = currentButtons().indexOf(document.activeElement as HTMLElement);
     followFocus.current = focused >= 0 ? focused : null;
-    setSnap(true);
     setSliding(0);
     setDragX(0);
     setIndex((i) => mod(i + delta, count));
@@ -128,20 +142,42 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
     followFocus.current = null;
     currentButtons()[button]?.focus({ preventScroll: true });
   }, [index]);
-  useEffect(() => {
-    if (!snap) return;
-    const frame = requestAnimationFrame(() => setSnap(false));
-    return () => cancelAnimationFrame(frame);
-  }, [snap]);
   const go = (delta: -1 | 1): void => {
     if (count < 2) return;
     if (reducedMotion) return settle(delta);
     setSliding(delta);
-    // transitionend can be missed (hidden tab, interrupted transition): settle on a timer as well.
+    // A background tab draws no frames, so the glide never ends there: settle on a timer as well.
     clearTimeout(slideTimer.current);
     slideTimer.current = window.setTimeout(() => settle(delta), SLIDE_MS + 80);
   };
-  useEffect(() => () => clearTimeout(slideTimer.current), []);
+  useEffect(
+    () => () => {
+      clearTimeout(slideTimer.current);
+      cancelAnimationFrame(glide.current);
+    },
+    [],
+  );
+  // Dragging, the track follows the pointer; let go, it glides to the neighbour (then settles) or springs back.
+  useLayoutEffect(() => {
+    cancelAnimationFrame(glide.current);
+    const pct = -sliding * 100;
+    const px = sliding !== 0 ? 0 : dragX;
+    const from = at.current;
+    if (jump.current || dragging || reducedMotion || (from.pct === pct && from.px === px)) {
+      jump.current = false;
+      place(pct, px);
+      return;
+    }
+    const start = performance.now();
+    const step = (now: number): void => {
+      const t = Math.min(1, Math.max(0, (now - start) / SLIDE_MS));
+      const eased = 1 - (1 - t) ** 5; // ease-out quint, the curve the CSS transition had
+      place(from.pct + (pct - from.pct) * eased, from.px + (px - from.px) * eased);
+      if (t < 1) glide.current = requestAnimationFrame(step);
+      else if (sliding !== 0) settle(sliding);
+    };
+    glide.current = requestAnimationFrame(step);
+  }, [sliding, dragX, dragging]);
 
   // A fresh interval per slide, so a manual swipe or dot click gets all of it before the next auto-advance. A pause
   // keeps what has run (as the pager's fill does) and resuming waits only for the rest, so the fill and the change of
@@ -310,10 +346,6 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
 
   // Previous, current, next. With two items the neighbours are the same item: key them apart.
   const slides = count < 2 ? [0] : [-1, 0, 1];
-  const offset = sliding !== 0 ? `${-sliding * 100}%` : '0%';
-  const trackStyle = {
-    transform: `translateX(calc(${offset} + ${sliding !== 0 ? 0 : dragX}px))`,
-  };
 
   // Pause sits right of the pager, as a slideshow's controls usually do, and comes after it in Tab order too. On a TV it
   // comes first: there Left and Right on the pager change the slide, so Pause after it could only be reached through
@@ -362,14 +394,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
         if (!next || !e.currentTarget.contains(next)) setKeyboardInside(false);
       }}
     >
-      <div
-        ref={track}
-        class={`lmn-hero__track${!snap && (sliding !== 0 || !dragging) ? ' is-animated' : ''}`}
-        style={trackStyle}
-        onTransitionEnd={(e) => {
-          if (e.target === e.currentTarget && sliding !== 0) settle(sliding);
-        }}
-      >
+      <div ref={track} class="lmn-hero__track">
         {slides.map((rel) => {
           const i = mod(index + rel, count);
           const hero = items[i]!;
