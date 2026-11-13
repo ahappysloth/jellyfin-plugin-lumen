@@ -290,6 +290,8 @@ html[data-lmn-skin] .dialog.formDialog.align-items-center {
   bottom: auto !important;
   left: auto !important;
   display: block;
+  /* The 420px is the whole panel, padding and border included, whatever jellyfin-web's build sets box-sizing to. */
+  box-sizing: border-box;
   width: 100% !important;
   max-width: 420px;
   height: auto !important;

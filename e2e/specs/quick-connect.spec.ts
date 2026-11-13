@@ -405,6 +405,34 @@ test.describe('the sign-in screen', () => {
     await expect(page.locator('meta[name="lumen-quick-connect-address"]')).toHaveCount(0);
   });
 
+  test("once a code is approved, the screen can't be closed until the sign-in lands: it can't be taken back", async ({
+    page,
+  }) => {
+    const { admin, kid } = loadState();
+    const code = await openSignInScreen(page);
+    // The sign-in itself held back: jellyfin-web keeps the account as it returns, so closing meanwhile would leave the
+    // device signed in on a screen that said it was cancelled.
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await page.route(/\/Users\/AuthenticateWithQuickConnect\b/, async (route) => {
+      await held;
+      await route.continue();
+    });
+    await api('/QuickConnect/Authorize', { method: 'POST', token: admin.token, query: { code, userId: kid.userId } });
+
+    await expect(signInScreen(page).getByRole('status')).toHaveText('Approved. Signing in…');
+    await expect(signInScreen(page).getByRole('button', { name: 'Cancel' })).toHaveCount(0);
+    await expect(signInScreen(page)).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(signInScreen(page)).toBeVisible();
+
+    release();
+    await page.waitForURL(/#\/home/);
+    await expect(signInScreen(page)).toHaveCount(0);
+    expect(await page.evaluate(() => (window as unknown as { ApiClient: { getCurrentUserId(): string } }).ApiClient.getCurrentUserId()))
+      .toBe(kid.userId);
+  });
+
   /** Holds back the screen's file (a slow connection) until the returned function lets it through. */
   async function holdScreenFile(page: Page): Promise<{ requested: Promise<unknown>; release: () => void }> {
     let release: () => void = () => undefined;

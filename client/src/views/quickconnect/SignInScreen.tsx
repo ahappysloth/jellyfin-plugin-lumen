@@ -53,6 +53,10 @@ export function openSignInScreen(deps: SignInDeps): () => void {
 function SignInScreen({ deps, onClose }: { deps: SignInDeps; onClose: (refocus?: boolean) => void }) {
   const [state, setState] = useState<SignInState>({ kind: 'starting' });
   const panel = useRef<HTMLDivElement>(null);
+  // Once a code is approved the sign-in can't be taken back (jellyfin-web keeps the account as the request returns), so
+  // from then on the screen can't be closed: Cancel goes, and Back or Escape do nothing until it lands.
+  const signingIn = useRef(false);
+  signingIn.current = state.kind === 'signingIn';
   const flow = useMemo(
     () =>
       createSignInFlow({
@@ -81,7 +85,7 @@ function SignInScreen({ deps, onClose }: { deps: SignInDeps; onClose: (refocus?:
       if (!isBackKey(e)) return;
       e.preventDefault();
       e.stopPropagation();
-      onClose();
+      if (!signingIn.current) onClose();
     };
     document.addEventListener('keydown', onKey, true);
     const stopNavigation = onNavigate(() => onClose(false));
@@ -94,7 +98,8 @@ function SignInScreen({ deps, onClose }: { deps: SignInDeps; onClose: (refocus?:
 
   // The first button has focus whenever the buttons change (Cancel, or Get a new code once codes ran out).
   useLayoutEffect(() => {
-    panel.current?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
+    // While signing in there are none: the panel holds focus, so it doesn't fall to the sign-in form behind.
+    (panel.current?.querySelector<HTMLElement>('button') || panel.current)?.focus({ preventScroll: true });
   }, [state.kind]);
 
   // Every arrow and Tab stay among the screen's buttons: jellyfin-web's remote navigation would move focus to the
@@ -105,7 +110,7 @@ function SignInScreen({ deps, onClose }: { deps: SignInDeps; onClose: (refocus?:
     e.stopPropagation();
     // One or two buttons: any of these keys moves to the other.
     const [first, second] = Array.from(panel.current!.querySelectorAll('button'));
-    (document.activeElement === first ? second || first : first)!.focus();
+    (document.activeElement === first ? second || first : first)?.focus();
   };
 
   const code = state.kind === 'code' ? state.code : null;
@@ -121,6 +126,7 @@ function SignInScreen({ deps, onClose }: { deps: SignInDeps; onClose: (refocus?:
         ref={panel}
         class="focuscontainer"
         role="dialog"
+        tabIndex={-1}
         aria-modal="true"
         aria-labelledby="lmn-qc-title"
         onKeyDown={onKeyDown}
@@ -145,9 +151,11 @@ function SignInScreen({ deps, onClose }: { deps: SignInDeps; onClose: (refocus?:
               {state.kind === 'expired' ? qcStrings.newCode : strings.retry}
             </button>
           )}
-          <button type="button" class="lmn-button" onClick={() => onClose()}>
-            {strings.cancel}
-          </button>
+          {!signingIn.current && (
+            <button type="button" class="lmn-button" onClick={() => onClose()}>
+              {strings.cancel}
+            </button>
+          )}
         </div>
         {qr && <QrImage code={qr} label={qcStrings.qrLabel} />}
       </div>

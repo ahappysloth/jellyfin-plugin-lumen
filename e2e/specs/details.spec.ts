@@ -271,6 +271,8 @@ async function expectLumenDeleteDialog(page: Page, isMobile: boolean): Promise<v
   await expect(dialog).toHaveCSS('border-top-left-radius', '20px');
   await expect(dialog).toHaveCSS('background-color', 'rgb(24, 24, 24)');
   // Floating, not jellyfin-web's full screen below 80em × 45em: clear of the window's edges, at most 420px wide.
+  // Measured once jellyfin-web's opening animation has finished: mid-way it's scaled up (Firefox measured 437px).
+  await dialog.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
   const box = (await dialog.boundingBox())!;
   const viewport = page.viewportSize()!;
   expect(box.width).toBeLessThanOrEqual(420);
