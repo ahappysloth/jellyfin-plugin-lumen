@@ -63,6 +63,13 @@ public sealed class WebPushClient : IWebPushClient
 
     public async Task<PushResult> SendAsync(PushSubscription subscription, ReadOnlyMemory<byte> payload, TimeSpan timeToLive, CancellationToken cancellationToken)
     {
+        // The message's fault, not the subscription's, which must stay: not delivered, and nothing more. (PushMessage
+        // clips what it's given, so its messages always fit.)
+        if (payload.Length > WebPushEncryption.MaxPlaintextLength)
+        {
+            return new PushResult(PushOutcome.Failed);
+        }
+
         byte[] body;
         try
         {

@@ -240,7 +240,7 @@ public sealed class RequestsController : ControllerBase
             _progress.Invalidate(caller.Endpoint!, caller.SeerrUserId);
             if (result.Id > 0)
             {
-                _announcements.Update(caller.UserId, caller.Endpoint!.BaseUrl.ToString(), [result.Id], [], []);
+                _announcements.Watch(caller.UserId, caller.Endpoint!.BaseUrl.ToString(), [result.Id]);
             }
 
             var state = result.MediaStatus is { } status ? CatalogMapper.MapStatus(status) : CatalogState.Requested;

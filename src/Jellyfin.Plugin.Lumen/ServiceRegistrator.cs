@@ -77,6 +77,8 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ISignedInDevices, SignedInDevices>();
         serviceCollection.AddSingleton<IPushSender, PushSender>();
         serviceCollection.AddSingleton<PushTestLimiter>();
+        serviceCollection.AddSingleton<PushSubscribeLimiter>();
+        serviceCollection.AddSingleton(ReadyPushTimings.FromEnvironment());
         serviceCollection.AddHostedService<ReadyPushJob>();
 
         // Trakt's key is a custom header too, so the same rule: no redirects (TraktClient reports one as an error).

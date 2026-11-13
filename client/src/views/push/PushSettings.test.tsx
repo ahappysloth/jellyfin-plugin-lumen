@@ -97,6 +97,23 @@ describe('PushToggle', () => {
     expect(screen.queryByRole('button', { name: 'Send a test notification' })).toBeNull();
   });
 
+  it('lets a device left subscribed turn off while its user has no request features, then goes away', async () => {
+    push = installPush({ permission: 'granted', endpoint: ENDPOINT });
+    const client = createPushClient({ available: false, endpoint: ENDPOINT });
+    const { container } = render(<PushToggle ctx={makeContext(client)} />);
+
+    const toggle = await screen.findByRole('switch', { name: LABEL });
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+
+    fireEvent.click(toggle);
+
+    // Off on the server and in the browser; with nothing left to turn on, the card isn't shown any more.
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+    expect(client.server.endpoint).toBeNull();
+    expect(push.subscription).toBeNull();
+    expect(push.requestPermission).not.toHaveBeenCalled();
+  });
+
   it("turns on by itself when the device's check on load subscribes again (the server's keys were reset)", async () => {
     // The browser still has its subscription and the permission; the server has forgotten the device.
     push = installPush({ permission: 'granted', endpoint: ENDPOINT });
@@ -166,14 +183,25 @@ describe('PushToggle', () => {
       if (!/Push\/Test$/.test(request.url)) return respond(request);
       // The push service said the subscription is gone, so the server removed it.
       client.server.endpoint = null;
-      return { Ok: false, Error: "This device's notifications have expired. Turn them off and on again." };
+      return {
+        Ok: false,
+        Error: "This device's notifications had expired and were turned off. Turn them on again.",
+      };
     };
     render(<PushToggle ctx={makeContext(client)} />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Send a test notification' }));
 
-    expect(await screen.findByText(/have expired/)).toBeInTheDocument();
+    expect(await screen.findByText(/had expired and were turned off/)).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false'));
+
+    // Doing as it says: the switch makes a new subscription, never posts the expired one back.
+    const expired = push.subscription!;
+    fireEvent.click(screen.getByRole('switch'));
+    await waitFor(() => expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'true'));
+    expect(expired.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(push.subscribe).toHaveBeenCalledTimes(1);
+    expect(push.requestPermission).not.toHaveBeenCalled();
   });
 
   it('asks to wait when tests are sent too fast', async () => {

@@ -9,6 +9,12 @@ namespace Jellyfin.Plugin.Lumen.Push;
 /// <summary>The devices each user turned notifications on in.</summary>
 public interface IPushSubscriptionStore
 {
+    /// <summary>
+    /// A subscription is no longer stored, whatever the reason (turned off, replaced, gone, its keys reset): its push
+    /// address is given, so whoever remembers something about it can forget that.
+    /// </summary>
+    event Action<string>? Removed;
+
     /// <summary>Whether the user has notifications on in at least one device.</summary>
     bool HasAny(Guid userId);
 
@@ -67,6 +73,8 @@ public sealed class PushSubscriptionStore : IPushSubscriptionStore
         _userExists = userExists ?? (_ => true);
     }
 
+    public event Action<string>? Removed;
+
     public bool HasAny(Guid userId)
     {
         lock (_lock)
@@ -101,6 +109,7 @@ public sealed class PushSubscriptionStore : IPushSubscriptionStore
 
     public void Save(Guid userId, PushSubscription subscription)
     {
+        var removed = new List<string>();
         lock (_lock)
         {
             var all = All();
@@ -115,16 +124,20 @@ public sealed class PushSubscriptionStore : IPushSubscriptionStore
                 all[key] = list = [];
             }
 
+            removed.AddRange(list.Where(s => s.DeviceId == subscription.DeviceId).Select(s => s.Endpoint));
             list.RemoveAll(s => s.DeviceId == subscription.DeviceId);
             list.Add(subscription);
             if (list.Count > MaxPerUser)
             {
+                removed.AddRange(list.Take(list.Count - MaxPerUser).Select(s => s.Endpoint));
                 list.RemoveRange(0, list.Count - MaxPerUser);
             }
 
             Prune(all);
             Write();
         }
+
+        Forget(removed);
     }
 
     public bool Remove(Guid userId, string deviceId) => RemoveWhere(userId, s => s.DeviceId == deviceId);
@@ -133,13 +146,16 @@ public sealed class PushSubscriptionStore : IPushSubscriptionStore
 
     public int Clear()
     {
+        List<string> removed;
         lock (_lock)
         {
-            var count = All().Values.Sum(l => l.Count);
+            removed = All().Values.SelectMany(l => l).Select(s => s.Endpoint).ToList();
             _users = new Dictionary<string, List<PushSubscription>>(StringComparer.Ordinal);
             Write();
-            return count;
         }
+
+        Forget(removed);
+        return removed.Count;
     }
 
     public (int Devices, int Users) Count()
@@ -163,17 +179,35 @@ public sealed class PushSubscriptionStore : IPushSubscriptionStore
 
     private bool RemoveWhere(Guid userId, Predicate<PushSubscription> match)
     {
+        List<string> removed;
         lock (_lock)
         {
             var all = All();
-            if (!all.TryGetValue(Key(userId), out var list) || list.RemoveAll(match) == 0)
+            if (!all.TryGetValue(Key(userId), out var list))
+            {
+                return false;
+            }
+
+            removed = list.FindAll(match).Select(s => s.Endpoint).ToList();
+            if (list.RemoveAll(match) == 0)
             {
                 return false;
             }
 
             Prune(all);
             Write();
-            return true;
+        }
+
+        Forget(removed);
+        return true;
+    }
+
+    /// <summary>Outside the lock: a listener may call back into the store.</summary>
+    private void Forget(List<string> endpoints)
+    {
+        foreach (var endpoint in endpoints)
+        {
+            Removed?.Invoke(endpoint);
         }
     }
 

@@ -9,7 +9,8 @@ import { PUSH_FLAG, pushFlag } from './lazyPush';
  * <server>/Lumen/Push/ (never jellyfin-web's, at /web/), the browser's push subscription, and the server's record of
  * it. Off until the user turns it on; the browser's permission is only ever asked for from that tap.
  *
- * - `on`: the browser allows notifications, has a subscription, and the server has that same one for this device.
+ * - `on`: the browser allows notifications, has a subscription, and the server has that same one for this device. Also
+ *   a device the server still has while its user has no request features (any more): shown on, so it can be turned off.
  * - `off`: it could be turned on.
  * - `blocked`: the user (or the browser) refused notifications for this site; only the browser's settings undo that.
  * - `homeScreen`: an iPhone or iPad in Safari, where only the Home Screen app can get notifications.
@@ -179,22 +180,29 @@ export async function readPushState(ctx: Ctx): Promise<PushState> {
   }
   if (!workerUrls(ctx.client)) return 'none';
   const status = await getPushStatus(ctx.client);
-  if (!status.Available || !status.PublicKey) return 'none';
+  // No request features (Seerr was taken away, or the user's account there): nothing to turn on, but a device the
+  // server still has must be able to turn that off.
+  if (!status.Available || !status.PublicKey) return status.Endpoint ? 'on' : 'none';
   if (Notification.permission === 'denied') return 'blocked';
   if (Notification.permission !== 'granted' || !status.Endpoint) return 'off';
   const subscription = await browserSubscription(ctx.client);
   return subscription && subscription.endpoint === status.Endpoint ? 'on' : 'off';
 }
 
-/** Registers the worker, subscribes (again, if the server's key changed) and tells the server. */
-async function subscribe(ctx: Ctx, publicKey: string): Promise<void> {
+/**
+ * Registers the worker, subscribes and tells the server. `held` is the push address the server has for this device:
+ * the browser's subscription is kept only if it's that one, made with the server's key.
+ */
+async function subscribe(ctx: Ctx, publicKey: string, held?: string | null): Promise<void> {
   const urls = workerUrls(ctx.client);
   if (!urls) throw new Error('another origin');
   const reg = await navigator.serviceWorker.register(urls.script, { scope: urls.scope });
   await withTimeout(whenActive(reg), STEP_TIMEOUT_MS);
   let subscription = await reg.pushManager.getSubscription();
-  // A subscription made with another key (the admin replaced the server's) can't be sent to, or subscribed over.
-  if (subscription && !madeWithKey(subscription, publicKey)) {
+  // One the server no longer has was dropped as dead (its push service said it was gone, or kept refusing it): posted
+  // back, it would show "on" and never get a notification. One made with another key (the admin replaced the
+  // server's) can't be sent to, or subscribed over. Either is given up for a new one; the permission still stands.
+  if (subscription && (subscription.endpoint !== held || !madeWithKey(subscription, publicKey))) {
     await subscription.unsubscribe();
     subscription = null;
   }
@@ -208,7 +216,6 @@ async function subscribe(ctx: Ctx, publicKey: string): Promise<void> {
       Endpoint: subscription.endpoint,
       P256dh: keys.p256dh,
       Auth: keys.auth,
-      Locale: navigator.language,
     });
   } catch (error) {
     // The server didn't take it: don't leave the browser subscribed to nothing.
@@ -229,17 +236,20 @@ export async function enablePush(ctx: Ctx): Promise<PushState> {
   if (permission !== 'granted') return permission === 'denied' ? 'blocked' : 'off';
   const status = await getPushStatus(ctx.client);
   if (!status.Available || !status.PublicKey) return 'none';
-  await subscribe(ctx, status.PublicKey);
+  await subscribe(ctx, status.PublicKey, status.Endpoint);
   return 'on';
 }
 
-/** Turns notifications off for this device: on the server first, then in the browser. */
+/**
+ * Turns notifications off for this device: on the server first, then in the browser. Resolves to what the switch
+ * shows then: off, or nothing at all for a user without request features.
+ */
 export async function disablePush(ctx: Ctx): Promise<PushState> {
   await send(ctx.client, 'DELETE', 'Lumen/Push/Subscription');
   setFlag(null);
   const subscription = await browserSubscription(ctx.client).catch(() => null);
   await subscription?.unsubscribe().catch(() => undefined);
-  return 'off';
+  return readPushState(ctx).catch((): PushState => 'off');
 }
 
 /** Sends this device a test. Resolves to null when the push service took it, else what to tell the user. */
@@ -281,8 +291,9 @@ let resumed: string | null = null;
  * - another user is signed in now: this browser stops being subscribed, so the first user's notifications don't
  *   arrive in front of the second;
  * - the permission was taken away in the browser's settings: the server forgets the device;
- * - the subscription is gone or changed, or the server no longer has it (its keys were replaced): subscribe again,
- *   quietly, as the permission still stands.
+ * - the subscription is gone or changed, or the server no longer has it (its keys were replaced, or it dropped the
+ *   device because its push service said the subscription was gone): subscribe afresh, quietly, as the permission
+ *   still stands.
  */
 export async function resumePush(ctx: Ctx): Promise<void> {
   const owner = pushFlag();
@@ -312,7 +323,7 @@ export async function resumePush(ctx: Ctx): Promise<void> {
     listenForOpen(ctx);
     return;
   }
-  await subscribe(ctx, status.PublicKey);
+  await subscribe(ctx, status.PublicKey, status.Endpoint);
 }
 
 registerSessionCache(() => {

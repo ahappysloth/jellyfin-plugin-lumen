@@ -60,33 +60,78 @@ async function received(subscription: TestSubscription, count = 1): Promise<Push
 }
 
 /**
- * Replaces the page's `pushManager.subscribe` with one that returns this subscription (and remembers it across page
- * loads, as a browser does), recording the server key the page subscribed with.
+ * Replaces the page's `pushManager.subscribe` with one that returns these subscriptions, one per call, as a browser
+ * hands out a new one each time a page subscribes, and remembers the current one across page loads, with the server
+ * key it was made with (`options.applicationServerKey`, which the page compares with the server's).
  */
-async function fakeBrowserSubscription(page: Page, subscription: TestSubscription): Promise<void> {
+async function fakeBrowserSubscription(page: Page, ...subscriptions: TestSubscription[]): Promise<void> {
   await page.addInitScript(
-    ({ endpoint, p256dh, auth }) => {
-      const KEY = '__lumen_e2e_push';
-      const make = (): unknown => ({
-        endpoint,
-        options: { userVisibleOnly: true, applicationServerKey: null },
-        toJSON: () => ({ endpoint, keys: { p256dh, auth } }),
-        unsubscribe: async () => {
-          localStorage.removeItem(KEY);
-          return true;
-        },
-      });
+    (handedOut) => {
+      const KEY = '__lumen_e2e_push'; // the server key the current subscription was made with
+      const COUNT = '__lumen_e2e_push_count'; // how many subscriptions this "browser" has handed out
+      const b64url = (bytes: Uint8Array): string => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      const bytes = (key: string): ArrayBuffer => Uint8Array.from(atob(key.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)).buffer;
+      const make = (): unknown => {
+        const { endpoint, p256dh, auth } = handedOut[Math.min(Number(localStorage.getItem(COUNT)), handedOut.length) - 1]!;
+        return {
+          endpoint,
+          options: { userVisibleOnly: true, applicationServerKey: bytes(localStorage.getItem(KEY)!) },
+          toJSON: () => ({ endpoint, keys: { p256dh, auth } }),
+          unsubscribe: async () => {
+            localStorage.removeItem(KEY);
+            return true;
+          },
+        };
+      };
       PushManager.prototype.subscribe = async function (options) {
-        const key = new Uint8Array(options!.applicationServerKey as ArrayBuffer);
-        localStorage.setItem(KEY, btoa(String.fromCharCode(...key)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''));
+        localStorage.setItem(KEY, b64url(new Uint8Array(options!.applicationServerKey as ArrayBuffer)));
+        localStorage.setItem(COUNT, String(Number(localStorage.getItem(COUNT) ?? 0) + 1));
         return make() as PushSubscription;
       };
       PushManager.prototype.getSubscription = async function () {
         return (localStorage.getItem(KEY) ? make() : null) as PushSubscription | null;
       };
     },
-    { endpoint: subscription.endpoint, p256dh: subscription.p256dh, auth: subscription.auth },
+    subscriptions.map(({ endpoint, p256dh, auth }) => ({ endpoint, p256dh, auth })),
   );
+}
+
+/**
+ * Stands in for the browser's permission prompt, which a headless browser can't answer: the permission starts as
+ * "default" and a call to `Notification.requestPermission` grants it. Each call is recorded with whether it came
+ * during the user's own gesture, and how many requests the page had made to Lumen's push endpoints by then.
+ */
+async function recordPermissionPrompts(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const GRANTED = '__lumen_e2e_permission';
+    const record = { prompts: [] as { duringTap: boolean; pushRequests: number }[], pushRequests: 0 };
+    (window as unknown as { __lumenPush: typeof record }).__lumenPush = record;
+    const fetch = window.fetch;
+    window.fetch = function (input, init) {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (/\/Lumen\/Push\//.test(url)) record.pushRequests++;
+      return fetch.call(this, input, init);
+    };
+    Object.defineProperty(Notification, 'permission', { get: () => (localStorage.getItem(GRANTED) ? 'granted' : 'default') });
+    Notification.requestPermission = async () => {
+      record.prompts.push({ duringTap: navigator.userActivation.isActive, pushRequests: record.pushRequests });
+      localStorage.setItem(GRANTED, '1');
+      return 'granted';
+    };
+  });
+}
+
+/** The permission prompts this page load has opened, and its requests to Lumen's push endpoints so far. */
+function promptsOf(page: Page): Promise<{ prompts: { duringTap: boolean; pushRequests: number }[]; pushRequests: number }> {
+  return page.evaluate(() => (window as unknown as { __lumenPush: { prompts: { duringTap: boolean; pushRequests: number }[]; pushRequests: number } }).__lumenPush);
+}
+
+/** What the server has for the browser's own device (the page's sign-in, not the tests' API token). */
+function deviceStatus(page: Page): Promise<{ Available: boolean; PublicKey?: string; Endpoint?: string }> {
+  return page.evaluate(() => {
+    const client = (window as unknown as { ApiClient: { getUrl(path: string): string; ajax(request: object): Promise<unknown> } }).ApiClient;
+    return client.ajax({ type: 'GET', url: client.getUrl('Lumen/Push/Status'), dataType: 'json' }) as Promise<{ Available: boolean; PublicKey?: string; Endpoint?: string }>;
+  });
 }
 
 /** The toggle's card has no accessibility violation, its text's contrast included (it sits on a plain surface). */
@@ -265,6 +310,118 @@ test('a tapped notification takes an open Lumen to the title', async ({ page, co
   await expect(page).toHaveURL(new RegExp(`#/details\\?id=${itemId}$`));
   await expect(page.getByRole('heading', { name: 'Lumen Beta', level: 1 })).toBeVisible();
   expect(context.pages()).toHaveLength(1);
+});
+
+test('after the keys are reset, the device subscribes again by itself, with the new key and without asking', async ({ page, context }) => {
+  test.setTimeout(90_000);
+  const [before, after] = [newSubscription(), newSubscription()];
+  await context.grantPermissions(['notifications']);
+  await fakeBrowserSubscription(page, before, after);
+  await login(page, ADMIN);
+  await page.goto('/web/#/home?lumen=requests');
+  await page.getByRole('switch', { name: TOGGLE }).click();
+  await expect(page.getByRole('switch', { name: TOGGLE })).toHaveAttribute('aria-checked', 'true');
+  const oldKey = await publicKey();
+  expect(await page.evaluate(() => localStorage.getItem('__lumen_e2e_push'))).toBe(oldKey);
+  expect((await deviceStatus(page)).Endpoint).toBe(before.endpoint);
+
+  // The admin replaces Web Push's keys: every subscription is dropped, and the browser's was made with the old key.
+  await api('/Lumen/Admin/Push/ResetKeys', { method: 'POST', token: loadState().admin.token });
+  const newKey = await publicKey();
+  expect(newKey).not.toBe(oldKey);
+  expect((await adminStatus()).Devices).toBe(0);
+
+  // The next page load, anywhere in Lumen (the toggle isn't on this page): the device's own check, when the browser
+  // is idle, gives up the old subscription and makes one with the new key.
+  await page.goto('/web/#/home');
+  await page.reload();
+  await expect.poll(async () => (await adminStatus()).Devices, { timeout: 30_000 }).toBe(1);
+  expect(await page.evaluate(() => localStorage.getItem('__lumen_e2e_push'))).toBe(newKey);
+  expect(await page.evaluate(() => localStorage.getItem('__lumen_e2e_push_count'))).toBe('2');
+  expect((await deviceStatus(page)).Endpoint).toBe(after.endpoint);
+  await page.goto('/web/#/home?lumen=requests');
+  await expect(page.getByRole('switch', { name: TOGGLE })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('button', { name: 'Send a test notification' })).toBeVisible();
+  // (No test is sent here: Lumen allows a user five in ten minutes, and the specs that need one share them.)
+});
+
+test('a device the push service gave up on is off, and subscribes afresh on the next load, never posting the dead one back', async ({ page, context }) => {
+  test.setTimeout(120_000);
+  // The stub push service answers 410 for the first subscription the browser hands out: it has expired.
+  const [dead, fresh] = [newSubscription(`gone-${Date.now()}`), newSubscription()];
+  await context.grantPermissions(['notifications']);
+  await fakeBrowserSubscription(page, dead, fresh);
+  await login(page, ADMIN);
+  await page.goto('/web/#/home?lumen=requests');
+  const toggle = page.getByRole('switch', { name: TOGGLE });
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-checked', 'true');
+  const key = await publicKey();
+
+  // A test finds out: the server drops the device, and the switch says what's true, with what to do about it.
+  await expect(async () => {
+    await page.getByRole('button', { name: 'Send a test notification' }).click();
+    await expect(page.getByRole('status')).toHaveText("This device's notifications had expired and were turned off. Turn them on again.", { timeout: 3_000 });
+  }).toPass({ timeout: 40_000, intervals: [4_000] });
+  await expect(toggle).toHaveAttribute('aria-checked', 'false');
+  expect((await adminStatus()).Devices).toBe(0);
+  expect(await pushed(dead)).toHaveLength(1);
+
+  // The browser still has that subscription, made with the very key the server still uses. The next page load must
+  // not hand it back to the server: it gives it up and subscribes anew (the permission still stands).
+  const posted: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && /\/Lumen\/Push\/Subscription$/.test(request.url())) posted.push((request.postDataJSON() as { Endpoint: string }).Endpoint);
+  });
+  await page.reload();
+  await expect.poll(async () => (await adminStatus()).Devices, { timeout: 30_000 }).toBe(1);
+  expect(posted).toEqual([fresh.endpoint]);
+  expect((await deviceStatus(page)).Endpoint).toBe(fresh.endpoint);
+  expect(await publicKey()).toBe(key);
+  await expect(page.getByRole('switch', { name: TOGGLE })).toHaveAttribute('aria-checked', 'true');
+  expect(await page.evaluate(() => localStorage.getItem('__lumen_e2e_push_count'))).toBe('2');
+  // The dead one was never tried again.
+  expect(await pushed(dead)).toHaveLength(1);
+});
+
+test('the permission prompt comes from the tap on the switch, first thing, and from nowhere else', async ({ page }) => {
+  test.setTimeout(90_000);
+  const [first, second] = [newSubscription(), newSubscription()];
+  await recordPermissionPrompts(page);
+  await fakeBrowserSubscription(page, first, second);
+  await login(page, ADMIN);
+
+  // Looking at the toggle, on either page it's on, and loading Lumen again: nothing asks.
+  await page.goto('/web/#/home?lumen=requests');
+  const toggle = page.getByRole('switch', { name: TOGGLE });
+  await expect(toggle).toHaveAttribute('aria-checked', 'false');
+  expect((await promptsOf(page)).prompts).toEqual([]);
+  await page.goto('/web/#/mypreferencesmenu');
+  await expect(page.getByRole('region', { name: 'Notifications' }).getByRole('switch', { name: TOGGLE })).toHaveAttribute('aria-checked', 'false');
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'Notifications' }).getByRole('switch', { name: TOGGLE })).toHaveAttribute('aria-checked', 'false');
+  expect((await promptsOf(page)).prompts).toEqual([]);
+  expect((await adminStatus()).Devices).toBe(0);
+
+  // The tap: one prompt, inside the user's gesture (Safari shows it only then), before the page asked the server
+  // anything more.
+  await page.goto('/web/#/home?lumen=requests');
+  await expect(toggle).toHaveAttribute('aria-checked', 'false');
+  const { pushRequests } = await promptsOf(page);
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-checked', 'true');
+  expect((await promptsOf(page)).prompts).toEqual([{ duringTap: true, pushRequests }]);
+  expect((await adminStatus()).Devices).toBe(1);
+
+  // On from here: loading Lumen again doesn't ask, nor does subscribing again by itself after the server lost the
+  // device (its keys were reset).
+  await page.reload();
+  await expect(page.getByRole('switch', { name: TOGGLE })).toHaveAttribute('aria-checked', 'true');
+  await api('/Lumen/Admin/Push/ResetKeys', { method: 'POST', token: loadState().admin.token });
+  await page.reload();
+  await expect.poll(async () => (await adminStatus()).Devices, { timeout: 30_000 }).toBe(1);
+  expect((await deviceStatus(page)).Endpoint).toBe(second.endpoint);
+  expect((await promptsOf(page)).prompts).toEqual([]);
 });
 
 test('a device the browser blocks says so, and one without the Push API shows no toggle', async ({ page, browser }) => {

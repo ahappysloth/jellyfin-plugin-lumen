@@ -74,7 +74,8 @@ wait_healthy() {
 }
 
 # (Re)starts the Jellyfin container. TMDB_BASE and TRAKT_BASE (end-to-end tests only) point the image proxy and the Top
-# 10 rows' Trakt client at the stub Seerr, and PUSH_BASE lets push subscriptions name its stand-in push service.
+# 10 rows' Trakt client at the stub Seerr, and PUSH_BASE lets push subscriptions name its stand-in push service; with
+# it the push job's pass is an hour apart and a failed send is tried again after 2 s (docs/development.md).
 start_server() {
   local ip url
   ip="$(lan_ip)"
@@ -88,7 +89,7 @@ start_server() {
     -p 8096:8096 -p 7359:7359/udp ${url:+-e JELLYFIN_PublishedServerUrl="$url"} \
     ${TMDB_BASE:+-e LUMEN_TMDB_IMAGE_BASE="$TMDB_BASE"} \
     ${TRAKT_BASE:+-e LUMEN_TRAKT_API_BASE="$TRAKT_BASE"} \
-    ${PUSH_BASE:+-e LUMEN_PUSH_TEST_ENDPOINT="$PUSH_BASE"} \
+    ${PUSH_BASE:+-e LUMEN_PUSH_TEST_ENDPOINT="$PUSH_BASE" -e LUMEN_PUSH_TEST_PASS_SECONDS=3600 -e LUMEN_PUSH_TEST_RETRY_SECONDS=2} \
     -v "$DATA/config:/config" -v "$DATA/cache:/cache" -v "$DATA/media:/media:ro" \
     "$JELLYFIN_IMAGE" >/dev/null
   wait_healthy

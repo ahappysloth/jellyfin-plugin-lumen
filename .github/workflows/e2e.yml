@@ -67,12 +67,15 @@ jobs:
           mkdir -p "config/plugins/Lumen_$VERSION" cache
           cp plugin/Jellyfin.Plugin.Lumen.dll "config/plugins/Lumen_$VERSION/"
           # The stub Seerr (started by Playwright on this runner), which also stands in for TMDB's images, Trakt and a
-          # push service, is reached via host.docker.internal.
+          # push service, is reached via host.docker.internal. The push job's own pass is an hour apart here, so only
+          # what a test does sends a notification, and a failed send is tried again after 2 s (ReadyPushTimings).
           docker run -d --name jellyfin -p 8096:8096 \
             --add-host=host.docker.internal:host-gateway \
             -e LUMEN_TMDB_IMAGE_BASE=http://host.docker.internal:5055/t/p \
             -e LUMEN_TRAKT_API_BASE=http://host.docker.internal:5055/trakt \
             -e LUMEN_PUSH_TEST_ENDPOINT=http://host.docker.internal:5055/push/ \
+            -e LUMEN_PUSH_TEST_PASS_SECONDS=3600 \
+            -e LUMEN_PUSH_TEST_RETRY_SECONDS=2 \
             -v "$PWD/config:/config" -v "$PWD/cache:/cache" -v "$PWD/media:/media:ro" \
             "${{ inputs.jellyfin-image }}"
       - uses: actions/setup-node@v7

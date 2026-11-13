@@ -118,6 +118,20 @@ public sealed class WebPushClientTests : IDisposable
         Assert.Empty(_http.Requests);
     }
 
+    [Fact]
+    public async Task Send_AMessageTooLongForOneRecord_IsAFailure_NeverTheSubscriptionsFault()
+    {
+        // Gone would have the device's subscription removed, and a refusal counted against it: neither is deserved.
+        var result = await _client.SendAsync(Subscription("https://fcm.googleapis.com/fcm/send/x"), new byte[WebPushEncryption.MaxPlaintextLength + 1], TimeSpan.FromMinutes(1), CancellationToken.None);
+
+        Assert.Equal(new PushResult(PushOutcome.Failed), result);
+        Assert.Empty(_http.Requests);
+
+        // The longest one that fits goes out.
+        result = await _client.SendAsync(Subscription("https://fcm.googleapis.com/fcm/send/x"), new byte[WebPushEncryption.MaxPlaintextLength], TimeSpan.FromMinutes(1), CancellationToken.None);
+        Assert.Equal(PushOutcome.Sent, result.Outcome);
+    }
+
     private PushSubscription Subscription(string endpoint) =>
-        new(endpoint, Base64Url.EncodeToString(WebPushEncryption.ExportPublicKey(_browser)), Base64Url.EncodeToString(_auth), "device", "Device", null, TestData.Now);
+        new(endpoint, Base64Url.EncodeToString(WebPushEncryption.ExportPublicKey(_browser)), Base64Url.EncodeToString(_auth), "device", "Device", TestData.Now);
 }

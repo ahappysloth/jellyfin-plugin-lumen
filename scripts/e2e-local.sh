@@ -6,7 +6,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 [[ -d "$ROOT/e2e/fixtures/media/movies" ]] || "$ROOT/scripts/gen-test-media.sh"
 # The tests' stub Seerr (started by Playwright on :5055) also stands in for TMDB's image CDN and Trakt's API.
 LUMEN_TMDB_IMAGE_BASE=http://localhost:5055/t/p LUMEN_TRAKT_API_BASE=http://localhost:5055/trakt \
-  LUMEN_PUSH_TEST_ENDPOINT=http://localhost:5055/push/ "$ROOT/scripts/dev.sh"
+  LUMEN_PUSH_TEST_ENDPOINT=http://localhost:5055/push/ LUMEN_PUSH_TEST_PASS_SECONDS=3600 LUMEN_PUSH_TEST_RETRY_SECONDS=2 \
+  "$ROOT/scripts/dev.sh"
 cd "$ROOT/e2e"
 [[ -d node_modules ]] || npm ci --no-audit --no-fund
 npx playwright install chromium

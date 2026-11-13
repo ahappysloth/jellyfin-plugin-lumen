@@ -45,34 +45,28 @@ public class PushMessageTests
         Assert.False(Read(PushMessage.Ready(Item("Dune"), null)).TryGetProperty("image", out _));
     }
 
-    [Theory]
-    [InlineData("en-US")]
-    [InlineData("de-DE")]
-    [InlineData("fr-CH")]
-    public void ReadyMany_WritesTheNumberAsTheDevicesLanguageDoes_AndOpensMyRequests(string locale)
+    [Fact]
+    public void ReadyMany_CountsTheTitles_NamesThem_AndOpensMyRequests()
     {
-        var items = Enumerable.Range(0, 1234).Select(i => Item("Title " + i)).ToList();
-
-        var message = Read(PushMessage.ReadyMany(items, locale));
-
-        // Whatever this machine's ICU says that language's thousands separator is.
-        var count = 1234.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo(locale));
-        Assert.Equal(count + " of your requests are ready to watch", message.GetProperty("title").GetString());
-        Assert.Equal("requests", message.GetProperty("page").GetString());
-        Assert.StartsWith("Title 0, Title 1, ", message.GetProperty("body").GetString(), StringComparison.Ordinal);
-        Assert.InRange(message.GetProperty("body").GetString()!.Length, 1, PushMessage.MaxTextLength);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("not a language tag!")]
-    public void ReadyMany_WithoutAKnownLanguage_StillWritesTheNumber(string? locale)
-    {
-        var message = Read(PushMessage.ReadyMany([Item("A"), Item("B"), Item("C"), Item("D")], locale));
+        var message = Read(PushMessage.ReadyMany([Item("A"), Item("B"), Item("C"), Item("D")]));
 
         Assert.Equal("4 of your requests are ready to watch", message.GetProperty("title").GetString());
         Assert.Equal("A, B, C, D", message.GetProperty("body").GetString());
+        Assert.Equal("requests", message.GetProperty("page").GetString());
+    }
+
+    [Fact]
+    public void ReadyMany_WithAsManyTitlesAsTheListCovers_ClipsTheirNames_AndFitsOneRecord()
+    {
+        // The most there can be: the request list covers the newest 50, so the count never needs digit grouping.
+        var items = Enumerable.Range(0, RequestProgressService.Take).Select(i => Item("Title " + i)).ToList();
+
+        var message = PushMessage.ReadyMany(items);
+
+        Assert.Equal("50 of your requests are ready to watch", message.Title);
+        Assert.StartsWith("Title 0, Title 1, ", message.Body, StringComparison.Ordinal);
+        Assert.Equal(PushMessage.MaxTextLength, message.Body!.Length);
+        Assert.InRange(message.ToPayload().Length, 1, WebPushEncryption.MaxPlaintextLength);
     }
 
     [Fact]
@@ -119,6 +113,28 @@ public class PushMessageTests
 
         time.Advance(wait);
         Assert.True(limiter.TryAcquire(alice, out _));
+    }
+
+    [Fact]
+    public void SubscribeLimiter_AllowsTwentyAMinute_PerUser_WithNoGapBetweenThem()
+    {
+        var time = new FakeTimeProvider(TestData.Now);
+        var limiter = new PushSubscribeLimiter(time);
+        var (alice, bob) = (Guid.NewGuid(), Guid.NewGuid());
+
+        for (var i = 0; i < PushSubscribeLimiter.MaxPerWindow; i++)
+        {
+            Assert.True(limiter.TryAcquire(alice, out _));
+            time.Advance(TimeSpan.FromSeconds(1));
+        }
+
+        Assert.False(limiter.TryAcquire(alice, out var wait));
+        Assert.Equal(TimeSpan.FromSeconds(40), wait);
+        Assert.True(limiter.TryAcquire(bob, out _));
+
+        time.Advance(wait);
+        Assert.True(limiter.TryAcquire(alice, out _));
+        Assert.False(limiter.TryAcquire(alice, out _));
     }
 
     private static CatalogItemDto Item(string title, string? jellyfinItemId = null) =>

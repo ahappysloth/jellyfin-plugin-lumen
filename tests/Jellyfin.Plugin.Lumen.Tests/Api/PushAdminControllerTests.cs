@@ -2,6 +2,8 @@ using Jellyfin.Plugin.Lumen.Api;
 using Jellyfin.Plugin.Lumen.Configuration;
 using Jellyfin.Plugin.Lumen.Push;
 using Jellyfin.Plugin.Lumen.Requests;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -26,7 +28,10 @@ public sealed class PushAdminControllerTests : IDisposable
         _config.Current.Returns(new PluginConfiguration { RequestsEnabled = true, SeerrUrl = "http://seerr:5055", SeerrApiKey = "k" });
         _config.GetPushSecrets().Returns(_ => _secrets);
         _config.ResetPushSecrets().Returns(_ => _secrets = new PushSecrets(VapidKeys.Generate(), "second-secret"));
-        _controller = new PushAdminController(_config, _store, _sender, _signal);
+        _controller = new PushAdminController(_config, _store, _sender, _signal)
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
+        };
     }
 
     public void Dispose()
@@ -50,6 +55,17 @@ public sealed class PushAdminControllerTests : IDisposable
         var status = _controller.GetStatus().Value!;
 
         Assert.Equal(new PushAdminStatusDto(3, 2, true, last, "Lumen/Push/Seerr", "first-secret"), status);
+    }
+
+    [Fact]
+    public void Status_AndTheNewKeys_AreNeverCached_TheyCarryTheWebhooksSecret()
+    {
+        _controller.GetStatus();
+        Assert.Equal("no-store", _controller.Response.Headers.CacheControl.ToString());
+
+        _controller.Response.Headers.Clear();
+        _controller.ResetKeys();
+        Assert.Equal("no-store", _controller.Response.Headers.CacheControl.ToString());
     }
 
     [Fact]

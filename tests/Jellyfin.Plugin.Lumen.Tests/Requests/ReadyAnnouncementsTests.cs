@@ -54,10 +54,76 @@ public sealed class ReadyAnnouncementsTests : IDisposable
         store.Update(_alice, Scope, [1], [], []);
         Assert.Equal([1], store.Claim(_alice, Scope, [], [1], []));
 
-        // No device could be reached: the request goes back as if still in flight.
-        store.Update(_alice, Scope, [1], [], []);
+        // No device could be reached: the request is due again, to whoever asks next.
+        store.GiveBack(_alice, Scope, [1]);
 
         Assert.Equal([1], store.Update(_alice, Scope, [], [1], []));
+        Assert.Equal([1], store.Claim(_alice, Scope, [], [1], []));
+    }
+
+    [Fact]
+    public void Claim_Released_IsThePopUpsAlone_UntilItShows()
+    {
+        var store = Create();
+        store.Update(_alice, Scope, [1, 2], [], []);
+        Assert.Equal([1], store.Claim(_alice, Scope, [2], [1], []));
+
+        // The push job gave up on it (no device could be reached for minutes).
+        store.Release(_alice, Scope, [1]);
+
+        Assert.Equal([1], store.PopUpOnly(_alice, Scope));
+        Assert.Empty(store.Claim(_alice, Scope, [2], [1], [])); // never pushed late
+        Assert.Equal([1], store.Update(_alice, Scope, [2], [1], [])); // offered to the pop-up
+        Assert.Equal([1], Create().PopUpOnly(_alice, Scope)); // also after a restart
+
+        // Another request of the user's is pushed as ever.
+        Assert.Equal([2], store.Claim(_alice, Scope, [], [1, 2], []));
+
+        store.MarkAnnounced(_alice, Scope, [1]);
+        Assert.Empty(store.PopUpOnly(_alice, Scope));
+        Assert.Empty(store.Update(_alice, Scope, [], [1, 2], []));
+    }
+
+    [Fact]
+    public void AReleasedRequest_BackInFlight_IsPushedAgainWhenReady()
+    {
+        var store = Create();
+        store.Update(_alice, Scope, [1], [], []);
+        store.Claim(_alice, Scope, [], [1], []);
+        store.Release(_alice, Scope, [1]);
+
+        store.Update(_alice, Scope, [1], [], []);
+
+        Assert.Empty(store.PopUpOnly(_alice, Scope));
+        Assert.Equal([1], store.Claim(_alice, Scope, [], [1], []));
+    }
+
+    [Fact]
+    public void GivenBackOrReleased_UnderAnotherSeerr_ChangesNothing()
+    {
+        var store = Create();
+        store.Update(_alice, Scope, [1], [], []);
+        store.Claim(_alice, Scope, [], [1], []);
+
+        // Lumen was pointed at another Seerr while a push was being retried: the user's new list isn't started over.
+        store.Update(_alice, "http://other:5055/", [8], [], []);
+        store.GiveBack(_alice, Scope, [1]);
+        store.Release(_alice, Scope, [1]);
+        store.GiveBack(_bob, Scope, [1]);
+
+        Assert.Equal([8], store.Update(_alice, "http://other:5055/", [], [8], []));
+        Assert.Empty(store.PopUpOnly(_alice, "http://other:5055/"));
+        Assert.Empty(store.Update(_bob, Scope, [], [1], []));
+    }
+
+    [Fact]
+    public void Watch_AddsARequestFiledThroughLumen_AndKeepsTheOthers()
+    {
+        var store = Create();
+        store.Watch(_alice, Scope, [1]);
+        store.Watch(_alice, Scope, [2]);
+
+        Assert.Equal([1, 2], store.Update(_alice, Scope, [], [1, 2], []).Order());
     }
 
     [Fact]
@@ -100,23 +166,77 @@ public sealed class ReadyAnnouncementsTests : IDisposable
         var store = Create();
         Assert.Equal([7], store.Claim(_alice, Scope, [], [7], [], [7]));
 
-        store.Update(_alice, Scope, [7], [], []);
+        store.GiveBack(_alice, Scope, [7]);
 
         Assert.Equal([7], store.Claim(_alice, Scope, [], [7], []));
     }
 
     [Fact]
-    public void IsWatching_SaysWhoHasARequestInFlight()
+    public void ExpectsSoon_SaysWhoHasARequestInFlight()
     {
         var store = Create();
-        Assert.False(store.IsWatching(_alice));
+        Assert.False(store.ExpectsSoon(_alice));
 
         store.Update(_alice, Scope, [1], [], []);
-        Assert.True(store.IsWatching(_alice));
-        Assert.False(store.IsWatching(_bob));
+        Assert.True(store.ExpectsSoon(_alice));
+        Assert.False(store.ExpectsSoon(_bob));
 
         store.Claim(_alice, Scope, [], [1], []);
-        Assert.False(store.IsWatching(_alice));
+        Assert.False(store.ExpectsSoon(_alice));
+    }
+
+    [Fact]
+    public void ExpectsSoon_NotForRequestsThatAreOnlyWaiting()
+    {
+        var store = Create();
+
+        // 1 has waited for an approval for days; it's watched, but nothing is expected of it any minute.
+        store.Update(_alice, Scope, [1], [], [1]);
+        Assert.False(store.ExpectsSoon(_alice));
+        Assert.False(Create().ExpectsSoon(_alice)); // also after a restart
+
+        // Another one downloading: the user is worth asking about every pass.
+        store.Update(_alice, Scope, [1, 2], [], [1]);
+        Assert.True(store.ExpectsSoon(_alice));
+
+        // It was approved and started downloading.
+        store.Update(_alice, Scope, [1], [], []);
+        Assert.True(store.ExpectsSoon(_alice));
+
+        // Waiting or not, it's announced when it's ready.
+        store.Update(_alice, Scope, [1], [], [1]);
+        Assert.Equal([1], store.Claim(_alice, Scope, [], [1], []));
+    }
+
+    [Fact]
+    public void ARequestSeerrNoLongerLists_IsntWatchedAnyMore()
+    {
+        var store = Create();
+        store.Update(_alice, Scope, [1, 2, 3], [], [3]);
+
+        // 1 was deleted in Seerr (or pushed out of the list by newer requests); 3 too, while it was waiting.
+        store.Update(_alice, Scope, [2], [], []);
+        Assert.True(store.ExpectsSoon(_alice));
+        store.Update(_alice, Scope, [], [], []);
+
+        // Nothing left to ask Seerr about every pass, and nothing announced if the ids ever show up again as ready.
+        Assert.False(store.ExpectsSoon(_alice));
+        Assert.False(Create().ExpectsSoon(_alice));
+        Assert.Empty(store.Update(_alice, Scope, [], [1, 2, 3], []));
+    }
+
+    [Fact]
+    public void AReleasedRequestSeerrNoLongerLists_IsForgottenToo()
+    {
+        var store = Create();
+        store.Update(_alice, Scope, [1], [], []);
+        store.Claim(_alice, Scope, [], [1], []);
+        store.Release(_alice, Scope, [1]);
+
+        store.Update(_alice, Scope, [], [], []);
+
+        Assert.Empty(store.PopUpOnly(_alice, Scope));
+        Assert.Empty(store.Update(_alice, Scope, [], [1], []));
     }
 
     [Fact]
@@ -131,7 +251,9 @@ public sealed class ReadyAnnouncementsTests : IDisposable
     {
         var store = Create();
         store.Update(_alice, Scope, [1], [], []);
-        store.Update(_alice, Scope, [], [], [1]);
+
+        // Seerr still lists it, but neither in flight nor ready.
+        store.Update(_alice, Scope, [], [], []);
 
         Assert.Empty(store.Update(_alice, Scope, [], [1], []));
     }
@@ -183,8 +305,7 @@ public sealed class ReadyAnnouncementsTests : IDisposable
         var store = Create();
         store.Update(_alice, Scope, Enumerable.Range(1, ReadyAnnouncements.MaxPerUser + 10), [], []);
 
-        Assert.Empty(store.Update(_alice, Scope, [], [1], []));
-        Assert.Equal([ReadyAnnouncements.MaxPerUser + 10], store.Update(_alice, Scope, [], [ReadyAnnouncements.MaxPerUser + 10], []));
+        Assert.Equal([ReadyAnnouncements.MaxPerUser + 10], store.Update(_alice, Scope, [], [1, ReadyAnnouncements.MaxPerUser + 10], []));
     }
 
     [Fact]

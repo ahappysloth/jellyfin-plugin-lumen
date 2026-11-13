@@ -15,9 +15,10 @@ namespace Jellyfin.Plugin.Lumen.Api;
 
 /// <summary>
 /// Push notifications for the signed-in user's own devices (web push design note, 2026-11-12): whether they're on for
-/// this device, turning them on and off, and a test. A subscription belongs to the Jellyfin user and device the request
-/// is signed in as, both read from the authenticated principal, never from the request: nobody can read, replace or
-/// remove another user's, or another device's. Also Lumen's service worker, and Seerr's webhook.
+/// this device, turning them on and off, and a test. A subscription belongs to the Jellyfin user the request is signed
+/// in as and the device its access token was issued to (<see cref="ISignedInDevices.ForToken"/>), never to what the
+/// request itself says: nobody can read, replace or remove another user's, nor one session another device's. Also
+/// Lumen's service worker, and Seerr's webhook.
 /// </summary>
 [ApiController]
 [Route("Lumen/Push")]
@@ -39,6 +40,8 @@ public sealed class PushController : ControllerBase
     private readonly IPushSubscriptionStore _subscriptions;
     private readonly IPushSender _sender;
     private readonly PushTestLimiter _limiter;
+    private readonly PushSubscribeLimiter _subscribeLimiter;
+    private readonly ISignedInDevices _devices;
     private readonly ReadyPushSignal _signal;
     private readonly TimeProvider _time;
     private readonly ILogger<PushController> _logger;
@@ -50,6 +53,8 @@ public sealed class PushController : ControllerBase
         IPushSubscriptionStore subscriptions,
         IPushSender sender,
         PushTestLimiter limiter,
+        PushSubscribeLimiter subscribeLimiter,
+        ISignedInDevices devices,
         ReadyPushSignal signal,
         TimeProvider time,
         ILogger<PushController> logger)
@@ -60,6 +65,8 @@ public sealed class PushController : ControllerBase
         _subscriptions = subscriptions;
         _sender = sender;
         _limiter = limiter;
+        _subscribeLimiter = subscribeLimiter;
+        _devices = devices;
         _signal = signal;
         _time = time;
         _logger = logger;
@@ -97,7 +104,7 @@ public sealed class PushController : ControllerBase
         }
 
         Response.Headers.CacheControl = "no-store";
-        var mine = User.GetJellyfinDeviceId() is { } deviceId ? _subscriptions.ForDevice(userId, deviceId) : null;
+        var mine = Device(userId) is { } device ? _subscriptions.ForDevice(userId, device.Id) : null;
         if (!await HasRequestsAsync(userId, cancellationToken).ConfigureAwait(false))
         {
             // The stored address still goes out: a device left subscribed must be able to see that, and turn it off.
@@ -107,7 +114,10 @@ public sealed class PushController : ControllerBase
         return new PushStatusDto(true, _config.GetPushSecrets().Keys.PublicKey, mine?.Endpoint);
     }
 
-    /// <summary>Turns notifications on for this device: stores the browser's push subscription in place of its last one.</summary>
+    /// <summary>
+    /// Turns notifications on for this device: stores the browser's push subscription in place of its last one.
+    /// Rate-limited per user (<see cref="PushSubscribeLimiter"/>).
+    /// </summary>
     [HttpPost("Subscription")]
     public async Task<ActionResult> Subscribe([FromBody] PushSubscribeDto? body, CancellationToken cancellationToken)
     {
@@ -116,7 +126,7 @@ public sealed class PushController : ControllerBase
             return Unauthorized();
         }
 
-        if (User.GetJellyfinDeviceId() is not { Length: <= PushSubscription.MaxDeviceIdLength } deviceId)
+        if (Device(userId) is not { Id.Length: <= PushSubscription.MaxDeviceIdLength } device)
         {
             return BadRequest(new ErrorDto("This sign-in has no device id."));
         }
@@ -136,7 +146,14 @@ public sealed class PushController : ControllerBase
             return NotFound();
         }
 
-        _subscriptions.Save(userId, new PushSubscription(body.Endpoint!, body.P256dh!, body.Auth!, deviceId, Clip(User.GetJellyfinDeviceName(), 100), Locale(body.Locale), _time.GetUtcNow()));
+        // Last, so only what would be stored counts: each one is a write to the disk.
+        if (!_subscribeLimiter.TryAcquire(userId, out var retryAfter))
+        {
+            Response.Headers.RetryAfter = Math.Ceiling(retryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+            return StatusCode(StatusCodes.Status429TooManyRequests, new ErrorDto("Wait a moment before turning notifications on again."));
+        }
+
+        _subscriptions.Save(userId, new PushSubscription(body.Endpoint!, body.P256dh!, body.Auth!, device.Id, Clip(device.Name, 100), _time.GetUtcNow()));
         return NoContent();
     }
 
@@ -151,9 +168,9 @@ public sealed class PushController : ControllerBase
             return Unauthorized();
         }
 
-        if (User.GetJellyfinDeviceId() is { } deviceId)
+        if (Device(userId) is { } device)
         {
-            _subscriptions.Remove(userId, deviceId);
+            _subscriptions.Remove(userId, device.Id);
         }
 
         return NoContent();
@@ -168,7 +185,7 @@ public sealed class PushController : ControllerBase
             return Unauthorized();
         }
 
-        if (User.GetJellyfinDeviceId() is not { } deviceId || _subscriptions.ForDevice(userId, deviceId) is null)
+        if (Device(userId) is not { } device || _subscriptions.ForDevice(userId, device.Id) is null)
         {
             return NotFound();
         }
@@ -179,7 +196,7 @@ public sealed class PushController : ControllerBase
             return StatusCode(StatusCodes.Status429TooManyRequests, new ErrorDto("Wait a moment before sending another test."));
         }
 
-        var result = await _sender.SendAsync(userId, _ => PushMessage.Test(), TestTimeToLive, cancellationToken, deviceId).ConfigureAwait(false);
+        var result = await _sender.SendAsync(userId, PushMessage.Test(), TestTimeToLive, cancellationToken, [device.Id]).ConfigureAwait(false);
         var error = result switch
         {
             { Delivered: true } => null,
@@ -194,7 +211,8 @@ public sealed class PushController : ControllerBase
     /// Seerr's webhook (Settings → Notifications → Webhook, with "Request Available" ticked): something became
     /// available, so check now instead of at the next pass. Not signed in as anyone: Seerr proves itself with the secret
     /// from Lumen's settings, as its Authorization Header. The body only says which request; what's ready, and for
-    /// whom, is still read from Seerr itself, so a forged call could at most make Lumen look early.
+    /// whom, is still read from Seerr itself, so a forged call could at most make Lumen look early. A body over
+    /// <see cref="MaxWebhookBytes"/> is answered 413, and a call Lumen has no room to act on 503, for Seerr to repeat.
     /// </summary>
     [HttpPost("Seerr")]
     [AllowAnonymous]
@@ -207,11 +225,16 @@ public sealed class PushController : ControllerBase
             return Unauthorized();
         }
 
+        if (await ReadWebhookAsync(cancellationToken).ConfigureAwait(false) is not { } json)
+        {
+            return StatusCode(StatusCodes.Status413PayloadTooLarge);
+        }
+
         string? type = null;
         int? requestId = null;
         try
         {
-            using var body = await JsonDocument.ParseAsync(Request.Body, cancellationToken: cancellationToken).ConfigureAwait(false);
+            using var body = JsonDocument.Parse(json);
             if (body.RootElement.ValueKind == JsonValueKind.Object)
             {
                 type = body.RootElement.TryGetProperty("notification_type", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() : null;
@@ -236,9 +259,12 @@ public sealed class PushController : ControllerBase
         }
 
         // Seerr's "Test" button, and any other notification type the admin ticked: fine, and nothing to do.
-        if (string.Equals(type, "MEDIA_AVAILABLE", StringComparison.Ordinal))
+        if (string.Equals(type, "MEDIA_AVAILABLE", StringComparison.Ordinal) && !_signal.WakeAll(requestId is > 0 ? requestId : null))
         {
-            _signal.WakeAll(requestId is > 0 ? requestId : null);
+            // Too much is waiting already (ReadyPushSignal logs it, once): not taken, and said so, never dropped
+            // behind a 204. No regular pass would announce a request only this call names.
+            Response.Headers.RetryAfter = "30";
+            return StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
 
         return NoContent();
@@ -258,9 +284,48 @@ public sealed class PushController : ControllerBase
 
     private static string? Clip(string? value, int max) => value is { Length: > 0 } ? (value.Length <= max ? value : value[..max]) : null;
 
-    /// <summary>A browser's language tag ("en-GB"), if it looks like one.</summary>
-    private static string? Locale(string? value) =>
-        value is { Length: > 0 and <= 35 } && value.All(c => char.IsAsciiLetterOrDigit(c) || c == '-') ? value : null;
+    /// <summary>
+    /// The device this request is signed in from: the one its access token was issued to. The device the request's
+    /// own header names (Jellyfin's device id claim) only stands in when Jellyfin's device list can't be read.
+    /// </summary>
+    private SessionDevice? Device(Guid userId) => _devices.ForToken(
+        userId,
+        User.GetJellyfinToken(),
+        User.GetJellyfinDeviceId() is { } claimed ? new SessionDevice(claimed, User.GetJellyfinDeviceName()) : null);
+
+    /// <summary>
+    /// The webhook's body, or null when it's longer than <see cref="MaxWebhookBytes"/>: by what the request says of its
+    /// length, by what arrives, or by the server's own limit (which throws as the body is read, and would be a 500).
+    /// </summary>
+    private async Task<byte[]?> ReadWebhookAsync(CancellationToken cancellationToken)
+    {
+        if (Request.ContentLength > MaxWebhookBytes)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var body = new MemoryStream();
+            var buffer = new byte[8192];
+            int read;
+            while ((read = await Request.Body.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+            {
+                if (body.Length + read > MaxWebhookBytes)
+                {
+                    return null;
+                }
+
+                body.Write(buffer, 0, read);
+            }
+
+            return body.ToArray();
+        }
+        catch (BadHttpRequestException e) when (e.StatusCode == StatusCodes.Status413PayloadTooLarge)
+        {
+            return null;
+        }
+    }
 
     /// <summary>Whether the user has request features (Seerr set up, and an account there): what notifications are about.</summary>
     private async Task<bool> HasRequestsAsync(Guid userId, CancellationToken cancellationToken)
@@ -276,13 +341,14 @@ public sealed class PushController : ControllerBase
 /// </summary>
 public sealed record PushStatusDto(bool Available, string? PublicKey, string? Endpoint);
 
-/// <summary>Body of POST /Lumen/Push/Subscription: a browser's <c>PushSubscription</c>, and its language.</summary>
-public sealed record PushSubscribeDto(string? Endpoint, string? P256dh, string? Auth, string? Locale);
+/// <summary>Body of POST /Lumen/Push/Subscription: a browser's <c>PushSubscription</c>.</summary>
+public sealed record PushSubscribeDto(string? Endpoint, string? P256dh, string? Auth);
 
 /// <summary>Result of POST /Lumen/Push/Test: whether the push service took it, or what to tell the user.</summary>
 public sealed record PushTestResultDto(bool Ok, string? Error)
 {
-    internal const string Gone = "This device's notifications have expired. Turn them off and on again.";
+    // Gone: the server has dropped the subscription, so the switch shows off, and turning it on makes a new one.
+    internal const string Gone = "This device's notifications had expired and were turned off. Turn them on again.";
     internal const string Rejected = "The push service refused the notification. Turn notifications off and on again.";
     internal const string Unreachable = "The server couldn't reach the push service. Try again later.";
 }

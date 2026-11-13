@@ -15,7 +15,11 @@ export const STUB_SEERR = `http://localhost:${STUB_SEERR_PORT}`;
 export const SEERR_URL = process.env.LUMEN_E2E_SEERR_URL ?? STUB_SEERR;
 
 const STATE_FILE = new URL('../.state.json', import.meta.url);
-const CLIENT_HEADER = 'MediaBrowser Client="Lumen E2E", Device="Playwright", DeviceId="lumen-e2e", Version="1.0.0"';
+/** The device the tests' own API calls are signed in from. */
+export const DEVICE_ID = 'lumen-e2e';
+const clientHeader = (deviceId: string): string =>
+  `MediaBrowser Client="Lumen E2E", Device="Playwright", DeviceId="${deviceId}", Version="1.0.0"`;
+const CLIENT_HEADER = clientHeader(DEVICE_ID);
 
 export interface Auth {
   token: string;
@@ -33,6 +37,8 @@ export interface E2EState {
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'DELETE';
   token?: string;
+  /** The device id the request's Authorization header names, when not the tests' own (DEVICE_ID). */
+  deviceId?: string;
   body?: unknown;
   query?: Record<string, string | number | boolean | undefined>;
 }
@@ -42,10 +48,11 @@ export async function api<T = unknown>(path: string, options: RequestOptions = {
   for (const [key, value] of Object.entries(options.query ?? {})) {
     if (value !== undefined) url.searchParams.set(key, String(value));
   }
+  const header = options.deviceId ? clientHeader(options.deviceId) : CLIENT_HEADER;
   const response = await fetch(url, {
     method: options.method ?? 'GET',
     headers: {
-      Authorization: options.token ? `${CLIENT_HEADER}, Token="${options.token}"` : CLIENT_HEADER,
+      Authorization: options.token ? `${header}, Token="${options.token}"` : header,
       ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
     },
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
@@ -55,10 +62,15 @@ export async function api<T = unknown>(path: string, options: RequestOptions = {
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
-export async function authenticate(user: { name: string; password: string }): Promise<Auth> {
+/**
+ * Signs in. `deviceId`: as another device than the tests' own, for a second session of the same user (signing in again
+ * as DEVICE_ID would end the session every spec shares).
+ */
+export async function authenticate(user: { name: string; password: string }, deviceId?: string): Promise<Auth> {
   const result = await api<{ AccessToken: string; User: { Id: string } }>('/Users/AuthenticateByName', {
     method: 'POST',
     body: { Username: user.name, Pw: user.password },
+    deviceId,
   });
   return { token: result.AccessToken, userId: result.User.Id };
 }

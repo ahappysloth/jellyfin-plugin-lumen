@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { ADMIN, BASE_URL, SEERR_URL, STUB_SEERR, api, loadState, resetLumen } from '../support/api';
+import { ADMIN, type Auth, BASE_URL, DEVICE_ID, SEERR_URL, STUB_SEERR, api, authenticate, loadState, resetLumen } from '../support/api';
 import { login } from '../support/login';
 import { type PushedMessage, type TestSubscription, decrypt, newSubscription, pushed, vapidClaims } from '../support/push';
 
@@ -8,6 +8,10 @@ import { type PushedMessage, type TestSubscription, decrypt, newSubscription, pu
 // because the tests' server runs with LUMEN_PUSH_TEST_ENDPOINT. The tests hold a subscription's keys, as a browser
 // would, and read what arrives: the encryption, the signature and the job that sends are the real ones. The toggle
 // and Lumen's service worker in a browser are in push-device.spec.ts.
+//
+// The tests' server runs with LUMEN_PUSH_TEST_PASS_SECONDS=3600 and LUMEN_PUSH_TEST_RETRY_SECONDS=2 (ReadyPushTimings):
+// the job's own two-minute pass can't run during a test, so whatever is pushed here was caused by what the test did
+// (Seerr's webhook, or an open page's check), and a failed send is tried again after 2 s and 4 s, not 2 and 4 minutes.
 
 // Seerr permission bits: REQUEST = 32. The admin is Seerr user 1 in every requests spec, and the kid has no Seerr
 // account in any (Lumen caches the mapping for 10 minutes, across specs).
@@ -16,12 +20,16 @@ const ADMIN_SEERR_ID = 1;
 // Lumen keeps a user's Seerr answer this long (RequestProgressService.Ttl), so a change in the stub shows after it.
 const SERVER_CACHE_MS = 8_000;
 const TOGGLE = 'Notify me when requests are ready';
+// A device is sent one notification this often before the job gives up on it (ReadyPushJob.MaxAttempts).
+const MAX_ATTEMPTS = 3;
+/** Another device the admin is signed in on, for the tests that need two. */
+const SECOND_DEVICE = 'lumen-e2e-second';
 
 interface PushAdminStatus {
   Devices: number;
   Users: number;
   Running: boolean;
-  LastSend?: { Kind: string; Sent: number; Gone: number };
+  LastSend?: { Kind: string; Sent: number; Gone: number; Failed: number; Status?: number };
   WebhookPath: string;
   WebhookSecret?: string;
 }
@@ -59,12 +67,46 @@ const adminStatus = (): Promise<PushAdminStatus> => api('/Lumen/Admin/Push', { t
 const publicKey = async (): Promise<string> =>
   (await api<{ PublicKey: string }>('/Lumen/Push/Status', { token: loadState().admin.token })).PublicKey;
 
-/** Turns notifications on for the tests' own device (the API token's), as the toggle would. */
-async function subscribe(subscription: TestSubscription): Promise<void> {
+/** Turns notifications on for the tests' own device (the API token's), or for `session`'s, as the toggle would. */
+async function subscribe(subscription: TestSubscription, session?: Auth & { deviceId: string }): Promise<void> {
   await api('/Lumen/Push/Subscription', {
     method: 'POST',
-    token: loadState().admin.token,
-    body: { Endpoint: subscription.endpoint, P256dh: subscription.p256dh, Auth: subscription.auth, Locale: 'en-GB' },
+    token: session?.token ?? loadState().admin.token,
+    deviceId: session?.deviceId,
+    body: { Endpoint: subscription.endpoint, P256dh: subscription.p256dh, Auth: subscription.auth },
+  });
+}
+
+/** The admin, signed in on a second device: its own session and access token, beside the tests' own. */
+async function secondDevice(): Promise<Auth & { deviceId: string }> {
+  return { ...(await authenticate(ADMIN, SECOND_DEVICE)), deviceId: SECOND_DEVICE };
+}
+
+async function signOut(session: Auth & { deviceId: string }): Promise<void> {
+  await api('/Sessions/Logout', { method: 'POST', token: session.token, deviceId: session.deviceId });
+}
+
+/**
+ * Files a request as the admin in Seerr's own interface, not through Lumen: Lumen knows nothing of it until it next
+ * asks Seerr. Returns Seerr's id for it.
+ */
+async function requestInSeerr(tmdbId: number): Promise<number> {
+  const response = await fetch(`${STUB_SEERR}/api/v1/request`, {
+    method: 'POST',
+    headers: { 'X-Api-Key': 'stub-key', 'X-Api-User': String(ADMIN_SEERR_ID), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mediaType: 'movie', mediaId: tmdbId }),
+  });
+  expect(response.status).toBe(201);
+  return ((await response.json()) as { id: number }).id;
+}
+
+/** Seerr's webhook, as Seerr calls it. */
+async function webhook(authorization: string, body: unknown): Promise<Response> {
+  const { WebhookPath } = await adminStatus();
+  return fetch(new URL(WebhookPath, `${BASE_URL}/`), {
+    method: 'POST',
+    headers: { Authorization: authorization, 'Content-Type': 'application/json' },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
   });
 }
 
@@ -92,22 +134,25 @@ test('a request that becomes ready is pushed once, with the app closed, and the 
   test.setTimeout(120_000);
   const subscription = newSubscription();
   await subscribe(subscription);
-  await requestDownloading(605);
-  // Lumen has seen it in flight (it was filed through Lumen). Nothing is pushed while it downloads.
+  // Filed in Seerr's own interface, and on the server before Lumen ever looks: Lumen never sees it in flight, so
+  // neither a pass of its job (were one to run) nor an open page would ever announce it. Only Seerr's webhook, by
+  // naming it, can: whatever arrives below, the webhook caused.
   const itemId = await makeAvailable(605, 'Lumen Beta');
-
-  // No page is open anywhere: Seerr's webhook tells Lumen, which asks Seerr what's ready and for whom.
-  const { WebhookSecret, WebhookPath } = await adminStatus();
+  const requestId = await requestInSeerr(605);
+  const { WebhookSecret } = await adminStatus();
   await new Promise((resolve) => setTimeout(resolve, SERVER_CACHE_MS)); // until Lumen asks Seerr again
-  const hook = (authorization: string, body: unknown): Promise<Response> =>
-    fetch(new URL(WebhookPath, `${BASE_URL}/`), {
-      method: 'POST',
-      headers: { Authorization: authorization, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-  expect((await hook('not-the-secret', { notification_type: 'MEDIA_AVAILABLE' })).status).toBe(401);
+
+  // Without the secret, nothing; and with it but no request named, Lumen looks and finds nothing new to say.
+  expect((await webhook('not-the-secret', { notification_type: 'MEDIA_AVAILABLE', request: { request_id: String(requestId) } })).status).toBe(401);
+  expect((await webhook(WebhookSecret!, { notification_type: 'MEDIA_AVAILABLE', subject: 'Lumen Future' })).status).toBe(204);
+  const mine = await api<{ Requests: { Status: string; Announce: boolean }[] }>('/Lumen/Requests/Mine', { token: loadState().admin.token });
+  expect(mine.Requests[0]).toMatchObject({ Status: 'Ready', Announce: false });
+  await page.waitForTimeout(2_000); // the job has long looked by then
   expect(await pushed(subscription)).toHaveLength(0);
-  expect((await hook(WebhookSecret!, { notification_type: 'MEDIA_AVAILABLE', subject: 'Lumen Future' })).status).toBe(204);
+
+  // No page is open anywhere: Seerr's webhook names the request (its default payload), and Lumen asks Seerr what's
+  // ready and for whom.
+  expect((await webhook(WebhookSecret!, { notification_type: 'MEDIA_AVAILABLE', subject: 'Lumen Future', request: { request_id: String(requestId) } })).status).toBe(204);
 
   const [message] = await received(subscription);
   expect(message).toMatchObject({ encoding: 'aes128gcm', ttl: String(3 * 24 * 3600) });
@@ -128,7 +173,7 @@ test('a request that becomes ready is pushed once, with the app closed, and the 
   expect((await adminStatus()).LastSend).toMatchObject({ Kind: 'ready', Sent: 1 });
 
   // Seerr calling again, and the user opening Lumen: no second push, and no pop-up for what the push already said.
-  expect((await hook(`Bearer ${WebhookSecret!}`, { notification_type: 'MEDIA_AVAILABLE', subject: 'Lumen Future' })).status).toBe(204);
+  expect((await webhook(`Bearer ${WebhookSecret!}`, { notification_type: 'MEDIA_AVAILABLE', subject: 'Lumen Future', request: { request_id: String(requestId) } })).status).toBe(204);
   const checked = page.waitForResponse(/\/Lumen\/Requests\/Mine\b/);
   await login(page, ADMIN);
   expect((await (await checked).json()).Requests[0]).toMatchObject({ Status: 'Ready', Announce: false });
@@ -136,6 +181,18 @@ test('a request that becomes ready is pushed once, with the app closed, and the 
   await page.waitForTimeout(500);
   await expect(page.getByRole('alert')).toBeEmpty();
   expect(await pushed(subscription)).toHaveLength(1);
+});
+
+test("Seerr's webhook refuses a body that's too large, with or without the secret", async () => {
+  const { WebhookSecret } = await adminStatus();
+  const large = JSON.stringify({ notification_type: 'MEDIA_AVAILABLE', message: 'x'.repeat(70 * 1024) });
+
+  // 413, not the 500 an unhandled size limit gives; and still nothing for a caller without the secret.
+  expect((await webhook(WebhookSecret!, large)).status).toBe(413);
+  expect((await webhook('not-the-secret', large)).status).toBe(401);
+  // What isn't JSON is a bad request, and Seerr's "Test" button is fine.
+  expect((await webhook(WebhookSecret!, 'notification_type=MEDIA_AVAILABLE')).status).toBe(400);
+  expect((await webhook(WebhookSecret!, { notification_type: 'TEST_NOTIFICATION' })).status).toBe(204);
 });
 
 test('an open page that sees a request turn ready has the push sent, not the pop-up shown', async ({ page }) => {
@@ -150,6 +207,9 @@ test('an open page that sees a request turn ready has the push sent, not the pop
 
   await makeAvailable(605, 'Lumen Beta');
   await page.waitForTimeout(SERVER_CACHE_MS); // until Lumen asks Seerr again
+  // Nothing was pushed meanwhile: the job's own pass is an hour away on the tests' server, and nobody called the
+  // webhook. So the push below is the page's doing.
+  expect(await pushed(subscription)).toHaveLength(0);
   const again = page.waitForResponse(/\/Lumen\/Requests\/Mine\b/);
   await page.reload();
 
@@ -167,6 +227,118 @@ test('an open page that sees a request turn ready has the push sent, not the pop
   expect(await pushed(subscription)).toHaveLength(1);
 });
 
+test("a push service that keeps failing is tried three times, then the app's pop-up says it", async ({ page }) => {
+  test.setTimeout(120_000);
+  // The stub push service answers 503 for this device, every time.
+  const down = newSubscription(`down-${Date.now()}`);
+  await subscribe(down);
+  await requestDownloading(605);
+  const checked = page.waitForResponse(/\/Lumen\/Requests\/Mine\b/);
+  await login(page, ADMIN);
+  expect((await (await checked).json()).Requests[0].Status).toBe('Downloading');
+
+  await makeAvailable(605, 'Lumen Beta');
+  await page.waitForTimeout(SERVER_CACHE_MS); // until Lumen asks Seerr again
+  const again = page.waitForResponse(/\/Lumen\/Requests\/Mine\b/);
+  await page.reload();
+
+  // The device still has notifications on, so the page's check leaves the request to the push: no pop-up yet.
+  expect((await (await again).json()).Requests[0]).toMatchObject({ Status: 'Ready', Announce: false });
+  await expect(page.getByRole('alert')).toBeEmpty();
+
+  // Three attempts (at once, after 2 s, after 4 s more on the tests' server), and the job gives up.
+  await expect.poll(async () => (await pushed(down)).length, { timeout: 30_000 }).toBe(MAX_ATTEMPTS);
+  expect(await adminStatus()).toMatchObject({ Devices: 1, LastSend: { Kind: 'ready', Sent: 0, Failed: 1, Status: 503 } });
+
+  // The user still hears of it: the next check shows the pop-up, though the device still has notifications on.
+  const told = page.waitForResponse(/\/Lumen\/Requests\/Mine\b/);
+  await page.reload();
+  expect((await (await told).json()).Requests[0]).toMatchObject({ Status: 'Ready', Announce: true });
+  await expect(page.getByRole('alert')).toContainText('Lumen Future is ready to watch', { timeout: 15_000 });
+
+  // And that was all: however often the page checks from here, the push service isn't tried again, and the pop-up
+  // doesn't come back.
+  for (let i = 0; i < 2; i++) {
+    const next = page.waitForResponse(/\/Lumen\/Requests\/Mine\b/);
+    await page.reload();
+    expect((await (await next).json()).Requests[0]).toMatchObject({ Status: 'Ready', Announce: false });
+  }
+  await page.waitForTimeout(7_000); // longer than both waits between attempts
+  expect(await pushed(down)).toHaveLength(MAX_ATTEMPTS);
+  await expect(page.getByRole('alert')).toBeEmpty();
+});
+
+test('with two devices, the one whose push service fails is tried again on its own, and nobody is told twice', async ({ page }) => {
+  test.setTimeout(120_000);
+  const second = await secondDevice();
+  try {
+    // The tests' own device at a push service that answers 201, the admin's second device at one that answers 503.
+    const fine = newSubscription();
+    const down = newSubscription(`down-${Date.now()}`);
+    await subscribe(fine);
+    await subscribe(down, second);
+    expect(await adminStatus()).toMatchObject({ Devices: 2, Users: 1 });
+
+    // As in the first test: only the webhook, naming the request, can have it announced.
+    await makeAvailable(605, 'Lumen Beta');
+    const requestId = await requestInSeerr(605);
+    const { WebhookSecret } = await adminStatus();
+    await new Promise((resolve) => setTimeout(resolve, SERVER_CACHE_MS));
+    expect((await webhook(WebhookSecret!, { notification_type: 'MEDIA_AVAILABLE', request: { request_id: String(requestId) } })).status).toBe(204);
+
+    // The first device has it at once. The second is sent it three times in all; the first never again.
+    const [message] = await received(fine);
+    expect(decrypt(fine, message!).title).toBe('Lumen Future is ready to watch');
+    await expect.poll(async () => (await pushed(down)).length, { timeout: 30_000 }).toBe(MAX_ATTEMPTS);
+    await page.waitForTimeout(7_000);
+    expect(await pushed(down)).toHaveLength(MAX_ATTEMPTS);
+    expect(await pushed(fine)).toHaveLength(1);
+    // Both are still subscribed: a push service being down removes nobody.
+    expect((await adminStatus()).Devices).toBe(2);
+
+    // One device told the user, so the app has no pop-up to add.
+    const checked = page.waitForResponse(/\/Lumen\/Requests\/Mine\b/);
+    await login(page, ADMIN);
+    expect((await (await checked).json()).Requests[0]).toMatchObject({ Status: 'Ready', Announce: false });
+    await page.waitForTimeout(500);
+    await expect(page.getByRole('alert')).toBeEmpty();
+  } finally {
+    await signOut(second);
+  }
+});
+
+test("a session can't read, replace, remove or test another of its user's devices by naming it", async () => {
+  const { admin } = loadState();
+  const second = await secondDevice();
+  // The second device's access token, on requests whose Authorization header names the first device: Jellyfin's own
+  // sign-in takes the device id from that header, so this goes through its real authentication.
+  const posing = { token: second.token, deviceId: DEVICE_ID };
+  try {
+    const first = newSubscription();
+    await subscribe(first);
+
+    // It sees none of the first device's subscription, and removing "its" subscription leaves the first's alone.
+    expect((await api<{ Endpoint?: string }>('/Lumen/Push/Status', posing)).Endpoint).toBeUndefined();
+    await api('/Lumen/Push/Subscription', { method: 'DELETE', ...posing });
+    expect((await api<{ Endpoint?: string }>('/Lumen/Push/Status', { token: admin.token })).Endpoint).toBe(first.endpoint);
+    await expect(api('/Lumen/Push/Test', { method: 'POST', ...posing })).rejects.toThrow(/-> 404/);
+
+    // What it subscribes is stored for the device its token was issued to: beside the first's, never in its place.
+    const other = newSubscription();
+    await api('/Lumen/Push/Subscription', { method: 'POST', ...posing, body: { Endpoint: other.endpoint, P256dh: other.p256dh, Auth: other.auth } });
+    expect((await adminStatus()).Devices).toBe(2);
+    expect((await api<{ Endpoint?: string }>('/Lumen/Push/Status', { token: admin.token })).Endpoint).toBe(first.endpoint);
+    expect((await api<{ Endpoint?: string }>('/Lumen/Push/Status', second)).Endpoint).toBe(other.endpoint);
+
+    // And turning "the first device" off turns off its own.
+    await api('/Lumen/Push/Subscription', { method: 'DELETE', ...posing });
+    expect((await adminStatus()).Devices).toBe(1);
+    expect((await api<{ Endpoint?: string }>('/Lumen/Push/Status', { token: admin.token })).Endpoint).toBe(first.endpoint);
+  } finally {
+    await signOut(second);
+  }
+});
+
 test('a subscription the push service says is gone is removed, and the pop-up is back', async ({ page }) => {
   test.setTimeout(120_000);
   const gone = newSubscription(`gone-${Date.now()}`);
@@ -179,7 +351,7 @@ test('a subscription the push service says is gone is removed, and the pop-up is
   await expect(async () => {
     result = await api('/Lumen/Push/Test', { method: 'POST', token: loadState().admin.token });
   }).toPass({ timeout: 40_000, intervals: [4_000] });
-  expect(result).toEqual({ Ok: false, Error: "This device's notifications have expired. Turn them off and on again." });
+  expect(result).toEqual({ Ok: false, Error: "This device's notifications had expired and were turned off. Turn them on again." });
   expect(await pushed(gone)).toHaveLength(1);
   expect(await adminStatus()).toMatchObject({ Devices: 0, LastSend: { Kind: 'test', Sent: 0, Gone: 1 } });
   const status = await api<{ Endpoint?: string }>('/Lumen/Push/Status', { token: loadState().admin.token });
@@ -207,11 +379,25 @@ test('the test button is rate-limited, a subscription can only point at a push s
   const limited = await send();
   expect(limited.status).toBe(429);
   expect(Number(limited.headers.get('retry-after'))).toBeGreaterThan(0);
+  // The admin's status, with the webhook's secret in it, is never cached.
+  const status = await fetch(new URL('Lumen/Admin/Push', `${BASE_URL}/`), { headers: as(admin.token) });
+  expect(status.headers.get('cache-control')).toBe('no-store');
   await expect.poll(async () => (await pushed(subscription)).length).toBe(1);
   expect(decrypt(subscription, (await pushed(subscription))[0]!).kind).toBe('test');
 
   // Not a push service: the server would be posting into its own network on a user's say-so.
-  for (const endpoint of [`${SEERR_URL}/api/v1/settings/main`, 'http://localhost:8096/Users', 'https://example.com/push']) {
+  // Nor another service of a company that runs one, nor the stub's other routes by way of "..".
+  const notPushServices = [
+    `${SEERR_URL}/api/v1/settings/main`,
+    `${SEERR_URL}/push/../api/v1/settings/main`,
+    `${SEERR_URL}/push/%2e%2e/__stub/reset`,
+    'http://localhost:8096/Users',
+    'https://example.com/push',
+    'https://storage.googleapis.com/bucket/object',
+    'https://docs.google.com/forms/d/e/x/formResponse',
+    'https://evil.push.services.mozilla.com/wpush/v2/x',
+  ];
+  for (const endpoint of notPushServices) {
     await expect(
       api('/Lumen/Push/Subscription', {
         method: 'POST',

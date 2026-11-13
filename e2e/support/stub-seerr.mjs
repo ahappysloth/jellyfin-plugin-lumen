@@ -22,7 +22,8 @@
 //   GET  /api/v1/{movie|tv}/:id/recommendations → two movies
 //   POST /api/v1/request  { mediaType, mediaId, seasons?, is4k }
 //        → 201 { id, status: 2 if the user has ADMIN/AUTO_APPROVE else 1, media: { status: 2 } };
-//          409 { message } if this user already requested the same mediaId + seasons; recorded for /__stub/requests
+//          409 { message } if this user already requested the same mediaId + seasons; recorded for /__stub/requests.
+//          A test may call it itself, for a request filed in Seerr's own interface, which Lumen hasn't seen.
 //   (Catalog and request routes act as a user: they need the key and an X-Api-User header, 400 without it.)
 //   GET  /t/p/:size/:file                       → a tiny PNG (TMDB image stand-in)
 //   Trakt (LUMEN_TRAKT_API_BASE points here, under /trakt): every call needs `trakt-api-version: 2` and

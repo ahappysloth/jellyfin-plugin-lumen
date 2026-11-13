@@ -7,7 +7,7 @@ namespace Jellyfin.Plugin.Lumen.Push;
 /// keys messages to it are encrypted with (the Push API's <c>PushSubscription</c>). <c>DeviceId</c> is Jellyfin's id for
 /// the device that signed in, so each device has one subscription and can only replace or remove its own.
 /// </summary>
-public sealed record PushSubscription(string Endpoint, string P256dh, string Auth, string DeviceId, string? DeviceName, string? Locale, DateTimeOffset Created)
+public sealed record PushSubscription(string Endpoint, string P256dh, string Auth, string DeviceId, string? DeviceName, DateTimeOffset Created)
 {
     /// <summary>The longest address taken (Apple's and Mozilla's are around 200 to 300 characters).</summary>
     public const int MaxEndpointLength = 1024;
@@ -21,16 +21,32 @@ public sealed record PushSubscription(string Endpoint, string P256dh, string Aut
     public const string TestEndpointVariable = "LUMEN_PUSH_TEST_ENDPOINT";
 
     /// <summary>
-    /// The push services browsers use: Google's (Chrome, Edge on Android, Brave, Opera, Samsung), Apple's (Safari, and
-    /// home-screen apps on iOS), Mozilla's (Firefox) and Microsoft's (Edge). The server POSTs to whatever address a
-    /// subscription names, so only these are taken: a signed-in user can't point it at something on the server's own
-    /// network.
+    /// The push services browsers use, by their exact hosts. The server POSTs to whatever address a subscription names,
+    /// so only these are taken: a signed-in user can't point it at something on the server's own network, nor at any
+    /// other service of the same companies.
+    /// <list type="bullet">
+    /// <item>Google's FCM (Chrome, Edge on Android, Brave, Opera, Samsung): <c>fcm.googleapis.com</c>, and
+    /// <c>jmt17.google.com</c>, FCM's staging host, which Chrome's Canary and Dev channels subscribe at (both in
+    /// Chromium's <c>push_messaging_constants.cc</c>).</item>
+    /// <item>Mozilla's autopush (Firefox): <c>updates.push.services.mozilla.com</c>.</item>
+    /// <item>Apple's (Safari, and Home Screen apps on iOS): <c>web.push.apple.com</c> today.</item>
+    /// </list>
     /// </summary>
-    private static readonly string[] PushHosts = ["googleapis.com", "google.com", "push.apple.com", "push.services.mozilla.com", "notify.windows.com"];
+    private static readonly string[] PushHosts = ["fcm.googleapis.com", "jmt17.google.com", "updates.push.services.mozilla.com", "web.push.apple.com"];
+
+    /// <summary>
+    /// The push services that hand out addresses on many hosts, by the domain they're all under: Apple's (its
+    /// documentation says to allow every subdomain of <c>push.apple.com</c>) and Microsoft's WNS, which Edge on Windows
+    /// subscribes at (<c>wns2-by3p.notify.windows.com</c> and the like, one per data centre).
+    /// </summary>
+    private static readonly string[] PushDomains = [".push.apple.com", ".notify.windows.com"];
+
+    /// <summary>A dot, slash or backslash written as an escape: a server may read them as path syntax.</summary>
+    private static readonly string[] EscapedPathSyntax = ["%2e", "%2f", "%5c"];
 
     /// <summary>
     /// Whether <paramref name="endpoint"/> is an https address at a known push service, without credentials or a
-    /// fragment (or starts with <paramref name="testPrefix"/>, see <see cref="TestEndpointVariable"/>).
+    /// fragment (or is under <paramref name="testPrefix"/>, see <see cref="TestEndpointVariable"/>).
     /// </summary>
     public static bool IsAllowedEndpoint(string? endpoint, string? testPrefix = null)
     {
@@ -43,14 +59,21 @@ public sealed record PushSubscription(string Endpoint, string P256dh, string Aut
             return false;
         }
 
-        if (!string.IsNullOrEmpty(testPrefix) && endpoint.StartsWith(testPrefix, StringComparison.Ordinal) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        // The tests' stub. Compared as the address will be requested (".." resolved, the host in lower case), so one
+        // written as "…/push/../api" isn't under the prefix; an escaped dot or slash in the path is never taken.
+        if (!string.IsNullOrEmpty(testPrefix)
+            && Uri.TryCreate(testPrefix, UriKind.Absolute, out var prefix)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+            && uri.AbsoluteUri.StartsWith(prefix.AbsoluteUri, StringComparison.Ordinal)
+            && !EscapedPathSyntax.Any(escape => uri.AbsolutePath.Contains(escape, StringComparison.OrdinalIgnoreCase)))
         {
             return true;
         }
 
+        var host = uri.IdnHost;
         return uri.Scheme == Uri.UriSchemeHttps
             && uri.IsDefaultPort
-            && PushHosts.Any(host => uri.IdnHost.Equals(host, StringComparison.OrdinalIgnoreCase) || uri.IdnHost.EndsWith("." + host, StringComparison.OrdinalIgnoreCase));
+            && (PushHosts.Contains(host, StringComparer.OrdinalIgnoreCase) || PushDomains.Any(domain => host.EndsWith(domain, StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>Whether the keys are what the Push API gives: a P-256 point (65 bytes) and a 16-byte secret, base64url.</summary>

@@ -507,7 +507,10 @@ public sealed class RequestsControllerTests : IDisposable
         await Create().CreateRequest(new CatalogRequestDto("movie", 603, null), CancellationToken.None);
 
         _progress.Received(1).Invalidate(Endpoint, 9);
-        _announcements.Received(1).Update(_user, "http://seerr:5055/", Arg.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new List<int> { 12 })), Arg.Any<IEnumerable<int>>(), Arg.Any<IEnumerable<int>>());
+
+        // Added to what's watched, not as Seerr's whole answer (which would forget the user's other requests).
+        _announcements.Received(1).Watch(_user, "http://seerr:5055/", Arg.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new List<int> { 12 })));
+        _announcements.DidNotReceiveWithAnyArgs().Update(default, default!, default!, default!, default!);
     }
 
     private static void AssertError<T>(ActionResult? result)

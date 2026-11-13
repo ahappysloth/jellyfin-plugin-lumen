@@ -121,6 +121,57 @@ public sealed class PushSubscriptionStoreTests : IDisposable
     }
 
     [Fact]
+    public void Removed_NamesEveryAddressThatsNoLongerStored_WhateverTheReason()
+    {
+        var store = Create();
+        var removed = new List<string>();
+        store.Removed += removed.Add;
+        store.Save(_alice, Subscription("phone", "https://web.push.apple.com/a"));
+        store.Save(_alice, Subscription("laptop", "https://fcm.googleapis.com/fcm/send/b"));
+        store.Save(_bob, Subscription("bobs", "https://web.push.apple.com/c"));
+
+        // Stored again as it is: nothing went.
+        store.Save(_alice, Subscription("phone", "https://web.push.apple.com/a"));
+        Assert.Empty(removed);
+
+        store.Save(_alice, Subscription("phone", "https://web.push.apple.com/a2")); // the device subscribed afresh
+        store.Remove(_alice, "laptop"); // turned off
+        store.RemoveEndpoint(_bob, "https://web.push.apple.com/c"); // gone
+        store.Remove(_bob, "bobs"); // nothing left to remove
+        Assert.Equal(["https://web.push.apple.com/a", "https://fcm.googleapis.com/fcm/send/b", "https://web.push.apple.com/c"], removed);
+
+        // The keys were reset: everything that's left.
+        removed.Clear();
+        store.Clear();
+        Assert.Equal(["https://web.push.apple.com/a2"], removed);
+    }
+
+    [Fact]
+    public void Removed_AlsoNamesTheDevicesPushedOutByNewerOnes()
+    {
+        var store = Create();
+        var removed = new List<string>();
+        store.Removed += removed.Add;
+
+        for (var i = 0; i <= PushSubscriptionStore.MaxPerUser; i++)
+        {
+            store.Save(_alice, Subscription("device-" + i, "https://web.push.apple.com/" + i));
+        }
+
+        Assert.Equal(["https://web.push.apple.com/0"], removed);
+    }
+
+    [Fact]
+    public void AFileWrittenWithEachDevicesLanguage_StillReads()
+    {
+        // Subscriptions carried a "Locale" before it was dropped.
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(FilePath, "{\"" + _alice.ToString("N") + "\":[{\"Endpoint\":\"https://web.push.apple.com/a\",\"P256dh\":\"p\",\"Auth\":\"a\",\"DeviceId\":\"phone\",\"DeviceName\":\"Safari\",\"Locale\":\"de-DE\",\"Created\":\"2026-11-01T00:00:00+00:00\"}]}");
+
+        Assert.Equal("phone", Assert.Single(Create().ForUser(_alice)).DeviceId);
+    }
+
+    [Fact]
     public void Subscriptions_OutlastARestart_ButNotTheirUser()
     {
         Create().Save(_alice, Subscription("phone", "https://web.push.apple.com/a"));
@@ -157,8 +208,8 @@ public sealed class PushSubscriptionStoreTests : IDisposable
         Assert.DoesNotContain("p256", text, StringComparison.Ordinal);
     }
 
-    internal static PushSubscription Subscription(string deviceId, string endpoint, string? locale = null) =>
-        new(endpoint, "p256-" + deviceId, "auth-" + deviceId, deviceId, "Device " + deviceId, locale, TestData.Now);
+    internal static PushSubscription Subscription(string deviceId, string endpoint) =>
+        new(endpoint, "p256-" + deviceId, "auth-" + deviceId, deviceId, "Device " + deviceId, TestData.Now);
 
     private PushSubscriptionStore Create(Func<Guid, bool>? userExists = null) => new(FilePath, NullLogger<PushSubscriptionStore>.Instance, userExists);
 }

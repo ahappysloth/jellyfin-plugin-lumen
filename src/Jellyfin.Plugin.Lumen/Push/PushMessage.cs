@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Jellyfin.Plugin.Lumen.Api;
@@ -66,11 +65,14 @@ public sealed record PushMessage
         Tag = "lumen-ready-" + item.Key,
     };
 
-    /// <summary>"5 of your requests are ready to watch", opening My requests. The number is written as <paramref name="locale"/> writes it.</summary>
-    public static PushMessage ReadyMany(IReadOnlyList<CatalogItemDto> items, string? locale) => new()
+    /// <summary>
+    /// "5 of your requests are ready to watch", opening My requests. The number needs no language's digit grouping: the
+    /// request list covers the newest <see cref="Requests.RequestProgressService.Take"/> requests, so it never has four digits.
+    /// </summary>
+    public static PushMessage ReadyMany(IReadOnlyList<CatalogItemDto> items) => new()
     {
         Kind = ReadyKind,
-        Title = items.Count.ToString("N0", Culture(locale)) + " of your requests are ready to watch",
+        Title = items.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " of your requests are ready to watch",
         Body = Clip(string.Join(", ", items.Select(i => i.Title))),
         Page = "requests",
         Tag = "lumen-ready",
@@ -87,24 +89,6 @@ public sealed record PushMessage
     };
 
     public byte[] ToPayload() => JsonSerializer.SerializeToUtf8Bytes(this, Json);
-
-    /// <summary>The culture a browser's language tag names ("de-CH"), or the invariant one.</summary>
-    internal static CultureInfo Culture(string? locale)
-    {
-        if (!string.IsNullOrWhiteSpace(locale))
-        {
-            try
-            {
-                return CultureInfo.GetCultureInfo(locale);
-            }
-            catch (CultureNotFoundException)
-            {
-                // a tag .NET doesn't know
-            }
-        }
-
-        return CultureInfo.InvariantCulture;
-    }
 
     private static string? Artwork(CatalogItemDto item, string? imageToken)
     {

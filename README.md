@@ -71,7 +71,8 @@ With Seerr set up, each user can turn on **Notify me when requests are ready** o
 - **iPhone and iPad:** notifications work in the Home Screen app (above), on iOS 16.4 or later. In a Safari tab, Lumen says so instead of showing the switch.
 - **Elsewhere:** Chrome, Edge, Firefox and Safari on a computer or on Android. Not on TVs.
 - The server must be reached over **https** (browsers have no notifications on plain http, except `localhost`), and must itself be able to reach the browsers' push services over https.
-- Lumen asks Seerr every 2 minutes on behalf of users with notifications on. To hear at once, add Seerr's webhook: Dashboard → Plugins → Lumen → Requests → Notifications shows the address and secret to enter in Seerr (Settings → Notifications → Webhook, with "Request Available" ticked).
+- If a device's push service can't be reached, Lumen tries a few more times over some minutes; if no device could be told, the request shows as the pop-up in the app instead.
+- Lumen asks Seerr every 2 minutes on behalf of users with notifications on (every half hour about requests that have only been waiting, for approval or a release, for over a day). To hear at once, add Seerr's webhook: Dashboard → Plugins → Lumen → Requests → Notifications shows the address and secret to enter in Seerr (Settings → Notifications → Webhook, with "Request Available" ticked).
 - A notification's text is encrypted for the one device; the push service that relays it can't read it.
 
 ## Running alongside other plugins

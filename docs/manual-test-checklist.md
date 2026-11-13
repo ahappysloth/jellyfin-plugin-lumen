@@ -154,6 +154,11 @@ The automated tests can't reach a real push service or iOS, so this is the only 
       phone again, the device is back in the count without touching the switch, and a test arrives.
 - [ ] Seerr's webhook (Settings → Notifications → Webhook → Test) answers without an error with the secret from
       Lumen's settings, and is refused (401) with a wrong one.
+- [ ] With the server cut off from the internet (so no push service answers), a request that becomes ready shows no
+      pop-up at first; some minutes later (three attempts: at once, 2 and 6 minutes on) opening Lumen shows the
+      pop-up for it, and Jellyfin's log has one warning for the device, not one per attempt.
+- [ ] In Edge on Windows, and in Firefox, the switch turns on (their push services, `*.notify.windows.com` and
+      `updates.push.services.mozilla.com`, are among the hosts Lumen takes) and a test arrives.
 
 ## Home-screen app (iPhone Safari, Android Chrome)
 

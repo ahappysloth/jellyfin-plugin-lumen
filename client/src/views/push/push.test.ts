@@ -32,6 +32,9 @@ const IPHONE_16_3 = IPHONE_17.replace('OS 17_5', 'OS 16_3').replace('Version/17.
 const IPAD_AS_MAC =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15';
 
+/** A subscription the browser still has, which its push service has since given up on. */
+const DEAD = 'https://web.push.apple.com/QGdead';
+
 const nav = (userAgent: string, platform = 'iPhone', maxTouchPoints = 5) =>
   ({ userAgent, platform, maxTouchPoints }) as Navigator;
 
@@ -138,6 +141,18 @@ describe('readPushState', () => {
     expect(await readPushState(makeContext(createPushClient({ available: false })))).toBe('none');
   });
 
+  it('is on for a device the server still has, though its user has no request features any more', async () => {
+    // Seerr was taken away, or the user's account there: the device must still be able to turn notifications off.
+    const left = createPushClient({ available: false, endpoint: ENDPOINT });
+    push = installPush({ permission: 'granted', endpoint: ENDPOINT });
+    expect(await readPushState(makeContext(left))).toBe('on');
+
+    // Whatever the browser says of it by now: the server would go on sending to it.
+    push.remove();
+    push = installPush({ permission: 'denied' });
+    expect(await readPushState(makeContext(left))).toBe('on');
+  });
+
   it('is off until the user turns it on', async () => {
     push = installPush();
 
@@ -200,12 +215,7 @@ describe('enablePush', () => {
     expect(new URL(posted.url).pathname).toBe('/Lumen/Push/Subscription');
     // The server answers 204: jellyfin-web's ajax must not be asked to parse it (it would reject the empty body).
     expect(posted.dataType).toBeUndefined();
-    expect(JSON.parse(posted.data!)).toEqual({
-      Endpoint: ENDPOINT,
-      P256dh: 'p256-key',
-      Auth: 'auth-secret',
-      Locale: navigator.language,
-    });
+    expect(JSON.parse(posted.data!)).toEqual({ Endpoint: ENDPOINT, P256dh: 'p256-key', Auth: 'auth-secret' });
     expect(localStorage.getItem(PUSH_FLAG)).toBe(ctx.userId);
     expect(await readPushState(ctx)).toBe('on');
   });
@@ -243,13 +253,44 @@ describe('enablePush', () => {
     expect(client.server.endpoint).toBe(ENDPOINT);
   });
 
-  it('keeps a subscription that still stands, and only tells the server', async () => {
+  it('keeps a subscription the server still has, and only tells the server', async () => {
     push = installPush({ permission: 'granted', endpoint: ENDPOINT });
+    const kept = push.subscription!;
+    const client = createPushClient({ endpoint: ENDPOINT });
+
+    expect(await enablePush(makeContext(client))).toBe('on');
+
+    expect(kept.unsubscribe).not.toHaveBeenCalled();
+    expect(push.subscribe).not.toHaveBeenCalled();
+    expect(client.server.endpoint).toBe(ENDPOINT);
+  });
+
+  it('replaces a subscription the server dropped as dead, though it was made with the same key', async () => {
+    // The push service said it was gone (or refused it three times), so the server removed the device. The browser
+    // still hands the subscription out; posted back, the switch would say "on" and nothing would ever arrive.
+    push = installPush({ permission: 'granted', endpoint: DEAD });
+    const dead = push.subscription!;
     const client = createPushClient();
 
     expect(await enablePush(makeContext(client))).toBe('on');
 
-    expect(push.subscribe).not.toHaveBeenCalled();
+    expect(dead.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(push.subscribe).toHaveBeenCalledTimes(1);
+    expect(push.requestPermission).not.toHaveBeenCalled();
+    expect(client.requests.filter((r) => r.type === 'POST').map((r) => JSON.parse(r.data!).Endpoint)).toEqual(
+      [ENDPOINT],
+    );
+    expect(client.server.endpoint).toBe(ENDPOINT);
+  });
+
+  it('replaces a subscription when the server has another address for this device', async () => {
+    push = installPush({ permission: 'granted', endpoint: DEAD });
+    const stale = push.subscription!;
+    const client = createPushClient({ endpoint: 'https://web.push.apple.com/another' });
+
+    expect(await enablePush(makeContext(client))).toBe('on');
+
+    expect(stale.unsubscribe).toHaveBeenCalled();
     expect(client.server.endpoint).toBe(ENDPOINT);
   });
 
@@ -276,12 +317,46 @@ describe('disablePush', () => {
 
     expect(await disablePush(makeContext(client))).toBe('off');
 
+    // The server first, then how the switch stands now.
     expect(client.requests.map((r) => `${r.type} ${new URL(r.url).pathname}`)).toEqual([
       'DELETE /Lumen/Push/Subscription',
+      'GET /Lumen/Push/Status',
     ]);
     expect(client.server.endpoint).toBeNull();
     expect(subscription.unsubscribe).toHaveBeenCalled();
     expect(localStorage.getItem(PUSH_FLAG)).toBeNull();
+  });
+
+  it('turns off a device left subscribed without request features, and then has nothing more to show', async () => {
+    push = installPush({ permission: 'granted', endpoint: ENDPOINT });
+    const subscription = push.subscription!;
+    const client = createPushClient({ available: false, endpoint: ENDPOINT });
+    const ctx = makeContext(client);
+    localStorage.setItem(PUSH_FLAG, ctx.userId);
+    expect(await readPushState(ctx)).toBe('on');
+
+    expect(await disablePush(ctx)).toBe('none');
+
+    expect(client.server.endpoint).toBeNull();
+    expect(subscription.unsubscribe).toHaveBeenCalled();
+    expect(localStorage.getItem(PUSH_FLAG)).toBeNull();
+  });
+
+  it('is off even if the switch cannot be read again afterwards', async () => {
+    push = installPush({ permission: 'granted', endpoint: ENDPOINT });
+    const client = createPushClient({ endpoint: ENDPOINT });
+    const respond = client.respond;
+    client.respond = (request) =>
+      request.type === 'GET' ? Promise.reject(new Response(null, { status: 502 })) : respond(request);
+
+    expect(await disablePush(makeContext(client))).toBe('off');
+    expect(client.server.endpoint).toBeNull();
+  });
+
+  it('says blocked when the permission was withdrawn meanwhile', async () => {
+    push = installPush({ permission: 'denied', endpoint: ENDPOINT });
+
+    expect(await disablePush(makeContext(createPushClient({ endpoint: ENDPOINT })))).toBe('blocked');
   });
 
   it('leaves everything as it was when the server cannot be told', async () => {
@@ -351,8 +426,9 @@ describe('resumePush', () => {
     expect(ctx.navigate).toHaveBeenCalledTimes(1);
   });
 
-  it('subscribes again, quietly, when the server no longer has the subscription or changed its key', async () => {
+  it('subscribes again, quietly, when the server changed its key', async () => {
     push = installPush({ permission: 'granted', endpoint: 'https://web.push.apple.com/old', key: OTHER_KEY });
+    const old = push.subscription!;
     const client = createPushClient();
     const ctx = makeContext(client);
     localStorage.setItem(PUSH_FLAG, ctx.userId);
@@ -360,9 +436,62 @@ describe('resumePush', () => {
     await resumePush(ctx);
 
     expect(push.requestPermission).not.toHaveBeenCalled();
+    expect(old.unsubscribe).toHaveBeenCalledTimes(1);
     expect(push.subscribe).toHaveBeenCalledTimes(1);
     expect(client.server.endpoint).toBe(ENDPOINT);
     expect(await readPushState(ctx)).toBe('on');
+  });
+
+  it('subscribes afresh, quietly, when the server dropped this very subscription as dead', async () => {
+    // Same key, same browser subscription as when it was turned on: only the server no longer has it.
+    push = installPush({ permission: 'granted', endpoint: DEAD });
+    const dead = push.subscription!;
+    const client = createPushClient();
+    const ctx = makeContext(client);
+    localStorage.setItem(PUSH_FLAG, ctx.userId);
+
+    await resumePush(ctx);
+
+    // Never the dead address again: the browser gives it up and subscribes anew, without asking anything.
+    expect(dead.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(push.subscribe).toHaveBeenCalledTimes(1);
+    expect(push.requestPermission).not.toHaveBeenCalled();
+    const posted = client.requests.filter((r) => r.type === 'POST');
+    expect(posted.map((r) => JSON.parse(r.data!).Endpoint)).toEqual([ENDPOINT]);
+    expect(client.server.endpoint).toBe(ENDPOINT);
+    expect(push.subscription!.endpoint).toBe(ENDPOINT);
+    expect(await readPushState(ctx)).toBe('on');
+  });
+
+  it('shows off, and registers nothing, on a device whose user had not turned it on', async () => {
+    // The browser still has a subscription (turned off elsewhere, or the flag was cleared), the server none.
+    push = installPush({ permission: 'granted', endpoint: DEAD });
+    const left = push.subscription!;
+    const client = createPushClient();
+    const ctx = makeContext(client);
+
+    await resumePush(ctx);
+
+    expect(client.requests).toHaveLength(0);
+    expect(await readPushState(ctx)).toBe('off');
+    expect(left.unsubscribe).not.toHaveBeenCalled();
+    expect(push.subscribe).not.toHaveBeenCalled();
+    expect(client.server.endpoint).toBeNull();
+  });
+
+  it('shows off when the permission is no longer granted, whatever the browser still holds', async () => {
+    push = installPush({ permission: 'default', endpoint: DEAD });
+    const client = createPushClient();
+    const ctx = makeContext(client);
+    localStorage.setItem(PUSH_FLAG, ctx.userId);
+
+    await resumePush(ctx);
+
+    // Nothing is asked for outside a tap: the device is simply off.
+    expect(push.requestPermission).not.toHaveBeenCalled();
+    expect(push.subscribe).not.toHaveBeenCalled();
+    expect(localStorage.getItem(PUSH_FLAG)).toBeNull();
+    expect(await readPushState(ctx)).toBe('off');
   });
 
   it('checks once per session, however many pages mount', async () => {

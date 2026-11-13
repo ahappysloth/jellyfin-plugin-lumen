@@ -14,10 +14,20 @@ public static class ClaimsPrincipalExtensions
 
     internal const string DeviceNameClaim = "Jellyfin-Device";
 
+    /// <summary>Jellyfin's <c>InternalClaimTypes.Token</c>: the access token the request is signed in with.</summary>
+    internal const string TokenClaim = "Jellyfin-Token";
+
     private static int _warnedMissingClaim;
 
-    /// <summary>The id of the device this request is signed in from (each browser or app has its own), or null.</summary>
+    /// <summary>
+    /// The device id this request names, or null. Jellyfin takes it from the request's <c>Authorization</c> header when
+    /// there's one there, so it says which device the caller claims to be, not which one its token was issued to: see
+    /// <see cref="Push.ISignedInDevices.ForToken"/> for that.
+    /// </summary>
     public static string? GetJellyfinDeviceId(this ClaimsPrincipal principal) => Claim(principal, DeviceIdClaim);
+
+    /// <summary>The access token this request is signed in with, or null.</summary>
+    public static string? GetJellyfinToken(this ClaimsPrincipal principal) => Claim(principal, TokenClaim);
 
     /// <summary>The signed-in device's name ("Safari iOS"), or null.</summary>
     public static string? GetJellyfinDeviceName(this ClaimsPrincipal principal) => Claim(principal, DeviceNameClaim);

@@ -25,9 +25,15 @@ public sealed class PushControllerTests : IDisposable
     private readonly ILumenConfigStore _config = Substitute.For<ILumenConfigStore>();
     private readonly IPushSender _sender = Substitute.For<IPushSender>();
     private readonly FakeTimeProvider _time = new(TestData.Now);
+    private readonly ISignedInDevices _devices = Substitute.For<ISignedInDevices>();
+    private readonly ListLogger<ReadyPushSignal> _signalLog = new();
+
+    /// <summary>The access tokens Jellyfin has issued: whose each is, and for which device.</summary>
+    private readonly Dictionary<string, (Guid User, SessionDevice Device)> _tokens = [];
     private readonly PushSubscriptionStore _store;
     private readonly ReadyPushSignal _signal;
     private readonly PushTestLimiter _limiter;
+    private readonly PushSubscribeLimiter _subscribeLimiter;
     private readonly PushSecrets _secrets = new(VapidKeys.Generate(), "webhook-secret-value");
     private readonly Guid _alice = Guid.NewGuid();
     private readonly Guid _bob = Guid.NewGuid();
@@ -37,8 +43,13 @@ public sealed class PushControllerTests : IDisposable
     public PushControllerTests()
     {
         _store = new PushSubscriptionStore(Path.Combine(_dir, "push-subscriptions.json"), NullLogger<PushSubscriptionStore>.Instance);
-        _signal = new ReadyPushSignal(_store);
+        _signal = new ReadyPushSignal(_store, _signalLog);
         _limiter = new PushTestLimiter(_time);
+        _subscribeLimiter = new PushSubscribeLimiter(_time);
+
+        // As Jellyfin's device list: a token is one user's, for one device, whatever a request claims beside it.
+        _devices.ForToken(default, default, default).ReturnsForAnyArgs(call =>
+            call.ArgAt<string?>(1) is { } token && _tokens.TryGetValue(token, out var issued) && issued.User == call.ArgAt<Guid>(0) ? issued.Device : null);
         _config.GetPushSecrets().Returns(_secrets);
         _config.Current.Returns(new PluginConfiguration { PushWebhookSecret = _secrets.WebhookSecret });
         _users.GetAccessAsync(default, default).ReturnsForAnyArgs(new RequestAccess(true, true, true, 9, Endpoint));
@@ -111,11 +122,87 @@ public sealed class PushControllerTests : IDisposable
     [Fact]
     public async Task Subscribe_StoresTheSubscription_ForTheSignedInUserAndDevice()
     {
-        var result = await Create(_alice, "phone", "Safari iOS").Subscribe(Body(locale: "en-GB"), CancellationToken.None);
+        var result = await Create(_alice, "phone", "Safari iOS").Subscribe(Body(), CancellationToken.None);
 
         Assert.IsType<NoContentResult>(result);
-        Assert.Equal(new PushSubscription(Apple, _p256dh, _auth, "phone", "Safari iOS", "en-GB", TestData.Now), Assert.Single(_store.ForUser(_alice)));
+        Assert.Equal(new PushSubscription(Apple, _p256dh, _auth, "phone", "Safari iOS", TestData.Now), Assert.Single(_store.ForUser(_alice)));
         Assert.False(_store.HasAny(_bob));
+    }
+
+    [Fact]
+    public async Task TheDevice_IsTheOneTheTokenWasIssuedTo_NotTheOneTheRequestClaimsToBe()
+    {
+        await Create(_alice, "phone").Subscribe(Body(), CancellationToken.None);
+        _sender.SendAsync(default, default!, default, default, default).ReturnsForAnyArgs(new PushSendResult(1, 0, 0, 0));
+
+        // Alice's laptop session, with an Authorization header that names her phone's device id.
+        PushController Laptop() => Create(_alice, "laptop", claims: "phone");
+
+        // It sees nothing of the phone's subscription, and can't remove or test it.
+        Assert.Null((await Laptop().GetStatus(CancellationToken.None)).Value!.Endpoint);
+        Assert.IsType<NoContentResult>(Laptop().Unsubscribe());
+        Assert.IsType<NotFoundResult>((await Laptop().SendTest(CancellationToken.None)).Result);
+        Assert.Equal(Apple, Assert.Single(_store.ForUser(_alice)).Endpoint);
+
+        // What it subscribes is the laptop's, beside the phone's, not in its place.
+        Assert.IsType<NoContentResult>(await Laptop().Subscribe(Body("https://fcm.googleapis.com/fcm/send/laptop"), CancellationToken.None));
+        Assert.Equal(["phone", "laptop"], _store.ForUser(_alice).Select(s => s.DeviceId));
+        Assert.Equal(Apple, _store.ForDevice(_alice, "phone")!.Endpoint);
+        Assert.Equal("https://fcm.googleapis.com/fcm/send/laptop", (await Laptop().GetStatus(CancellationToken.None)).Value!.Endpoint);
+
+        Assert.True((await Laptop().SendTest(CancellationToken.None)).Value!.Ok);
+        await _sender.Received(1).SendAsync(_alice, Arg.Any<PushMessage>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>(), Arg.Is<IReadOnlyCollection<string>>(d => d.Single() == "laptop"));
+        Laptop().Unsubscribe();
+        Assert.Equal(["phone"], _store.ForUser(_alice).Select(s => s.DeviceId));
+    }
+
+    [Fact]
+    public async Task ASignInThatIsntADevices_AnApiKeySay_HasNoSubscription_WhateverDeviceItClaims()
+    {
+        await Create(_alice, "phone").Subscribe(Body(), CancellationToken.None);
+
+        // A token Jellyfin's device list doesn't have for this user, on a request that names the phone.
+        PushController Key() => Create(_alice, null, claims: "phone", token: "an-api-key");
+
+        Assert.Null((await Key().GetStatus(CancellationToken.None)).Value!.Endpoint);
+        Assert.IsType<BadRequestObjectResult>(await Key().Subscribe(Body("https://fcm.googleapis.com/fcm/send/x"), CancellationToken.None));
+        Key().Unsubscribe();
+        Assert.IsType<NotFoundResult>((await Key().SendTest(CancellationToken.None)).Result);
+        Assert.Equal(Apple, Assert.Single(_store.ForUser(_alice)).Endpoint);
+
+        // Nor does Bob's token act as Alice's device, were it ever to carry her user id.
+        _tokens["bobs-token"] = (_bob, new SessionDevice("phone", null));
+        Assert.Null((await Create(_alice, null, claims: "phone", token: "bobs-token").GetStatus(CancellationToken.None)).Value!.Endpoint);
+    }
+
+    [Fact]
+    public async Task Subscribe_IsRateLimitedPerUser_CountingOnlyWhatIsStored()
+    {
+        // Refused ones cost nothing and don't count.
+        for (var i = 0; i < 2 * PushSubscribeLimiter.MaxPerWindow; i++)
+        {
+            Assert.IsType<BadRequestObjectResult>(await Create(_alice, "phone").Subscribe(Body("https://example.com/push"), CancellationToken.None));
+        }
+
+        for (var i = 0; i < PushSubscribeLimiter.MaxPerWindow; i++)
+        {
+            Assert.IsType<NoContentResult>(await Create(_alice, "phone").Subscribe(Body("https://web.push.apple.com/" + i), CancellationToken.None));
+            _time.Advance(TimeSpan.FromSeconds(1));
+        }
+
+        var controller = Create(_alice, "phone");
+        var limited = Assert.IsType<ObjectResult>(await controller.Subscribe(Body("https://web.push.apple.com/one-more"), CancellationToken.None));
+
+        Assert.Equal(StatusCodes.Status429TooManyRequests, limited.StatusCode);
+        Assert.IsType<ErrorDto>(limited.Value);
+        Assert.Equal("40", controller.Response.Headers.RetryAfter.ToString());
+        Assert.Equal("https://web.push.apple.com/19", Assert.Single(_store.ForUser(_alice)).Endpoint);
+
+        // Bob isn't held back by Alice, turning off is never limited, and Alice may again a minute after her first.
+        Assert.IsType<NoContentResult>(await Create(_bob, "bobs").Subscribe(Body("https://fcm.googleapis.com/fcm/send/bob"), CancellationToken.None));
+        Assert.IsType<NoContentResult>(Create(_alice, "phone").Unsubscribe());
+        _time.Advance(TimeSpan.FromSeconds(40));
+        Assert.IsType<NoContentResult>(await Create(_alice, "phone").Subscribe(Body(), CancellationToken.None));
     }
 
     [Theory]
@@ -135,8 +222,8 @@ public sealed class PushControllerTests : IDisposable
     [Fact]
     public async Task Subscribe_RefusesBadKeys_AMissingBody_AndASignInWithoutADevice()
     {
-        Assert.IsType<BadRequestObjectResult>(await Create(_alice, "phone").Subscribe(new PushSubscribeDto(Apple, "AAAA", _auth, null), CancellationToken.None));
-        Assert.IsType<BadRequestObjectResult>(await Create(_alice, "phone").Subscribe(new PushSubscribeDto(Apple, _p256dh, "AAAA", null), CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await Create(_alice, "phone").Subscribe(new PushSubscribeDto(Apple, "AAAA", _auth), CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await Create(_alice, "phone").Subscribe(new PushSubscribeDto(Apple, _p256dh, "AAAA"), CancellationToken.None));
         Assert.IsType<BadRequestObjectResult>(await Create(_alice, "phone").Subscribe(null, CancellationToken.None));
         Assert.IsType<BadRequestObjectResult>(await Create(_alice, null).Subscribe(Body(), CancellationToken.None));
         Assert.IsType<BadRequestObjectResult>(await Create(_alice, new string('d', 300)).Subscribe(Body(), CancellationToken.None));
@@ -150,14 +237,6 @@ public sealed class PushControllerTests : IDisposable
 
         Assert.IsType<NotFoundResult>(await Create(_alice, "phone").Subscribe(Body(), CancellationToken.None));
         Assert.False(_store.HasAny(_alice));
-    }
-
-    [Fact]
-    public async Task Subscribe_DropsALocaleThatIsntALanguageTag()
-    {
-        await Create(_alice, "phone").Subscribe(Body(locale: "en\r\nX-Injected: 1"), CancellationToken.None);
-
-        Assert.Null(Assert.Single(_store.ForUser(_alice)).Locale);
     }
 
     [Fact]
@@ -197,7 +276,12 @@ public sealed class PushControllerTests : IDisposable
         var result = (await Create(_alice, "phone").SendTest(CancellationToken.None)).Value!;
 
         Assert.Equal(new PushTestResultDto(true, null), result);
-        await _sender.Received(1).SendAsync(_alice, Arg.Any<Func<PushSubscription, PushMessage>>(), PushController.TestTimeToLive, Arg.Any<CancellationToken>(), "phone");
+        await _sender.Received(1).SendAsync(
+            _alice,
+            Arg.Is<PushMessage>(m => m.Kind == PushMessage.TestKind),
+            PushController.TestTimeToLive,
+            Arg.Any<CancellationToken>(),
+            Arg.Is<IReadOnlyCollection<string>>(d => d.Single() == "phone"));
     }
 
     [Fact]
@@ -223,7 +307,7 @@ public sealed class PushControllerTests : IDisposable
 
         Assert.Equal(StatusCodes.Status429TooManyRequests, limited.StatusCode);
         Assert.Equal("10", controller.Response.Headers.RetryAfter.ToString());
-        await _sender.Received(1).SendAsync(_alice, Arg.Any<Func<PushSubscription, PushMessage>>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>(), Arg.Any<string>());
+        await _sender.Received(1).SendAsync(_alice, Arg.Any<PushMessage>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>(), Arg.Any<IReadOnlyCollection<string>>());
 
         // Bob isn't held back by Alice's tests, and Alice may again after the gap.
         Assert.True((await Create(_bob, "bobs").SendTest(CancellationToken.None)).Value!.Ok);
@@ -242,6 +326,18 @@ public sealed class PushControllerTests : IDisposable
         _sender.SendAsync(default, default!, default, default, default).ReturnsForAnyArgs(new PushSendResult(sent, gone, rejected, failed));
 
         Assert.Equal(new PushTestResultDto(false, error), (await Create(_alice, "phone").SendTest(CancellationToken.None)).Value);
+    }
+
+    [Fact]
+    public void Test_WhenTheSubscriptionIsGone_SaysToTurnNotificationsOn_NotOffAndOn()
+    {
+        // The server has dropped the device by then: its switch shows off, and turning it on makes a new subscription
+        // (client/src/views/push/push.ts). "Off and on again" would ask for a step that isn't there.
+        Assert.DoesNotContain("off and on", PushTestResultDto.Gone, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("Turn them on again.", PushTestResultDto.Gone, StringComparison.Ordinal);
+
+        // Refused, the device is still subscribed: off, then on, is what replaces its subscription.
+        Assert.EndsWith("Turn notifications off and on again.", PushTestResultDto.Rejected, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -312,6 +408,101 @@ public sealed class PushControllerTests : IDisposable
         Assert.False(_signal.Work.TryRead(out _));
     }
 
+    [Fact]
+    public async Task Webhook_WithABodyOverTheLimit_IsTooLarge_NotAServerError()
+    {
+        const string Start = "{\"notification_type\":\"MEDIA_AVAILABLE\",\"request\":{\"request_id\":\"12\"},\"message\":\"";
+        string Padded(int length) => Start + new string('x', length - Start.Length - 2) + "\"}";
+
+        // One byte over, without a Content-Length (a chunked body): found while reading.
+        var tooLarge = Assert.IsType<StatusCodeResult>(await Webhook("webhook-secret-value", Padded((64 * 1024) + 1)));
+        Assert.Equal(StatusCodes.Status413PayloadTooLarge, tooLarge.StatusCode);
+        Assert.False(_signal.Work.TryRead(out _));
+
+        // The largest body taken is read and acted on.
+        Assert.IsType<NoContentResult>(await Webhook("webhook-secret-value", Padded(64 * 1024)));
+        Assert.True(_signal.Work.TryRead(out var work));
+        Assert.Equal(new ReadyPushWork(null, 12), work);
+    }
+
+    [Fact]
+    public async Task Webhook_SayingItsBodyIsOverTheLimit_IsTooLarge_WithoutReadingIt()
+    {
+        var controller = Create(null, null);
+        controller.Request.Headers.Authorization = "webhook-secret-value";
+        controller.Request.ContentLength = (64 * 1024) + 1;
+        controller.Request.Body = new ThrowingStream(new InvalidOperationException("the body must not be read"));
+
+        Assert.Equal(StatusCodes.Status413PayloadTooLarge, Assert.IsType<StatusCodeResult>(await controller.SeerrWebhook(CancellationToken.None)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Webhook_WhenTheServersOwnLimitStopsTheBody_IsTooLarge_NotAServerError()
+    {
+        // What Kestrel throws from the body's stream once [RequestSizeLimit] is passed.
+        var controller = Create(null, null);
+        controller.Request.Headers.Authorization = "webhook-secret-value";
+        controller.Request.Body = new ThrowingStream(new BadHttpRequestException("Request body too large.", StatusCodes.Status413PayloadTooLarge));
+
+        Assert.Equal(StatusCodes.Status413PayloadTooLarge, Assert.IsType<StatusCodeResult>(await controller.SeerrWebhook(CancellationToken.None)).StatusCode);
+
+        // And that limit is still on the action: an oversized body is cut off by the server, not buffered by Lumen.
+        Assert.Single(typeof(PushController).GetMethod(nameof(PushController.SeerrWebhook))!.GetCustomAttributes(typeof(RequestSizeLimitAttribute), false));
+    }
+
+    [Fact]
+    public async Task Webhook_WithABodyOverTheLimit_ButNotTheSecret_IsStillJustRefused()
+    {
+        var controller = Create(null, null);
+        controller.Request.Headers.Authorization = "wrong";
+        controller.Request.ContentLength = 10_000_000;
+        controller.Request.Body = new ThrowingStream(new InvalidOperationException("the body must not be read"));
+
+        Assert.IsType<UnauthorizedResult>(await controller.SeerrWebhook(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Webhook_WhenTheQueueIsFull_SaysSo_ForSeerrToCallAgain_AndLogsItOnce()
+    {
+        const string Available = "{\"notification_type\":\"MEDIA_AVAILABLE\",\"request\":{\"request_id\":\"12\"}}";
+        for (var i = 0; i < ReadyPushSignal.MaxQueued; i++)
+        {
+            Assert.IsType<NoContentResult>(await Webhook("webhook-secret-value", Available));
+        }
+
+        // No room: 503 with when to try again, never a 204 for something that was dropped.
+        for (var i = 0; i < 3; i++)
+        {
+            var controller = Create(null, null);
+            controller.Request.Headers.Authorization = "webhook-secret-value";
+            controller.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(Available));
+            var full = Assert.IsType<StatusCodeResult>(await controller.SeerrWebhook(CancellationToken.None));
+            Assert.Equal(StatusCodes.Status503ServiceUnavailable, full.StatusCode);
+            Assert.Equal("30", controller.Response.Headers.RetryAfter.ToString());
+        }
+
+        Assert.Single(_signalLog.Entries, e => e.Level == Microsoft.Extensions.Logging.LogLevel.Warning);
+
+        // Anything Lumen wouldn't act on anyway is still fine.
+        Assert.IsType<NoContentResult>(await Webhook("webhook-secret-value", "{\"notification_type\":\"TEST_NOTIFICATION\"}"));
+
+        // The job caught up: taken again, and the next time it's full is logged again.
+        var queued = 0;
+        while (_signal.Work.TryRead(out _))
+        {
+            queued++;
+        }
+
+        Assert.Equal(ReadyPushSignal.MaxQueued, queued);
+        for (var i = 0; i < ReadyPushSignal.MaxQueued; i++)
+        {
+            Assert.IsType<NoContentResult>(await Webhook("webhook-secret-value", Available));
+        }
+
+        Assert.IsType<StatusCodeResult>(await Webhook("webhook-secret-value", Available));
+        Assert.Equal(2, _signalLog.Entries.Count(e => e.Level == Microsoft.Extensions.Logging.LogLevel.Warning));
+    }
+
     private Task<ActionResult> Webhook(string? authorization, string body)
     {
         var controller = Create(null, null);
@@ -324,30 +515,54 @@ public sealed class PushControllerTests : IDisposable
         return controller.SeerrWebhook(CancellationToken.None);
     }
 
-    private PushSubscribeDto Body(string? endpoint = Apple, string? locale = null) => new(endpoint, _p256dh, _auth, locale);
+    private PushSubscribeDto Body(string? endpoint = Apple) => new(endpoint, _p256dh, _auth);
 
-    private PushController Create(Guid? user, string? deviceId, string? deviceName = null)
+    /// <summary>
+    /// A request as Jellyfin authenticates it: signed in as <paramref name="user"/> with the token issued to
+    /// <paramref name="deviceId"/> (or <paramref name="token"/>, one Jellyfin's device list doesn't have). Its device
+    /// id claim is what the request's own header says: the same device, unless <paramref name="claims"/> another.
+    /// </summary>
+    private PushController Create(Guid? user, string? deviceId, string? deviceName = null, string? claims = null, string? token = null)
     {
-        var claims = new List<Claim>();
+        var list = new List<Claim>();
         if (user is { } id)
         {
-            claims.Add(new Claim("Jellyfin-UserId", id.ToString("N")));
+            list.Add(new Claim("Jellyfin-UserId", id.ToString("N")));
         }
 
-        if (deviceId is not null)
+        if (user is { } owner && deviceId is not null)
         {
-            claims.Add(new Claim("Jellyfin-DeviceId", deviceId));
+            token = "token-" + owner.ToString("N") + "-" + deviceId;
+            _tokens[token] = (owner, new SessionDevice(deviceId, deviceName));
+        }
+
+        if (token is not null)
+        {
+            list.Add(new Claim("Jellyfin-Token", token));
+        }
+
+        if ((claims ?? deviceId) is { } claimed)
+        {
+            list.Add(new Claim("Jellyfin-DeviceId", claimed));
         }
 
         if (deviceName is not null)
         {
-            claims.Add(new Claim("Jellyfin-Device", deviceName));
+            list.Add(new Claim("Jellyfin-Device", deviceName));
         }
 
         var assets = new AssetCatalog(new Dictionary<string, byte[]> { [PushController.WorkerAsset] = Encoding.UTF8.GetBytes("self.addEventListener('push', function () {});") });
-        return new PushController(assets, _users, _config, _store, _sender, _limiter, _signal, _time, NullLogger<PushController>.Instance)
+        return new PushController(assets, _users, _config, _store, _sender, _limiter, _subscribeLimiter, _devices, _signal, _time, NullLogger<PushController>.Instance)
         {
-            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(claims, "test")) } },
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(list, "test")) } },
         };
+    }
+
+    /// <summary>A request body that can't be read.</summary>
+    private sealed class ThrowingStream(Exception error) : MemoryStream
+    {
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => throw error;
+
+        public override int Read(byte[] buffer, int offset, int count) => throw error;
     }
 }

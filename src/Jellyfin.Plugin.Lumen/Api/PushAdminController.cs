@@ -31,7 +31,12 @@ public sealed class PushAdminController : ControllerBase
     /// made here at the latest, but only once Seerr is set up: a server without requests never gets any.
     /// </summary>
     [HttpGet]
-    public ActionResult<PushAdminStatusDto> GetStatus() => Status();
+    public ActionResult<PushAdminStatusDto> GetStatus()
+    {
+        // It carries the webhook's secret: not for a cache, the browser's or a proxy's.
+        Response.Headers.CacheControl = "no-store";
+        return Status();
+    }
 
     /// <summary>
     /// Replaces Web Push's keys and the webhook secret, and removes every subscription: they were made with the old
@@ -40,6 +45,7 @@ public sealed class PushAdminController : ControllerBase
     [HttpPost("ResetKeys")]
     public ActionResult<PushAdminStatusDto> ResetKeys()
     {
+        Response.Headers.CacheControl = "no-store";
         _config.ResetPushSecrets();
         _subscriptions.Clear();
         return Status();

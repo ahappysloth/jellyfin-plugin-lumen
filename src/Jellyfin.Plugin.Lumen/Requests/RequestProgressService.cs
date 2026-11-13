@@ -21,13 +21,19 @@ public interface IRequestProgressService
     /// The user's titles that became ready and nobody has been told about, taken: the caller announces them (a push
     /// notification), and no pop-up shows for them. From the same cached Seerr answer as <see cref="GetAsync"/>.
     /// <paramref name="alsoWatch"/> are requests to announce even if Lumen never saw them in flight (Seerr's webhook
-    /// named them); only the user's own count. Give back what couldn't be announced with <see cref="GiveBack"/>.
-    /// Throws <see cref="SeerrException"/> when Seerr can't say.
+    /// named them); only the user's own count. Give back what couldn't be announced with <see cref="GiveBack"/> or
+    /// <see cref="Release"/>. Throws <see cref="SeerrException"/> when Seerr can't say.
     /// </summary>
     Task<IReadOnlyList<ReadyTitle>> ClaimReadyAsync(Guid jellyfinUserId, User? user, SeerrEndpoint endpoint, int seerrUserId, IReadOnlyCollection<int>? alsoWatch, CancellationToken cancellationToken);
 
     /// <summary>These requests, taken by <see cref="ClaimReadyAsync"/>, weren't announced after all: they're due again.</summary>
     void GiveBack(Guid jellyfinUserId, SeerrEndpoint endpoint, IEnumerable<int> requestIds);
+
+    /// <summary>
+    /// These requests, taken by <see cref="ClaimReadyAsync"/>, couldn't be pushed to any of the user's devices: they're
+    /// left to the pop-up, which shows them the next time the user has Lumen open, notifications on or not.
+    /// </summary>
+    void Release(Guid jellyfinUserId, SeerrEndpoint endpoint, IEnumerable<int> requestIds);
 }
 
 /// <summary>
@@ -66,6 +72,12 @@ public sealed class RequestProgressService : IRequestProgressService
     /// failing Seerr call going. Shorter than the client's first retry (at least 7.5 s), so that retry really asks Seerr.
     /// </summary>
     public static readonly TimeSpan FailureTtl = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// A request that has waited this long for an admin's approval, or for a release to download (a title that isn't out
+    /// yet), isn't expected to be ready any minute: the push job asks about it every half hour, not every pass.
+    /// </summary>
+    public static readonly TimeSpan WaitingAfter = TimeSpan.FromDays(1);
 
     /// <summary>More requests than this remembered and the memory starts over (it only refines progress).</summary>
     private const int MaxMemories = 20_000;
@@ -109,14 +121,20 @@ public sealed class RequestProgressService : IRequestProgressService
             scope,
             tracked.Where(t => RequestProgressState.IsInFlight(t.Progress.State)).Select(t => t.Request.Id),
             tracked.Where(t => t.Progress.State == RequestProgressState.Ready).Select(t => t.Request.Id),
-            tracked.Where(t => t.Progress.State is RequestProgressState.Declined or RequestProgressState.Failed).Select(t => t.Request.Id));
+            Waiting(tracked));
 
         // A user with notifications on is told by a push, on every device they turned them on in, and by no pop-up:
-        // the push job takes the requests itself (ClaimReadyAsync), so the two can never both announce one.
+        // the push job takes the requests itself (ClaimReadyAsync), so the two can never both announce one. Only what
+        // the job gave up on (no device could be reached for minutes) is the pop-up's, so the user still hears of it.
         if (announce.Count > 0 && _push.Covers(jellyfinUserId))
         {
-            _push.Wake(jellyfinUserId);
-            announce = EmptySet;
+            var popUpOnly = _announcements.PopUpOnly(jellyfinUserId, scope);
+            if (announce.Any(id => !popUpOnly.Contains(id)))
+            {
+                _push.Wake(jellyfinUserId);
+            }
+
+            announce = popUpOnly.Count == 0 ? EmptySet : announce.Where(popUpOnly.Contains).ToHashSet();
         }
 
         // Not disposed: lookups still running after the budget keep using it (it holds no OS handle).
@@ -173,8 +191,9 @@ public sealed class RequestProgressService : IRequestProgressService
             endpoint.BaseUrl.ToString(),
             tracked.Where(t => RequestProgressState.IsInFlight(t.Progress.State)).Select(t => t.Request.Id),
             ready,
-            tracked.Where(t => t.Progress.State is RequestProgressState.Declined or RequestProgressState.Failed).Select(t => t.Request.Id),
-            ready.Where(id => alsoWatch?.Contains(id) == true));
+            Waiting(tracked),
+            ready.Where(id => alsoWatch?.Contains(id) == true),
+            tracked.Where(t => t.Progress.State == RequestProgressState.Ready).Select(t => t.Request.Id).Except(ready));
         if (claimed.Count == 0)
         {
             return [];
@@ -195,7 +214,10 @@ public sealed class RequestProgressService : IRequestProgressService
     }
 
     public void GiveBack(Guid jellyfinUserId, SeerrEndpoint endpoint, IEnumerable<int> requestIds) =>
-        _announcements.Update(jellyfinUserId, endpoint.BaseUrl.ToString(), requestIds, [], []);
+        _announcements.GiveBack(jellyfinUserId, endpoint.BaseUrl.ToString(), requestIds);
+
+    public void Release(Guid jellyfinUserId, SeerrEndpoint endpoint, IEnumerable<int> requestIds) =>
+        _announcements.Release(jellyfinUserId, endpoint.BaseUrl.ToString(), requestIds);
 
     /// <summary>
     /// The user's requested titles with their progress: cached for <see cref="Ttl"/> (a failure for
@@ -226,6 +248,18 @@ public sealed class RequestProgressService : IRequestProgressService
                 fresh.Start(FetchAsync(endpoint, seerrUserId), _time);
             }
         }
+    }
+
+    /// <summary>
+    /// The requests in flight that have only been waiting, for an approval or for a release to download, since over
+    /// <see cref="WaitingAfter"/> ago. One that's downloading or being imported never counts.
+    /// </summary>
+    private IEnumerable<int> Waiting(List<Tracked> tracked)
+    {
+        var before = _time.GetUtcNow() - WaitingAfter;
+        return tracked
+            .Where(t => t.Progress.State is RequestProgressState.Requested or RequestProgressState.Queued && t.Request.CreatedAt < before)
+            .Select(t => t.Request.Id);
     }
 
     private (string Endpoint, int User, int ConfigVersion) CacheKey(SeerrEndpoint endpoint, int seerrUserId) =>
