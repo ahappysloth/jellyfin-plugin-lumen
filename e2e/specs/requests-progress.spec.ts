@@ -257,6 +257,66 @@ test('a pop-up says when a request is ready to watch, once, on every device', as
   await other.close();
 });
 
+test('a request that becomes ready while one of jellyfin-web’s pages is up pops up on the next Lumen page', async ({ page }) => {
+  test.setTimeout(90_000);
+  const { items } = loadState();
+  await page.clock.install();
+  await enableSeerr();
+  await request(605, { mediaStatus: 3, downloads: [{ size: 1000, sizeLeft: 500, etaSeconds: 300 }] });
+  const announced: string[] = [];
+  page.on('request', (r) => {
+    if (/\/Lumen\/Requests\/Announced\b/.test(r.url())) announced.push(r.url());
+  });
+  const first = page.waitForResponse(/\/Lumen\/Requests\/Mine\b/);
+  await login(page, ADMIN);
+  await page.clock.fastForward(4_000); // past the idle callback's deadline
+  expect((await (await first).json()).Requests[0].Status).toBe('Downloading');
+
+  // The Dashboard is jellyfin-web's: Lumen's page, and its pop-ups with it, is taken down. The checks go on.
+  await page.goto('/web/#/dashboard');
+  await expect(page.locator('#lmn-root > *')).toHaveCount(0);
+  await progress(605, null);
+  await stub('library', { tmdbId: 605, jellyfinMediaId: items['Lumen Beta']!.replace(/-/g, '') });
+  await page.waitForTimeout(SERVER_CACHE_MS); // until Lumen asks Seerr again
+  const ready = page.waitForResponse(/\/Lumen\/Requests\/Mine\b/);
+  await page.clock.fastForward(46_000);
+  expect((await (await ready).json()).Requests[0]).toMatchObject({ Status: 'Ready', Announce: true });
+  // Nothing there could show it, so it isn't marked as shown.
+  expect(announced).toEqual([]);
+
+  // Home again: it pops up from the answer already here (nothing is in flight, so there's no further check).
+  await page.goBack();
+  const toast = page.getByRole('alert');
+  await expect(toast).toContainText('Lumen Future is ready to watch');
+  await expect.poll(() => announced.length).toBe(1);
+});
+
+test('My requests on a phone: a long title ends in an ellipsis, and the page doesn’t scroll sideways', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 740 });
+  const long = 'The Lord of the Rings: The Fellowship of the Ring (Extended Edition)';
+  await enableSeerr();
+  await request(603, { mediaStatus: 3, downloads: [{ size: 1000, sizeLeft: 250, etaSeconds: 7_170 }] });
+  // The stub's titles are short: this one's is lengthened on its way to the page.
+  await page.route(/\/Lumen\/Requests\/Mine\b/, async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.Requests[0].Item.Title = long;
+    await route.fulfill({ response, json: body });
+  });
+  await login(page, ADMIN);
+  await page.goto('/web/#/home?lumen=requests');
+
+  const row = page.getByRole('list', { name: 'My requests' }).getByRole('link');
+  const title = row.locator('.lmn-request__title');
+  await expect(title).toHaveText(long);
+  expect(await title.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  // The row, and everything in it, within the window: half a minute short of two hours is two hours, not "1 hr 60 min".
+  await expect(row.getByText('75% · 2 hr 0 min left')).toBeInViewport({ ratio: 1 });
+  const box = (await row.boundingBox())!;
+  expect(box.x + box.width).toBeLessThanOrEqual(360);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+});
+
 test('nothing in flight, no polling: one check per page load, and none without Seerr', async ({ page }) => {
   await page.clock.install();
   const checks = countChecks(page);

@@ -21,6 +21,18 @@ interface Toast {
 
 let listener: ((message: string, action?: ToastAction) => void) | null = null;
 let nextId = 0;
+const hostWaiters = new Set<() => void>();
+
+/**
+ * Whether a toast shown now would be seen. Not while jellyfin-web has the page (the Dashboard, a music library): Lumen's
+ * page is unmounted there, and its host with it.
+ */
+export const canShowToast = (): boolean => listener !== null;
+
+/** Calls `fn` each time the host mounts (a Lumen page again), for a toast that waited for one. */
+export function onToastHost(fn: () => void): void {
+  hostWaiters.add(fn);
+}
 
 /**
  * Shows a short message (a failed action, a request that's ready) at the bottom of the screen, with an optional
@@ -36,6 +48,7 @@ export function ToastHost() {
 
   useEffect(() => {
     listener = (message, action) => setToast({ id: ++nextId, message, action });
+    hostWaiters.forEach((fn) => fn());
     return () => {
       listener = null;
     };

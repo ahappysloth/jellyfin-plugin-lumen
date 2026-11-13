@@ -257,9 +257,12 @@ a.lmn-button {
   color: var(--lmn-text-3);
   font-size: 13px;
 }
-/* A grid's gap is fine: Chromium 66 and Safari 12 have it (only flex gap is newer). */
+/* A grid's gap is fine: Chromium 66 and Safari 12 have it (only flex gap is newer). One column that may be narrower
+   than its rows' words: a grid's own (auto) column is as wide as the longest title on one line, which ran every row
+   off the side of a phone instead of ending that title in an ellipsis. */
 .lmn-requests {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   max-width: 880px;
   margin: 0;

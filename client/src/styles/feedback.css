@@ -24,6 +24,12 @@
 .lmn-toast-host .lmn-toast > * + * {
   margin-left: 12px;
 }
+/* The message gives way to the buttons: a long word in it (a title with no spaces) breaks rather than pushing them off
+   the side of a phone. */
+.lmn-toast-host .lmn-toast > span {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
 .lmn-toast__close {
   display: inline-grid;
   flex: none;
