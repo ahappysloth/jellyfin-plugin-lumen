@@ -19,6 +19,7 @@ import { describeServerVersion } from '../compat/testedVersions';
 import type { ViewContext } from '../views/context';
 import { VIEW_TIMEOUT_MS, withTimeout } from '../util/withTimeout';
 import { onNavigate } from './navigation';
+import { trackPageDepth } from './pageDepth';
 import { parseRoute, type Route, type TakeoverRoute } from './routes';
 import { applyDashboardSkin, applySignInSkin, isSignInRoute } from '../veil/skin';
 import { liftVeil, liftVeilNow, PENDING_CLASS, rememberVeilName, SAFETY_TIMER_KEY } from '../veil/veil';
@@ -277,6 +278,8 @@ export function startLumen(options: BootstrapOptions): () => void {
     subtree: true,
   });
 
+  // First, so the depth is the new page's by the time `sync` mounts it (the Back pill's Home button reads it).
+  const stopDepth = trackPageDepth(win);
   const stopNavigation = onNavigate(() => void sync(), win);
   const stopViewportCover = keepViewportCover(doc);
   void waitForUser(win, pollMs, options.timeoutMs ?? 60_000)
@@ -293,6 +296,7 @@ export function startLumen(options: BootstrapOptions): () => void {
     win.clearTimeout(safety);
     notFoundWatcher.disconnect();
     stopNavigation();
+    stopDepth();
     stopViewportCover();
     pluginsButton.stop();
     restartWatch.stop();

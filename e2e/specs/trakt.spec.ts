@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
-import { ADMIN, api, loadState, resetLumen } from '../support/api';
+import { ADMIN, STUB_SEERR, api, loadState, resetLumen } from '../support/api';
 import { walkDpad } from '../support/dpad';
 import { login } from '../support/login';
 import { PROVIDER_IDS, configureTrakt, resetStub, setProviderIds } from '../support/trakt';
@@ -105,6 +105,37 @@ test.describe('Top charts', () => {
     await page.getByRole('group', { name: 'Period' }).getByRole('button', { name: 'This week' }).click();
     await expect(chart(page, 'Top movies this week').getByRole('link', { name: '4, Lumen Alpha' })).toBeVisible();
     expect(await ranks(page)).toEqual(['1', '4']);
+  });
+
+  test('say when Seerr couldn’t describe some of a page’s titles, and Try again brings them into their places', async ({ page }) => {
+    // No Trakt row on home: the chart is the first to ask Seerr for these titles (Lumen keeps its answers a while).
+    await configureTrakt({ trakt: true, seerr: true }, []);
+    // Seerr fails on The Matrix (2nd this week).
+    const failing = (titles: Record<string, number>) =>
+      fetch(`${STUB_SEERR}/__stub/fail`, { method: 'POST', body: JSON.stringify(titles) });
+    await failing({ 'movie/603': 503 });
+    await login(page, ADMIN);
+    await page.goto('/web/#/home?lumen=charts&chart=movies&period=weekly');
+
+    const week = chart(page, 'Top movies this week');
+    await expect(week.getByRole('link', { name: '1, Lumen Beta' })).toBeVisible();
+    expect(await ranks(page)).toEqual(['1', '4', '5']);
+    const note = page.locator('.lmn-charts__partial');
+    await expect(note).toHaveText(/Some titles couldn’t be loaded\./);
+    await expect(note).toHaveAttribute('role', 'status');
+
+    // Still failing: the note stays, and so does what the chart has.
+    await note.getByRole('button', { name: 'Try again' }).click();
+    await expect(note.getByRole('button', { name: 'Try again' })).not.toHaveAttribute('aria-busy');
+    await expect(note).toBeVisible();
+    expect(await ranks(page)).toEqual(['1', '4', '5']);
+
+    // Seerr answers again: the title takes its place by rank, and the note goes.
+    await failing({});
+    await note.getByRole('button', { name: 'Try again' }).click();
+    await expect(week.getByRole('button', { name: '2, The Matrix' })).toBeVisible();
+    expect(await ranks(page)).toEqual(['1', '2', '4', '5']);
+    await expect(note).toHaveCount(0);
   });
 
   test('follow the address to another chart while the page is open, and Back to the one before', async ({ page }) => {
@@ -225,7 +256,8 @@ test.describe('Trakt rows', () => {
       });
 
     for (const url of ['https://trakt.tv/users/lumen-tester/watchlist', 'https://letterboxd.com/me/list/picks/', 'picks']) {
-      await expect(save(url)).rejects.toThrow(/400 .*Enter a public Trakt list.{1,6}s address, like https:\/\/trakt\.tv\/users\/name\/lists\/list-name\./);
+      // Named as the editor names the row, with its place in the list (not "Section 1 (TraktList)").
+      await expect(save(url)).rejects.toThrow(/400 .*"Trakt list \(row 1\): Enter a public Trakt list.{1,6}s address, like https:\/\/trakt\.tv\/users\/name\/lists\/list-name\./);
     }
     await expect(save('')).rejects.toThrow(/400 .*is required/);
     await save(PICKS);

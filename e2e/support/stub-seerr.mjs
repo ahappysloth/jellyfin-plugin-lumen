@@ -68,13 +68,15 @@
 //          by that many bytes on each such call (a download moving between polls); one that reaches 0 is "completed".
 //          null clears it (test control)
 //   Movies 701–799 have details too ("Stub Request 7xx", or the names in REQUEST_TITLES), for requests in each state.
+//   POST /__stub/fail     { ['movie/603']: 503 }                    → those title lookups answer that status; {} clears
+//                                                                       them (test control)
 //   GET  /__stub/requests                                           → [{ user, body }] of requests filed (test control)
 //   POST /__stub/services { radarr, sonarr }                        → how many Radarr and Sonarr servers it has (test control)
 //   POST /__stub/webhook { enabled, types, webhookUrl, authHeader }  → its webhook agent's settings (test control)
 //   POST /__stub/reset                                              → clears the recorded requests, /__stub/library and
-//                                                                       the push messages, sets one Radarr and one
-//                                                                       Sonarr server again and turns the webhook off
-//                                                                       (test control)
+//                                                                       the push messages and the failing lookups, sets
+//                                                                       one Radarr and one Sonarr server again and turns
+//                                                                       the webhook off (test control)
 //   GET  /__stub/health
 import { createServer } from 'node:http';
 
@@ -164,6 +166,8 @@ let jellyfin = { name: 'Stub Jellyfin', serverId: '' };
 let requests = [];
 // Request ids differ between runs too: Lumen remembers which it saw in flight (its ready pop-ups) across restarts.
 let nextRequestId = (Math.floor(Date.now() / 1000) % 1_000_000) * 100 + 1;
+// "movie/603" → the status its lookups answer instead (POST /__stub/fail): Seerr failing on some titles.
+let failing = {};
 // tmdbId → jellyfinMediaId, for titles a test has made "available" (POST /__stub/library).
 let library = {};
 // tmdbId → the progress scenario of its requests (POST /__stub/progress).
@@ -376,6 +380,7 @@ createServer((req, res) => {
     pushes = [];
     services = { radarr: 1, sonarr: 1 };
     webhook = WEBHOOK_OFF;
+    failing = {};
     return json(res, 200, { ok: true });
   }
   if (path === '/__stub/push' && req.method === 'GET') return json(res, 200, pushes);
@@ -399,12 +404,13 @@ createServer((req, res) => {
     });
     return;
   }
-  const controls = ['/__stub/users', '/__stub/jellyfin', '/__stub/library', '/__stub/progress', '/__stub/services', '/__stub/webhook'];
+  const controls = ['/__stub/users', '/__stub/jellyfin', '/__stub/library', '/__stub/progress', '/__stub/services', '/__stub/webhook', '/__stub/fail'];
   if (controls.includes(path) && req.method === 'POST') {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
     req.on('end', () => {
       if (path === '/__stub/users') users = JSON.parse(body || '{}');
+      else if (path === '/__stub/fail') failing = JSON.parse(body || '{}');
       else if (path === '/__stub/progress') {
         for (const [id, scenario] of Object.entries(JSON.parse(body || '{}'))) {
           if (scenario) progress[Number(id)] = structuredClone(scenario);
@@ -512,6 +518,8 @@ createServer((req, res) => {
   const title = path.match(/^\/api\/v1\/(movie|tv)\/(\d+)(\/recommendations)?$/);
   if (title && req.method === 'GET') {
     const id = Number(title[2]);
+    const fail = failing[`${title[1]}/${title[2]}`];
+    if (fail) return json(res, fail, { message: 'stub: failing' });
     const found = details[`${title[1]}/${title[2]}`] ?? (title[1] === 'movie' && id >= 701 && id <= 799 ? requestTitle(id) : undefined);
     if (!found) return json(res, 404, { message: 'Unable to retrieve media.' });
     return json(res, 200, title[3] ? recommendations : withLibrary(found));

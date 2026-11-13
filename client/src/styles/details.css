@@ -16,12 +16,6 @@
   height: 100%;
   object-fit: cover;
 }
-.lmn-details__trailer-controls {
-  display: flex;
-}
-.lmn-details__trailer-controls > * + * {
-  margin-left: 8px;
-}
 .lmn-details__trailer .lmn-hero__video {
   transition-duration: 1.2s; /* TRAILER_FADE_MS */
 }

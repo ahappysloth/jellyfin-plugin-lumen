@@ -116,7 +116,9 @@ html.lmn-skin-player .upNextContainer {
   transition-timing-function: cubic-bezier(0.8, 0, 1, 1);
 }
 
-/* Buttons: bare icons that light up on hover, like the reference. */
+/* Buttons: bare icons over the picture (no glass at rest: a dozen blurs over a playing video would cost a TV frames).
+   Under the pointer, pressed, or with the keyboard's or a remote's focus they're the white disc of Lumen's other round
+   buttons (buttons.css), and the pills beside them the same in their own shape. */
 .lmn-player__icon {
   display: inline-flex;
   align-items: center;
@@ -126,16 +128,14 @@ html.lmn-skin-player .upNextContainer {
   height: 44px;
   padding: 0 8px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 999px;
   background: none;
   color: #fff;
   cursor: pointer;
   transition:
-    background-color 0.2s,
+    background-color 0.15s,
+    color 0.15s,
     transform 0.15s;
-}
-.lmn-player__icon:hover {
-  background: rgba(255, 255, 255, 0.12);
 }
 .lmn-player__icon:active {
   transform: scale(0.94);
@@ -193,15 +193,16 @@ html.lmn-skin-player .upNextContainer {
   height: 42px;
   padding: 0 16px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 999px;
   background: transparent;
   color: #fff;
   font: 600 14px var(--lmn-font);
   white-space: nowrap;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
-.lmn-player__pill:hover,
 .lmn-player__pill.is-open {
   background: rgba(30, 30, 30, 0.72);
   -webkit-backdrop-filter: blur(16px);
@@ -220,6 +221,30 @@ html.lmn-skin-player .upNextContainer {
 .lmn-player__pill.is-syncplay {
   background: rgba(30, 30, 30, 0.72);
   color: var(--lmn-accent);
+}
+/* The white disc and pill (see .lmn-player__icon). After the pills' own states, which they override. */
+@media (hover: hover) {
+  .lmn-player__icon:hover,
+  .lmn-player__pill:hover {
+    background: #fff;
+    color: #0f0f0f;
+  }
+  .lmn-player__pill:hover .lmn-player__pill-value {
+    color: rgba(0, 0, 0, 0.6);
+  }
+}
+.lmn-player__icon:active,
+.lmn-player__pill:active,
+.layout-tv .lmn-player__icon:focus,
+.layout-tv .lmn-player__pill:focus {
+  background: #fff;
+  color: #0f0f0f;
+}
+/* Its own rule: Chromium 68 has no :focus-visible and would drop the others with it. */
+.lmn-player__icon:focus-visible,
+.lmn-player__pill:focus-visible {
+  background: #fff;
+  color: #0f0f0f;
 }
 
 /* Panels: glass cards under the pills. */

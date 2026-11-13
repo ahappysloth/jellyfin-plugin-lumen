@@ -1,15 +1,13 @@
 import { useRef, useState } from 'preact/hooks';
 import type { BaseItem } from '../../api/types';
-import { Icon } from '../../components/icons';
 import { imageUrl, resolveImage } from '../../components/images';
 import { useAutoFocus } from '../../components/useAutoFocus';
-import { strings } from '../../strings';
 import { formatDate, formatNumber } from '../../util/locale';
 import { BrowseGrid } from '../browse/BrowseGrid';
 import { useGridPage } from '../browse/useGridPage';
 import type { ViewContext } from '../context';
 import { initials } from './CastRow';
-import { goBack } from './useItemActions';
+import { BackHome, goBack } from '../BackHome';
 import { secondaryStrings } from '../secondary/secondaryStrings';
 
 /** A biography longer than this gets a Read more toggle. */
@@ -61,15 +59,8 @@ export function PersonDetails({ item, ctx }: { item: BaseItem; ctx: ViewContext 
             aria-hidden="true"
           />
         )}
-        <div class="lmn-person-page__topbar">
-          <button
-            type="button"
-            class="lmn-icon-button lmn-icon-button--lg lmn-autofocus"
-            aria-label={strings.back}
-            onClick={() => goBack(ctx)}
-          >
-            <Icon name="back" size={20} />
-          </button>
+        <div class="lmn-person-page__topbar focuscontainer-x">
+          <BackHome onBack={() => goBack(ctx)} autoFocus />
         </div>
         <div class="lmn-person-page__intro">
           {photo ? (

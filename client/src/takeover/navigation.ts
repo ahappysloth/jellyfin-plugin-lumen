@@ -1,4 +1,5 @@
-const NAVIGATE_EVENT = 'lmn:navigate';
+/** Fired on the window after every history.pushState and replaceState (installHooks). */
+export const NAVIGATE_EVENT = 'lmn:navigate';
 type HookedWindow = Window & { __lmnNavigationHooked?: boolean };
 
 /**
@@ -19,7 +20,7 @@ export function onNavigate(listener: (href: string) => void, win: Window = windo
   return () => events.forEach((e) => win.removeEventListener(e, handler));
 }
 
-function installHooks(win: Window): void {
+export function installHooks(win: Window): void {
   const hooked = win as HookedWindow;
   if (hooked.__lmnNavigationHooked) return;
   hooked.__lmnNavigationHooked = true;

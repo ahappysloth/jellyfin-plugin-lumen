@@ -153,6 +153,8 @@ export interface ChartPage {
   Entries: ChartEntry[];
   TotalCount: number;
   StartIndex: number;
+  /** How many of the page's titles Seerr failed on or was too slow for this time: asking again may bring them. */
+  Missing?: number;
 }
 
 export interface HeroItem {

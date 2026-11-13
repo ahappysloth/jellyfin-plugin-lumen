@@ -46,6 +46,29 @@
   background: var(--lmn-danger);
   filter: brightness(0.85);
 }
+/* Round icon buttons over artwork (Back, the hero's Pause, a trailer's controls), the Back pill that holds one or two of
+   them (views/BackHome.tsx), and the rows' arrows (rows.css): frosted glass. They're small, so the blur is cheap. Under
+   the pointer, with the keyboard's or a TV remote's focus, or pressed: a white disc with a dark icon (icons draw in
+   currentColor). */
+.lmn-icon-button,
+.lmn-pill,
+.lmn-details__trailer-controls {
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.5);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 6px 16px -8px rgba(0, 0, 0, 0.6);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  backdrop-filter: blur(14px) saturate(1.5);
+}
+/* No backdrop-filter (Chromium 68 TVs): the fill alone has to carry the icon over a bright picture. */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .lmn-icon-button,
+  .lmn-pill,
+  .lmn-details__trailer-controls {
+    background: rgba(20, 20, 20, 0.66);
+  }
+}
 .lmn-icon-button {
   display: inline-grid;
   place-items: center;
@@ -53,20 +76,53 @@
   height: 36px;
   padding: 0;
   border: 0;
-  border-radius: 999px;
-  background: rgba(20, 20, 20, 0.66);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
-    0 6px 16px -8px rgba(0, 0, 0, 0.6);
   color: #fff;
   cursor: pointer;
-}
-.lmn-icon-button:hover {
-  background: rgba(40, 40, 40, 0.85);
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
 .lmn-icon-button--lg {
   width: 40px;
   height: 40px;
+}
+/* The pill is the glass; the buttons in it are clear until one is the white disc (the rules after this one). A details
+   page's trailer controls (Pause, Mute: DetailsHeader.tsx), across the top bar from Back, are a pill of the same kind. */
+.lmn-pill,
+.lmn-details__trailer-controls {
+  display: inline-flex;
+  padding: 4px;
+}
+.lmn-pill > .lmn-icon-button,
+.lmn-details__trailer-controls > .lmn-icon-button {
+  background: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.lmn-pill > * + *,
+.lmn-details__trailer-controls > * + * {
+  margin-left: 4px;
+}
+@media (hover: hover) {
+  .lmn-icon-button:hover {
+    background: #fff;
+    color: #0f0f0f;
+  }
+}
+.lmn-icon-button:active {
+  background: #fff;
+  color: #0f0f0f;
+}
+/* Its own rule: Chromium 68 has no :focus-visible and would drop the others with it. The TV layout's is in tv.css. */
+.lmn-icon-button:focus-visible {
+  background: #fff;
+  color: #0f0f0f;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lmn-icon-button {
+    transition: none;
+  }
 }
 .lmn-button:focus-visible,
 .lmn-icon-button:focus-visible,

@@ -109,6 +109,40 @@ test('on a small phone the save bar’s message sits on a line above its buttons
   }
 });
 
+test('on a small phone a Home section’s name wraps rather than being cut, and the Add list stays in the window', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await login(page, ADMIN);
+  await page.goto('/web/#/configurationpage?name=Lumen');
+  const root = page.locator('[id="lmn-admin-root"]:visible');
+  await expect(root.getByRole('group', { name: 'Home sections' })).toBeVisible();
+
+  // Every name shows whole (on one line this window had room for about seven letters), the long ones on more lines.
+  const labels = await root.locator('.lmna-section__label').evaluateAll((els) =>
+    els.map((el) => ({
+      name: el.textContent,
+      cut: el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1,
+      lines: Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)),
+      right: el.getBoundingClientRect().right,
+    })),
+  );
+  expect(labels.length).toBeGreaterThan(3);
+  expect(labels.filter((l) => l.cut).map((l) => l.name)).toEqual([]);
+  expect(labels.some((l) => l.lines > 1)).toBe(true);
+  for (const label of labels) expect(label.right).toBeLessThanOrEqual(320);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+
+  // The list of sections to add: within the window (it ran about 10 px past the right edge).
+  await root.locator('.lmna-add .lmn-dropdown__button').click();
+  const list = root.getByRole('listbox', { name: 'Section type to add' });
+  await expect(list).toBeVisible();
+  const box = (await list.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(320);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+});
+
 test('Discard in the save bar drops unsaved changes, and nothing reaches the server', { tag: '@smoke' }, async ({
   page,
 }) => {

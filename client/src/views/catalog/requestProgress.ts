@@ -5,7 +5,7 @@ import { MY_REQUESTS_HASH } from '../../compat/jellyfin';
 import { strings } from '../../strings';
 import { registerSessionCache } from '../../util/sessionCaches';
 import type { ViewContext } from '../context';
-import { catalogHash } from './catalog';
+import { catalogHash, loadRequestStatus, STATUS_UNKNOWN } from './catalog';
 
 /**
  * The signed-in user's requests and how each is going (GET /Lumen/Requests/Mine), for the posters, the title page, My
@@ -18,7 +18,8 @@ import { catalogHash } from './catalog';
  * - after a failed check, later and later (RETRY_MS doubling up to MAX_RETRY_MS, each wait between half and all of
  *   that, so the tabs and devices that saw an outage don't all come back at once), until one works: also before any
  *   answer (Seerr may still be starting after a reboot, and a TV's session lasts).
- * A 404 means the user has no request features: nothing more this session.
+ * A user without request features (Requests/Status says so, or Mine answers 404) is never asked: nothing more this
+ * session.
  */
 export const NORMAL_MS = 45_000;
 export const FAST_MS = 10_000;
@@ -109,9 +110,15 @@ onToastHost(() => {
 function check(): Promise<void> {
   if (!ctx) return Promise.resolve();
   const asked = session;
+  const { api } = ctx;
   clear();
-  checking ??= ctx.api
-    .getMyRequests()
+  // Seerr is set up, but this user has no account there (GET Requests/Status, which the page asks once anyway): Mine
+  // would answer 404, which browsers log as an error on every page load. Mine is still asked when the status couldn't
+  // be had, and its own answer says.
+  checking ??= loadRequestStatus(ctx)
+    .then((status) =>
+      status.Enabled || status === STATUS_UNKNOWN ? api.getMyRequests() : Promise.reject({ status: 404 }),
+    )
     .then(
       (mine) => {
         if (session !== asked || !ctx) return;

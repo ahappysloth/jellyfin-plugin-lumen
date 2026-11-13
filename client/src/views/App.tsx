@@ -155,7 +155,7 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
       {route.kind !== 'player' && <StartingScreen ctx={ctx} />}
       <ContextMenuHost />
       <ConfirmHost />
-      <ToastHost />
+      <ToastHost tv={ctx.layout === 'tv' && route.kind !== 'player'} />
     </ErrorBoundary>
   );
 }

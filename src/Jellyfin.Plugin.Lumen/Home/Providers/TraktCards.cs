@@ -162,6 +162,8 @@ public sealed class TraktCards
     /// <summary>
     /// The cards for the titles at <paramref name="indexes"/>, in that order: null where Seerr couldn't describe a title
     /// (or hadn't by the end of the <paramref name="budget"/>, counted from <paramref name="started"/>).
+    /// <paramref name="missed"/> is called once for each title left out that asking again may bring: Seerr failed or was
+    /// too slow. Not for one Seerr doesn't know (404) or the user may not see, which no retry changes.
     /// </summary>
     public async Task<IReadOnlyList<HomeRowEntry?>> ResolveAsync(
         IReadOnlyList<TraktTitle> titles,
@@ -171,7 +173,8 @@ public sealed class TraktCards
         User user,
         long started,
         TimeSpan budget,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action? missed = null)
     {
         // Not disposed: lookups still running after the budget keep using it (it holds no OS handle).
         var gate = new SemaphoreSlim(MaxConcurrentDetails);
@@ -179,7 +182,7 @@ public sealed class TraktCards
             .Select(i => owned.TryGetValue(i, out var item)
                 ? Task.FromResult<HomeRowEntry?>(HomeRowEntry.ForItem(item))
                 : caller is { } seerr && titles[i].TmdbId is { } tmdbId
-                    ? LookUpAsync(seerr.Endpoint, seerr.SeerrUserId, titles[i].Kind, tmdbId, user, gate, cancellationToken)
+                    ? LookUpAsync(seerr.Endpoint, seerr.SeerrUserId, titles[i].Kind, tmdbId, user, gate, missed, cancellationToken)
                     : Task.FromResult<HomeRowEntry?>(null))
             .ToList();
         var all = Task.WhenAll(lookups);
@@ -190,11 +193,19 @@ public sealed class TraktCards
         }
 
         _ = all.ContinueWith(t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
-        return lookups.Select(t => t.IsCompletedSuccessfully ? t.Result : null).ToList();
+        var cards = lookups.Select(t => t.IsCompletedSuccessfully ? t.Result : null).ToList();
+
+        // The lookups still running count too; one of them failing later is counted again, after the caller has read.
+        for (var late = lookups.Count(t => !t.IsCompleted); late > 0 && missed is not null; late--)
+        {
+            missed();
+        }
+
+        return cards;
     }
 
     /// <summary>The card for a title the user can't watch here (yet), or null if Seerr couldn't give its details.</summary>
-    private async Task<HomeRowEntry?> LookUpAsync(SeerrEndpoint endpoint, int seerrUserId, TraktListKind kind, int tmdbId, User user, SemaphoreSlim gate, CancellationToken cancellationToken)
+    private async Task<HomeRowEntry?> LookUpAsync(SeerrEndpoint endpoint, int seerrUserId, TraktListKind kind, int tmdbId, User user, SemaphoreSlim gate, Action? missed, CancellationToken cancellationToken)
     {
         var mediaType = kind == TraktListKind.Movies ? CatalogMediaType.Movie : CatalogMediaType.Tv;
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -208,6 +219,11 @@ public sealed class TraktCards
             if (!e.IsCircuitOpen && _logger.IsEnabled(LogLevel.Debug))
             {
                 _logger.LogDebug("Lumen skipped Trakt's TMDB {MediaType} {TmdbId}: {Message}", mediaType, tmdbId, e.Message);
+            }
+
+            if (e.Status != System.Net.HttpStatusCode.NotFound)
+            {
+                missed?.Invoke();
             }
 
             return null;

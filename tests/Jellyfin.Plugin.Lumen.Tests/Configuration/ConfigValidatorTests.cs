@@ -194,6 +194,29 @@ public class ConfigValidatorTests
     }
 
     [Fact]
+    public void ASectionsErrors_NameItAsTheEditorDoes_WithItsRow()
+    {
+        _counted.ValidateRule = _ => ["custom problem"];
+        var renamed = TestData.Section("Counted", ("count", "2"));
+        renamed.Title = " Weekend picks ";
+        var unknown = TestData.Section("Nope");
+        var untyped = TestData.Section("Plain");
+        untyped.Type = " ";
+
+        var errors = CreateValidator().Validate(Valid(TestData.Section("Plain"), TestData.Section("Counted", ("count", "2")), renamed, unknown, untyped));
+
+        // Its type's name as the editor shows it (not the internal "Counted"), or its own title; the row counts from 1.
+        Assert.Equal(
+            [
+                "Counted (fake) (row 2): custom problem",
+                "Weekend picks (row 3): custom problem",
+                "Nope (row 4): unknown section type 'Nope'.",
+                "Section (row 5): section type is required.",
+            ],
+            errors);
+    }
+
+    [Fact]
     public void RejectsTooManySections()
     {
         var sections = Enumerable.Range(0, 31).Select(_ => TestData.Section("Plain")).ToArray();

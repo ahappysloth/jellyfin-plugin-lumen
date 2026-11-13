@@ -227,6 +227,14 @@ button.lmn-nav__item {
     bottom: calc(140px + env(safe-area-inset-bottom));
   }
 }
+/* A phone on its side has no height to spare: there the toast sits just above the tab bar (over the now-playing bar,
+   should one be up, for the seconds it shows) rather than over the page's toolbar halfway up the screen. */
+@media (max-width: 909.98px) and (max-height: 500px) and (orientation: landscape) {
+  html.lmn-has-tabbar .lmn-toast-host {
+    bottom: 72px;
+    bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+}
 
 /* Small screens (official mobile apps). */
 @media (max-width: 720px) {

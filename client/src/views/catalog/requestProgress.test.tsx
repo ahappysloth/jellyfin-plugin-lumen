@@ -3,9 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, type FakeClient } from '../../../test/fakeClient';
 import { makeContext } from '../../../test/viewContext';
 import { myRequest } from '../../../test/myRequest';
-import type { MyRequests } from '../../api/types';
+import type { MyRequests, RequestStatus } from '../../api/types';
 import type { AjaxRequest } from '../../compat/jellyfin';
 import { ToastHost } from '../../components/Toast';
+import { clearRequestStatus } from './catalog';
 import {
   FAST_MS,
   MAX_RETRY_MS,
@@ -24,6 +25,8 @@ import {
 } from './requestProgress';
 
 let answers: (MyRequests | { status: number })[];
+/** GET /Lumen/Requests/Status: what the user may do with Seerr, or the failure to answer with. */
+let status: RequestStatus | { status: number };
 let client: FakeClient;
 /** When each GET /Lumen/Requests/Mine was made (Date.now(), faked). */
 let mineTimes: number[];
@@ -53,8 +56,11 @@ function start(): ReturnType<typeof makeContext> {
 beforeEach(() => {
   vi.useFakeTimers();
   answers = [];
+  status = { Enabled: true, CanRequestMovies: true, CanRequestTv: true };
   mineTimes = [];
   client = createFakeClient((request) => {
+    if (request.url.includes('Lumen/Requests/Status'))
+      return 'status' in status ? Promise.reject(status) : status;
     if (request.url.includes('Lumen/Requests/Mine')) {
       mineTimes.push(Date.now());
       const answer = answers.length > 1 ? answers.shift()! : answers[0];
@@ -66,6 +72,7 @@ beforeEach(() => {
 
 afterEach(() => {
   reset();
+  clearRequestStatus();
   setHidden(false);
   vi.restoreAllMocks();
   vi.useRealTimers();
@@ -163,7 +170,9 @@ describe('request progress', () => {
     client.respond = (request) =>
       request.url.includes('Lumen/Requests/Mine')
         ? new Promise<MyRequests>((resolve) => (answer = resolve))
-        : undefined;
+        : request.url.includes('Lumen/Requests/Status')
+          ? status
+          : undefined;
     start();
     // Each page brings a context of its own, for the same user.
     startRequestProgress(makeContext(client));
@@ -187,7 +196,9 @@ describe('request progress', () => {
     client.respond = (request) =>
       request.url.includes('Lumen/Requests/Mine')
         ? new Promise<MyRequests>((resolve) => (answer = resolve))
-        : undefined;
+        : request.url.includes('Lumen/Requests/Status')
+          ? status
+          : undefined;
     start();
     await advance(1000);
     startRequestProgress(makeContext(createFakeClient(() => new Promise(() => undefined), 'user2')));
@@ -208,6 +219,32 @@ describe('request progress', () => {
     await advance(1000);
     await refreshRequestProgress();
     await advance(10 * NORMAL_MS);
+
+    expect(mineCalls()).toHaveLength(1);
+  });
+
+  it('never asks for the requests of a user Seerr has no account for (a 404 on every page load)', async () => {
+    status = { Enabled: false, CanRequestMovies: false, CanRequestTv: false };
+    let seen: ReturnType<typeof useMyRequests> | undefined;
+    function List() {
+      seen = useMyRequests();
+      return null;
+    }
+    render(<List />);
+    start();
+    await advance(1000);
+    await refreshRequestProgress();
+    await advance(10 * NORMAL_MS);
+
+    expect(mineCalls()).toHaveLength(0);
+    expect(seen).toMatchObject({ requests: null, available: false, failed: false });
+  });
+
+  it("asks for them all the same when the user's status couldn't be had", async () => {
+    status = { status: 502 };
+    answers = [{ Requests: [myRequest({ Status: 'Ready', Percent: null, SecondsLeft: null })] }];
+    start();
+    await advance(1000);
 
     expect(mineCalls()).toHaveLength(1);
   });
@@ -354,7 +391,9 @@ describe('request progress', () => {
     client.respond = (request) =>
       request.url.includes('Lumen/Requests/Mine')
         ? new Promise<MyRequests>((resolve) => (answer = resolve))
-        : undefined;
+        : request.url.includes('Lumen/Requests/Status')
+          ? status
+          : undefined;
     render(<ToastHost />);
     start();
     await advance(1000);

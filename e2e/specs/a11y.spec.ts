@@ -135,11 +135,19 @@ test.describe('Top charts, My requests and Lumen’s settings', () => {
     await root.getByRole('tab', { name: 'Storage' }).click();
     await expect(root.getByRole('img', { name: /^Movies by codec: / })).toBeVisible({ timeout: 30_000 });
     await expectNoViolations(page, 'Lumen settings, Storage', [contrast], '#lmn-admin-root');
+    // Headings step down one level at a time (moderate to axe, so not in the checks above): the card's sections are
+    // h2 under the page's h1.
+    await expect(root.getByRole('heading', { name: 'Libraries', level: 2 })).toBeVisible();
+    const order = await new AxeBuilder({ page }).withRules(['heading-order']).include('#lmn-admin-root').analyze();
+    expect(order.violations.map((v) => v.nodes.map((n) => n.target.join(' ')).join(', '))).toEqual([]);
 
-    // The Health tab, with Seerr set up, so every group has rows, and a device report opened.
+    // The Health tab, with Seerr set up, so every group has rows, and a device report opened. Its rows' titles are h2
+    // too: the cards' names are legends, not headings.
     await root.getByRole('tab', { name: /^Health/ }).click();
     await expect(root.locator('[data-check="requests.seerr"]')).toContainText('answers');
     await expectNoViolations(page, 'Lumen settings, Health', [contrast], '#lmn-admin-root');
+    const healthOrder = await new AxeBuilder({ page }).withRules(['heading-order']).include('#lmn-admin-root').analyze();
+    expect(healthOrder.violations.map((v) => v.nodes.map((n) => n.target.join(' ')).join(', '))).toEqual([]);
   });
 });
 
