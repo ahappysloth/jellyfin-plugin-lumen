@@ -207,6 +207,10 @@ export function SegmentPrompts(props: SegmentsProps) {
   // the next episode beginning later, from wherever this one was left, isn't the card's doing.
   const watched = useRef<{ item: BaseItem; next: string; at: number } | null>(null);
   useEffect(() => {
+    // Between the two, jellyfin-web's player state can have no item for a moment (the first has stopped, the next not
+    // yet started). That's no other item: the mark waits for the next one. (Taken there, it was lost, and the episode
+    // kept its resume point.)
+    if (!itemId) return;
     const was = watched.current;
     watched.current = null;
     if (was && was.next === itemId && Date.now() - was.at < WATCHED_MS)
