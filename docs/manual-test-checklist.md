@@ -248,6 +248,12 @@ real phone shows what the installer and the launch do.
       row is OK and the count has gone down, without Run checks again.
 - [ ] Health with Seerr: OK when it answers; with a wrong key, a Problem; with Seerr stopped, a Problem that names no
       address. Seerr without Sonarr (Settings → Services): "Radarr and Sonarr" warns.
+- [ ] Health → Notifications with Seerr set up: the job is running; over HTTPS the address row is OK (and mentions the
+      Home Screen app), over a LAN address Not applicable; the devices row counts the devices with notifications on;
+      after "Send a test notification" the last-notification row says it reached the device.
+- [ ] Health → Notifications, Seerr's webhook: off, Not applicable; pointed at Lumen with the secret from Requests →
+      Notifications and Request Available ticked, OK; with an old secret, a Problem naming neither; without Request
+      Available, a Warning. Copy report: no secret in it.
 - [ ] Health with Intro Skipper installed: the plugin row is OK; untick it under a TV library's Media segment providers
       and the libraries row names that library; the episodes row counts episodes with intros.
 - [ ] Health's Open … buttons: a Dashboard one opens that page; a Settings one opens the Settings tab at its card with

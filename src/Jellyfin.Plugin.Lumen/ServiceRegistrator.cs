@@ -98,6 +98,10 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IHealthCheck, CustomCssCheck>();
         serviceCollection.AddSingleton<IHealthCheck, SeerrConnectionCheck>();
         serviceCollection.AddSingleton<IHealthCheck, SeerrServicesCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, PushServiceCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, PushDevicesCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, PushDeliveryCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, SeerrWebhookCheck>();
         serviceCollection.AddSingleton<IHealthCheck, TraktKeyCheck>();
         serviceCollection.AddSingleton<IHealthCheck, TraktListsCheck>();
         serviceCollection.AddSingleton<IHealthCheck, SegmentPluginsCheck>();

@@ -202,6 +202,57 @@ export function checkHttps(location: ProbeEnv['location']): BrowserCheck {
 }
 
 /**
+ * Notifications: browsers only let a page turn on notifications over HTTPS (or on localhost, for that computer alone),
+ * and iOS only in the Home Screen app. This page's address is the one checked: users may come in through another.
+ */
+export function checkPushAddress(
+  location: ProbeEnv['location'],
+  report: Pick<HealthReport, 'Checks'>,
+): BrowserCheck {
+  const base = {
+    Id: 'notifications.https',
+    Group: 'Notifications',
+    Title: 'HTTPS for notifications',
+    before: 'notifications.devices',
+  } as const;
+  const service = report.Checks.find((c) => c.Id === 'notifications.service');
+  if (!service || service.Status === 'NotApplicable')
+    return {
+      ...base,
+      Status: 'NotApplicable',
+      Message: service?.Message ?? 'Notifications come with requests, which are off.',
+    };
+  if (location.protocol === 'https:')
+    return {
+      ...base,
+      Status: 'Ok',
+      Message:
+        'This address is HTTPS, which notifications need. On an iPhone or iPad they also need Lumen on the Home Screen (iOS 16.4 or later), and are turned on in that app.',
+    };
+  const kind = addressKind(location.hostname);
+  if (kind === 'loopback')
+    return {
+      ...base,
+      Status: 'NotApplicable',
+      Message:
+        'Browsers allow notifications on localhost, but only on this computer: other devices need an HTTPS address to turn them on.',
+    };
+  const plain =
+    'This page came over plain HTTP, and browsers allow notifications only over HTTPS, so devices that reach Jellyfin at this address can’t turn them on.';
+  return kind === 'public'
+    ? {
+        ...base,
+        Status: 'Warning',
+        Message: `${plain} Put Jellyfin behind HTTPS (a reverse proxy with a certificate).`,
+      }
+    : {
+        ...base,
+        Status: 'NotApplicable',
+        Message: `${plain} Users who reach Jellyfin through an HTTPS address can turn them on there.`,
+      };
+}
+
+/**
  * Quick Connect: the "Public address for QR codes" answers, and it's this server. A browser only lets a page read
  * another address's answer when that server allows it (Jellyfin does, but a proxy may not, and an HTTP address from an
  * HTTPS page is blocked), so a failure at another address only means it can't be checked from here.
@@ -294,5 +345,11 @@ export async function runBrowserChecks(env: ProbeEnv, report: HealthReport): Pro
     checkProxyCache(env),
     checkQuickConnectAddress(env, report),
   ]);
-  return [checkJellyfinVersion(report.JellyfinVersion), cache, checkHttps(env.location), quickConnect];
+  return [
+    checkJellyfinVersion(report.JellyfinVersion),
+    cache,
+    checkHttps(env.location),
+    checkPushAddress(env.location, report),
+    quickConnect,
+  ];
 }

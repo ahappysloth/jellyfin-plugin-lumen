@@ -4,6 +4,7 @@ import {
   checkHttps,
   checkJellyfinVersion,
   checkProxyCache,
+  checkPushAddress,
   checkQuickConnectAddress,
   PROBE_BODY,
   type ProbeEnv,
@@ -129,6 +130,49 @@ describe('checkHttps', () => {
     const result = checkHttps({ protocol: 'http:', hostname: '100.101.102.103', origin: '' });
     expect(result.Message).toContain('private network');
     expect(result.Message).not.toContain('internet');
+  });
+});
+
+describe('checkPushAddress', () => {
+  const on = {
+    Checks: [{ Id: 'notifications.service', Group: 'Notifications', Status: 'Ok', Title: '', Message: '' }],
+  } as const;
+  const at = (protocol: string, hostname: string) => ({
+    protocol,
+    hostname,
+    origin: `${protocol}//${hostname}`,
+  });
+
+  it.each([
+    ['https:', 'media.example.org', 'Ok'],
+    ['http:', 'localhost', 'NotApplicable'],
+    ['http:', '192.168.1.5', 'NotApplicable'],
+    ['http:', 'nas.tail1234.ts.net', 'NotApplicable'],
+    ['http:', 'media.example.org', 'Warning'],
+  ])('%s//%s is %s', (protocol, hostname, status) => {
+    const result = checkPushAddress(at(protocol, hostname), { Checks: [...on.Checks] });
+    expect(result.Status).toBe(status);
+    expect(result.Message).not.toContain(hostname === 'localhost' ? 'example' : hostname);
+  });
+
+  it('says iOS needs the Home Screen app', () => {
+    expect(checkPushAddress(at('https:', 'media.example.org'), { Checks: [...on.Checks] }).Message).toContain(
+      'Home Screen',
+    );
+  });
+
+  it("doesn't apply, and says why, when the server's notification rows don't", () => {
+    const off = [
+      {
+        ...on.Checks[0],
+        Status: 'NotApplicable' as const,
+        Message: 'Notifications come with requests, which are off.',
+      },
+    ];
+    expect(checkPushAddress(at('http:', 'media.example.org'), { Checks: off })).toMatchObject({
+      Status: 'NotApplicable',
+      Message: 'Notifications come with requests, which are off.',
+    });
   });
 });
 

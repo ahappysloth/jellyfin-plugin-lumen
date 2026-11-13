@@ -22,6 +22,7 @@ public static class HealthGroup
     public const string Server = "Server";
     public const string Proxy = "Proxy";
     public const string Requests = "Requests";
+    public const string Notifications = "Notifications";
     public const string Trakt = "Trakt";
     public const string SkipIntro = "SkipIntro";
     public const string QuickConnect = "QuickConnect";

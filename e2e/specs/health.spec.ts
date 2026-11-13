@@ -49,7 +49,7 @@ test('the Health tab lists the checks by group, each with its status in words, a
   // Fresh: the server keeps a report a minute, and an earlier spec may have had Seerr on.
   await rerun(root);
 
-  for (const group of ['Health check', 'Server', 'Proxy and network', 'Requests (Seerr)', 'Trakt', 'Skip Intro', 'Quick Connect', 'Devices'])
+  for (const group of ['Health check', 'Server', 'Proxy and network', 'Requests (Seerr)', 'Notifications', 'Trakt', 'Skip Intro', 'Quick Connect', 'Devices'])
     await expect(root.getByRole('group', { name: group, exact: true })).toBeVisible();
   await expect(row(root, 'server.jellyfin')).toContainText('OK');
   await expect(row(root, 'server.jellyfin')).toContainText(/Lumen has been tested with Jellyfin 12\.\d+\./);
@@ -117,6 +117,63 @@ test('Seerr: answering, with Radarr and Sonarr; without them; and down, a proble
     await expect(row(root, 'requests.services')).toContainText('Not applicable');
     // A problem shows on the tab, in its name too.
     await expect(root.getByRole('tab', { name: /^Health\s*\d+ problems?$/ })).toBeVisible();
+  } finally {
+    await fetch(`${STUB_SEERR}/__stub/reset`, { method: 'POST' });
+    await resetLumen();
+  }
+});
+
+test('Notifications: off with requests; with Seerr, the job, the devices, this address, and Seerr’s webhook with its secret', async ({ page }) => {
+  const { admin } = loadState();
+  await login(page, ADMIN);
+  try {
+    let root = await openHealth(page);
+    await rerun(root);
+    // Requests are off by default: push notifications come with them.
+    for (const id of ['notifications.service', 'notifications.https', 'notifications.devices', 'notifications.lastSend', 'notifications.webhook'])
+      await expect(row(root, id)).toContainText('Not applicable');
+    await expect(row(root, 'notifications.service')).toContainText('Notifications come with requests, which are off.');
+
+    await lumenConfig({ RequestsEnabled: true, SeerrUrl: SEERR_URL, SeerrApiKey: 'stub-key' });
+    // The webhook's secret, as the Requests card shows it (made once Seerr is set up).
+    const { WebhookSecret: secret } = await api<{ WebhookSecret: string }>('/Lumen/Admin/Push', { token: admin.token });
+    await rerun(root);
+    await expect(row(root, 'notifications.service')).toContainText('The job that sends notifications is running');
+    await expect(row(root, 'notifications.devices')).toContainText('No device has notifications on yet.');
+    // The test server is plain HTTP on localhost.
+    await expect(row(root, 'notifications.https')).toContainText('only on this computer');
+    await expect(row(root, 'notifications.webhook')).toContainText("Seerr's webhook is off.");
+
+    // Pointed at Lumen with an old secret: Lumen would turn its calls away.
+    const webhook = (authHeader: string, types = 8) =>
+      fetch(`${STUB_SEERR}/__stub/webhook`, {
+        method: 'POST',
+        body: JSON.stringify({ enabled: true, types, webhookUrl: `${BASE_URL.replace(/\/$/, '')}/Lumen/Push/Seerr`, authHeader }),
+      });
+    await webhook('not-the-secret');
+    await rerun(root);
+    const hook = row(root, 'notifications.webhook');
+    await expect(hook).toContainText('Problem');
+    await expect(hook).toContainText('calls Lumen with a different secret');
+    await expect(hook.getByRole('button', { name: 'Open Requests settings' })).toBeVisible();
+
+    await webhook(secret);
+    await rerun(root);
+    await expect(hook).toContainText('OK');
+    await expect(hook).toContainText('notifications go out at once');
+    expect(await root.innerText()).not.toContain(secret);
+
+    // Nothing of it in the copied report either.
+    await page.reload();
+    root = await openHealth(page);
+    await page.evaluate(() => {
+      const w = window as unknown as { __copied?: string };
+      if (navigator.clipboard) navigator.clipboard.writeText = async (text: string) => void (w.__copied = text);
+    });
+    await root.getByRole('button', { name: 'Copy report' }).click();
+    const report = (await page.evaluate(() => (window as unknown as { __copied?: string }).__copied)) ?? '';
+    expect(report).toContain('[notifications.webhook]');
+    expect(report).not.toContain(secret);
   } finally {
     await fetch(`${STUB_SEERR}/__stub/reset`, { method: 'POST' });
     await resetLumen();

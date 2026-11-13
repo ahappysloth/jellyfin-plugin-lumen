@@ -14,6 +14,12 @@ public interface ISeerrClient
     /// </summary>
     Task<SeerrServices> GetServicesAsync(SeerrEndpoint endpoint, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Seerr's webhook notification settings (Settings → Notifications → Webhook), for the Health tab's check that it
+    /// calls Lumen. An admin call, like <see cref="GetServicesAsync"/>.
+    /// </summary>
+    Task<SeerrWebhook> GetWebhookAsync(SeerrEndpoint endpoint, CancellationToken cancellationToken);
+
     /// <summary>The Seerr account linked to a Jellyfin user, or null if there is none. Goes through the circuit breaker.</summary>
     Task<SeerrUser?> GetUserByJellyfinIdAsync(SeerrEndpoint endpoint, Guid jellyfinUserId, CancellationToken cancellationToken);
 

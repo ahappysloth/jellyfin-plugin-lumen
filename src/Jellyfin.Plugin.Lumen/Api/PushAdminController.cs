@@ -13,6 +13,9 @@ namespace Jellyfin.Plugin.Lumen.Api;
 [Authorize(Policy = Policies.RequiresElevation)]
 public sealed class PushAdminController : ControllerBase
 {
+    /// <summary>Seerr's webhook address, relative to the server's (Api/PushController.SeerrWebhook).</summary>
+    public const string WebhookPath = "Lumen/Push/Seerr";
+
     private readonly ILumenConfigStore _config;
     private readonly IPushSubscriptionStore _subscriptions;
     private readonly IPushSender _sender;
@@ -55,7 +58,7 @@ public sealed class PushAdminController : ControllerBase
     {
         var (devices, users) = _subscriptions.Count();
         var secret = SeerrEndpoint.From(_config.Current) is null ? null : _config.GetPushSecrets().WebhookSecret;
-        return new PushAdminStatusDto(devices, users, _signal.Running, _sender.Last, "Lumen/Push/Seerr", secret);
+        return new PushAdminStatusDto(devices, users, _signal.Running, _sender.Last, WebhookPath, secret);
     }
 }
 

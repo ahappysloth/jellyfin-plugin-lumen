@@ -29,6 +29,11 @@ readers).
 | | `proxy.https` | browser | HTTPS / – / plain HTTP on a public address / localhost or LAN (a note) |
 | Requests (Seerr) | `requests.seerr` | server (Test connection) | answers, key works / linked to another Jellyfin / unreachable, key refused, not saved / requests off |
 | | `requests.services` | server (`/settings/radarr`, `/settings/sonarr`) | both / one or none missing / – / Seerr not set up or not answering |
+| Notifications | `notifications.service` | server (ReadyPushSignal, config) | job running (keys made, or made when first needed) / – / job not running / requests off or Seerr not set up (every Notifications row) |
+| | `notifications.https` | browser | HTTPS / plain HTTP on a public address / – / localhost, LAN or Tailscale (a note) |
+| | `notifications.devices` | server (subscription store's counts) | N devices of M users / – / – / none yet |
+| | `notifications.lastSend` | server (PushSender.Last) | reached N devices (and any missed) / refused or unreachable / – / nothing sent since start |
+| | `notifications.webhook` | server (Seerr `/settings/notifications/webhook`) | calls Lumen with the secret and Request Available / Request Available not ticked / another secret / off, elsewhere, or unreadable |
 | Trakt | `trakt.key` | server (Check key, saved key) | works / Trakt down / refused, malformed / no key |
 | | `trakt.lists` | server (TraktLists' last fetch) | loaded N ago / failed, last copy served / failed, nothing to serve / no key, nothing loaded yet |
 | Skip Intro | `skipIntro.plugins` | server (plugin manager) | Intro Skipper and/or SkipMe.db active / neither, or waiting for a restart / installed but disabled, failed, unsupported / – |
@@ -54,6 +59,13 @@ Notes on the less obvious ones:
   the probe came back with `max-age=2592000` and an Expires a month out, as `lumen.js` did.
 - **HTTPS.** Installing Lumen as an app needs a secure address. localhost and private addresses (RFC 1918, link-local,
   `.local`, single-label names) are a note: the admin may be on the LAN while phones use the HTTPS name.
+- **Notifications.** Only what's cheap and true: the push job's running flag, whether the public key exists (never the
+  keys), the subscription store's counts, and the last send's result since Jellyfin started (no history is kept, so
+  no "recent failures" beyond it). The webhook row reads Seerr's own webhook settings with the admin key and compares
+  the Authorization header it sends with Lumen's secret as the webhook endpoint does (`PushController.IsWebhookSecret`,
+  constant time); neither appears in a message. Seerr has one webhook agent, so one pointed elsewhere (a chat bridge)
+  is a note, not a warning: Lumen's 2-minute check still delivers. The HTTPS row is this page's address only, as push
+  needs a secure context (iOS: the Home Screen app too); users may come in through another address.
 - **Quick Connect address.** Same-origin is always readable; another origin only if that server allows it (Jellyfin
   sends CORS headers, a proxy may not, and an HTTP address from an HTTPS page is blocked). So a failure there is "can't
   check from here", and only the page's own origin not answering is a problem. The answer's `Id` is compared with this

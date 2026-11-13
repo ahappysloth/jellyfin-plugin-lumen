@@ -63,7 +63,8 @@ public class ServiceRegistratorTests
         Assert.NotNull(provider.GetRequiredService<Jellyfin.Plugin.Lumen.Health.HealthService>());
         Assert.Equal(
             [
-                "server.update", "server.customCss", "requests.seerr", "requests.services", "trakt.key", "trakt.lists",
+                "server.update", "server.customCss", "requests.seerr", "requests.services",
+                "notifications.service", "notifications.devices", "notifications.lastSend", "notifications.webhook", "trakt.key", "trakt.lists",
                 "skipIntro.plugins", "skipIntro.libraries", "skipIntro.coverage", "quickConnect.enabled", "quickConnect.address",
             ],
             provider.GetServices<Jellyfin.Plugin.Lumen.Health.IHealthCheck>().Select(c => c.Id));

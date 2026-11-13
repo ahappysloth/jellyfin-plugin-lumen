@@ -1,12 +1,9 @@
 import { HEALTH_FIX_ROUTES } from '../../compat/registry';
 import type { HealthFix } from './healthModel';
 
-/**
- * Where the help pages are. Skip Intro: the README's own part on it, under Health check. A fuller setup guide
- * (docs/skip-intro-setup.md) is planned: point this at it once it's on main.
- */
+/** Where the help pages are: on GitHub, so the link works from any server and stays current. */
 export const HELP_LINKS: Record<string, string> = {
-  skipIntro: 'https://github.com/ahappysloth/jellyfin-plugin-lumen/blob/main/README.md#skip-intro',
+  skipIntro: 'https://github.com/ahappysloth/jellyfin-plugin-lumen/blob/main/docs/skip-intro-setup.md',
 };
 
 /** The settings cards a fix can open, by key (each Card's `anchor`). */
