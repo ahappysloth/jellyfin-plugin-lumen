@@ -2,6 +2,19 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.6.4] - 2026-11-13
+
+### Added
+- A title's **Media info** has a Trailer section: whether online trailers are on, whether a local trailer exists (it
+  wins), the IMDb id used and what IMDb said (found, with its qualities; no trailer; an error such as HTTP 503; a
+  timeout), the YouTube trailer and where it came from (Jellyfin's metadata or Seerr), whether each answer was the
+  server's cached one and when it was fetched. Below that, what happened on this device in this session: which
+  trailer played and how long it took to get going, or each one that failed and why (the video's error, YouTube's
+  error code, a time-out, the browser blocking autoplay, YouTube skipped in the TV layout).
+- Administrators get **Check again**, which asks IMDb and Seerr again past the cache (at most once per title every
+  30 seconds). Everyone else sees the status only.
+- A show's ⋯ menu has **Trailer info**, the same section in Lumen's dialog (shows have no Media info).
+
 ## [0.6.3] - 2026-11-13
 
 ### Changed
