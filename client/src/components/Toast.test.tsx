@@ -114,10 +114,14 @@ describe('ToastHost', () => {
     expect(screen.getByRole('button', { name: 'Play' })).toHaveFocus();
   });
 
-  it('TV: doesn’t take focus out of an open dialog or menu', () => {
+  it.each([
+    ['a dialog (the request dialog)', 'dialog'],
+    ['a confirmation (ConfirmDialog)', 'alertdialog'],
+    ['a menu (ContextMenu)', 'menu'],
+  ] as const)('TV: doesn’t take focus out of %s', (_, role) => {
     render(
       <>
-        <div role="dialog" aria-label="Request The Matrix">
+        <div role={role} aria-label="Request The Matrix">
           <button type="button">Request</button>
         </div>
         <ToastHost tv />
@@ -129,6 +133,59 @@ describe('ToastHost', () => {
     act(() => showToast('Dune is ready to watch', { label: 'Open', onSelect: vi.fn() }));
     expect(screen.getByRole('alert')).toHaveTextContent('Dune is ready to watch');
     expect(request).toHaveFocus();
+  });
+
+  it('TV: doesn’t take focus out of an open Dropdown list', () => {
+    render(
+      <>
+        <ul role="listbox" aria-label="Season" tabIndex={-1}>
+          <li role="option" aria-selected="true">
+            Season 1
+          </li>
+        </ul>
+        <ToastHost tv />
+      </>,
+    );
+    const list = screen.getByRole('listbox', { name: 'Season' });
+    list.focus();
+
+    act(() => showToast('Dune is ready to watch', { label: 'Open', onSelect: vi.fn() }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Dune is ready to watch');
+    expect(list).toHaveFocus();
+  });
+
+  it('TV: a second pop-up replacing the first gives focus back where it was before the first', () => {
+    vi.useFakeTimers();
+    render(
+      <>
+        <button type="button">A card</button>
+        <button type="button">Another card</button>
+        <ToastHost tv />
+      </>,
+    );
+    const card = screen.getByRole('button', { name: 'A card' });
+    card.focus();
+    const moves: string[] = [];
+    const onFocus = (e: FocusEvent): void => void moves.push((e.target as HTMLElement).textContent ?? '');
+    document.addEventListener('focusin', onFocus);
+
+    act(() => showToast('The Matrix is ready to watch', { label: 'Open', onSelect: vi.fn() }));
+    act(() => showToast('Dune is ready to watch', { label: 'Open', onSelect: vi.fn() }));
+    expect(screen.getByRole('button', { name: 'Open' })).toHaveFocus();
+    // Straight from one Open to the next: not back to the card in between.
+    expect(moves).toEqual(['Open', 'Open']);
+    document.removeEventListener('focusin', onFocus);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(card).toHaveFocus();
+
+    // The user went back to the page while one was up: the next gives focus back there.
+    act(() => showToast('Alien is ready to watch', { label: 'Open', onSelect: vi.fn() }));
+    screen.getByRole('button', { name: 'Another card' }).focus();
+    act(() => showToast('Heat is ready to watch', { label: 'Open', onSelect: vi.fn() }));
+    expect(screen.getByRole('button', { name: 'Open' })).toHaveFocus();
+    act(() => void vi.advanceTimersByTime(ACTION_TOAST_MS + 50));
+    expect(screen.getByRole('button', { name: 'Another card' })).toHaveFocus();
   });
 
   it('leaves focus alone off a TV: a pointer or a touch reaches the button anyway', () => {

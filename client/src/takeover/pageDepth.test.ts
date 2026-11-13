@@ -161,11 +161,24 @@ describe('page depth', () => {
     expect(pageDepth()).toBe(1);
   });
 
-  it('isn’t deeper for a sub-page replaced with another', () => {
+  it('isn’t deeper for a sub-page replaced with another', async () => {
     go(MOVIE);
-    go(ACTOR);
-    history.replaceState(history.state, '', OTHER);
+    history.pushState({ usr: null, key: 'k1', idx: 2 }, '', ACTOR);
     expect(pageDepth()).toBe(2);
+    // react-router's navigate(…, { replace: true }): a fresh state (new key, same idx), so no stamp to find.
+    history.replaceState({ usr: null, key: 'k2', idx: 2 }, '', OTHER);
+    expect(pageDepth()).toBe(2);
+    expect(history.state).toEqual({ usr: null, key: 'k2', idx: 2, lmnDepth: 2 });
+    // And again: still no deeper.
+    history.replaceState({ usr: null, key: 'k3', idx: 2 }, '', CATALOG);
+    expect(pageDepth()).toBe(2);
+
+    // A page that isn't a sub-page replaced with one is 1 (as a new entry from it would be), and Back still steps down.
+    await travel(-1);
+    expect(pageDepth()).toBe(1);
+    go(HOME);
+    history.replaceState({ usr: null, key: 'k4', idx: 3 }, '', ACTOR);
+    expect(pageDepth()).toBe(1);
   });
 
   it('adds its stamp to the router’s state without touching what’s there, or telling anyone', () => {
@@ -185,9 +198,10 @@ describe('page depth', () => {
     expect(pushed).toHaveBeenCalledTimes(1);
     expect(replaced).not.toHaveBeenCalled();
 
-    // An entry made by a link has no state: the stamp is all of it.
+    // An entry made by a link has no state: the stamp is all of it, with react-router's idx left reading null (its push
+    // counts getIndex() + 1, which a missing idx would make NaN).
     go(ACTOR);
-    expect(history.state).toEqual({ lmnDepth: 2 });
+    expect(history.state).toEqual({ idx: null, lmnDepth: 2 });
     // The pages that aren't sub-pages are left as they are.
     go(HOME);
     expect(history.state).toBeNull();

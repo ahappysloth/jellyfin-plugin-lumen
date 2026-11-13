@@ -5,10 +5,12 @@ import type { Layout } from '../compat/jellyfin';
 const SAFE_ID = /^[\w-]+$/;
 const PRIMARY = '.lmn-autofocus';
 /**
- * Open menus, lists and dialogs: focus in one of them is left there. And a toast's button (components/Toast.tsx), which
- * has the remote while the toast is up: a page that finishes loading under it mustn't take it back.
+ * Open menus, lists and dialogs: ContextMenu, a Dropdown's list, the request dialog, ConfirmDialog. Focus in one of them
+ * is left there (here, and by a toast's button: components/Toast.tsx).
  */
-const POPUP = '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"], .lmn-toast-host';
+export const OPEN_POPUP = '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
+/** And a toast's button, which has the remote while the toast is up: a page that finishes loading under it mustn't take it back. */
+const POPUP = `${OPEN_POPUP}, .lmn-toast-host`;
 
 /**
  * TV layout: D-pad users need a focused element, pointer users don't. Focus goes to the previously selected item

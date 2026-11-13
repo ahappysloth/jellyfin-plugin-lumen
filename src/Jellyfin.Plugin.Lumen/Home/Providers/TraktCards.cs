@@ -193,10 +193,24 @@ public sealed class TraktCards
         }
 
         _ = all.ContinueWith(t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
-        var cards = lookups.Select(t => t.IsCompletedSuccessfully ? t.Result : null).ToList();
 
-        // The lookups still running count too; one of them failing later is counted again, after the caller has read.
-        for (var late = lookups.Count(t => !t.IsCompleted); late > 0 && missed is not null; late--)
+        // Each lookup's status read once, for its card and the count both: one finishing between two reads would be
+        // left out of the cards and not counted as missing.
+        var cards = new List<HomeRowEntry?>(lookups.Count);
+        var late = 0;
+        foreach (var lookup in lookups)
+        {
+            var status = lookup.Status;
+            cards.Add(status == TaskStatus.RanToCompletion ? lookup.Result : null);
+
+            // The lookups still running count too; one of them failing later is counted again, after the caller has read.
+            if (status is not (TaskStatus.RanToCompletion or TaskStatus.Faulted or TaskStatus.Canceled))
+            {
+                late++;
+            }
+        }
+
+        for (; late > 0 && missed is not null; late--)
         {
             missed();
         }

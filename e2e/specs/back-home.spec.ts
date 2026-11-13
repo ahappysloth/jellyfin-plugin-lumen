@@ -106,6 +106,29 @@ test('the depth survives a reload, a page opened from a link is one page in, and
   await fresh.close();
 });
 
+test('an episode’s ⓘ and a season’s ⋯ have no blur on the plain page; a phone’s ⓘ is glass', { tag: '@smoke' }, async ({
+  page,
+  isMobile,
+}) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items['Lumen Show']}`);
+
+  const series = page.locator('#lmn-root .lmn-details--series');
+  const info = series.getByRole('link', { name: /^Details for / }).first();
+  const seasonMore = series.locator('.lmn-episodes-header').getByRole('button', { name: /^More actions for / });
+  await expect(info).toBeVisible();
+  await expect(seasonMore).toBeVisible();
+  const blur = (el: Element) => {
+    const style = getComputedStyle(el);
+    return style.backdropFilter || style.getPropertyValue('-webkit-backdrop-filter');
+  };
+  // Every episode's ⓘ had a blur of its own, though only on a phone does it sit over a picture (the still's corner).
+  if (isMobile) expect(await info.evaluate(blur)).toContain('blur(');
+  else expect(await info.evaluate(blur)).not.toContain('blur(');
+  expect(await seasonMore.evaluate(blur)).not.toContain('blur(');
+});
+
 test('the glass buttons turn into a white disc with a dark icon under the pointer and the keyboard’s focus', async ({
   page,
   isMobile,

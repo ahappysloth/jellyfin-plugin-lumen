@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { strings } from '../strings';
 import { Icon } from './icons';
+import { OPEN_POPUP } from './useAutoFocus';
 
 /** How long a toast stays up before it dismisses itself. */
 export const TOAST_MS = 6000;
@@ -19,8 +20,8 @@ interface Toast {
   action?: ToastAction;
 }
 
-/** A dialog or menu that's open: Lumen's (ConfirmDialog, the request dialog, ContextMenu) or jellyfin-web's. */
-const MODAL = '[role="dialog"],[role="menu"],.dialogContainer';
+/** A dialog, menu or list that's open: Lumen's (OPEN_POPUP) or jellyfin-web's. */
+const MODAL = `${OPEN_POPUP}, .dialogContainer`;
 
 let listener: ((message: string, action?: ToastAction) => void) | null = null;
 let nextId = 0;
@@ -55,6 +56,9 @@ export function showToast(message: string, action?: ToastAction): void {
 export function ToastHost({ tv }: { tv?: boolean }) {
   const [toast, setToast] = useState<Toast | null>(null);
   const button = useRef<HTMLButtonElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
+  // Where focus was before a toast took it (null: nowhere); undefined while no toast has it.
+  const returnTo = useRef<HTMLElement | null | undefined>(undefined);
 
   useEffect(() => {
     listener = (message, action) => setToast({ id: ++nextId, message, action });
@@ -70,27 +74,37 @@ export function ToastHost({ tv }: { tv?: boolean }) {
   }, [toast?.id]);
 
   useEffect(() => {
-    // Not from an open dialog or menu (Lumen's or jellyfin-web's): it has the remote until it closes.
-    if (!tv || !button.current || document.querySelector(MODAL)) return undefined;
-    const before = document.activeElement as HTMLElement | null;
-    button.current.focus();
-    return () => {
-      // Only if focus went with the toast: Open's new page, or the user, may have put it elsewhere since.
-      const now = document.activeElement;
-      if (now && now !== document.body) return;
-      // Back where it was. If it was nowhere (the toast came up before the page had drawn; useAutoFocus then left it
-      // with the toast) or that's gone, the page's own first choice.
-      const page = (selector: string): HTMLElement | null => document.querySelector(`.lmn-main ${selector}`);
-      (before && before !== document.body && document.contains(before)
-        ? before
-        : (page('.lmn-autofocus') ?? page('a,button'))
-      )?.focus();
-    };
+    const host = hostRef.current;
+    // Not from an open dialog, menu or list (Lumen's or jellyfin-web's): it has the remote until it closes.
+    if (tv && button.current && !document.querySelector(MODAL)) {
+      // Where to give focus back. Kept from the first of a run of toasts: when a second replaces the first, focus is on
+      // the body (the first's button went with it), not on the page. Taken afresh if the user has gone back to the page.
+      const now = document.activeElement as HTMLElement | null;
+      if (returnTo.current === undefined || (now && now !== document.body && !host?.contains(now))) {
+        returnTo.current = now;
+      }
+      button.current.focus();
+      return;
+    }
+    // Gone, or replaced by one that doesn't take focus: give it back, if the toast had it.
+    const before = returnTo.current;
+    if (before === undefined) return;
+    returnTo.current = undefined;
+    // Only if focus went with the toast: Open's new page, or the user, may have put it elsewhere since.
+    const now = document.activeElement;
+    if (now && now !== document.body && !host?.contains(now)) return;
+    // Back where it was. If it was nowhere (the toast came up before the page had drawn; useAutoFocus then left it
+    // with the toast) or that's gone, the page's own first choice.
+    const page = (selector: string): HTMLElement | null => document.querySelector(`.lmn-main ${selector}`);
+    (before && before !== document.body && document.contains(before)
+      ? before
+      : (page('.lmn-autofocus') ?? page('a,button'))
+    )?.focus();
   }, [toast?.id]);
 
   const action = toast?.action;
   return (
-    <div class="lmn-toast-host" role="alert">
+    <div ref={hostRef} class="lmn-toast-host" role="alert">
       {toast && (
         <p key={toast.id} class="lmn-toast">
           <span>{toast.message}</span>

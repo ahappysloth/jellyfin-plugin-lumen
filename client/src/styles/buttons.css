@@ -49,7 +49,7 @@
 /* Round icon buttons over artwork (Back, the hero's Pause, a trailer's controls), the Back pill that holds one or two of
    them (views/BackHome.tsx), and the rows' arrows (rows.css): frosted glass. They're small, so the blur is cheap. Under
    the pointer, with the keyboard's or a TV remote's focus, or pressed: a white disc with a dark icon (icons draw in
-   currentColor). */
+   currentColor). The ones on the plain page (an episode's ⓘ, a season's ⋯) turn the blur off: details.css. */
 .lmn-icon-button,
 .lmn-pill,
 .lmn-details__trailer-controls {

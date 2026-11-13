@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { installHooks, NAVIGATE_EVENT } from './navigation';
+import { installHooks, NAVIGATE_EVENT, type NavigateDetail } from './navigation';
 import { parseRoute, routeKey } from './routes';
 
 /**
@@ -30,21 +30,26 @@ function subPage(hash: string): string | null {
   return route.kind === 'player' ? '' : null;
 }
 
-function evaluate(win: Window): void {
+/** `replaced`: the entry on screen was replaced (history.replaceState), not a new one added after it. */
+function evaluate(win: Window, replaced: boolean): void {
   const key = subPage(win.location.hash);
   let next = 0;
   if (key) {
     const state = win.history.state as Record<string, unknown> | null;
     const stamp = state?.[STATE_KEY];
-    // Seen before (Back, Forward, a reload; or replaced with another sub-page, which is no deeper).
+    // Seen before (Back, Forward, a reload; or replaced with a state that kept the stamp).
     if (typeof stamp === 'number') next = stamp;
     else {
-      // A new entry. The same page again (jellyfin-web pushes one for a dialog, and may replace it) stays where it
-      // was; another page is one deeper.
-      next = key === page ? Math.max(depth, 1) : depth + 1;
+      // A new entry, unless it replaced the one on screen (react-router's replace writes a fresh state, without the
+      // stamp): that takes the depth of the entry it replaced, as does the same page again (jellyfin-web pushes one for
+      // a dialog). Another page is one deeper.
+      next = replaced || key === page ? Math.max(depth, 1) : depth + 1;
       if (state === null || typeof state === 'object') {
+        // An entry with no state reads to react-router as `idx: null` (push then counts null + 1 = 1); a stamp alone
+        // would make that undefined + 1, NaN. So a null state keeps reading as idx null.
+        const stamped = state === null ? { idx: null, [STATE_KEY]: next } : { ...state, [STATE_KEY]: next };
         try {
-          History.prototype.replaceState.call(win.history, { ...state, [STATE_KEY]: next }, '');
+          History.prototype.replaceState.call(win.history, stamped, '');
         } catch {
           // Safari refuses more than 100 history changes in 30 s: the depth still holds until this entry is left.
         }
@@ -65,7 +70,11 @@ export function trackPageDepth(win: Window = window): () => void {
   depth = 0;
   page = '';
   installHooks(win);
-  const handler = (): void => evaluate(win);
+  const handler = (e?: Event): void =>
+    evaluate(
+      win,
+      e?.type === NAVIGATE_EVENT && !!(e as CustomEvent<NavigateDetail | undefined>).detail?.replace,
+    );
   const events = [NAVIGATE_EVENT, 'popstate', 'hashchange'];
   events.forEach((e) => win.addEventListener(e, handler));
   handler();
