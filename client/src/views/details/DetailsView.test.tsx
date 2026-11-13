@@ -114,6 +114,75 @@ describe('DetailsView', () => {
     expect(screen.queryByRole('link', { name: 'Download' })).toBeNull();
   });
 
+  describe('a trailer from YouTube ("Use YouTube trailers")', () => {
+    const plain: BaseItem = { ...movie, LocalTrailerCount: 0 };
+    const youTube = { ...testConfig, TrailerPreview: true, YouTubeTrailers: true };
+    const clientWith = (trailer: () => unknown, item: BaseItem = plain) =>
+      createFakeClient(
+        routes({
+          'Items/m1': item,
+          'Items/m1/LocalTrailers': [{ Id: 't1', Name: 'Trailer', Type: 'Trailer' }],
+          'Items/t1': { Id: 't1', Name: 'Trailer', Type: 'Trailer', MediaSources: [] },
+          'Items/m1/Similar': { Items: [] },
+          'Lumen/Items/m1/YouTubeTrailer': trailer,
+        }),
+      );
+    afterEach(() => {
+      Reflect.deleteProperty(window, 'matchMedia');
+    });
+
+    it('plays behind a title without a local trailer, with no Trailer button for it', async () => {
+      const asked = vi.fn(() => ({ YouTubeId: 'dQw4w9WgXcQ' }));
+      const { container } = render(
+        <DetailsView id="m1" ctx={makeContext(clientWith(asked), { config: youTube })} />,
+      );
+
+      await waitFor(() => expect(container.querySelector('.lmn-details__trailer iframe')).not.toBeNull());
+      expect(container.querySelector('iframe')!.getAttribute('src')).toContain(
+        'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?',
+      );
+      expect(asked).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole('button', { name: 'Trailer' })).toBeNull();
+    });
+
+    it('shows the backdrop alone when the server knows of no trailer', async () => {
+      const asked = vi.fn(() => ({ YouTubeId: null }));
+      const { container } = render(
+        <DetailsView id="m1" ctx={makeContext(clientWith(asked), { config: youTube })} />,
+      );
+
+      await waitFor(() => expect(asked).toHaveBeenCalled());
+      await screen.findByRole('heading', { name: 'Lumen Alpha' });
+      expect(container.querySelector('iframe')).toBeNull();
+      expect(container.querySelector('.lmn-details__trailer')).toBeNull();
+    });
+
+    it("isn't asked for where it wouldn't play: a local trailer, the setting off, a TV, less motion", async () => {
+      const asked = vi.fn(() => ({ YouTubeId: 'dQw4w9WgXcQ' }));
+      const shown = async (ctx: Parameters<typeof makeContext>[1], item?: BaseItem) => {
+        const view = render(<DetailsView id="m1" ctx={makeContext(clientWith(asked, item), ctx)} />);
+        await screen.findByRole('heading', { name: 'Lumen Alpha' });
+        await screen.findByRole('button', { name: /Favorite/ });
+        expect(view.container.querySelector('iframe')).toBeNull();
+        view.unmount();
+        resetSessionCaches();
+      };
+
+      await shown({ config: youTube }, movie); // it has a local trailer
+      await shown({ config: { ...youTube, YouTubeTrailers: false } });
+      await shown({ config: { ...youTube, TrailerPreview: false } });
+      await shown({ config: youTube, layout: 'tv' });
+      window.matchMedia = vi.fn().mockReturnValue({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }) as unknown as typeof window.matchMedia;
+      await shown({ config: youTube });
+
+      expect(asked).not.toHaveBeenCalled();
+    });
+  });
+
   it('shows Starting… on the Resume button until the player has started', async () => {
     let started: (value: unknown) => void = () => {};
     const c = createFakeClient(

@@ -30,6 +30,12 @@ public sealed class ClientConfigDto
 
     public bool HeroWaitForTrailer { get; init; }
 
+    /// <summary>Titles without a local trailer preview their trailer from YouTube (only with <see cref="TrailerPreview"/>).</summary>
+    public bool YouTubeTrailers { get; init; }
+
+    /// <summary>Where to load YouTube's player from instead of YouTube (<see cref="YouTubeEmbed"/>); null everywhere but in tests.</summary>
+    public string? YouTubeEmbedBase { get; init; }
+
     /// <summary>
     /// Seerr is set up for request features. Whether this user may use them is GET /Lumen/Requests/Status's to say; this
     /// only spares servers without Seerr from asking (the request progress check, the account menu's My requests).
@@ -57,6 +63,8 @@ public sealed class ClientConfigDto
         TrailerPreview = config.TrailerPreview,
         TrailerDelaySeconds = config.TrailerDelaySeconds,
         HeroWaitForTrailer = config.HeroWaitForTrailer,
+        YouTubeTrailers = config.TrailerPreview && config.YouTubeTrailers,
+        YouTubeEmbedBase = YouTubeEmbed.OverrideBase,
         Requests = config.Enabled && Jellyfin.Plugin.Lumen.Requests.SeerrEndpoint.From(config) is not null,
         Charts = config.Enabled && !string.IsNullOrWhiteSpace(config.TraktClientId),
         BuildHash = buildHash,
@@ -75,8 +83,14 @@ public sealed class CompatReportDto
     public List<string> FailedChecks { get; set; } = [];
 }
 
-/// <summary>One hero slide.</summary>
-public sealed record HeroItemDto(BaseItemDto Item, Guid? TrailerItemId);
+/// <summary>
+/// One hero slide. <c>TrailerYouTubeId</c> is a checked YouTube video id (<see cref="YouTubeId"/>), never a URL, and only
+/// set for a slide without a local trailer.
+/// </summary>
+public sealed record HeroItemDto(BaseItemDto Item, Guid? TrailerItemId, string? TrailerYouTubeId = null);
+
+/// <summary>Response of GET /Lumen/Items/{itemId}/YouTubeTrailer: the trailer's YouTube video id, or null.</summary>
+public sealed record YouTubeTrailerDto(string? YouTubeId);
 
 /// <summary>
 /// One home row. Catalog rows (discover lists, My Requests) have an empty <c>Items</c> and set <c>Entries</c>, one ordered

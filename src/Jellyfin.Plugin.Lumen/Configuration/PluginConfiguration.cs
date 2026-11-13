@@ -87,6 +87,13 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public bool HeroWaitForTrailer { get; set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether a title without a local trailer previews its trailer from YouTube instead
+    /// (Home/YouTubeTrailers): the browser then loads YouTube's player, so it's the admin's choice. Off by default, and a
+    /// config saved before it existed reads as off.
+    /// </summary>
+    public bool YouTubeTrailers { get; set; }
+
     [SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "XML serialization requires a setter.")]
     [SuppressMessage("Design", "CA1002:Do not expose generic lists", Justification = "XML serialization requires a concrete List.")]
     public List<SectionDefinition> Sections { get; set; } = [];

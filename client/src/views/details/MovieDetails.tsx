@@ -12,11 +12,12 @@ import { downloadLink } from './download';
 import { CastRow } from './CastRow';
 import { DetailsHeader } from './DetailsHeader';
 import { SimilarRow } from './SimilarRow';
-import { goBack, useItemActions, useLocalTrailer } from './useItemActions';
+import { goBack, useItemActions, useLocalTrailer, useYouTubeTrailer } from './useItemActions';
 
 export function MovieDetails({ item, ctx, reload }: DetailsProps & { item: BaseItem }) {
   const actions = useItemActions(item, ctx);
   const trailerId = useLocalTrailer(item, ctx);
+  const youTubeId = useYouTubeTrailer(item, ctx);
   const download = downloadLink(item, ctx.client, ctx.layout);
   const more = useItemMenu(ctx, item, {
     complete: true,
@@ -43,6 +44,7 @@ export function MovieDetails({ item, ctx, reload }: DetailsProps & { item: BaseI
           restart: ticks ? () => actions.play(item) : undefined,
         }}
         trailerId={trailerId}
+        youTubeId={youTubeId}
         onTrailer={trailerId ? () => actions.play(trailerId) : undefined}
         download={download}
         more={more}

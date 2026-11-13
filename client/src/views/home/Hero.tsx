@@ -8,6 +8,7 @@ import { backdropUrl, imageUrl, resolveImage, TITLE_LOGO } from '../../component
 import { usePrefersReducedMotion } from '../../components/usePrefersReducedMotion';
 import { strings } from '../../strings';
 import { LazyTrailer } from './lazyTrailer';
+import type { TrailerClock } from './TrailerPreview';
 
 interface Props {
   items: HeroItem[];
@@ -70,7 +71,14 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
   const paused = stopped || keyboardInside || dragging || sliding !== 0 || pageHidden;
 
   const current = items[mod(index, count)];
-  const trailerId = current && config.TrailerPreview && !reducedMotion ? current.TrailerItemId : null;
+  const previews = !!current && config.TrailerPreview && !reducedMotion;
+  const localId = previews ? current.TrailerItemId : null;
+  // Without a local trailer, the title's trailer on YouTube ("Use YouTube trailers"). Not on a TV: YouTube's player is
+  // a heavy page of its own for a TV's processor, and no longer supports browsers as old as webOS 5's Chromium 68.
+  const youTubeId =
+    (previews && !localId && config.YouTubeTrailers && getLayout() !== 'tv' && current.TrailerYouTubeId) ||
+    null;
+  const trailerId = localId || youTubeId;
   // With HeroWaitForTrailer a slide stays up while its trailer plays. Pause then stops the trailer where it is, to go on
   // with the slideshow; otherwise Pause removes it (a trailer the timer would cut short anyway).
   const waitForTrailer = config.HeroWaitForTrailer && !!trailerId;
@@ -206,7 +214,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
     draw();
     return () => cancelAnimationFrame(frame);
   }, [trailerFill, paused, count]);
-  const onTrailerProgress = (video: HTMLVideoElement): void => {
+  const onTrailerProgress = (video: TrailerClock): void => {
     const slide = run.current;
     if (slide.index !== index || started?.over) return;
     lastProgress.current = performance.now();
@@ -379,7 +387,9 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
               {rel === 0 && trailerId && showTrailer && (
                 <LazyTrailer
                   key={trailerId}
-                  trailerId={trailerId}
+                  trailerId={localId}
+                  youTubeId={youTubeId}
+                  embedBase={config.YouTubeEmbedBase}
                   // Put back after it got going, it carries on at once.
                   delaySeconds={started ? 0 : config.TrailerDelaySeconds}
                   client={client}
@@ -474,14 +484,14 @@ interface TrailerState {
 
 /**
  * The current slide's clock: time counted while not paused, and since when it's been counting (null while paused).
- * With a trailer the slide waits for, also the trailer as the fill follows it: its <video>, the fill and the video's
- * time when it got going, where it's got to, and the fill shown.
+ * With a trailer the slide waits for, also the trailer as the fill follows it: its <video> (or the YouTube player's
+ * clock, which reads the same), the fill and the video's time when it got going, where it's got to, and the fill shown.
  */
 interface SlideRun {
   index: number;
   ms: number;
   since: number | null;
-  video: HTMLVideoElement | null;
+  video: TrailerClock | null;
   fill: number;
   time: number;
   position: number;

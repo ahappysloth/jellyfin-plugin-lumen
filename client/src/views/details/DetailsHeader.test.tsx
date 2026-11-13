@@ -14,6 +14,26 @@ vi.mock('../home/TrailerPreview', () => ({
       <div data-testid="trailer" data-paused={String(!!props.paused)} data-muted={String(!!props.muted)} />
     );
   },
+  YouTubePreview: (props: {
+    youTubeId: string;
+    embedBase?: string | null;
+    class?: string;
+    paused?: boolean;
+    muted?: boolean;
+    onPlayingChange?: (on: boolean) => void;
+  }) => {
+    useEffect(() => props.onPlayingChange?.(true), []);
+    return (
+      <div
+        data-testid="youtube-trailer"
+        data-id={props.youTubeId}
+        data-base={String(props.embedBase)}
+        data-paused={String(!!props.paused)}
+        data-muted={String(!!props.muted)}
+        class={props.class}
+      />
+    );
+  },
 }));
 
 const movie: BaseItem = { Id: 'm1', Name: 'Lumen Alpha', Type: 'Movie', ImageTags: { Logo: 'l' } };
@@ -55,6 +75,51 @@ describe('DetailsHeader', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Play trailer' }));
     expect(screen.getByTestId('trailer')).toHaveAttribute('data-paused', 'false');
+  });
+
+  it("plays the title's trailer from YouTube behind the header when it has no local one, with the same controls", async () => {
+    renderHeader({
+      youTubeId: 'dQw4w9WgXcQ',
+      config: {
+        ...testConfig,
+        TrailerPreview: true,
+        YouTubeTrailers: true,
+        YouTubeEmbedBase: 'http://localhost:5055',
+      },
+    });
+
+    const trailer = await screen.findByTestId('youtube-trailer');
+    expect(trailer).toHaveAttribute('data-id', 'dQw4w9WgXcQ');
+    expect(trailer).toHaveAttribute('data-base', 'http://localhost:5055');
+    expect(trailer).toHaveClass('lmn-details__trailer');
+    expect(trailer).toHaveAttribute('data-muted', 'true');
+    // The preview only: the Trailer button plays a local trailer in the player, and there is none.
+    expect(screen.queryByRole('button', { name: 'Trailer' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pause trailer' }));
+    expect(trailer).toHaveAttribute('data-paused', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Unmute trailer' }));
+    expect(trailer).toHaveAttribute('data-muted', 'false');
+  });
+
+  it('prefers the local trailer to the one on YouTube', async () => {
+    renderHeader({
+      trailerId: 't1',
+      youTubeId: 'dQw4w9WgXcQ',
+      config: { ...testConfig, TrailerPreview: true },
+    });
+
+    expect(await screen.findByTestId('trailer')).toBeInTheDocument();
+    expect(screen.queryByTestId('youtube-trailer')).toBeNull();
+  });
+
+  it('plays no trailer, local or from YouTube, with previews off', async () => {
+    renderHeader({ youTubeId: 'dQw4w9WgXcQ', config: { ...testConfig, TrailerPreview: false } });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(screen.queryByTestId('youtube-trailer')).toBeNull();
   });
 
   it('offers the file as a Download link beside Play, named as it reads, its tooltip saying the size', () => {

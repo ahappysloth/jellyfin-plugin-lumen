@@ -24,11 +24,23 @@ export function loadTrailer(): Promise<TrailerModule> {
   return loading;
 }
 
+type LocalProps = ComponentProps<TrailerModule['TrailerPreview']>;
+
+/** TrailerPreview's props; without a local trailer (`trailerId`), the title's trailer on YouTube plays instead. */
+export type LazyTrailerProps = Omit<LocalProps, 'trailerId'> & {
+  trailerId?: string | null;
+  /** The trailer's YouTube video id ("Use YouTube trailers"): only used when there's no local trailer. */
+  youTubeId?: string | null;
+  /** ClientConfig.YouTubeEmbedBase: where the player loads from in tests. */
+  embedBase?: string | null;
+};
+
 /**
- * TrailerPreview once its code is in; until then, or if it can't load, nothing (the backdrop shows). The delay counts
- * from here, not from when the code arrived: the download is part of the wait, not added to it.
+ * TrailerPreview (or YouTubePreview) once its code is in; until then, or if it can't load, nothing (the backdrop
+ * shows). The delay counts from here, not from when the code arrived: the download is part of the wait, not added to
+ * it.
  */
-export function LazyTrailer(props: ComponentProps<TrailerModule['TrailerPreview']>) {
+export function LazyTrailer(props: LazyTrailerProps) {
   const [module, setModule] = useState<TrailerModule | null>(loaded);
   const mountedAt = useRef(Date.now());
   /** Seconds spent waiting for the code. */
@@ -48,7 +60,16 @@ export function LazyTrailer(props: ComponentProps<TrailerModule['TrailerPreview'
       live = false;
     };
   }, []);
-  return module ? (
-    <module.TrailerPreview {...props} delaySeconds={Math.max(0, props.delaySeconds - loadSeconds)} />
+  if (!module) return null;
+  const { trailerId, youTubeId, embedBase, ...rest } = props;
+  const delaySeconds = Math.max(0, props.delaySeconds - loadSeconds);
+  if (trailerId) return <module.TrailerPreview {...rest} trailerId={trailerId} delaySeconds={delaySeconds} />;
+  return youTubeId ? (
+    <module.YouTubePreview
+      {...rest}
+      youTubeId={youTubeId}
+      embedBase={embedBase}
+      delaySeconds={delaySeconds}
+    />
   ) : null;
 }

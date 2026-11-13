@@ -53,7 +53,7 @@ export function HeroSettings({
       <div style={{ marginTop: '18px' }}>
         <Switch
           label="Play muted trailer previews"
-          hint="Local trailers only. Also used behind details pages."
+          hint="A title's local trailer, behind the banner and behind details pages."
           checked={config.TrailerPreview}
           onChange={(v) => update({ TrailerPreview: v })}
         />
@@ -71,6 +71,12 @@ export function HeroSettings({
               hint="Off, each slide stays for its seconds and cuts its trailer short. On, a slide whose trailer is playing stays until the trailer ends."
               checked={config.HeroWaitForTrailer}
               onChange={(v) => update({ HeroWaitForTrailer: v })}
+            />
+            <Switch
+              label="Use YouTube trailers when there's no local one"
+              hint="The viewer's browser then loads the trailer from YouTube (youtube-nocookie.com), which sees its address. A local trailer always wins. Not on TVs."
+              checked={!!config.YouTubeTrailers}
+              onChange={(v) => update({ YouTubeTrailers: v })}
             />
           </>
         )}

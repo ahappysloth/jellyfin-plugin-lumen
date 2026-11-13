@@ -47,6 +47,7 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IWatchHistoryService, WatchHistoryService>();
         serviceCollection.AddSingleton<ILinkedItemsReader, LinkedItemsReader>();
         serviceCollection.AddSingleton<ITrailerLookup, TrailerLookup>();
+        serviceCollection.AddSingleton<IYouTubeTrailers, YouTubeTrailers>();
         serviceCollection.AddSingleton<IHeroService, HeroService>();
         serviceCollection.AddSingleton<IHomeDtoMapper, HomeDtoMapper>();
         serviceCollection.AddSingleton<IBadgeService, BadgeService>();
