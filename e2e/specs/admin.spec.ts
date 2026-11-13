@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { ADMIN, BASE_URL, loadState, resetLumen } from '../support/api';
+import { ADMIN, BASE_URL, api, loadState, resetLumen } from '../support/api';
 import { walkDpad } from '../support/dpad';
 import { login } from '../support/login';
 
@@ -65,6 +65,42 @@ test('the save bar comes up with a change, wherever the page is scrolled, and go
     await expect(bar).toBeHidden();
   } finally {
     await resetLumen();
+  }
+});
+
+test('on a small phone the save bar’s message sits on a line above its buttons, and the page doesn’t scroll sideways', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  const { admin } = loadState();
+  // A compatibility report, so the Diagnostics card has its table (four columns, wider than this window).
+  await api('/Lumen/Diagnostics', {
+    method: 'POST',
+    token: admin.token,
+    body: { Client: 'tv Mozilla/5.0 (Web0S; Linux/SmartTV) AppleWebKit/537.36 Chrome/68.0.3440.106', ServerVersion: '12.4.0', FailedChecks: ['forced'] },
+  });
+  await login(page, ADMIN);
+  await page.goto('/web/#/configurationpage?name=Lumen');
+  const root = page.locator('[id="lmn-admin-root"]:visible');
+  const bar = root.locator('.lmna-savebar');
+  await expect(root.getByRole('group', { name: 'Home sections' })).toBeVisible();
+  await expect(root.locator('.lmn-admin__diagnostics')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+
+  await moveDown(page, root, 'Continue Watching');
+  const status = bar.locator('.lmna-savebar__status');
+  await expect(status).toContainText('Unsaved changes');
+  // All of it shows (beside the buttons it had no room, and ran under Discard), with the buttons below it.
+  expect(await status.locator('span').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  // Measured together: the bar is still sliding up.
+  const { message, buttons } = await bar.evaluate((el) => ({
+    message: el.querySelector('.lmna-savebar__status')!.getBoundingClientRect().bottom,
+    buttons: Array.from(el.querySelectorAll('button'), (b) => b.getBoundingClientRect()).map((r) => ({ top: r.top, right: r.right })),
+  }));
+  expect(buttons).toHaveLength(2);
+  for (const button of buttons) {
+    expect(button.top).toBeGreaterThanOrEqual(message);
+    expect(button.right).toBeLessThanOrEqual(320);
   }
 });
 

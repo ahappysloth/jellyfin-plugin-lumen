@@ -177,6 +177,24 @@ describe('StorageSettings', () => {
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled();
   });
 
+  it('a check that fails while a scan runs leaves Refresh to try again with', async () => {
+    const getStorage = vi
+      .fn<() => Promise<StorageStatus>>()
+      .mockResolvedValueOnce({ State: 'Computing', Report: null, Error: null })
+      .mockRejectedValueOnce(new Error('500'));
+    render(<StorageSettings api={fakeApi({ getStorage })} pollMs={10} />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load the storage report.");
+    // Nothing asks again by itself after a failure, so the button the alert points to has to work.
+    const refresh = screen.getByRole('button', { name: 'Refresh' });
+    expect(refresh).toBeEnabled();
+    expect(screen.queryByText(/Computing… on a big library/)).not.toBeInTheDocument();
+
+    fireEvent.click(refresh);
+    expect(await screen.findByText('330 GB')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('keeps showing the last report while it updates', async () => {
     const api = fakeApi({
       getStorage: vi.fn(async () => ({ State: 'Computing' as const, Report: report(), Error: null })),
@@ -332,6 +350,19 @@ describe('StorageSettings', () => {
     expect(rule('.lmn-admin .lmna-storage__total')).not.toMatch(/color:/);
     expect(rule('.lmn-admin .lmna-storage__tile dd')).not.toMatch(/color:/);
     expect(rule('.lmn-admin .lmna-storage__files')).toMatch(/color:\s*var\(--a-dim\)/);
+  });
+
+  it('dims a bar’s legend once in admin.css: each part’s numbers, not the list they’re in', async () => {
+    const css = (await import('./admin.css?raw')).default;
+    const rule = (selector: string) => {
+      const start = css.indexOf(`${selector} {`);
+      expect(start, selector).toBeGreaterThanOrEqual(0);
+      return css.slice(start, css.indexOf('}', start));
+    };
+    // --a-dim is a share of currentColor: a dimmed list would dim its numbers twice, below 4.5:1.
+    expect(rule('.lmn-admin .lmna-legend')).not.toMatch(/color:/);
+    expect(rule('.lmn-admin .lmna-legend li')).not.toMatch(/color:/);
+    expect(rule('.lmn-admin .lmna-legend li span:not(.lmna-swatch)')).toMatch(/color:\s*var\(--a-dim\)/);
   });
 });
 
