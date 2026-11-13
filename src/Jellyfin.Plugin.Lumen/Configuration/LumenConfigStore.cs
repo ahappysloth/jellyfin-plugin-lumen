@@ -35,6 +35,7 @@ public sealed class LumenConfigStore : ILumenConfigStore
             ? null
             : string.IsNullOrWhiteSpace(configuration.TraktClientId) ? stored.TraktClientId : configuration.TraktClientId.Trim();
         configuration.ClearTraktClientId = false;
+        configuration.QuickConnectAddress = ConfigValidator.NormalizeQuickConnectAddress(configuration.QuickConnectAddress);
 
         var errors = _validator.Validate(configuration);
         if (errors.Count > 0)

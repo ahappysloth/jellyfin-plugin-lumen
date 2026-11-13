@@ -40,6 +40,15 @@ const OVERLAY_CLASS: Partial<Record<TakeoverRoute['kind'], string>> = {
   player: 'lmn-skin-player',
 };
 
+/**
+ * The class that hides or frames the stock page. Quick Connect's approve page is Lumen's own, replacing jellyfin-web's:
+ * it stays a `settings` route (routes.ts), which the inline guard knows to veil on a cold load, so the switch is made
+ * here and in App.tsx, which the guard doesn't bundle.
+ */
+function overlayClass(route: TakeoverRoute): string | undefined {
+  return route.kind === 'settings' && route.page === 'quickConnect' ? undefined : OVERLAY_CLASS[route.kind];
+}
+
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 /** Kinds whose `lmn-route-<kind>` class may be on <html>. Prefixed so component classes (.lmn-profile, …) never match <html>. */
 const ROUTE_KINDS: TakeoverRoute['kind'][] = [
@@ -130,7 +139,7 @@ export class Takeover {
     const root = this.ensureRoot();
     doc.documentElement.classList.remove(...ROUTE_CLASSES);
     // Settings pages and the player stay jellyfin-web's (Lumen draws over them); every other route replaces the page.
-    doc.documentElement.classList.add(OVERLAY_CLASS[route.kind] ?? 'lmn-active', `lmn-route-${route.kind}`);
+    doc.documentElement.classList.add(overlayClass(route) ?? 'lmn-active', `lmn-route-${route.kind}`);
     const { AccentColor } = this.options.config;
     if (HEX_COLOR.test(AccentColor)) root.style.setProperty('--lmn-accent', AccentColor);
     root.style.setProperty('--lmn-top-offset', `${getAppBarHeight(doc)}px`);
@@ -142,7 +151,7 @@ export class Takeover {
       doc.documentElement.scrollTop = 0;
       doc.body.scrollTop = 0;
       this.options.mount(route, root, () => this.fallback(href, generation));
-      this.scheduleProbe(route.kind, generation);
+      this.scheduleProbe(route, generation);
     }
     return 'active';
   }
@@ -242,12 +251,12 @@ export class Takeover {
    * A while after a mount, checks that the stock elements Lumen's CSS hides for this route exist. A renamed one means
    * jellyfin-web's own controls or header show through Lumen's: worth a diagnostic, though nothing is undone.
    */
-  private scheduleProbe(kind: TakeoverRoute['kind'], generation: number): void {
+  private scheduleProbe(route: TakeoverRoute, generation: number): void {
     const { win, doc } = this.options;
     const expected: { name: string; selectors: string[] }[] =
-      kind === 'player'
+      route.kind === 'player'
         ? [{ name: 'videoOsd', selectors: [STOCK_SELECTORS.videoOsd.selector] }]
-        : OVERLAY_CLASS[kind]
+        : overlayClass(route)
           ? []
           : [{ name: 'appBar', selectors: [SELECTORS.modernAppBar, SELECTORS.legacyHeader] }];
     if (expected.length === 0) return;

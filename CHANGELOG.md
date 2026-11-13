@@ -2,6 +2,36 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.5.0] - 2026-11-12
+
+### Added
+- Quick Connect with a QR code. "Use Quick Connect" on the sign-in page opens Lumen's own screen: the code in large
+  digits with a QR code beside it, and how to approve it ("on your phone or computer, open Lumen → Quick Connect and
+  enter this code, or scan"). Scanning opens the approve page with the code filled in. The screen gets a new code
+  when the server says the old one has expired, twice (about half an hour), then stops and offers "Get a new code";
+  it stops asking the server as soon as it's closed or the page changes. On a TV the code is big enough to read from
+  the sofa, the remote moves between the buttons and Back closes it, and Quick Connect is the sign-in page's main
+  button. Wherever Lumen can't run it, jellyfin-web's own Quick Connect dialog shows as before.
+- Quick Connect's approve page (account menu → Quick Connect) is Lumen's: one six-digit field that takes a pasted
+  "123 456", the account the other device will be signed in as, and a warning to approve only a code shown on a
+  screen in front of you. A code from a link or QR code is only filled in, never approved without a tap, and leaves
+  the address bar. Administrators can still sign the device in as another user. Each of the server's answers gets
+  its own message: signed in, wrong or expired code, already used, Quick Connect turned off (with a pointer to
+  Dashboard → General for administrators), or your own sign-in expired.
+- "Public address for QR codes" in Lumen's settings (General): the address phones reach the server at, with its base
+  path, for TVs that reach it by a LAN address. Empty, the QR code uses the address the TV or computer itself uses.
+- Top charts: a page of the most watched movies or shows on Trakt this week, month, year or of all time, up to 100
+  with their Trakt rank, opened with "See all" from the Top 10 rows. Titles you don't have are request cards when
+  Seerr is set up.
+- Box Office, Most Anticipated Movies and Shows, Trending Movies and Shows, and Trakt list (any public list) home
+  rows, with the Trakt key. The settings card is now "Trakt" and names everything the key powers.
+
+### Changed
+- Home sections in Lumen's settings are compact rows you can drag (or move with the keyboard or remote) into order,
+  rename in place, and open for their settings; an ⓘ says what each type shows.
+- jellyfin-web's Delete confirmation and its other confirm dialogs have Lumen's look at every size and on TVs.
+- The sign-in page's restyle is no longer CSS only: Quick Connect there is Lumen's (above).
+
 ## [0.4.3] - 2026-11-12
 
 ### Fixed

@@ -4,6 +4,7 @@ import {
   DASHBOARD_THEME_VARIABLE,
   ITEM_MENU_MARKERS,
   ITEM_MENU_METHODS,
+  QUICK_CONNECT,
   STOCK_SELECTORS,
   WEBPACK_CHUNK_GLOBAL,
 } from '../../client/src/compat/registry';
@@ -40,6 +41,21 @@ test('stock selectors on the sign-in page', async ({ page }) => {
   await openFresh(page, '#/login');
   await expect(page.locator('#txtManualName')).toBeVisible();
   await expectSelectorsOn(page, 'login');
+});
+
+test("the sign-in page lends Lumen's Quick Connect screen what it signs in with", async ({ page }) => {
+  // Without them the click goes to jellyfin-web's own dialog (takeover/quickConnectSignIn.ts): still working, but this
+  // says Lumen's screen has gone.
+  await openFresh(page, '#/login');
+  await expect(page.locator(STOCK_SELECTORS.quickConnectButton.selector)).toBeVisible();
+  const missing = await page.evaluate(({ method, dashboard }) => {
+    const w = window as unknown as { ApiClient?: Record<string, unknown>; Dashboard?: Record<string, unknown> };
+    return [
+      ...(typeof w.ApiClient?.[method] === 'function' ? [] : [`ApiClient.${method}`]),
+      ...dashboard.filter((m) => typeof w.Dashboard?.[m] !== 'function').map((m) => `Dashboard.${m}`),
+    ];
+  }, { method: QUICK_CONNECT.apiClientMethod, dashboard: [...QUICK_CONNECT.dashboardMethods] });
+  expect(missing).toEqual([]);
 });
 
 test('stock selectors on home and the settings pages', { tag: '@smoke' }, async ({ page }) => {

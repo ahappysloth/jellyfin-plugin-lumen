@@ -14,6 +14,9 @@ public static partial class HtmlInjector
     /// <summary>The client's ES5 definer of Lumen's jellyfin-web plugin (client/src/compat/webPluginDefiner.js).</summary>
     public const string WebPluginAsset = "lumen-web-plugin.js";
 
+    /// <summary>The meta tag carrying the public address for Quick Connect's QR codes (client/src/compat/registry.ts QUICK_CONNECT).</summary>
+    public const string QuickConnectAddressMeta = "lumen-quick-connect-address";
+
     // Relative to /web/ (or <BaseUrl>/web/), so "../Lumen" resolves to <BaseUrl>/Lumen.
     private const string AssetBase = "../Lumen/Assets/";
 
@@ -53,6 +56,12 @@ public static partial class HtmlInjector
     /// of the guard: it's ES5, so it runs even in browsers that can't parse the guard. Null skips it.
     /// </param>
     /// <param name="appName">With <paramref name="installAsLumen"/>, the name under the home-screen icon (<see cref="AppIdentity.Name"/>).</param>
+    /// <param name="quickConnectAddress">
+    /// With <paramref name="styleStockPages"/>, the admin's "Public address for QR codes"
+    /// (<see cref="Configuration.PluginConfiguration.QuickConnectAddress"/>), in a <c>lumen-quick-connect-address</c> meta
+    /// tag: the sign-in page's Quick Connect screen builds its QR code from it before anyone has signed in. Only an address
+    /// the validator accepts; nothing else about the server goes with it.
+    /// </param>
     public static string Inject(
         string html,
         string buildHash,
@@ -63,7 +72,8 @@ public static partial class HtmlInjector
         string? accentColor = null,
         string? coreChunk = null,
         string? webPluginScript = null,
-        string appName = AppIdentity.DefaultName)
+        string appName = AppIdentity.DefaultName,
+        string? quickConnectAddress = null)
     {
         if (html.Contains(Marker, StringComparison.Ordinal))
         {
@@ -83,6 +93,12 @@ public static partial class HtmlInjector
 
         // Before the guard, which reads it.
         var versionMeta = styleStockPages ? $"<meta name=\"lumen-version\" content=\"{version}\">" : string.Empty;
+        var qrAddress = Configuration.ConfigValidator.NormalizeQuickConnectAddress(quickConnectAddress);
+        if (styleStockPages && qrAddress is not null && Configuration.ConfigValidator.IsQuickConnectAddress(qrAddress))
+        {
+            versionMeta += $"<meta name=\"{QuickConnectAddressMeta}\" content=\"{WebUtility.HtmlEncode(qrAddress)}\">";
+        }
+
         var accent = styleStockPages && accentColor is not null && HexColor().IsMatch(accentColor)
             ? $"<style>html[data-lmn-skin]{{--lmn-accent:{accentColor}}}</style>"
             : string.Empty;

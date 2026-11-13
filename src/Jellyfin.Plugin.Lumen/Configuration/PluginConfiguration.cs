@@ -60,6 +60,14 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public bool AppNameFromServer { get; set; }
 
+    /// <summary>
+    /// Gets or sets the address phones reach the server at, for the QR code Lumen's Quick Connect sign-in screen shows
+    /// (an http(s) URL, with the server's base path if it has one; empty or null: the address the signing-in device itself
+    /// uses). For TVs that reach the server by a LAN address phones can't use, or aren't signed in at. Not a secret: it's
+    /// put in every page, the sign-in page included (see Injection/HtmlInjector).
+    /// </summary>
+    public string? QuickConnectAddress { get; set; }
+
     public HeroSource HeroSource { get; set; } = HeroSource.RecentlyAdded;
 
     public Guid? HeroCollectionId { get; set; }

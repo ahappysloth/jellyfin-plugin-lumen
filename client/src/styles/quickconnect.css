@@ -1,0 +1,174 @@
+/* ---- Quick Connect (views/quickconnect), linked with its file (views/quickconnect/lazyQuickConnect.tsx) ---------- */
+/* Chromium 68 (webOS 5) has no flex `gap` and no `inset`: margins between flex items, grid for the code's cells. Sizes
+   are in em, so the TV layout scales a screen with one font size. */
+
+/* -- The sign-in screen, over jellyfin-web's sign-in page (SignInScreen.tsx) -- */
+.lmn-qc-signin {
+  position: fixed;
+  z-index: 1200;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  padding: 24px var(--lmn-gutter);
+  overflow-y: auto;
+  background: rgba(10, 10, 10, 0.95);
+  color: var(--lmn-text-2);
+  font: 16px/1.5 var(--lmn-font);
+}
+.lmn-qc-signin > div {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 58em;
+  margin: auto;
+  padding: 2.5em;
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 20px;
+  background: var(--lmn-surface);
+}
+.lmn-qc-signin h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.4em;
+}
+.lmn-qc-signin p {
+  margin: 0.9em 0 0;
+}
+.lmn-qc-signin .lmn-qc-signin__code {
+  color: #fff;
+  font-size: 4.5em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  white-space: nowrap;
+}
+.lmn-qc-signin .lmn-button {
+  height: 2.75em;
+  margin: 1.5em 0.75em 0 0;
+  padding: 0 1.4em;
+  font-size: 1em;
+}
+/* Dark on a white tile, the quiet zone drawn in (qr.ts): scanners want it that way round. */
+.lmn-qc-qr {
+  flex: none;
+  width: 16em;
+  height: 16em;
+  margin-left: 3em;
+  border-radius: 14px;
+}
+/* A TV, read from the sofa: the code about 15% of the screen's height, the QR code over a third (tv.css draws the
+   buttons' focus ring). */
+.layout-tv .lmn-qc-signin {
+  font-size: 3.3vh;
+}
+
+/* -- The approve page (ApprovePage.tsx) -- */
+.lmn-qc-approve {
+  max-width: calc(640px + 2 * var(--lmn-gutter));
+  margin: 0 auto;
+  line-height: 1.5;
+}
+.lmn-qc-approve > div,
+.lmn-qc-approve form {
+  margin-top: 16px;
+  padding: 22px;
+  border: 1px solid var(--lmn-line);
+  border-radius: 16px;
+  background: var(--lmn-surface);
+  color: var(--lmn-text);
+}
+.lmn-qc-approve p {
+  margin: 16px 0;
+}
+.lmn-qc-approve .lmn-qc-approve__account {
+  display: flex;
+  align-items: center;
+  margin-top: 24px;
+}
+.lmn-qc-approve__account .lmn-profile__avatar {
+  width: 56px;
+  height: 56px;
+  margin-right: 16px;
+  font-size: 20px;
+}
+.lmn-qc-approve__account p {
+  flex: 1;
+  margin: 0 12px 0 0;
+  font-size: 19px;
+}
+.lmn-qc-approve label,
+.lmn-qc-approve__account p span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--lmn-text-3);
+  font-size: 13px;
+  font-weight: 600;
+}
+/* The real field lies over the cells, invisible: taps, paste and the keyboard go to it. 16px so iOS doesn't zoom. */
+.lmn-qc-code {
+  position: relative;
+  max-width: 440px;
+  font-size: 30px;
+}
+.lmn-qc-code input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  opacity: 0;
+  font-size: 16px;
+}
+/* Three and three, with the gap the TV shows ("123 456"). */
+.lmn-qc-code > div {
+  display: grid;
+  grid-column-gap: 0.25em;
+  grid-template-columns: 1fr 1fr 1fr 0.1em 1fr 1fr 1fr;
+}
+.lmn-qc-code span:nth-child(4) {
+  grid-column: 5;
+}
+.lmn-qc-code span {
+  height: 2.1em;
+  border: 1px solid var(--lmn-line-strong);
+  border-radius: 12px;
+  background: var(--lmn-surface-2);
+  color: #fff;
+  font-weight: 700;
+  line-height: 2.1em;
+  text-align: center;
+}
+input:focus + div .is-active {
+  border-color: var(--lmn-focus);
+}
+input[aria-invalid] + div span {
+  border-color: #ff6b6b;
+}
+.lmn-qc-approve .lmn-qc-approve__error {
+  margin-top: 10px;
+  color: #ff8a8a;
+}
+.lmn-qc-approve .lmn-qc-approve__warning {
+  margin: 16px 0 20px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(245, 180, 0, 0.14);
+  font-size: 14px;
+}
+.layout-tv .lmn-qc-code {
+  font-size: 42px;
+}
+
+/* A phone: the code alone (scanning a phone with another phone is the long way round). */
+@media (max-width: 599px) {
+  .lmn-qc-signin > div {
+    padding: 1.5em;
+  }
+  .lmn-qc-qr,
+  .lmn-qc-signin__scan {
+    display: none;
+  }
+}

@@ -533,6 +533,20 @@ html.lmn-signin .readOnlyContent .emby-button.raised:hover {
   background: rgba(255, 255, 255, 0.06) !important;
   color: #fff !important;
 }
+/* A TV: Quick Connect is the easy way in (no typing a password with a remote), so it's the main button there, in the
+   accent, and Sign In steps back, but only while it shows: jellyfin-web hides it while the server has Quick Connect off
+   (lmn-qc-shown says it shows). Lumen opens its own Quick Connect screen from it (takeover/quickConnectSignIn.ts). */
+html.lmn-signin.layout-tv .readOnlyContent .btnQuick.emby-button.raised {
+  min-height: 46px;
+  margin-top: 8px;
+  background: var(--lmn-accent) !important;
+  color: #fff !important;
+  font-size: 15px;
+  font-weight: 600;
+}
+html.lmn-signin.layout-tv.lmn-qc-shown .manualLoginForm .emby-button.raised.button-submit {
+  background: var(--lmn-surface-2) !important;
+}
 html.lmn-signin .loginDisclaimer {
   color: var(--lmn-text-3);
   font-size: 13px;

@@ -9,6 +9,12 @@ public sealed partial class ConfigValidator
 {
     public const int MaxSections = 30;
 
+    /// <summary>
+    /// The longest Quick Connect address, in UTF-8 bytes: the QR code holds 106 (client/src/views/quickconnect/qr.ts),
+    /// and <c>/web/#/quickconnect?code=123456</c> takes 31 of them.
+    /// </summary>
+    public const int MaxQuickConnectAddressBytes = 75;
+
     private readonly Dictionary<string, IHomeSectionProvider> _providers;
 
     public ConfigValidator(IEnumerable<IHomeSectionProvider> providers)
@@ -31,6 +37,30 @@ public sealed partial class ConfigValidator
         && string.IsNullOrEmpty(uri.UserInfo)
         && string.IsNullOrEmpty(uri.Query)
         && string.IsNullOrEmpty(uri.Fragment);
+
+    /// <summary>
+    /// The public address for Quick Connect's QR codes as it's stored and used: trimmed, without trailing slashes, and
+    /// without jellyfin-web's own <c>/web</c>, <c>/web/</c> or <c>/web/index.html</c> at the end, which an address
+    /// copied from the browser's address bar has. The client adds <c>/web/</c> itself, and <c>…/web/web/</c> is a dead
+    /// link. Blank is null (not set). The client does the same (client/src/util/publicAddress.ts).
+    /// </summary>
+    public static string? NormalizeQuickConnectAddress(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : TrailingWebPath().Replace(value.Trim(), string.Empty);
+
+    /// <summary>
+    /// Whether <paramref name="value"/> may be the public address for Quick Connect's QR codes: empty (not set), or an
+    /// http(s) URL (<see cref="IsHttpUrl"/>, a base path allowed) short enough for the QR code once normalized
+    /// (<see cref="NormalizeQuickConnectAddress"/>). No <c>?</c> or <c>#</c>, even empty ones, which <see cref="Uri"/>
+    /// drops: the client appends <c>/web/#/quickconnect…</c> to it as text.
+    /// </summary>
+    public static bool IsQuickConnectAddress(string? value)
+    {
+        var address = NormalizeQuickConnectAddress(value);
+        return address is null
+            || (IsHttpUrl(address)
+                && address.IndexOfAny(['?', '#', '"', '<', '>', ' ']) < 0
+                && System.Text.Encoding.UTF8.GetByteCount(address) <= MaxQuickConnectAddressBytes);
+    }
 
     public IReadOnlyList<string> Validate(PluginConfiguration config)
     {
@@ -66,6 +96,13 @@ public sealed partial class ConfigValidator
             {
                 errors.Add("Requests need Seerr's API key (Seerr → Settings → General).");
             }
+        }
+
+        if (!IsQuickConnectAddress(config.QuickConnectAddress))
+        {
+            errors.Add(string.Create(
+                CultureInfo.InvariantCulture,
+                $"The public address for QR codes must be an http(s) address like https://jellyfin.example.com, at most {MaxQuickConnectAddressBytes} characters."));
         }
 
         // It goes in a request header: printable ASCII only, so it can't break the request. (Trakt's are 64 hex digits.)
@@ -198,4 +235,7 @@ public sealed partial class ConfigValidator
 
     [GeneratedRegex("^[\\x21-\\x7E]{8,200}$")]
     private static partial Regex TraktKey();
+
+    [GeneratedRegex("(/web(/(index\\.html)?)?)?/*$", RegexOptions.IgnoreCase)]
+    private static partial Regex TrailingWebPath();
 }

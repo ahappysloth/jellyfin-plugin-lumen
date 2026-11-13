@@ -20,6 +20,7 @@ import { clearStarting, useStarting } from '../playback/starting';
 import { LazyProfileView, LazySettingsFrame } from './profile/lazyProfile';
 import { LazySecondary, prefetchSecondary } from './secondary/lazySecondary';
 import { LazyCharts } from './charts/lazyCharts';
+import { LazyQuickConnectPage } from './quickconnect/lazyQuickConnect';
 import { Nav, type NavActive } from './Nav';
 import { PageError, useFailedPage } from './pageError';
 import { usePageChange } from './usePageChange';
@@ -78,7 +79,12 @@ function Page({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) {
         <PageError ctx={ctx} title={strings.pageNotFoundTitle} message={strings.pageNotFound} />
       );
     case 'settings':
-      return <LazySettingsFrame page={route.page} />;
+      // Quick Connect's approve page is Lumen's own (views/quickconnect); the others frame jellyfin-web's.
+      return route.page === 'quickConnect' ? (
+        <LazyQuickConnectPage ctx={ctx} />
+      ) : (
+        <LazySettingsFrame page={route.page} />
+      );
     case 'player':
       return <LazyPlayer ctx={ctx} />;
     case 'details':
@@ -121,7 +127,7 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
   }, [ctx]);
   // Lumen's own pages are the document's main content (jellyfin-web's, empty, is hidden: base.css). The player and
   // settings pages frame jellyfin-web's, which keep its main and its title.
-  const framed = route.kind === 'player' || route.kind === 'settings';
+  const framed = route.kind === 'player' || (route.kind === 'settings' && route.page !== 'quickConnect');
   const main = useRef<HTMLElement>(null);
   usePageChange(main, routeKey(route), route.kind === 'search' ? strings.search : '', ctx);
   // Details and catalog titles draw their own header instead, unless they couldn't load (pageError.tsx).
