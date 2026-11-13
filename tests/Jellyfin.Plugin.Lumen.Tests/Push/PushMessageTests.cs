@@ -144,6 +144,7 @@ public class PushMessageTests
     {
         var json = Encoding.UTF8.GetString(message.ToPayload());
         Assert.DoesNotContain("null", json, StringComparison.Ordinal);
-        return JsonDocument.Parse(json).RootElement.Clone();
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.Clone();
     }
 }

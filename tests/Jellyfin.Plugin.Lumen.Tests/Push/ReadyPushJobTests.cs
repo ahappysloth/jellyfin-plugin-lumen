@@ -66,7 +66,8 @@ public sealed class ReadyPushJobTests : IDisposable
                 _attempts.Add(device);
                 if (outcome == PushOutcome.Sent)
                 {
-                    _sent.Add((device, JsonDocument.Parse(Encoding.UTF8.GetString(call.ArgAt<ReadOnlyMemory<byte>>(1).Span)).RootElement.Clone()));
+                    using var payload = JsonDocument.Parse(Encoding.UTF8.GetString(call.ArgAt<ReadOnlyMemory<byte>>(1).Span));
+                    _sent.Add((device, payload.RootElement.Clone()));
                 }
             }
 
