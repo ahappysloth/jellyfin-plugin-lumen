@@ -14,6 +14,8 @@ const REQUEST_PERMISSION = 32;
 const ADMIN_SEERR_ID = 1;
 const KID_SEERR_ID = 2;
 const SEERR_ONLY_ID = 7;
+/** A Seerr user with no username or media server name: Seerr's display name for them is their email (the stub's 900+). */
+const EMAIL_ONLY_ID = 900;
 // Seerr's API key here: Lumen remembers who kid is in Seerr for 10 minutes per Seerr address and key, and the specs
 // after this one expect kid to have no Seerr account (support/stub-seerr.mjs, STUB_API_KEY_2).
 const API_KEY = 'stub-key-filters';
@@ -185,15 +187,11 @@ test('an administrator turns on Everyone’s requests: every user’s requests, 
   await expect(page.locator('.lmn-request__by')).toHaveCount(0);
 });
 
-test('everyone’s requests name the requester, never their email, and only ask Seerr what its spec takes', async () => {
+test('everyone’s requests name the requester, never their email, even where Seerr’s name for them is it', async () => {
   const { admin, kid } = loadState();
   await enableSeerr();
   await requestInSeerr(KID_SEERR_ID, 603);
-
-  // Seerr answers a parameter its OpenAPI spec doesn't define for GET /request with a 400, and so does the stub.
-  const refused = await fetch(`${STUB_SEERR}/api/v1/request?take=1&skip=0&sort=added&page=2`, { headers: { 'X-Api-Key': API_KEY } });
-  expect(refused.status).toBe(400);
-  expect(await refused.json()).toMatchObject({ message: "Unknown query parameter 'page'" });
+  await requestInSeerr(EMAIL_ONLY_ID, 704);
 
   const response = await fetch(`${BASE_URL}/Lumen/Requests/All`, {
     headers: { Authorization: `MediaBrowser Client="Lumen E2E", Device="Playwright", DeviceId="lumen-e2e", Version="1.0.0", Token="${admin.token}"` },
@@ -201,8 +199,12 @@ test('everyone’s requests name the requester, never their email, and only ask 
   expect(response.status).toBe(200);
   const text = await response.text();
   expect(text).not.toContain('must-not-leak');
-  const all = JSON.parse(text) as { Requests: { Item: { Title: string }; RequestedBy: { Name: string; UserId: string } }[]; Partial: boolean };
-  expect(all.Requests.map((r) => [r.Item.Title, r.RequestedBy.Name, r.RequestedBy.UserId.replace(/-/g, '')])).toEqual([
+  // Absent fields are nulls: Jellyfin's JSON leaves them out.
+  const all = JSON.parse(text) as { Requests: { Item: { Title: string }; RequestedBy?: { Name?: string; UserId?: string } }[] };
+  expect(
+    all.Requests.map((r) => [r.Item.Title, r.RequestedBy?.Name ?? null, r.RequestedBy?.UserId?.replace(/-/g, '') ?? null]),
+  ).toEqual([
+    ['Stub Processing', null, null],
     ['The Matrix', 'kid', kid.userId.replace(/-/g, '')],
   ]);
 });

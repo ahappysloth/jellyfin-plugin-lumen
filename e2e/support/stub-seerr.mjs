@@ -422,11 +422,17 @@ const listedRequest = (r) => ({
   media: requestMedia(r.body),
 });
 // Who filed a request, as Seerr's GET /request has it: the user object, email included (Lumen must not pass it on).
+// Seerr users 900 and up have no username or media server name, so Seerr's display name for them is their email.
 const requester = (seerrId) => {
   const found = Object.entries(users).find(([, u]) => String(u.id) === String(seerrId));
   return found
     ? { id: found[1].id, displayName: found[1].displayName ?? `stub-${found[1].id}`, jellyfinUserId: found[0], email: 'must-not-leak@example.com', permissions: found[1].permissions }
-    : { id: Number(seerrId), displayName: `Seerr user ${seerrId}`, email: 'must-not-leak@example.com', permissions: 32 };
+    : {
+        id: Number(seerrId),
+        displayName: Number(seerrId) >= 900 ? 'must-not-leak@example.com' : `Seerr user ${seerrId}`,
+        email: 'must-not-leak@example.com',
+        permissions: 32,
+      };
 };
 // One Seerr download sync: every scenario with a `step` moves on.
 const advanceDownloads = () => {

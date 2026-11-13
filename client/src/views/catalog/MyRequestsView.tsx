@@ -59,6 +59,8 @@ export function MyRequestsView({ ctx }: { ctx: ViewContext }) {
   const imageToken = useCatalogImageToken(ctx, !!ctx.config.Requests);
   const [admin, setAdmin] = useState(false);
   const [everyoneOn, setEveryoneOn] = useState(() => readEveryone(ctx.userId));
+  // With the switch left on, the list waits for who they are: their own first, then everyone's, would flicker.
+  const [accountKnown, setAccountKnown] = useState(!everyoneOn);
   // Only ever for an administrator: anyone else's switch was left on by an account that has since lost the role.
   const everyone = admin && everyoneOn;
   const all = useAllRequests(ctx, everyone);
@@ -68,8 +70,8 @@ export function MyRequestsView({ ctx }: { ctx: ViewContext }) {
   const field = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const requests = everyone ? all.requests : mine.requests;
-  const failed = everyone ? all.failed : mine.failed;
+  const requests = !accountKnown ? null : everyone ? all.requests : mine.requests;
+  const failed = accountKnown && (everyone ? all.failed : mine.failed);
   // Once a list has shown, switching between the two never takes the remote's focus back to the first row.
   const shown = useRef(false);
   if (requests !== null && styled) shown.current = true;
@@ -86,10 +88,12 @@ export function MyRequestsView({ ctx }: { ctx: ViewContext }) {
     startRequestProgress(ctx);
     refreshIfOlder(FAST_MS);
     // Who may see everyone's: Jellyfin says, and so does the server again when they're asked for.
-    loadAccount(ctx).then(
-      (account) => live && setAdmin(!!account.user.Policy?.IsAdministrator),
-      () => undefined,
-    );
+    loadAccount(ctx)
+      .then(
+        (account) => live && setAdmin(!!account.user.Policy?.IsAdministrator),
+        () => undefined,
+      )
+      .then(() => live && setAccountKnown(true));
     return () => {
       live = false;
     };

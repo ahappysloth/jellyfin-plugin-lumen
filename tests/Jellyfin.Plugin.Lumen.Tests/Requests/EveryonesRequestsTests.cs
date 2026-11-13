@@ -179,6 +179,15 @@ public sealed class EveryonesRequestsTests
     }
 
     [Fact]
+    public void ARequester_WhoseSeerrNameIsTheirEmail_IsUnknown()
+    {
+        // Seerr's display name falls back to the account's email when it has no username or media server name.
+        _userManager.GetUserById(Arg.Any<Guid>()).Returns((Jellyfin.Database.Implementations.Entities.User?)null);
+
+        Assert.Equal(new RequesterDto(null, null, null), _service.Requester(Endpoint, new SeerrRequester { Id = 14, DisplayName = "bob@example.com" }));
+    }
+
+    [Fact]
     public async Task EachRequesterIsLookedUpOnce()
     {
         var bob = TestData.User("bob");

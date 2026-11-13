@@ -159,8 +159,10 @@ public sealed class EveryonesRequests : IEveryonesRequests
             return new RequesterDto(user.Username, user.Id, _userManager.GetUserDto(user)?.PrimaryImageTag);
         }
 
+        // Seerr's display name falls back to the account's email when it has no username or media server name: that is
+        // never sent on, so such a requester shows as unknown.
         var name = by.DisplayName?.Trim();
-        return new RequesterDto(string.IsNullOrEmpty(name) ? null : name.Length > MaxNameLength ? name[..MaxNameLength] : name, null, null);
+        return new RequesterDto(string.IsNullOrEmpty(name) || name.Contains('@', StringComparison.Ordinal) ? null : name.Length > MaxNameLength ? name[..MaxNameLength] : name, null, null);
     }
 
     /// <summary>Seerr's answer, shared as described above.</summary>

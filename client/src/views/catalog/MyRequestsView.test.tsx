@@ -338,6 +338,40 @@ describe("MyRequestsView: everyone's requests", () => {
     expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
   });
 
+  it('left on, shows nothing until it knows who they are, rather than their own list first', async () => {
+    window.localStorage.setItem(everyoneKey('user1'), '1');
+    let answer: (account: unknown) => void = () => {};
+    const client = createFakeClient(
+      routes({
+        'Lumen/Requests/Mine': {
+          Requests: [myRequest({ key: 'movie-5', title: 'Only Mine', RequestIds: [5] })],
+        },
+        'Lumen/Requests/All': everyone,
+        'Lumen/Requests/Status': {
+          Enabled: true,
+          CanRequestMovies: true,
+          CanRequestTv: true,
+          ImageToken: 't',
+        },
+        'Users/user1': () => new Promise((resolve) => (answer = resolve)),
+        'QuickConnect/Enabled': false,
+      }),
+    );
+    const ctx = makeContext(client, { config, layout: 'desktop' });
+    startRequestProgress(ctx);
+    await act(() => refreshRequestProgress());
+    render(<MyRequestsView ctx={ctx} />);
+    // Styles in, the user's own list loaded, and still no list while Jellyfin hasn't said they're an administrator.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(screen.queryByRole('list', { name: 'My requests' })).toBeNull();
+
+    await act(async () => answer({ Id: 'user1', Name: 'me', Policy: { IsAdministrator: true } }));
+    await listed('Kid Movie');
+    expect(rowTitles()).not.toContain('Only Mine');
+  });
+
   it('offers the switch to an administrator with no requests of their own', async () => {
     const { ctx } = await loadAs(true, [], everyone);
     render(<MyRequestsView ctx={ctx} />);
