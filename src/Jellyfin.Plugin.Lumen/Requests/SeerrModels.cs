@@ -15,6 +15,9 @@ public sealed record SeerrJellyfinServer(string Name, string ServerId)
     private static string Normalize(string id) => id.Replace("-", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
 }
 
+/// <summary>How many Radarr and Sonarr servers Seerr has (only the counts: their settings hold those apps' API keys).</summary>
+public sealed record SeerrServices(int Radarr, int Sonarr);
+
 /// <summary>
 /// The only parts of a Seerr user Lumen keeps. Seerr's user object (fetched with the admin key) also carries the user's
 /// Jellyfin and Plex tokens, so it is never stored or passed on whole.

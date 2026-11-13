@@ -320,6 +320,22 @@ export const SETTINGS_ROUTES = {
  */
 export const ADMIN_ROUTES = ['/dashboard', '/metadata', '/configurationpage'];
 
+/**
+ * The Dashboard pages the settings page's Health tab links to for a fix (admin/health/fixes.ts), by the keys the server's
+ * checks name them by (Jellyfin.Plugin.Lumen/Health). stock-routes.spec.ts checks each one opens.
+ */
+export const HEALTH_FIX_ROUTES = {
+  /** Branding: custom CSS. */
+  branding: '/dashboard/branding',
+  /** General: "Enable Quick Connect". */
+  general: '/dashboard/settings',
+  /** Libraries: each one's options (media segment providers). */
+  libraries: '/dashboard/libraries',
+  plugins: '/dashboard/plugins',
+  /** Scheduled tasks (the segment plugins' analysis). */
+  tasks: '/dashboard/tasks',
+} as const;
+
 /** The MUI theme variable dashboard.css overrides first; the e2e probe checks jellyfin-web still defines it. */
 export const DASHBOARD_THEME_VARIABLE = '--jf-palette-primary-main';
 

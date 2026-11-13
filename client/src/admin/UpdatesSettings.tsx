@@ -84,6 +84,7 @@ export function UpdatesSettings({
   return (
     <Card
       title="Updates"
+      anchor="updates"
       intro="Checks Lumen's releases on GitHub and asks Jellyfin to read its plugin repositories again."
     >
       <div class="lmn-admin__updates" aria-live="polite">

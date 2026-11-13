@@ -88,6 +88,7 @@ Links Lumen shares carry a couple of extra URL parameters that Jellyfin's own pa
 - **Fonts.** Except on Apple devices, which use their own system font, Lumen's pages use Inter, which Lumen serves itself from the same server (`/Lumen/Assets/lumen-font-*.woff2`). A CSP needs `font-src` (or `default-src`) to allow `'self'`.
 - **Notifications.** Lumen's service worker is `/Lumen/Push/sw.js` (under the base URL, if any). Browsers fetch it without signing in, so a proxy with its own login must let it through; a CSP needs `worker-src` (or `script-src`) to allow `'self'`. Nothing else about notifications passes through the proxy: the server sends them to the browsers' push services itself.
 - **Installing to a home screen.** Phones fetch the app's manifest (`/Lumen/Manifest`) and icons (`/Lumen/Assets/lumen-icon-*.png`) without signing in, so a proxy that asks for its own login must let those through, as it does `/web/`. With a base URL they're under it (`/jellyfin/Lumen/Manifest`). Lumen adds no inline content for this: the manifest and icons come from the same server, so a CSP only needs `manifest-src` (or `default-src`) to allow `'self'`.
+- **Caching.** Leave the caching headers of `/Lumen/` and `/web/` as Jellyfin sends them. Lumen's versioned files are cached for a year by their own headers, and its unversioned ones are sent `no-cache` so an update shows at once; a proxy that gives every `.js` and `.css` a long lifetime (Nginx Proxy Manager's **Cache Assets**) keeps browsers on the old Lumen after an update. The settings page's Health tab checks for this ([Health check](#health-check)).
 - **jellyfin-web served by the proxy.** Lumen adds itself to the web client that Jellyfin serves (`/web/`). If your proxy serves its own copy of jellyfin-web (with Jellyfin's hosted web client turned off), nothing injects Lumen into it, and the stock UI is shown. Serve `index.html` and `config.json` from the same place: Lumen lists its plugin in `config.json` only alongside the `index.html` that defines it.
 
 ## Playback tips
@@ -107,11 +108,29 @@ Lumen's player draws its own **Skip** button and **next-episode card** from Jell
 - **Watch together:** in a group nothing is skipped or started for everyone by itself. The card has no countdown, and a segment set to *Skip* gets the Skip button instead; a press is yours, for the group.
 - With no segments for a title there is no button, and if Lumen can't read the segments or your settings, Jellyfin's own skip prompt and up-next card show as before.
 
+## Health check
+
+Lumen's settings page (Dashboard → Plugins → Lumen) has a **Health** tab: a list of checks that Lumen is set up and working, each marked **OK**, **Warning**, **Problem** or **Not applicable**, with what's wrong in plain words and a button to the setting that fixes it. The tab shows a count when something is a problem. The checks run when the settings page opens (the server keeps them for a minute; **Run checks again** runs them all afresh), and each has a few seconds at most, so the page stays quick while Seerr or Trakt is down.
+
+- **Server:** the Jellyfin version is one Lumen has been tested with; whether a Lumen update is out; and whether **Dashboard → Branding → Custom CSS** is set. Jellyfin adds that CSS to Lumen's pages too, so a theme made for Jellyfin's own pages (Ultrachromic, say) can change Lumen's fonts, blur its dialogs, and slow every page's start with stylesheets it loads from other sites.
+- **Proxy and network:** whether a reverse proxy or CDN changes how long browsers keep Lumen's files. Lumen sends its unversioned files with `Cache-Control: no-cache` so an update shows at once; Nginx Proxy Manager's **Cache Assets** replaces that with a 30-day lifetime for anything ending in `.js` or `.css`, and browsers then keep running the old Lumen after an update. The page fetches a small test file (`/Lumen/Assets/cache-probe.js`) and compares the headers it receives with the ones Lumen sent. Turn off Cache Assets for Jellyfin's host, or leave the caching headers of `/Lumen/` and `/web/` as Jellyfin sends them. It also checks the page came over HTTPS (installing Lumen as an app needs it); on localhost or a LAN address that's only a note.
+- **Requests (Seerr):** Seerr is set up, answers, and takes the API key; and it has a Radarr and a Sonarr server (Settings → Services), without which requests aren't downloaded and Lumen has no download progress to show.
+- **Trakt:** the key works, and when the last Trakt list loaded (or why it failed).
+- **Skip Intro:** see below.
+- **Quick Connect:** it's on (Dashboard → General); whether the **Public address for QR codes** is set, or what phones get without it; and whether that address answers as this server. A browser can only check an address other than the page's own when that server lets it, so otherwise the row says it can't check from here.
+- **Devices:** each browser or app where Lumen's compatibility check failed since Jellyfin started: which device and browser, what broke, what Lumen did instead, and whether updating Jellyfin, Lumen or the browser would help. **Technical details** has the raw check ids.
+
+**Copy report** copies a plain-text summary for a bug report: the Lumen and Jellyfin versions, every check's status and message, and the device failures. It holds no keys, tokens or addresses: settings appear only as "set" or "not set", and anything shaped like an address or a key is taken out.
+
+### Skip Intro
+
+Jellyfin knows where an episode's intro is only from *media segments*, which a plugin has to find. The Health tab checks that **[Intro Skipper](https://github.com/intro-skipper/intro-skipper)** or **SkipMe.db** is installed and running; that each TV library lets them run (each library's options in Dashboard → Libraries, under **Media segment providers**: the tab names the libraries where one is off); and how many episodes have an intro so far ("1,204 of 3,310 episodes"). Intro Skipper analyses a season's audio in a scheduled task after a library scan, so a large library fills in over time; SkipMe.db adds intro times other people have marked. Install either from Dashboard → Plugins (Intro Skipper from its own plugin repository; its README has the steps), restart Jellyfin, and check Dashboard → Scheduled Tasks to see the analysis run.
+
 ## Troubleshooting
 
 If Lumen doesn't appear:
 1. Hard-reload the page.
-2. Check Dashboard → Plugins → Lumen → **Diagnostics**. It lists clients where Lumen fell back to the stock UI and why: a failed compatibility check, jellyfin-web's player not being found (`playbackManager…`), or a stock element Lumen hides that wasn't there (`selector…`). The server version is marked "(untested)" when Lumen's test suite hasn't run against that Jellyfin release yet. Please include it in bug reports.
+2. Open Dashboard → Plugins → Lumen → **Health**. Its **Devices** section lists browsers and apps where Lumen fell back to Jellyfin's own pages, and why, in plain words. **Copy report** gives a summary without keys or addresses to paste into a bug report.
 
 Privacy note: trailer previews (like stock Jellyfin media URLs) carry your access token in the request URL, so if you run a reverse proxy, redact the `ApiKey` query parameter from its access logs.
 

@@ -34,6 +34,7 @@ export function Top10Settings({
   return (
     <Card
       title="Trakt"
+      anchor="trakt"
       intro="With a Trakt key, Lumen adds a Top charts page (Trakt's most watched movies and shows of the week, month, year or all time, linked from the Top 10 rows) and these home sections: Top 10 Movies and Shows, Box Office, Most Anticipated Movies and Shows, Trending Movies and Shows, and Trakt list (any public list). Add them under Home sections. Without a key, the Top 10 rows rank Seerr's trending titles instead, and the rest stay hidden."
     >
       <Field

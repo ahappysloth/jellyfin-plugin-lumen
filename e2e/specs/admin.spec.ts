@@ -73,7 +73,7 @@ test('on a small phone the save bar’s message sits on a line above its buttons
 }) => {
   await page.setViewportSize({ width: 320, height: 640 });
   const { admin } = loadState();
-  // A compatibility report, so the Diagnostics card has its table (four columns, wider than this window).
+  // A compatibility report, so the Health tab has a device with a long name and its technical details.
   await api('/Lumen/Diagnostics', {
     method: 'POST',
     token: admin.token,
@@ -84,8 +84,13 @@ test('on a small phone the save bar’s message sits on a line above its buttons
   const root = page.locator('[id="lmn-admin-root"]:visible');
   const bar = root.locator('.lmna-savebar');
   await expect(root.getByRole('group', { name: 'Home sections' })).toBeVisible();
-  await expect(root.locator('.lmn-admin__diagnostics')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  await root.getByRole('tab', { name: /^Health/ }).click();
+  const devices = root.getByRole('group', { name: 'Devices' });
+  await expect(devices).toContainText('LG TV (webOS)');
+  await devices.getByText('Technical details').first().click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  await root.getByRole('tab', { name: 'Settings' }).click();
 
   await moveDown(page, root, 'Continue Watching');
   const status = bar.locator('.lmna-savebar__status');
@@ -544,6 +549,7 @@ test('TV layout: the D-pad reaches Lumen’s settings tabs and moves between the
   const root = page.locator('[id="lmn-admin-root"]:visible');
   const settings = root.getByRole('tab', { name: 'Settings' });
   const storage = root.getByRole('tab', { name: 'Storage' });
+  const health = root.getByRole('tab', { name: /^Health/ });
   await expect(settings).toBeVisible();
 
   // Down from the header's Back button, to the open tab.
@@ -557,10 +563,14 @@ test('TV layout: the D-pad reaches Lumen’s settings tabs and moves between the
   await page.keyboard.press('ArrowRight');
   await expect(storage).toBeFocused();
   await expect(storage).toHaveAttribute('aria-selected', 'true');
-  // Not round from the end: Right again stays on Storage.
   await page.keyboard.press('ArrowRight');
+  await expect(health).toBeFocused();
+  await expect(health).toHaveAttribute('aria-selected', 'true');
+  // Not round from the end: Right again stays on Health.
+  await page.keyboard.press('ArrowRight');
+  await expect(health).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
   await expect(storage).toBeFocused();
-  await expect(storage).toHaveAttribute('aria-selected', 'true');
   // Down into the tab, and Up back to it.
   const card = root.getByRole('group', { name: 'Storage' });
   await expect(card.getByText(/^Computed /)).toBeVisible({ timeout: 30_000 });

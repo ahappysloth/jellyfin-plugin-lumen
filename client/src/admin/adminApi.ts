@@ -1,4 +1,5 @@
 import type { JellyfinApiClient } from '../compat/jellyfin';
+import type { HealthReport } from './health/healthModel';
 import { restartServer, serverState, type ServerState } from './restart';
 
 export interface SectionParamDef {
@@ -98,13 +99,6 @@ export interface UnmappedUser {
 export interface Option {
   id: string;
   name: string;
-}
-
-export interface DiagnosticEntry {
-  Client: string;
-  ServerVersion: string;
-  FailedChecks: string[];
-  LastSeen: string;
 }
 
 /** Lumen against its latest release (UpdateStatusDto). */
@@ -220,7 +214,12 @@ export interface AdminApi {
   saveConfig(config: LumenConfig): Promise<SaveResult>;
   reset(): Promise<void>;
   getSectionTypes(): Promise<SectionTypeDef[]>;
-  getDiagnostics(): Promise<DiagnosticEntry[]>;
+  /** The Health tab's server-side checks and device reports; `refresh` runs every check again (nothing cached). */
+  getHealth(refresh: boolean): Promise<HealthReport>;
+  /** The server's URL for an API path (the Health tab's browser-side checks fetch it themselves). */
+  url(path: string, params?: Record<string, unknown>): string;
+  /** A plain fetch, for those checks: they read raw headers, which ApiClient's ajax doesn't give. */
+  fetch(url: string, init?: RequestInit): Promise<Response>;
   getLibraries(): Promise<Option[]>;
   getCollections(): Promise<Option[]>;
   getPlaylists(): Promise<Option[]>;
@@ -288,7 +287,9 @@ export function createAdminApi(client: JellyfinApiClient): AdminApi {
       await client.ajax({ type: 'POST', url: client.getUrl('Lumen/Admin/Config/Reset') });
     },
     getSectionTypes: () => getJson('Lumen/Admin/SectionTypes'),
-    getDiagnostics: () => getJson('Lumen/Admin/Diagnostics'),
+    getHealth: (refresh) => getJson('Lumen/Admin/Health', refresh ? { refresh: true } : undefined),
+    url: (path, params) => client.getUrl(path, params),
+    fetch: (url, init) => window.fetch(url, init),
     getLibraries: async () =>
       (await getJson<{ Name: string; ItemId: string }[]>('Library/VirtualFolders')).map((f) => ({
         id: f.ItemId,

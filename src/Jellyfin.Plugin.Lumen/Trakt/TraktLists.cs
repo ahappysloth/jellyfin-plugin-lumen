@@ -9,12 +9,21 @@ public interface ITraktLists
     /// <summary>Gets a value indicating whether a Trakt key is saved (the Top charts page and the Trakt rows need one).</summary>
     bool Enabled { get; }
 
+    /// <summary>Gets how the latest fetch of any list went, for the Health tab; null when none has run since Jellyfin started.</summary>
+    TraktFetch? LastFetch { get; }
+
     /// <summary>
     /// The list, or null when there's no Trakt key, or Trakt failed and there's no earlier copy to serve, or a user's list
     /// is private or gone (the rows that use it are then hidden, or the Top 10 rows fall back to Seerr's trending list).
     /// </summary>
     Task<TraktList?> GetAsync(TraktQuery query, CancellationToken cancellationToken);
 }
+
+/// <summary>A fetch of a Trakt list: when it finished, and why it failed.</summary>
+/// <param name="At">When it finished.</param>
+/// <param name="Error">Null when it worked.</param>
+/// <param name="HasCopy">After a failure: whether a last good copy of that list is still being served.</param>
+public sealed record TraktFetch(DateTimeOffset At, string? Error, bool HasCopy);
 
 /// <summary>A copy of a Trakt list: its titles in Trakt's order, and for a user's list its name.</summary>
 public sealed record TraktList(IReadOnlyList<TraktTitle> Titles, string? Name = null);
@@ -56,6 +65,7 @@ public sealed class TraktLists : ITraktLists
     private readonly TimeProvider _time;
     private readonly ILogger<TraktLists> _logger;
     private DateTimeOffset _prunedAt;
+    private TraktFetch? _lastFetch;
 
     public TraktLists(ILumenConfigReader config, ITraktClient trakt, TimeProvider time, ILogger<TraktLists> logger)
     {
@@ -66,6 +76,17 @@ public sealed class TraktLists : ITraktLists
     }
 
     public bool Enabled => !string.IsNullOrWhiteSpace(_config.Current.TraktClientId);
+
+    public TraktFetch? LastFetch
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _lastFetch;
+            }
+        }
+    }
 
     /// <summary>Gets how many lists are cached (tests).</summary>
     internal int CachedCount
@@ -134,6 +155,7 @@ public sealed class TraktLists : ITraktLists
                 state.List = list;
                 state.FetchedAt = _time.GetUtcNow();
                 state.RetryAt = DateTimeOffset.MinValue;
+                _lastFetch = new TraktFetch(state.FetchedAt, null, true);
                 if (state.Failing)
                 {
                     state.Failing = false;
@@ -157,6 +179,12 @@ public sealed class TraktLists : ITraktLists
                 if (gone)
                 {
                     state.List = null;
+                }
+
+                // A user's list that's gone is that list's problem (its row hides), not Trakt's: it isn't a failed fetch.
+                if (!gone)
+                {
+                    _lastFetch = new TraktFetch(_time.GetUtcNow(), e.Message, state.List is not null);
                 }
 
                 if (!state.Failing)

@@ -1,18 +1,24 @@
 /** The settings page's tabs, and how the open one is kept across a reload. */
 
-export const ADMIN_TABS = ['settings', 'storage'] as const;
+export const ADMIN_TABS = ['settings', 'storage', 'health'] as const;
 export type AdminTab = (typeof ADMIN_TABS)[number];
 
-export const TAB_LABELS: Record<AdminTab, string> = { settings: 'Settings', storage: 'Storage' };
+export const TAB_LABELS: Record<AdminTab, string> = {
+  settings: 'Settings',
+  storage: 'Storage',
+  health: 'Health',
+};
+
+const isTab = (value: unknown): value is AdminTab => (ADMIN_TABS as readonly unknown[]).includes(value);
 
 const STORAGE_KEY = 'lumen-admin-tab';
 
-/** jellyfin-web's route is in the hash, its query after the `?`: `#/configurationpage?name=Lumen&tab=storage`. */
+/** jellyfin-web's route is in the hash, its query after the `?`: `#/configurationpage?name=Lumen&tab=storage` (or `health`). */
 function tabInHash(hash: string): AdminTab | null {
   const query = hash.indexOf('?');
   if (query < 0) return null;
   const tab = new URLSearchParams(hash.slice(query + 1)).get('tab');
-  return tab === 'storage' || tab === 'settings' ? tab : null;
+  return isTab(tab) ? tab : null;
 }
 
 function sessionStore(): Storage | null {
@@ -31,7 +37,8 @@ export function initialTab(hash: string, store: Storage | null = sessionStore())
   const linked = tabInHash(hash);
   if (linked) return linked;
   try {
-    return store?.getItem(STORAGE_KEY) === 'storage' ? 'storage' : 'settings';
+    const kept = store?.getItem(STORAGE_KEY);
+    return isTab(kept) ? kept : 'settings';
   } catch {
     return 'settings';
   }

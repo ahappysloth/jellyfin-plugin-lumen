@@ -35,6 +35,8 @@ public class ServiceRegistratorTests
         services.AddSingleton(Substitute.For<MediaBrowser.Common.Updates.IInstallationManager>());
         services.AddSingleton(Substitute.For<MediaBrowser.Controller.Devices.IDeviceManager>());
         services.AddSingleton(Substitute.For<MediaBrowser.Controller.Configuration.IServerConfigurationManager>());
+        services.AddSingleton(Substitute.For<MediaBrowser.Common.Plugins.IPluginManager>());
+        services.AddSingleton(Substitute.For<IServerApplicationHost>());
         services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
 
         new ServiceRegistrator().RegisterServices(services, Substitute.For<IServerApplicationHost>());
@@ -57,6 +59,14 @@ public class ServiceRegistratorTests
         Assert.Contains(provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>(), s => s is Jellyfin.Plugin.Lumen.Push.ReadyPushJob);
         Assert.Same(provider.GetRequiredService<ReadyPushSignal>(), provider.GetRequiredService<IReadyPushSignal>());
         Assert.NotNull(provider.GetRequiredService<Jellyfin.Plugin.Lumen.Push.IPushSender>());
+
+        Assert.NotNull(provider.GetRequiredService<Jellyfin.Plugin.Lumen.Health.HealthService>());
+        Assert.Equal(
+            [
+                "server.update", "server.customCss", "requests.seerr", "requests.services", "trakt.key", "trakt.lists",
+                "skipIntro.plugins", "skipIntro.libraries", "skipIntro.coverage", "quickConnect.enabled", "quickConnect.address",
+            ],
+            provider.GetServices<Jellyfin.Plugin.Lumen.Health.IHealthCheck>().Select(c => c.Id));
         Assert.Equal(
             [
                 SectionTypes.BecauseYouWatched, SectionTypes.CatalogPopularMovies, SectionTypes.CatalogPopularShows, SectionTypes.CatalogTrending,

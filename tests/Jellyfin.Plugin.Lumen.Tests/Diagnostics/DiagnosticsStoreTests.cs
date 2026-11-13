@@ -30,12 +30,16 @@ public class DiagnosticsStoreTests
             store.Record(Report($"client-{i}"), TestData.Now.AddSeconds(i));
         }
 
-        store.Record(Report(new string('x', 500), Enumerable.Range(0, 40).Select(i => $"check{i}").ToArray()), TestData.Now.AddHours(1));
+        store.Record(Report(new string('x', 500), [.. Enumerable.Range(0, 40).Select(i => $"check{i}"), new string('y', 500)]), TestData.Now.AddHours(1));
 
         var all = store.GetAll();
         Assert.Equal(DiagnosticsStore.Capacity, all.Count);
-        Assert.Equal(100, all[0].Client.Length);
+
+        // The client keeps a whole user agent (the Health tab reads the device and browser from it); the rest stays short.
+        Assert.Equal(300, all[0].Client.Length);
         Assert.Equal(20, all[0].FailedChecks.Count);
+        store.Record(Report("web", new string('y', 500)), TestData.Now.AddHours(2));
+        Assert.Equal(100, store.GetAll()[0].FailedChecks[0].Length);
     }
 
     private static CompatReportDto Report(string client, params string[] failed) =>

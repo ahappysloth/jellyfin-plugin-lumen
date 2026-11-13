@@ -65,6 +65,21 @@ public class TraktListsTests
     }
 
     [Fact]
+    public async Task LastFetch_RecordsWhenAndHowTheLatestFetchWent()
+    {
+        Assert.Null(_lists.LastFetch);
+        _trakt.GetTitlesAsync(default!, default!, default).ReturnsForAnyArgs(List("A"));
+        await _lists.GetAsync(Weekly(TraktListKind.Movies), CancellationToken.None);
+        Assert.Equal(new TraktFetch(TestData.Now, null, true), _lists.LastFetch);
+
+        _time.Advance(TraktQuery.ChartFreshFor);
+        _trakt.GetTitlesAsync(default!, default!, default).ThrowsAsyncForAnyArgs(new TraktException("Trakt did not answer within 3 seconds."));
+        await _lists.GetAsync(Weekly(TraktListKind.Movies), CancellationToken.None);
+        await WaitForAsync(() => Task.FromResult(_lists.LastFetch?.Error is not null));
+        Assert.Equal(new TraktFetch(_time.GetUtcNow(), "Trakt did not answer within 3 seconds.", true), _lists.LastFetch);
+    }
+
+    [Fact]
     public async Task ConcurrentColdLoads_ShareOneFetch()
     {
         var fetch = new TaskCompletionSource<IReadOnlyList<TraktTitle>>();

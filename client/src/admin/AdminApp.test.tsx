@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminApi, LumenConfig, SectionTypeDef, UpdateStatus } from './adminApi';
 import { AdminApp } from './AdminApp';
+import type { HealthReport } from './health/healthModel';
 
 const types: SectionTypeDef[] = [
   { Type: 'ContinueWatching', DisplayName: 'Continue Watching', Parameters: [] },
@@ -63,6 +64,18 @@ function config(): LumenConfig {
   };
 }
 
+function health(overrides: Partial<HealthReport> = {}): HealthReport {
+  return {
+    CheckedAt: '2026-11-12T12:00:00Z',
+    LumenVersion: '0.5.0',
+    JellyfinVersion: '12.4.0',
+    Checks: [],
+    Devices: [],
+    QuickConnectAddress: '',
+    ...overrides,
+  };
+}
+
 function update(overrides: Partial<UpdateStatus> = {}): UpdateStatus {
   return {
     Installed: '0.3.2',
@@ -89,7 +102,9 @@ function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     saveConfig: vi.fn(async () => ({ ok: true as const })),
     reset: vi.fn(async () => undefined),
     getSectionTypes: vi.fn(async () => types),
-    getDiagnostics: vi.fn(async () => []),
+    getHealth: vi.fn(async () => health()),
+    url: (path: string) => `http://jf.test/${path}`,
+    fetch: vi.fn(() => Promise.reject(new TypeError('offline'))),
     getLibraries: vi.fn(async () => [{ id: 'lib1', name: 'Movies' }]),
     getCollections: vi.fn(async () => [{ id: 'col1', name: 'Holiday' }]),
     getPlaylists: vi.fn(async () => []),
@@ -616,7 +631,6 @@ describe('AdminApp', () => {
       const api = fakeApi({
         getPlaylists: vi.fn(() => Promise.reject(new Error('x'))),
         getCollections: vi.fn(() => Promise.reject(new Error('x'))),
-        getDiagnostics: vi.fn(() => Promise.reject(new Error('x'))),
       });
       render(<AdminApp api={api} />);
 
@@ -624,9 +638,6 @@ describe('AdminApp', () => {
       expect(
         screen.getByText(/Couldn't load the collections and playlists to choose from/),
       ).toBeInTheDocument();
-      // A failed diagnostics request doesn't read as "no problems".
-      expect(screen.getByText(/Couldn't load the diagnostics/)).toBeInTheDocument();
-      expect(screen.queryByText('No compatibility problems reported.')).toBeNull();
       // Nothing to save: the save bar is down, and Save with it.
       expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
     });
@@ -1118,14 +1129,16 @@ describe('AdminApp tabs', () => {
     expect(tab('Storage')).toHaveAttribute('aria-selected', 'true');
     expect(tab('Storage')).toHaveFocus();
     fireEvent.keyDown(tab('Storage'), { key: 'ArrowRight' });
+    expect(tab('Health')).toHaveFocus();
+    fireEvent.keyDown(tab('Health'), { key: 'ArrowRight' });
     expect(tab('Settings')).toHaveFocus();
     fireEvent.keyDown(tab('Settings'), { key: 'ArrowLeft' });
-    expect(tab('Storage')).toHaveFocus();
-    fireEvent.keyDown(tab('Storage'), { key: 'Home' });
+    expect(tab('Health')).toHaveFocus();
+    fireEvent.keyDown(tab('Health'), { key: 'Home' });
     expect(tab('Settings')).toHaveFocus();
     fireEvent.keyDown(tab('Settings'), { key: 'End' });
-    expect(tab('Storage')).toHaveFocus();
-    expect(onTab).toHaveBeenLastCalledWith('storage');
+    expect(tab('Health')).toHaveFocus();
+    expect(onTab).toHaveBeenLastCalledWith('health');
   });
 
   it('TV layout: the D-pad isn’t sent round from either end', async () => {
@@ -1136,9 +1149,11 @@ describe('AdminApp tabs', () => {
       // fireEvent says whether the event went on unhandled (not cancelled).
       expect(fireEvent.keyDown(tab('Settings'), { key: 'ArrowRight' })).toBe(false);
       expect(tab('Storage')).toHaveFocus();
+      expect(fireEvent.keyDown(tab('Storage'), { key: 'ArrowRight' })).toBe(false);
+      expect(tab('Health')).toHaveFocus();
       // Past the end it's jellyfin-web's: the event is left alone.
-      expect(fireEvent.keyDown(tab('Storage'), { key: 'ArrowRight' })).toBe(true);
-      expect(tab('Storage')).toHaveAttribute('aria-selected', 'true');
+      expect(fireEvent.keyDown(tab('Health'), { key: 'ArrowRight' })).toBe(true);
+      expect(tab('Health')).toHaveAttribute('aria-selected', 'true');
     } finally {
       document.documentElement.classList.remove('layout-tv');
     }
@@ -1168,5 +1183,127 @@ describe('AdminApp tabs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(api.saveConfig).toHaveBeenCalledTimes(1));
     expect(vi.mocked(api.saveConfig).mock.calls[0]![0].Sections[0]!.Id).toBe('s2');
+  });
+});
+
+describe('Health tab', () => {
+  const tab = (name: RegExp | string): HTMLElement => screen.getByRole('tab', { name });
+  const seerrDown = health({
+    Checks: [
+      {
+        Id: 'requests.seerr',
+        Group: 'Requests',
+        Status: 'Problem',
+        Title: 'Seerr connection',
+        Message: "Lumen can't reach Seerr.",
+        Fix: { Label: 'Open Requests settings', Kind: 'setting', Target: 'requests' },
+      },
+      {
+        Id: 'server.customCss',
+        Group: 'Server',
+        Status: 'Warning',
+        Title: 'Branding custom CSS',
+        Message: 'Dashboard → Branding has custom CSS.',
+        Fix: { Label: 'Open Branding', Kind: 'dashboard', Target: 'branding' },
+      },
+    ],
+    Devices: [
+      {
+        Client: 'tv Mozilla/5.0 (Web0S) Chrome/68.0',
+        ServerVersion: '12.4.0',
+        FailedChecks: ['selector.upNext'],
+        LastSeen: '2026-11-12T10:00:00Z',
+      },
+    ],
+  });
+
+  it('checks when the page opens, and marks the tab while something is a problem', async () => {
+    const api = fakeApi({ getHealth: vi.fn(async () => seerrDown) });
+    render(<AdminApp api={api} />);
+
+    expect(await screen.findByRole('tab', { name: /^Health\s*1\s*problem$/ })).toBeInTheDocument();
+    expect(api.getHealth).toHaveBeenCalledWith(false);
+  });
+
+  it('shows each row’s status in words, with its fix, grouped, and the devices in plain words', async () => {
+    render(<AdminApp api={fakeApi({ getHealth: vi.fn(async () => seerrDown) })} />);
+    fireEvent.click(await screen.findByRole('tab', { name: /^Health/ }));
+
+    const requests = await screen.findByRole('group', { name: 'Requests (Seerr)' });
+    expect(requests).toHaveTextContent("ProblemSeerr connectionLumen can't reach Seerr.");
+    const server = screen.getByRole('group', { name: 'Server' });
+    expect(server).toHaveTextContent('Warning');
+    expect(screen.getByRole('link', { name: 'Open Branding' })).toHaveAttribute(
+      'href',
+      '#/dashboard/branding',
+    );
+    const devices = screen.getByRole('group', { name: 'Devices' });
+    expect(devices).toHaveTextContent("Jellyfin's next-episode card changed.");
+    expect(devices).toHaveTextContent('selector.upNext');
+  });
+
+  it('a settings fix opens the Settings tab at its card, focus on its first control', async () => {
+    render(<AdminApp api={fakeApi({ getHealth: vi.fn(async () => seerrDown) })} />);
+    fireEvent.click(await screen.findByRole('tab', { name: /^Health/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Requests settings' }));
+
+    expect(tab('Settings')).toHaveAttribute('aria-selected', 'true');
+    await waitFor(() =>
+      expect(screen.getByRole('switch', { name: /Enable catalog browsing and requests/ })).toHaveFocus(),
+    );
+  });
+
+  it('Run checks again asks for fresh checks', async () => {
+    const api = fakeApi();
+    render(<AdminApp api={api} />);
+    fireEvent.click(await screen.findByRole('tab', { name: /^Health/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Run checks again' }));
+
+    await waitFor(() => expect(api.getHealth).toHaveBeenLastCalledWith(true));
+    expect(await screen.findByText(/^Everything checked is fine\./)).toBeInTheDocument();
+  });
+
+  it('says so when the checks can’t be loaded, without a badge', async () => {
+    render(<AdminApp api={fakeApi({ getHealth: vi.fn(() => Promise.reject(new Error('x'))) })} />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Health' }));
+
+    expect(await screen.findByText("Couldn't run the checks. Try again in a moment.")).toBeInTheDocument();
+  });
+
+  it('Copy report copies a report without the Seerr address; where copying fails, it shows the text to copy', async () => {
+    const copied: string[] = [];
+    Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn(async (t: string) => void copied.push(t)) },
+      configurable: true,
+    });
+    try {
+      const api = fakeApi({
+        getHealth: vi.fn(async () => seerrDown),
+        getConfig: vi.fn(async () => ({
+          ...config(),
+          RequestsEnabled: true,
+          SeerrUrl: 'http://seerr.home.example:5055',
+          SeerrApiKeySet: true,
+        })),
+      });
+      render(<AdminApp api={api} />);
+      fireEvent.click(await screen.findByRole('tab', { name: /^Health/ }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Copy report' }));
+
+      expect(await screen.findByText(/^Report copied\./)).toBeInTheDocument();
+      expect(copied[0]).toContain("- Problem: Seerr connection [requests.seerr]: Lumen can't reach Seerr.");
+      expect(copied[0]).toContain('Seerr address set, API key set');
+      expect(copied[0]).not.toContain('seerr.home.example');
+
+      vi.mocked(navigator.clipboard.writeText).mockRejectedValue(new Error('denied'));
+      fireEvent.click(screen.getByRole('button', { name: 'Copy report' }));
+      expect(await screen.findByText(/Couldn't copy here/)).toBeInTheDocument();
+      expect((screen.getByRole('textbox', { name: 'Health report' }) as HTMLTextAreaElement).value).toContain(
+        'Lumen health report',
+      );
+    } finally {
+      Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+    }
   });
 });

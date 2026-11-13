@@ -4,6 +4,7 @@
 //   GET  /api/v1/status                         → { version }
 //   GET  /api/v1/user/jellyfin/:jellyfinUserId  → the mapped user, 404 if unmapped, 403 without the right key
 //   GET  /api/v1/settings/jellyfin              → the Jellyfin server this "Seerr" is linked to
+//   GET  /api/v1/settings/{radarr|sonarr}        → its Radarr / Sonarr servers (one each, unless /__stub/services says)
 //   GET  /api/v1/search?query=&page=            → "matrix" (any case): movies 603, 604, show 1399 and a person; else empty
 //   GET  /api/v1/discover/trending?page=        → movie 603, show 1399 and a person
 //   GET  /api/v1/discover/movies?page=          → movies 603, 604
@@ -59,8 +60,10 @@
 //          null clears it (test control)
 //   Movies 701–799 have details too ("Stub Request 7xx", or the names in REQUEST_TITLES), for requests in each state.
 //   GET  /__stub/requests                                           → [{ user, body }] of requests filed (test control)
+//   POST /__stub/services { radarr, sonarr }                        → how many Radarr and Sonarr servers it has (test control)
 //   POST /__stub/reset                                              → clears the recorded requests, /__stub/library and
-//                                                                       the push messages (test control)
+//                                                                       the push messages, and sets one Radarr and one
+//                                                                       Sonarr server again (test control)
 //   GET  /__stub/health
 import { createServer } from 'node:http';
 
@@ -73,6 +76,8 @@ const PNG = Buffer.from(
   'base64',
 );
 let users = {};
+// How many Radarr and Sonarr servers this "Seerr" has (Settings → Services).
+let services = { radarr: 1, sonarr: 1 };
 let jellyfin = { name: 'Stub Jellyfin', serverId: '' };
 let requests = [];
 // Request ids differ between runs too: Lumen remembers which it saw in flight (its ready pop-ups) across restarts.
@@ -287,6 +292,7 @@ createServer((req, res) => {
     library = {};
     progress = {};
     pushes = [];
+    services = { radarr: 1, sonarr: 1 };
     return json(res, 200, { ok: true });
   }
   if (path === '/__stub/push' && req.method === 'GET') return json(res, 200, pushes);
@@ -310,7 +316,7 @@ createServer((req, res) => {
     });
     return;
   }
-  const controls = ['/__stub/users', '/__stub/jellyfin', '/__stub/library', '/__stub/progress'];
+  const controls = ['/__stub/users', '/__stub/jellyfin', '/__stub/library', '/__stub/progress', '/__stub/services'];
   if (controls.includes(path) && req.method === 'POST') {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
@@ -322,6 +328,7 @@ createServer((req, res) => {
           else delete progress[Number(id)];
         }
       }
+      else if (path === '/__stub/services') services = { radarr: 0, sonarr: 0, ...JSON.parse(body || '{}') };
       else if (path === '/__stub/library') {
         const { tmdbId, jellyfinMediaId } = JSON.parse(body || '{}');
         library[Number(tmdbId)] = String(jellyfinMediaId);
@@ -354,6 +361,14 @@ createServer((req, res) => {
   if (req.headers['x-api-key'] !== STUB_API_KEY) return json(res, 403, { message: 'You do not have permission' });
   // Real Seerr also returns its Jellyfin API key here; Lumen must only read name and serverId.
   if (path === '/api/v1/settings/jellyfin') return json(res, 200, { ...jellyfin, ip: 'jellyfin', apiKey: 'must-not-leak' });
+  // Each server's settings carry its API key, as in Seerr: Lumen only counts them.
+  const arr = path.match(/^\/api\/v1\/settings\/(radarr|sonarr)$/);
+  if (arr)
+    return json(
+      res,
+      200,
+      Array.from({ length: services[arr[1]] }, (_, id) => ({ id, name: `${arr[1]} ${id}`, apiKey: 'must-not-leak' })),
+    );
   const user = path.match(/^\/api\/v1\/user\/jellyfin\/([0-9a-f]{32})$/);
   if (user) {
     const found = users[user[1]];

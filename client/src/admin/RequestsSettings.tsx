@@ -70,6 +70,7 @@ export function RequestsSettings({
   return (
     <Card
       title="Requests"
+      anchor="requests"
       intro="Browse and request titles you don't have yet, through Seerr. Requests are filed as the signed-in user, so their Seerr permissions and quotas apply."
     >
       <Switch

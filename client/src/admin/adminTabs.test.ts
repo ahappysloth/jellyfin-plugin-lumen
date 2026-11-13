@@ -25,6 +25,9 @@ describe('admin tabs across a reload', () => {
     rememberTab('storage', store);
     expect(initialTab('#/configurationpage?name=Lumen', store)).toBe('storage');
     expect(initialTab('#/configurationpage?name=Lumen&tab=settings', store)).toBe('settings');
+    rememberTab('health', store);
+    expect(initialTab('#/configurationpage?name=Lumen', store)).toBe('health');
+    expect(initialTab('#/configurationpage?name=Lumen&tab=health', null)).toBe('health');
     rememberTab('settings', store);
     expect(initialTab('#/configurationpage?name=Lumen', store)).toBe('settings');
   });

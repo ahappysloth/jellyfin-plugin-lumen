@@ -48,6 +48,21 @@ public sealed class SeerrClientTests : IDisposable
     }
 
     [Fact]
+    public async Task Services_CountsRadarrAndSonarrServers_KeepingNothingElse()
+    {
+        _http.Respond = request => request.RequestUri!.AbsolutePath.EndsWith("/radarr", StringComparison.Ordinal)
+            ? FakeHttp.Json("""[{"id":0,"name":"Radarr","apiKey":"secret"},{"id":1,"name":"Radarr 4K","apiKey":"secret"}]""")
+            : FakeHttp.Json("[]");
+
+        var services = await Client().GetServicesAsync(Endpoint, CancellationToken.None);
+
+        Assert.Equal(new SeerrServices(2, 0), services);
+        Assert.Equal(
+            ["/base/api/v1/settings/radarr", "/base/api/v1/settings/sonarr"],
+            _http.Requests.Select(r => r.RequestUri!.AbsolutePath).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
     public async Task UserLookup_404MeansNoAccount()
     {
         _http.Respond = _ => FakeHttp.Json("""{"message":"not found"}""", HttpStatusCode.NotFound);

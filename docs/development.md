@@ -87,7 +87,7 @@ Every jellyfin-web selector, route, global and PlaybackManager method that Lumen
 
 When a Jellyfin update breaks one of these, fix the name in the registry (and in the CSS, if it's repeated there). `docs/reference/jellyfin-web-12.1-notes.md` has the evidence behind each entry.
 
-At runtime, Lumen reports what it couldn't find to the admin Diagnostics page: a failed compatibility check (after retrying for 3 s on a cold load), a missing PlaybackManager or missing methods (`playbackManager.*`), and stock elements it hides that weren't there (`selector.*`). It also marks the server version "(untested)" when its major.minor isn't in `client/src/compat/tested-jellyfin.json`. When the E2E suite passes on a release that isn't listed, the job records the version in its summary and raises a warning. Add the release to the list then.
+At runtime, Lumen reports what it couldn't find to the settings page's Health tab (Devices, in plain words from `client/src/admin/health/devices.ts`; give a new check id its text there): a failed compatibility check (after retrying for 3 s on a cold load), a missing PlaybackManager or missing methods (`playbackManager.*`), and stock elements it hides that weren't there (`selector.*`). It also marks the server version "(untested)" when its major.minor isn't in `client/src/compat/tested-jellyfin.json`. When the E2E suite passes on a release that isn't listed, the job records the version in its summary and raises a warning. Add the release to the list then.
 
 When writing E2E assertions about stock elements Lumen hides, use `expectPresentButHidden` (`e2e/support/stock.ts`), not a bare `toBeHidden()`. `toBeHidden()` also passes when nothing matches, so a renamed selector would go unnoticed.
 

@@ -85,6 +85,19 @@ public class LumenControllerTests
     }
 
     [Fact]
+    public void CacheProbe_IsSentLikeAnUnversionedLumenFile()
+    {
+        var controller = Create();
+
+        var result = Assert.IsType<ContentResult>(controller.GetCacheProbe());
+        controller.GetAsset("lumen.js", null);
+
+        Assert.Equal(LumenController.ProbeBody, result.Content);
+        Assert.Equal(LumenController.ProbeCacheControl, controller.Response.Headers.CacheControl.ToString());
+        Assert.False(controller.Response.Headers.ContainsKey("Expires"));
+    }
+
+    [Fact]
     public void Asset_IsRevalidated_WhenVersionMissingOrStale()
     {
         var controller = Create();

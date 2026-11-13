@@ -5,8 +5,9 @@ import { LumenMark } from '../components/LumenMark';
 import { newUuid } from '../util/uuid';
 import type { AdminApi } from './adminApi';
 import { ADMIN_TABS, type AdminTab, initialTab, rememberTab, TAB_LABELS } from './adminTabs';
-import { DiagnosticsSettings } from './DiagnosticsSettings';
 import { GeneralSettings } from './GeneralSettings';
+import { HealthTab } from './health/HealthTab';
+import { useHealth } from './health/useHealth';
 import { HeroSettings } from './HeroSettings';
 import { HomeSectionsSettings } from './HomeSectionsSettings';
 import { RequestsSettings } from './RequestsSettings';
@@ -52,13 +53,20 @@ export function AdminApp({
   savedFor = 2000,
 }: AdminAppProps) {
   const admin = useAdminConfig(api);
+  // Run when the page opens, so the Health tab can show a badge for problems before it's opened.
+  const health = useHealth(api, () => ({
+    fetch: api.fetch,
+    location: window.location,
+    url: api.url,
+    now: Date.now,
+  }));
   const { config, status, errors, warnings, dirty, update } = admin;
   const busy = isBusy(status);
   const formRef = useRef<HTMLFormElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
 
-  // Settings, or Storage. Storage starts measuring only once its tab is first opened (it can take a while on a big
+  // Settings, Storage or Health. Storage starts measuring only once its tab is first opened (it can take a while on a big
   // library, and most visits are for a setting), then stays mounted, so going back to it doesn't measure again.
   const [tab, setTab] = useState<AdminTab>(() => initialTab(hash));
   const [storageOpened, setStorageOpened] = useState(tab === 'storage');
@@ -96,6 +104,25 @@ export function AdminApp({
     choose(target);
     tabRefs.current[target]?.focus();
   };
+
+  // A Health fix that opens a settings card: the Settings tab, scrolled to the card, focus on its first control (a D-pad
+  // goes on from there). After the render that shows the tab.
+  const [openCard, setOpenCard] = useState<string | null>(null);
+  const openSetting = (card: string): void => {
+    choose('settings');
+    setOpenCard(card);
+  };
+  useEffect(() => {
+    if (!openCard || tab !== 'settings') return;
+    setOpenCard(null);
+    const card = formRef.current?.querySelector<HTMLElement>(`[data-card="${openCard}"]`);
+    if (!card) return;
+    // Optional: not in every test DOM.
+    card.scrollIntoView?.({ block: 'start' });
+    card
+      .querySelector<HTMLElement>('input, select, textarea, button, a[href]')
+      ?.focus({ preventScroll: true });
+  }, [openCard, tab]);
 
   // "Settings saved." shows for a moment, then the bar slides away. Reset on every status change, so the next save
   // shows it again.
@@ -196,7 +223,7 @@ export function AdminApp({
     if (confirm('Reset all Lumen settings to their defaults?')) void admin.reset();
   };
   // Remounted on Discard (useAdminConfig's revision): sections keeping state of their own start again from the
-  // restored settings. Updates, Storage and Diagnostics hold nothing that Discard puts back, and remounting them would
+  // restored settings. Updates, Storage and Health hold nothing that Discard puts back, and remounting them would
   // check for updates and measure storage again.
   const revision = admin.revision;
 
@@ -222,8 +249,8 @@ export function AdminApp({
         </div>
       </header>
 
-      {/* Settings, and Storage on a tab of its own. The save bar and Reset belong to Settings, but unsaved changes
-          aren't lost on the way to Storage: they stay, and so does the bar, saying where they are. */}
+      {/* Settings, and Storage and Health on tabs of their own. The save bar and Reset belong to Settings, but unsaved
+          changes aren't lost on the way to another tab: they stay, and so does the bar, saying where they are. */}
       <div class="lmna-tabs focuscontainer-x" role="tablist" aria-label="Lumen" onKeyDown={onTabKey}>
         {ADMIN_TABS.map((t) => (
           <button
@@ -242,6 +269,14 @@ export function AdminApp({
             onClick={() => choose(t)}
           >
             {TAB_LABELS[t]}
+            {/* The count shows; its words are for screen readers, so the tab reads "Health 2 problems" (with the
+                visible text in its name, as voice control expects). */}
+            {t === 'health' && health.problems > 0 && (
+              <span class="lmna-tab__badge">
+                {health.problems}
+                <span class="lmna-sr-only">{health.problems === 1 ? ' problem' : ' problems'}</span>
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -296,7 +331,6 @@ export function AdminApp({
           confirm={confirm}
         />
         <Top10Settings key={`top10-${revision}`} api={api} config={config} update={update} />
-        <DiagnosticsSettings diagnostics={admin.diagnostics} />
 
         {/* Reset isn't in the save bar: it doesn't depend on unsaved changes, so it has to be there while the bar is
             hidden, and it's kept away from Save. */}
@@ -316,6 +350,22 @@ export function AdminApp({
         hidden={tab !== 'storage'}
       >
         {storageOpened && <StorageSettings api={api} />}
+      </div>
+
+      <div
+        role="tabpanel"
+        id={`${ids}-panel-health`}
+        aria-labelledby={`${ids}-tab-health`}
+        class="lmna-tabpanel"
+        hidden={tab !== 'health'}
+      >
+        <HealthTab
+          health={health}
+          config={config}
+          savedUrl={admin.savedUrl}
+          onOpenSetting={openSetting}
+          onUpFromTop={() => tabRefs.current.health?.focus()}
+        />
       </div>
 
       {/* The save bar's polite live region, outside the bar: a live region that appears together with its text (the
