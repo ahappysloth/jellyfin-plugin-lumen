@@ -8,6 +8,7 @@ import { formatDate } from '../../util/locale';
 import { liftVeil } from '../../veil/veil';
 import { PageHeader } from '../browse/Toolbar';
 import type { ViewContext } from '../context';
+import { LazyPushToggle } from '../push/lazyPush';
 import { catalogHash, catalogImageUrl, useCatalogImageToken } from './catalog';
 import { RequestProgressBlock } from './RequestProgressBlock';
 import {
@@ -78,6 +79,8 @@ export function MyRequestsView({ ctx }: { ctx: ViewContext }) {
   return (
     <div ref={rootRef} class="lmn-browse lmn-my-requests">
       <PageHeader title={strings.myRequests} />
+      {/* "Notify me when requests are ready", where this device can get notifications (it draws nothing elsewhere). */}
+      {ctx.config.Requests && available !== false && <LazyPushToggle ctx={ctx} />}
       {body}
     </div>
   );

@@ -5,6 +5,7 @@ using Jellyfin.Plugin.Lumen.Diagnostics;
 using Jellyfin.Plugin.Lumen.Home;
 using Jellyfin.Plugin.Lumen.Home.Providers;
 using Jellyfin.Plugin.Lumen.Injection;
+using Jellyfin.Plugin.Lumen.Push;
 using Jellyfin.Plugin.Lumen.Requests;
 using Jellyfin.Plugin.Lumen.Storage;
 using Jellyfin.Plugin.Lumen.Trakt;
@@ -64,6 +65,19 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<CatalogRowAccess>();
         serviceCollection.AddSingleton<IReadyAnnouncements, ReadyAnnouncements>();
         serviceCollection.AddSingleton<IRequestProgressService, RequestProgressService>();
+
+        // Push notifications. A push goes to the address a browser gave (checked against the known push services when
+        // it's stored), and nowhere a redirect says.
+        serviceCollection.AddHttpClient(WebPushClient.HttpClientName, client => client.DefaultRequestHeaders.UserAgent.Add(UserAgent))
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false });
+        serviceCollection.AddSingleton<IPushSubscriptionStore, PushSubscriptionStore>();
+        serviceCollection.AddSingleton<ReadyPushSignal>();
+        serviceCollection.AddSingleton<IReadyPushSignal>(services => services.GetRequiredService<ReadyPushSignal>());
+        serviceCollection.AddSingleton<IWebPushClient, WebPushClient>();
+        serviceCollection.AddSingleton<ISignedInDevices, SignedInDevices>();
+        serviceCollection.AddSingleton<IPushSender, PushSender>();
+        serviceCollection.AddSingleton<PushTestLimiter>();
+        serviceCollection.AddHostedService<ReadyPushJob>();
 
         // Trakt's key is a custom header too, so the same rule: no redirects (TraktClient reports one as an error).
         serviceCollection.AddHttpClient(TraktClient.HttpClientName, client => client.DefaultRequestHeaders.UserAgent.Add(UserAgent))

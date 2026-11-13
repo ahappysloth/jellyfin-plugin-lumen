@@ -35,6 +35,91 @@ public sealed class ReadyAnnouncementsTests : IDisposable
     }
 
     [Fact]
+    public void Claim_TakesAReadyRequestOnce_WhoeverAsksNext()
+    {
+        var store = Create();
+        store.Update(_alice, Scope, [1, 2], [], []);
+
+        // The push job takes it; the pop-up's check right after (or another pass) gets nothing.
+        Assert.Equal([1], store.Claim(_alice, Scope, [2], [1], []));
+        Assert.Empty(store.Update(_alice, Scope, [2], [1], []));
+        Assert.Empty(store.Claim(_alice, Scope, [2], [1], []));
+        Assert.Empty(Create().Update(_alice, Scope, [], [1], [])); // also after a restart
+    }
+
+    [Fact]
+    public void Claim_GivenBack_IsDueAgain()
+    {
+        var store = Create();
+        store.Update(_alice, Scope, [1], [], []);
+        Assert.Equal([1], store.Claim(_alice, Scope, [], [1], []));
+
+        // No device could be reached: the request goes back as if still in flight.
+        store.Update(_alice, Scope, [1], [], []);
+
+        Assert.Equal([1], store.Update(_alice, Scope, [], [1], []));
+    }
+
+    [Fact]
+    public void Claim_NeverTakesWhatWasNeverSeenInFlight_OrAnotherUsers()
+    {
+        var store = Create();
+        store.Update(_bob, Scope, [1], [], []);
+
+        Assert.Empty(store.Claim(_alice, Scope, [], [1, 2], []));
+        Assert.Equal([1], store.Update(_bob, Scope, [], [1], []));
+    }
+
+    [Fact]
+    public void Claim_ARequestSeerrNamed_IsAnnouncedOnce_HoweverOftenItsNamed()
+    {
+        var store = Create();
+
+        // Never seen in flight, but Seerr's webhook said it became available.
+        Assert.Equal([7], store.Claim(_alice, Scope, [], [7], [], [7]));
+
+        // Named again (and after a restart): the user was told.
+        Assert.Empty(store.Claim(_alice, Scope, [], [7], [], [7]));
+        Assert.Empty(Create().Claim(_alice, Scope, [], [7], [], [7]));
+        Assert.Empty(store.Update(_alice, Scope, [], [7], []));
+    }
+
+    [Fact]
+    public void Claim_ARequestSeerrNamed_AfterItsPopUpShowed_IsntAnnouncedAgain()
+    {
+        var store = Create();
+        store.Update(_alice, Scope, [7], [], []);
+        store.MarkAnnounced(_alice, Scope, [7]);
+
+        Assert.Empty(store.Claim(_alice, Scope, [], [7], [], [7]));
+    }
+
+    [Fact]
+    public void Claim_ANamedRequestGivenBack_IsDueAgain()
+    {
+        var store = Create();
+        Assert.Equal([7], store.Claim(_alice, Scope, [], [7], [], [7]));
+
+        store.Update(_alice, Scope, [7], [], []);
+
+        Assert.Equal([7], store.Claim(_alice, Scope, [], [7], []));
+    }
+
+    [Fact]
+    public void IsWatching_SaysWhoHasARequestInFlight()
+    {
+        var store = Create();
+        Assert.False(store.IsWatching(_alice));
+
+        store.Update(_alice, Scope, [1], [], []);
+        Assert.True(store.IsWatching(_alice));
+        Assert.False(store.IsWatching(_bob));
+
+        store.Claim(_alice, Scope, [], [1], []);
+        Assert.False(store.IsWatching(_alice));
+    }
+
+    [Fact]
     public void ARequestNeverSeenInFlight_IsNeverAnnounced()
     {
         // Ready before Lumen first looked (or before this feature): no pop-up for old requests.

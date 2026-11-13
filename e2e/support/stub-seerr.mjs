@@ -41,6 +41,11 @@
 //   GET  /trakt/users/lumen-tester/lists/lumen-picks[/items/movie,show] → "Lumen Picks": Lumen Saga (show), Lumen Beta,
 //        Stub Request 793; /trakt/lists/4242 is the same list by id. users/lumen-tester/lists/secret is private (401),
 //        any other list 404.
+//   A push service (LUMEN_PUSH_TEST_ENDPOINT points Lumen's allowed push addresses here, under /push/):
+//   POST /push/:id                              → 201, recorded for /__stub/push as { id, authorization, ttl, urgency,
+//        encoding, body } (body: the encrypted message, base64). An id starting with "gone" answers 410 (the browser
+//        unsubscribed), one starting with "refused" 403, one starting with "down" 503; those are recorded too.
+//   GET  /__stub/push                                               → the push messages received (test control)
 //   POST /__stub/users  { [jellyfinUserId]: { id, permissions } }   → replaces the user map (test control)
 //   POST /__stub/jellyfin  { name, serverId }                       → sets the linked Jellyfin server (test control)
 //   POST /__stub/library  { tmdbId, jellyfinMediaId }                → makes that title available (mediaInfo status 5,
@@ -53,7 +58,8 @@
 //          null clears it (test control)
 //   Movies 701–799 have details too ("Stub Request 7xx", or the names in REQUEST_TITLES), for requests in each state.
 //   GET  /__stub/requests                                           → [{ user, body }] of requests filed (test control)
-//   POST /__stub/reset                                              → clears the recorded requests and /__stub/library (test control)
+//   POST /__stub/reset                                              → clears the recorded requests, /__stub/library and
+//                                                                       the push messages (test control)
 //   GET  /__stub/health
 import { createServer } from 'node:http';
 
@@ -74,6 +80,8 @@ let nextRequestId = (Math.floor(Date.now() / 1000) % 1_000_000) * 100 + 1;
 let library = {};
 // tmdbId → the progress scenario of its requests (POST /__stub/progress).
 let progress = {};
+// What Lumen sent to the stand-in push service (POST /push/:id).
+let pushes = [];
 
 // Seerr permission bits (server/lib/permissions.ts).
 const ADMIN = 2;
@@ -277,7 +285,29 @@ createServer((req, res) => {
     requests = [];
     library = {};
     progress = {};
+    pushes = [];
     return json(res, 200, { ok: true });
+  }
+  if (path === '/__stub/push' && req.method === 'GET') return json(res, 200, pushes);
+  const pushed = path.match(/^\/push\/([\w-]+)$/);
+  if (pushed && req.method === 'POST') {
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => {
+      pushes.push({
+        id: pushed[1],
+        authorization: req.headers.authorization ?? null,
+        ttl: req.headers.ttl ?? null,
+        urgency: req.headers.urgency ?? null,
+        encoding: req.headers['content-encoding'] ?? null,
+        body: Buffer.concat(chunks).toString('base64'),
+      });
+      // As a push service answers: 201 Created, or why not.
+      const status = pushed[1].startsWith('gone') ? 410 : pushed[1].startsWith('refused') ? 403 : pushed[1].startsWith('down') ? 503 : 201;
+      res.writeHead(status);
+      res.end();
+    });
+    return;
   }
   const controls = ['/__stub/users', '/__stub/jellyfin', '/__stub/library', '/__stub/progress'];
   if (controls.includes(path) && req.method === 'POST') {

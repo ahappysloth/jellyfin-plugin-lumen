@@ -293,6 +293,7 @@ export function AdminApp({
           config={config}
           savedUrl={admin.savedUrl}
           update={update}
+          confirm={confirm}
         />
         <Top10Settings key={`top10-${revision}`} api={api} config={config} update={update} />
         <DiagnosticsSettings diagnostics={admin.diagnostics} />

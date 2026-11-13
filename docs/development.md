@@ -63,7 +63,15 @@ Day to day:
 
 ## Seerr in tests
 
-The request features talk to Seerr. End-to-end tests never use a real one: Playwright starts `e2e/support/stub-seerr.mjs` on port 5055, which fakes the few Seerr endpoints Lumen calls and TMDB's image CDN. The Jellyfin server reaches it at `LUMEN_E2E_SEERR_URL` (`host.docker.internal:5055` when Jellyfin runs in Docker), and `LUMEN_TMDB_IMAGE_BASE` points Lumen's image proxy at it. The stub also stands in for Trakt's charts and lists behind the Top 10 rows, Top charts and the other Trakt rows (`/trakt/…`), where `LUMEN_TRAKT_API_BASE` points Lumen's Trakt client. `docker-dev.sh e2e` and `e2e-local.sh` set all three, and `docker-dev.sh` restarts the server without the image and Trakt overrides afterwards. Port 5055 must be free while the tests run, or set `LUMEN_STUB_SEERR_PORT` to run the stub on another port (and point `LUMEN_E2E_SEERR_URL`, `LUMEN_TMDB_IMAGE_BASE` and `LUMEN_TRAKT_API_BASE` at it).
+The request features talk to Seerr. End-to-end tests never use a real one: Playwright starts `e2e/support/stub-seerr.mjs` on port 5055, which fakes the few Seerr endpoints Lumen calls and TMDB's image CDN. The Jellyfin server reaches it at `LUMEN_E2E_SEERR_URL` (`host.docker.internal:5055` when Jellyfin runs in Docker), and `LUMEN_TMDB_IMAGE_BASE` points Lumen's image proxy at it. The stub also stands in for Trakt's charts and lists behind the Top 10 rows, Top charts and the other Trakt rows (`/trakt/…`), where `LUMEN_TRAKT_API_BASE` points Lumen's Trakt client. `docker-dev.sh e2e` and `e2e-local.sh` set all three, and `docker-dev.sh` restarts the server without the image and Trakt overrides afterwards. Port 5055 must be free while the tests run, or set `LUMEN_STUB_SEERR_PORT` to run the stub on another port (and point `LUMEN_E2E_SEERR_URL`, `LUMEN_TMDB_IMAGE_BASE`, `LUMEN_TRAKT_API_BASE` and `LUMEN_PUSH_TEST_ENDPOINT` at it).
+
+## Push notifications in tests
+
+Lumen only stores a push subscription whose address is at a real push service (Google's, Apple's, Mozilla's or Microsoft's), because the server posts to whatever address a subscription names. The stub Seerr also stands in for one (`POST /push/<id>`, read back with `GET /__stub/push`), and the test server accepts its addresses because it runs with `LUMEN_PUSH_TEST_ENDPOINT=<stub>/push/`, which the scripts and CI set. Never set it on a real server.
+
+- `e2e/support/push.ts` plays the browser: it makes a subscription's keys, and decrypts what arrives (RFC 8291) to check the notification inside and its VAPID signature.
+- `push.spec.ts` covers the server's side with those. `push-device.spec.ts` covers the toggle and Lumen's service worker in a browser: it runs in Chromium itself rather than the headless shell (which always refuses notifications), stands in for `pushManager.subscribe` only (no push service is behind a test browser), and dispatches `push` and `notificationclick` in the real worker.
+- What only a real device shows is in `docs/manual-test-checklist.md`.
 
 ## jellyfin-web internals
 

@@ -95,6 +95,19 @@ function fakeApi(overrides: Partial<AdminApi> = {}): AdminApi {
     getPlaylists: vi.fn(async () => []),
     testSeerr: vi.fn(async () => ({ Ok: true, Version: '3.5.1', Error: null })),
     getSeerrUsers: vi.fn(async () => ({ JellyfinServerName: null, SameJellyfinServer: null, Unmapped: [] })),
+    getPushStatus: vi.fn(async () => ({
+      Devices: 0,
+      Users: 0,
+      Running: true,
+      WebhookPath: 'Lumen/Push/Seerr',
+    })),
+    resetPushKeys: vi.fn(async () => ({
+      Devices: 0,
+      Users: 0,
+      Running: true,
+      WebhookPath: 'Lumen/Push/Seerr',
+    })),
+    serverUrl: vi.fn((path: string) => `https://jf.example/${path}`),
     testTrakt: vi.fn(async () => ({ Ok: true, TopMovie: 'Inception', Error: null })),
     checkForUpdates: vi.fn(async () => update()),
     installUpdate: vi.fn(async () => update({ UpdateAvailable: false, RestartPending: true })),
@@ -315,6 +328,121 @@ describe('AdminApp', () => {
     expect(await screen.findByText('Seerr is linked to a different Jellyfin server')).toBeInTheDocument();
     expect(screen.getByText(/Seerr uses “Main”/)).toBeInTheDocument();
     expect(screen.queryByText('Users without a Seerr account')).toBeNull();
+  });
+
+  describe('notifications', () => {
+    const withSeerr = (overrides: Partial<AdminApi> = {}) =>
+      fakeApi({
+        getConfig: vi.fn(async () => ({
+          ...config(),
+          RequestsEnabled: true,
+          SeerrUrl: 'http://seerr:5055',
+          SeerrApiKeySet: true,
+        })),
+        ...overrides,
+      });
+
+    it('stay out of the Requests card until Seerr is set up', async () => {
+      const api = fakeApi();
+      render(<AdminApp api={api} />);
+
+      await screen.findByText('Requests');
+      expect(api.getPushStatus).not.toHaveBeenCalled();
+      expect(screen.queryByRole('button', { name: 'Reset notification keys' })).toBeNull();
+    });
+
+    it('show how many devices have them on and how the last one went', async () => {
+      const api = withSeerr({
+        getPushStatus: vi.fn(async () => ({
+          Devices: 3,
+          Users: 2,
+          Running: true,
+          LastSend: { At: '2026-11-12T18:00:00Z', Kind: 'ready', Sent: 2, Gone: 1, Rejected: 0, Failed: 0 },
+          WebhookPath: 'Lumen/Push/Seerr',
+          WebhookSecret: 'hook-secret',
+        })),
+      });
+      render(<AdminApp api={api} />);
+
+      expect(await screen.findByText('3 devices of 2 users have notifications on.')).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /A “ready to watch” notification was sent to 2 devices \(.+\); 1 device couldn't be reached\./,
+        ),
+      ).toBeInTheDocument();
+      // What Seerr's webhook needs: this server's address for it, and the secret.
+      expect(screen.getByText('https://jf.example/Lumen/Push/Seerr')).toBeInTheDocument();
+      expect(screen.getByText('hook-secret')).toBeInTheDocument();
+    });
+
+    it('say so when nothing was sent yet, or the last one failed, or the job is down', async () => {
+      const api = withSeerr();
+      const { unmount } = render(<AdminApp api={api} />);
+      expect(await screen.findByText('No device has notifications on yet.')).toBeInTheDocument();
+      expect(screen.getByText('Nothing has been sent since Jellyfin started.')).toBeInTheDocument();
+      unmount();
+
+      render(
+        <AdminApp
+          api={withSeerr({
+            getPushStatus: vi.fn(async () => ({
+              Devices: 1,
+              Users: 1,
+              Running: false,
+              LastSend: {
+                At: '2026-11-12T18:00:00Z',
+                Kind: 'test',
+                Sent: 0,
+                Gone: 0,
+                Rejected: 1,
+                Failed: 0,
+                Status: 403,
+              },
+              WebhookPath: 'Lumen/Push/Seerr',
+            })),
+          })}
+        />,
+      );
+      expect(await screen.findByText('1 device of 1 user has notifications on.')).toBeInTheDocument();
+      expect(
+        screen.getByText(/A test wasn't delivered \(.+\): the push service refused it \(403\)\./),
+      ).toBeInTheDocument();
+      expect(screen.getByText('The notification job isn’t running. Restart Jellyfin.')).toBeInTheDocument();
+    });
+
+    it('reset the keys only after a confirmation, and show the new state', async () => {
+      const confirm = vi.fn(() => false);
+      const api = withSeerr({
+        getPushStatus: vi.fn(async () => ({
+          Devices: 2,
+          Users: 1,
+          Running: true,
+          WebhookPath: 'Lumen/Push/Seerr',
+          WebhookSecret: 'old-secret',
+        })),
+        resetPushKeys: vi.fn(async () => ({
+          Devices: 0,
+          Users: 0,
+          Running: true,
+          WebhookPath: 'Lumen/Push/Seerr',
+          WebhookSecret: 'new-secret',
+        })),
+      });
+      render(<AdminApp api={api} confirm={confirm} />);
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Reset notification keys' }));
+      expect(confirm).toHaveBeenCalledWith(
+        expect.stringContaining('Every device stops getting notifications'),
+      );
+      expect(api.resetPushKeys).not.toHaveBeenCalled();
+
+      confirm.mockReturnValue(true);
+      fireEvent.click(screen.getByRole('button', { name: 'Reset notification keys' }));
+
+      expect(await screen.findByText('No device has notifications on yet.')).toBeInTheDocument();
+      expect(screen.getByText('new-secret')).toBeInTheDocument();
+      expect(screen.queryByText('old-secret')).toBeNull();
+    });
   });
 
   it('lists users without a Seerr account once requests are set up', async () => {

@@ -182,6 +182,94 @@ public class LumenConfigStoreTests
         Assert.DoesNotContain("ClearTraktClientId", writer.ToString(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void PushSecrets_AreMadeOnce_AndSaved()
+    {
+        var store = CreateStore();
+        var before = store.Current.ConfigVersion;
+
+        var first = store.GetPushSecrets();
+        var second = store.GetPushSecrets();
+
+        Assert.Equal(first, second);
+        Assert.True(Jellyfin.Plugin.Lumen.Push.VapidKeys.IsValid(first.Keys.PublicKey, first.Keys.PrivateKey));
+        Assert.True(first.WebhookSecret.Length >= 32);
+        Assert.Equal(first.Keys.PrivateKey, _persistence.Stored.VapidPrivateKey);
+        Assert.Equal(before + 1, store.Current.ConfigVersion);
+        Assert.Equal(first, CreateStore().GetPushSecrets()); // and after a restart
+    }
+
+    [Fact]
+    public void PushSecrets_SurviveSaves_AndAResetToDefaults()
+    {
+        var store = CreateStore();
+        Assert.True(store.Save(new PluginConfiguration()).Success);
+        var secrets = store.GetPushSecrets();
+
+        // The admin page's copy never has them, and a script may post anything.
+        Assert.True(store.Save(_persistence.Stored.WithoutSecrets()).Success);
+        Assert.True(store.Save(new PluginConfiguration { VapidPublicKey = "x", VapidPrivateKey = "y", PushWebhookSecret = "z" }).Success);
+        store.ResetToDefaults();
+
+        Assert.Equal(secrets, store.GetPushSecrets());
+    }
+
+    [Fact]
+    public void ResetPushSecrets_ReplacesThem()
+    {
+        var store = CreateStore();
+        var before = store.GetPushSecrets();
+
+        var after = store.ResetPushSecrets();
+
+        Assert.NotEqual(before.Keys, after.Keys);
+        Assert.NotEqual(before.WebhookSecret, after.WebhookSecret);
+        Assert.Equal(after, store.GetPushSecrets());
+    }
+
+    [Fact]
+    public void PushSecrets_MadeUnusableByHand_AreReplaced()
+    {
+        var store = CreateStore();
+        store.GetPushSecrets();
+        _persistence.Stored.VapidPublicKey = "not a key";
+
+        var secrets = store.GetPushSecrets();
+
+        Assert.True(Jellyfin.Plugin.Lumen.Push.VapidKeys.IsValid(secrets.Keys.PublicKey, secrets.Keys.PrivateKey));
+    }
+
+    [Fact]
+    public void PushSecrets_AreNeverInJson_ButPersisted()
+    {
+        var store = CreateStore();
+        var secrets = store.GetPushSecrets();
+        var config = _persistence.Stored;
+
+        // Jellyfin's own GET /Plugins/{id}/Configuration serializes the stored object itself; the admin page gets a copy.
+        foreach (var sent in new[] { config, config.WithoutSecrets() })
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(sent);
+            Assert.DoesNotContain(secrets.Keys.PrivateKey, json, StringComparison.Ordinal);
+            Assert.DoesNotContain(secrets.Keys.PublicKey, json, StringComparison.Ordinal);
+            Assert.DoesNotContain(secrets.WebhookSecret, json, StringComparison.Ordinal);
+            Assert.DoesNotContain("Vapid", json, StringComparison.Ordinal);
+        }
+
+        Assert.Null(config.WithoutSecrets().VapidPrivateKey);
+        Assert.DoesNotContain(secrets.Keys.PrivateKey, secrets.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(secrets.WebhookSecret, secrets.ToString(), StringComparison.Ordinal);
+
+        var posted = System.Text.Json.JsonSerializer.Deserialize<PluginConfiguration>("{\"VapidPrivateKey\":\"typed\",\"PushWebhookSecret\":\"typed\"}")!;
+        Assert.Null(posted.VapidPrivateKey);
+        Assert.Null(posted.PushWebhookSecret);
+
+        var xml = new System.Xml.Serialization.XmlSerializer(typeof(PluginConfiguration));
+        using var writer = new StringWriter();
+        xml.Serialize(writer, config);
+        Assert.Contains("<VapidPrivateKey>" + secrets.Keys.PrivateKey + "</VapidPrivateKey>", writer.ToString(), StringComparison.Ordinal);
+    }
+
     private LumenConfigStore CreateStore() => new(
         new LumenConfigReader(_persistence, _libraries, NullLogger<LumenConfigReader>.Instance),
         new ConfigValidator(new[] { SectionTypes.ContinueWatching, SectionTypes.NextUp, SectionTypes.RecentlyAdded, SectionTypes.BecauseYouWatched, SectionTypes.NewForYou, SectionTypes.Genre }

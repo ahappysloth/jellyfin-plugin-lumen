@@ -16,7 +16,25 @@ public interface IRequestProgressService
 
     /// <summary>Forgets the user's cached answer, so a request they just filed shows on the next check.</summary>
     void Invalidate(SeerrEndpoint endpoint, int seerrUserId);
+
+    /// <summary>
+    /// The user's titles that became ready and nobody has been told about, taken: the caller announces them (a push
+    /// notification), and no pop-up shows for them. From the same cached Seerr answer as <see cref="GetAsync"/>.
+    /// <paramref name="alsoWatch"/> are requests to announce even if Lumen never saw them in flight (Seerr's webhook
+    /// named them); only the user's own count. Give back what couldn't be announced with <see cref="GiveBack"/>.
+    /// Throws <see cref="SeerrException"/> when Seerr can't say.
+    /// </summary>
+    Task<IReadOnlyList<ReadyTitle>> ClaimReadyAsync(Guid jellyfinUserId, User? user, SeerrEndpoint endpoint, int seerrUserId, IReadOnlyCollection<int>? alsoWatch, CancellationToken cancellationToken);
+
+    /// <summary>These requests, taken by <see cref="ClaimReadyAsync"/>, weren't announced after all: they're due again.</summary>
+    void GiveBack(Guid jellyfinUserId, SeerrEndpoint endpoint, IEnumerable<int> requestIds);
 }
+
+/// <summary>
+/// A title that's ready to watch, with the user's requests for it that are being announced. <c>Item</c> is null when
+/// Seerr couldn't describe the title in time.
+/// </summary>
+public sealed record ReadyTitle(string Key, IReadOnlyList<int> RequestIds, CatalogItemDto? Item);
 
 /// <summary>
 /// Builds the user's request list from one Seerr call, <c>GET /user/{id}/requests</c>, whose media carry Radarr's and
@@ -55,6 +73,8 @@ public sealed class RequestProgressService : IRequestProgressService
     /// <summary>More users than this cached and the cache starts over.</summary>
     private const int MaxCached = 5_000;
 
+    private static readonly IReadOnlySet<int> EmptySet = new HashSet<int>();
+
     /// <summary>How long title lookups may take before the list is returned with the titles found so far.</summary>
     private static readonly TimeSpan DetailsBudget = TimeSpan.FromSeconds(4);
 
@@ -65,14 +85,16 @@ public sealed class RequestProgressService : IRequestProgressService
     private readonly ILumenConfigReader _config;
     private readonly CatalogMapper _mapper;
     private readonly IReadyAnnouncements _announcements;
+    private readonly IReadyPushSignal _push;
     private readonly TimeProvider _time;
 
-    public RequestProgressService(ISeerrClient seerr, ILumenConfigReader config, CatalogMapper mapper, IReadyAnnouncements announcements, TimeProvider time)
+    public RequestProgressService(ISeerrClient seerr, ILumenConfigReader config, CatalogMapper mapper, IReadyAnnouncements announcements, IReadyPushSignal push, TimeProvider time)
     {
         _seerr = seerr;
         _config = config;
         _mapper = mapper;
         _announcements = announcements;
+        _push = push;
         _time = time;
     }
 
@@ -88,6 +110,14 @@ public sealed class RequestProgressService : IRequestProgressService
             tracked.Where(t => RequestProgressState.IsInFlight(t.Progress.State)).Select(t => t.Request.Id),
             tracked.Where(t => t.Progress.State == RequestProgressState.Ready).Select(t => t.Request.Id),
             tracked.Where(t => t.Progress.State is RequestProgressState.Declined or RequestProgressState.Failed).Select(t => t.Request.Id));
+
+        // A user with notifications on is told by a push, on every device they turned them on in, and by no pop-up:
+        // the push job takes the requests itself (ClaimReadyAsync), so the two can never both announce one.
+        if (announce.Count > 0 && _push.Covers(jellyfinUserId))
+        {
+            _push.Wake(jellyfinUserId);
+            announce = EmptySet;
+        }
 
         // Not disposed: lookups still running after the budget keep using it (it holds no OS handle).
         var gate = new SemaphoreSlim(MaxConcurrentDetails);
@@ -124,6 +154,48 @@ public sealed class RequestProgressService : IRequestProgressService
     }
 
     public void Invalidate(SeerrEndpoint endpoint, int seerrUserId) => _cache.TryRemove(CacheKey(endpoint, seerrUserId), out _);
+
+    public async Task<IReadOnlyList<ReadyTitle>> ClaimReadyAsync(Guid jellyfinUserId, User? user, SeerrEndpoint endpoint, int seerrUserId, IReadOnlyCollection<int>? alsoWatch, CancellationToken cancellationToken)
+    {
+        var titles = await GetTrackedAsync(endpoint, seerrUserId, cancellationToken).ConfigureAwait(false);
+        var tracked = titles.SelectMany(t => t.All).ToList();
+
+        // As for the pop-up: a title is announced once all of it that's in flight is ready (a show with another season
+        // still downloading waits for that one), so it's one notification per title.
+        var ready = titles
+            .Where(t => t.Shown.State == RequestProgressState.Ready)
+            .SelectMany(t => t.All)
+            .Where(t => t.Progress.State == RequestProgressState.Ready)
+            .Select(t => t.Request.Id)
+            .ToList();
+        var claimed = _announcements.Claim(
+            jellyfinUserId,
+            endpoint.BaseUrl.ToString(),
+            tracked.Where(t => RequestProgressState.IsInFlight(t.Progress.State)).Select(t => t.Request.Id),
+            ready,
+            tracked.Where(t => t.Progress.State is RequestProgressState.Declined or RequestProgressState.Failed).Select(t => t.Request.Id),
+            ready.Where(id => alsoWatch?.Contains(id) == true));
+        if (claimed.Count == 0)
+        {
+            return [];
+        }
+
+        var due = titles.Where(t => t.All.Any(r => claimed.Contains(r.Request.Id))).ToList();
+        var gate = new SemaphoreSlim(MaxConcurrentDetails);
+        var lookups = due.Select(t => ResolveAsync(endpoint, seerrUserId, t.Primary, user, gate, cancellationToken)).ToList();
+        var all = Task.WhenAll(lookups);
+        await Task.WhenAny(all, Task.Delay(DetailsBudget, _time, cancellationToken)).ConfigureAwait(false);
+        _ = all.ContinueWith(t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+        return due
+            .Select((t, i) => new ReadyTitle(
+                t.Primary.Key,
+                t.All.Select(r => r.Request.Id).Where(claimed.Contains).ToList(),
+                lookups[i].IsCompletedSuccessfully ? lookups[i].Result : null))
+            .ToList();
+    }
+
+    public void GiveBack(Guid jellyfinUserId, SeerrEndpoint endpoint, IEnumerable<int> requestIds) =>
+        _announcements.Update(jellyfinUserId, endpoint.BaseUrl.ToString(), requestIds, [], []);
 
     /// <summary>
     /// The user's requested titles with their progress: cached for <see cref="Ttl"/> (a failure for

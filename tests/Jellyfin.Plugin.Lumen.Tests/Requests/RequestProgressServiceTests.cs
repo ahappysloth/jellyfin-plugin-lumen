@@ -14,6 +14,7 @@ public class RequestProgressServiceTests
     private static readonly SeerrEndpoint Endpoint = new(new Uri("http://seerr:5055/"), "k");
     private readonly ISeerrClient _seerr = Substitute.For<ISeerrClient>();
     private readonly IReadyAnnouncements _announcements = Substitute.For<IReadyAnnouncements>();
+    private readonly IReadyPushSignal _push = Substitute.For<IReadyPushSignal>();
     private readonly FakeTimeProvider _time = new(TestData.Now);
     private readonly ILumenConfigReader _config = Substitute.For<ILumenConfigReader>();
     private readonly PluginConfiguration _configuration = new() { ConfigVersion = 3 };
@@ -23,7 +24,7 @@ public class RequestProgressServiceTests
     public RequestProgressServiceTests()
     {
         _config.Current.Returns(_configuration);
-        _service = new RequestProgressService(_seerr, _config, new CatalogMapper(Substitute.For<ILibraryManager>()), _announcements, _time);
+        _service = new RequestProgressService(_seerr, _config, new CatalogMapper(Substitute.For<ILibraryManager>()), _announcements, _push, _time);
         _seerr.GetTitleSummaryAsync(default!, default, default!, default, default).ReturnsForAnyArgs(
             call => new SeerrTitle { Id = call.ArgAt<int>(3), Title = "Title " + call.ArgAt<int>(3), Name = "Show " + call.ArgAt<int>(3) });
         _announcements.Update(default, default!, default!, default!, default!).ReturnsForAnyArgs(new HashSet<int>());
@@ -241,6 +242,84 @@ public class RequestProgressServiceTests
             Arg.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new List<int> { 6 })),
             Arg.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new List<int> { 4 })),
             Arg.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new List<int> { 2 })));
+    }
+
+    [Fact]
+    public async Task WithNotificationsOn_AReadyTitleIsLeftToThePush_NotThePopUp()
+    {
+        Requests(7, Request(SeerrRequestStatus.Completed, mediaStatus: 5, id: 4));
+        _announcements.Update(_alice, "http://seerr:5055/", Arg.Any<IEnumerable<int>>(), Arg.Any<IEnumerable<int>>(), Arg.Any<IEnumerable<int>>()).Returns(new HashSet<int> { 4 });
+        _push.Covers(_alice).Returns(true);
+
+        var mine = await Get(7);
+
+        // The push job is told to send it now, and takes it itself: the request list never marks it for a pop-up.
+        Assert.False(mine.Requests.Single().Announce);
+        _push.Received(1).Wake(_alice);
+        _announcements.DidNotReceiveWithAnyArgs().MarkAnnounced(default, default!, default!);
+    }
+
+    [Fact]
+    public async Task WithNotificationsOn_NothingReady_WakesNobody()
+    {
+        Requests(7, Request(SeerrRequestStatus.Pending, id: 6));
+        _push.Covers(_alice).Returns(true);
+
+        await Get(7);
+
+        _push.DidNotReceiveWithAnyArgs().Wake(default);
+    }
+
+    [Fact]
+    public async Task ClaimReady_TakesWhatIsReady_NamedByItsTitle()
+    {
+        Requests(7, Request(SeerrRequestStatus.Completed, mediaStatus: 5, id: 4, tmdbId: 603), Request(SeerrRequestStatus.Pending, id: 6, tmdbId: 700), Request(SeerrRequestStatus.Declined, id: 2, tmdbId: 701));
+        _announcements.Claim(_alice, "http://seerr:5055/", Arg.Any<IEnumerable<int>>(), Arg.Any<IEnumerable<int>>(), Arg.Any<IEnumerable<int>>(), Arg.Any<IEnumerable<int>>()).Returns(new HashSet<int> { 4 });
+
+        var ready = await _service.ClaimReadyAsync(_alice, TestData.User(), Endpoint, 7, null, CancellationToken.None);
+
+        var title = Assert.Single(ready);
+        Assert.Equal(("movie-603", "Title 603"), (title.Key, title.Item!.Title));
+        Assert.Equal([4], title.RequestIds);
+        _announcements.Received().Claim(
+            _alice,
+            "http://seerr:5055/",
+            Arg.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new List<int> { 6 })),
+            Arg.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new List<int> { 4 })),
+            Arg.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new List<int> { 2 })),
+            Arg.Is<IEnumerable<int>>(ids => !ids.Any()));
+    }
+
+    [Fact]
+    public async Task ClaimReady_WatchesARequestSeerrsWebhookNamed_OnlyIfItIsThisUsersAndReady()
+    {
+        Requests(7, Request(SeerrRequestStatus.Completed, mediaStatus: 5, id: 4), Request(SeerrRequestStatus.Completed, mediaStatus: 5, id: 5, tmdbId: 604));
+        _announcements.Claim(default, default!, default!, default!, default!).ReturnsForAnyArgs(new HashSet<int>());
+
+        await _service.ClaimReadyAsync(_alice, TestData.User(), Endpoint, 7, [4, 99], CancellationToken.None);
+
+        // 4 is this user's and ready; 99 is somebody else's; 5 wasn't named, so it stays unwatched.
+        _announcements.Received().Claim(
+            _alice,
+            "http://seerr:5055/",
+            Arg.Is<IEnumerable<int>>(ids => !ids.Any()),
+            Arg.Any<IEnumerable<int>>(),
+            Arg.Any<IEnumerable<int>>(),
+            Arg.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new List<int> { 4 })));
+    }
+
+    [Fact]
+    public async Task ClaimReady_ATitleSeerrCantDescribe_ComesWithoutAName_ToGiveBack()
+    {
+        Requests(7, Request(SeerrRequestStatus.Completed, mediaStatus: 5, id: 4, tmdbId: 602));
+        _announcements.Claim(default, default!, default!, default!, default!).ReturnsForAnyArgs(new HashSet<int> { 4 });
+        _seerr.GetTitleSummaryAsync(Endpoint, 7, "movie", 602, Arg.Any<CancellationToken>()).ThrowsAsync(new SeerrException("404"));
+
+        var title = Assert.Single(await _service.ClaimReadyAsync(_alice, TestData.User(), Endpoint, 7, null, CancellationToken.None));
+
+        Assert.Null(title.Item);
+        _service.GiveBack(_alice, Endpoint, title.RequestIds);
+        _announcements.Received(1).Update(_alice, "http://seerr:5055/", Arg.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new List<int> { 4 })), Arg.Any<IEnumerable<int>>(), Arg.Any<IEnumerable<int>>());
     }
 
     [Fact]

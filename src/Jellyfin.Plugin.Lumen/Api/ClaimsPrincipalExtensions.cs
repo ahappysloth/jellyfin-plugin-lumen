@@ -9,7 +9,18 @@ public static class ClaimsPrincipalExtensions
     /// <summary>Jellyfin's <c>InternalClaimTypes.UserId</c>, which plugins can't reference; see <see cref="GetJellyfinUserId(ClaimsPrincipal, ILogger)"/>.</summary>
     internal const string UserIdClaim = "Jellyfin-UserId";
 
+    /// <summary>Jellyfin's <c>InternalClaimTypes.DeviceId</c> and <c>Device</c>: the signed-in device's id and its name.</summary>
+    internal const string DeviceIdClaim = "Jellyfin-DeviceId";
+
+    internal const string DeviceNameClaim = "Jellyfin-Device";
+
     private static int _warnedMissingClaim;
+
+    /// <summary>The id of the device this request is signed in from (each browser or app has its own), or null.</summary>
+    public static string? GetJellyfinDeviceId(this ClaimsPrincipal principal) => Claim(principal, DeviceIdClaim);
+
+    /// <summary>The signed-in device's name ("Safari iOS"), or null.</summary>
+    public static string? GetJellyfinDeviceName(this ClaimsPrincipal principal) => Claim(principal, DeviceNameClaim);
 
     public static Guid? GetJellyfinUserId(this ClaimsPrincipal principal)
     {
@@ -35,5 +46,11 @@ public static class ClaimsPrincipalExtensions
         }
 
         return id;
+    }
+
+    private static string? Claim(ClaimsPrincipal principal, string type)
+    {
+        var value = principal.Claims.FirstOrDefault(c => string.Equals(c.Type, type, StringComparison.OrdinalIgnoreCase))?.Value;
+        return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 }

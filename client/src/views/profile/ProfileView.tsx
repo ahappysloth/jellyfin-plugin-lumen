@@ -19,6 +19,7 @@ import { initials } from '../details/CastRow';
 import { useSyncPlayState } from '../syncplay/syncPlayState';
 import { useMyRequests } from '../catalog/requestProgress';
 import { routeEnabled } from '../../takeover/takeover';
+import { LazyPushToggle } from '../push/lazyPush';
 import { openWatchTogether } from '../secondary/lazySecondary';
 import { PROFILE_ICONS } from './profileIcons';
 import { profileStrings } from './profileStrings';
@@ -131,6 +132,8 @@ export function ProfileView({ ctx }: { ctx: ViewContext }) {
             />
           )}
         </Group>
+        {/* With request features only, and only where this device can get notifications (it draws nothing elsewhere). */}
+        {myRequests && <LazyPushToggle ctx={ctx} titled />}
         <Group title={strings.account}>
           {setting('profile', 'user')}
           {access.quickConnect && setting('quickConnect', 'key')}

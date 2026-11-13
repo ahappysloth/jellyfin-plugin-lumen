@@ -128,6 +128,33 @@ Automated tests use a stub Seerr; only a real one shows Radarr's and Sonarr's qu
 - [ ] Seerr without Radarr/Sonarr connected: the statuses show without a bar or time left.
 - [ ] TV layout: from the account menu, Down reaches My requests; on it the arrows reach every request.
 
+## Push notifications (a real iPhone, the server on https, a real Seerr)
+
+The automated tests can't reach a real push service or iOS, so this is the only check of both.
+
+- [ ] In Safari on the iPhone (not the Home Screen app), My requests says notifications need the Home Screen app,
+      with no switch.
+- [ ] In the Home Screen app, My requests shows "Notify me when requests are ready", off. Tapping it brings up iOS's
+      permission prompt at once; after Allow, the switch is on and says "On for this device". Lumen's settings
+      (Requests → Notifications) count the device.
+- [ ] "Send a test notification" says Sent, and "Notifications are on" arrives within a few seconds, with the app
+      open and (send it, then close the app within a second) with it closed.
+- [ ] Request something Seerr auto-approves and close the app. When it's ready (within 2 minutes of Seerr saying so;
+      at once with Seerr's webhook set up), "<title> is ready to watch" arrives on the lock screen.
+- [ ] Tapping it opens the app on that title's page: with the app closed, and with it in the background on
+      another page.
+- [ ] Opening Lumen afterwards shows no "ready to watch" pop-up for it; a second device without notifications
+      doesn't either.
+- [ ] On a desktop Chrome with notifications on for the same user, the same request's notification shows the
+      artwork, and a click brings the open Lumen tab forward on the title.
+- [ ] Turn the switch off: the device leaves the admin count, and the next ready request pops up in the app instead.
+- [ ] Deny the permission instead of allowing it: the switch says notifications are blocked.
+- [ ] Sign out on the phone: the next ready request sends nothing to it (and the admin count drops).
+- [ ] "Reset notification keys" in Lumen's settings asks first, then shows no devices; after opening the app on the
+      phone again, the device is back in the count without touching the switch, and a test arrives.
+- [ ] Seerr's webhook (Settings → Notifications → Webhook → Test) answers without an error with the secret from
+      Lumen's settings, and is refused (401) with a wrong one.
+
 ## Home-screen app (iPhone Safari, Android Chrome)
 
 Automated tests check the page's tags, the manifest and the icons, and the layout with a simulated status bar; only a

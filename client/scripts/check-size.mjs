@@ -20,7 +20,8 @@ const oneChunk = (name) => {
 const coreChunk = oneChunk('main');
 // Loaded when they're needed: views/player/lazyPlayer.tsx, views/home/lazyTrailer.tsx, takeover/restartWatch.ts,
 // views/catalog/lazyTitle.tsx, views/profile/lazyProfile.tsx, views/itemMenu/lazyItemMenu.ts,
-// views/secondary/lazySecondary.tsx, views/charts/lazyCharts.tsx, views/quickconnect/lazyQuickConnect.tsx.
+// views/secondary/lazySecondary.tsx, views/charts/lazyCharts.tsx, views/quickconnect/lazyQuickConnect.tsx,
+// views/push/lazyPush.tsx.
 const playerChunk = oneChunk('PlayerView');
 const trailerChunk = oneChunk('TrailerPreview');
 const restartChunk = oneChunk('RestartBanner');
@@ -30,6 +31,7 @@ const itemMenuChunk = oneChunk('itemMenu');
 const secondaryChunk = oneChunk('SecondaryViews');
 const chartsChunk = oneChunk('ChartsView');
 const quickConnectChunk = oneChunk('QuickConnect');
+const pushChunk = oneChunk('PushSettings');
 // Startup is lumen.js and the core it imports, which the server preloads with it. Another chunk would be a download
 // the core waits for (vite.config.ts keeps it to one).
 const others = chunks.filter(
@@ -45,6 +47,7 @@ const others = chunks.filter(
       secondaryChunk,
       chartsChunk,
       quickConnectChunk,
+      pushChunk,
     ].includes(f),
 );
 if (others.length) {
@@ -112,6 +115,17 @@ const quickConnect = gz(`dist/${quickConnectChunk}`) + gz('dist/lumen-quickconne
 console.log(
   `lumen quick connect + styles: ${kb(quickConnect)} gzipped (budget ${QUICK_CONNECT_BUDGET / 1024} KB)`,
 );
+// The notifications toggle with its stylesheet (views/push/lazyPush.tsx): fetched on My requests and the profile page,
+// and at idle on a device with notifications on; never on a server without Seerr. A file of its own, with its own
+// budget, since the push notifications PR.
+const PUSH_BUDGET = 4 * 1024;
+const push = gz(`dist/${pushChunk}`) + gz('dist/lumen-push.css');
+console.log(`lumen notifications + styles: ${kb(push)} gzipped (budget ${PUSH_BUDGET / 1024} KB)`);
+// Lumen's service worker (views/push/pushWorker.js, served as /Lumen/Push/sw.js): no page waits for it; the browser
+// fetches it when notifications are turned on, then to check for updates. Copied as written, comments and all.
+const WORKER_BUDGET = 2 * 1024;
+const worker = gz('dist/lumen-push-sw.js');
+console.log(`lumen service worker: ${kb(worker)} gzipped (budget ${WORKER_BUDGET / 1024} KB)`);
 // The guard and the web plugin's definer are inlined into every index.html, so they share a small budget.
 const GUARD_BUDGET = 4 * 1024;
 const guard = gz('dist/lumen-guard.js') + gz('dist/lumen-web-plugin.js');
@@ -154,6 +168,8 @@ if (
   secondary > SECONDARY_BUDGET ||
   charts > CHARTS_BUDGET ||
   quickConnect > QUICK_CONNECT_BUDGET ||
+  push > PUSH_BUDGET ||
+  worker > WORKER_BUDGET ||
   guard > GUARD_BUDGET ||
   stock > STOCK_BUDGET ||
   dashboard > DASHBOARD_BUDGET ||

@@ -33,6 +33,7 @@ public class ServiceRegistratorTests
         services.AddSingleton(Substitute.For<IHttpClientFactory>());
         services.AddSingleton(Substitute.For<IApplicationPaths>());
         services.AddSingleton(Substitute.For<MediaBrowser.Common.Updates.IInstallationManager>());
+        services.AddSingleton(Substitute.For<MediaBrowser.Controller.Devices.IDeviceManager>());
         services.AddSingleton(Substitute.For<MediaBrowser.Controller.Configuration.IServerConfigurationManager>());
         services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
 
@@ -51,6 +52,11 @@ public class ServiceRegistratorTests
         Assert.NotNull(provider.GetRequiredService<WebStaticFiles>());
         Assert.NotNull(provider.GetRequiredService<StorageReportService>());
         Assert.Contains(provider.GetServices<IStartupFilter>(), f => f is LumenStartupFilter);
+
+        // Push notifications: the job Jellyfin's host starts, and the request list's way to wake it (the same object).
+        Assert.Contains(provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>(), s => s is Jellyfin.Plugin.Lumen.Push.ReadyPushJob);
+        Assert.Same(provider.GetRequiredService<ReadyPushSignal>(), provider.GetRequiredService<IReadyPushSignal>());
+        Assert.NotNull(provider.GetRequiredService<Jellyfin.Plugin.Lumen.Push.IPushSender>());
         Assert.Equal(
             [
                 SectionTypes.BecauseYouWatched, SectionTypes.CatalogPopularMovies, SectionTypes.CatalogPopularShows, SectionTypes.CatalogTrending,

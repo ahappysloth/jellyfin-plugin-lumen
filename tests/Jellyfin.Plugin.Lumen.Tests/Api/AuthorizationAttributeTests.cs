@@ -70,6 +70,29 @@ public class AuthorizationAttributeTests
             m => Assert.Empty(m.GetCustomAttributes<AllowAnonymousAttribute>()));
     }
 
+    [Fact]
+    public void PushAdminController_RequiresElevation()
+    {
+        var attribute = Assert.Single(typeof(PushAdminController).GetCustomAttributes<AuthorizeAttribute>());
+
+        Assert.Equal(Policies.RequiresElevation, attribute.Policy);
+    }
+
+    [Fact]
+    public void PushController_RequiresAuthentication_ExceptTheWorkerAndSeerrsWebhook()
+    {
+        var attribute = Assert.Single(typeof(PushController).GetCustomAttributes<AuthorizeAttribute>());
+
+        Assert.Null(attribute.Policy);
+
+        // The worker is a static file browsers fetch without a token; the webhook checks its own secret
+        // (PushControllerTests.Webhook_*).
+        string[] anonymous = [nameof(PushController.GetWorker), nameof(PushController.SeerrWebhook)];
+        Assert.All(
+            typeof(PushController).GetMethods().Where(m => m.DeclaringType == typeof(PushController)),
+            m => Assert.Equal(anonymous.Contains(m.Name), m.GetCustomAttributes<AllowAnonymousAttribute>().Any()));
+    }
+
     [Theory]
     [InlineData(nameof(LumenController.GetClientConfig))]
     [InlineData(nameof(LumenController.PostDiagnostics))]

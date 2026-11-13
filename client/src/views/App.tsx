@@ -12,6 +12,7 @@ import { LibraryView } from './browse/LibraryView';
 import type { ViewContext } from './context';
 import { LazyMyRequests, LazyTitleView } from './catalog/lazyTitle';
 import { startRequestProgress } from './catalog/requestProgress';
+import { resumePush } from './push/lazyPush';
 import { DetailsView } from './details/DetailsView';
 import { HomeView } from './home/HomeView';
 import { LazyPlayer, loadPlayer } from './player/lazyPlayer';
@@ -125,6 +126,10 @@ export function App({ route, ctx }: { route: TakeoverRoute; ctx: ViewContext }) 
   useEffect(() => {
     if (ctx.config.Requests) startRequestProgress(ctx);
   }, [ctx]);
+  // On a device with notifications on (and only there): check its subscription still stands, once the page is idle.
+  useEffect(() => {
+    if (ctx.config.Requests) resumePush(ctx);
+  }, [ctx.userId]);
   // Lumen's own pages are the document's main content (jellyfin-web's, empty, is hidden: base.css). The player and
   // settings pages frame jellyfin-web's, which keep its main and its title.
   const framed = route.kind === 'player' || (route.kind === 'settings' && route.page !== 'quickConnect');
