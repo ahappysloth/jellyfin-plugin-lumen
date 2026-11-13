@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from 'preact/hooks';
 import type { MyRequest, RequestProgressStatus } from '../../api/types';
-import { showToast } from '../../components/Toast';
+import { canShowToast, onToastHost, showToast } from '../../components/Toast';
 import { MY_REQUESTS_HASH } from '../../compat/jellyfin';
 import { strings } from '../../strings';
 import { registerSessionCache } from '../../util/sessionCaches';
@@ -83,6 +83,9 @@ export function retryDelay(n: number, random: number = Math.random()): number {
 }
 
 function announce(list: MyRequest[], current: Ctx): void {
+  // On one of jellyfin-web's pages nothing would show it, and the server would be told it had been shown: it waits for
+  // the next Lumen page (below).
+  if (!canShowToast()) return;
   const ready = list.filter((r) => r.Announce && !r.RequestIds.some((id) => announced.has(id)));
   if (ready.length === 0) return;
   const ids = ([] as number[]).concat(...ready.map((r) => r.RequestIds));
@@ -95,6 +98,12 @@ function announce(list: MyRequest[], current: Ctx): void {
     onSelect: () => current.navigate(one ? catalogHash(one) : MY_REQUESTS_HASH),
   });
 }
+
+// A Lumen page again: what became ready meanwhile pops up from the answer already here (with nothing in flight there's
+// no further check to bring it).
+onToastHost(() => {
+  if (ctx && requests && !document.hidden) announce(requests, ctx);
+});
 
 /** Asks the server now (one call at a time). */
 function check(): Promise<void> {

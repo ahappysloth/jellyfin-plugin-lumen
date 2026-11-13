@@ -192,14 +192,20 @@ export const strings = {
   },
   processingDetail: 'Adding to your library',
   episodesOf: (done: number, total: number) => `${formatNumber(done)} of ${formatNumber(total)} episodes`,
-  timeLeft: (s: number) =>
-    s < 60
+  timeLeft: (s: number) => {
+    // Whole minutes first, then split: rounding each part on its own said "60 min left" and "1 hr 60 min left".
+    const min = Math.round(s / 60);
+    const days = Math.round(min / 1440);
+    return s < 60
       ? 'Less than a minute left'
-      : s < 3600
-        ? `${formatNumber(Math.round(s / 60))} min left`
-        : s < 86400
-          ? `${formatNumber(Math.floor(s / 3600))} hr ${formatNumber(Math.round((s % 3600) / 60))} min left`
-          : `${formatNumber(Math.round(s / 86400))} days left`,
+      : min < 60
+        ? `${formatNumber(min)} min left`
+        : min < 1440
+          ? `${formatNumber(Math.floor(min / 60))} hr ${formatNumber(min % 60)} min left`
+          : days === 1
+            ? '1 day left'
+            : `${formatNumber(days)} days left`;
+  },
   readyToWatch: (title: string) => `${title} is ready to watch`,
   severalReady: (n: number) => `${formatNumber(n)} of your requests are ready to watch`,
   badges: {

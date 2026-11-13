@@ -458,6 +458,29 @@ describe('ChartsView', () => {
     expect(screen.getByRole('button', { name: 'Shows' })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('follows the URL to another chart while it’s open (a link, the address edited), and stays put as the page is left', async () => {
+    const asked: string[] = [];
+    const { ctx } = setup((request) => {
+      asked.push(request.url.replace(/^.*Lumen\/Charts\//, '').replace(/\?.*$/, ''));
+      return page([owned(1, request.url.includes('/shows/') ? 'Show' : 'Movie')]);
+    });
+    render(<ChartsView ctx={ctx} />);
+    expect(await screen.findByRole('list', { name: 'Top movies this week' })).toBeInTheDocument();
+
+    // Another chart's address, with the page still up (the route is the same, so it isn't opened afresh).
+    window.location.hash = '#/home?lumen=charts&chart=shows&period=weekly';
+    await act(async () => void window.dispatchEvent(new HashChangeEvent('hashchange')));
+    expect(await screen.findByRole('list', { name: 'Top shows this week' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Shows' })).toHaveAttribute('aria-pressed', 'true');
+    expect(await screen.findByRole('link', { name: '1, Show' })).toBeInTheDocument();
+
+    // On the way to another page (a title, home), the chart stays as it is: nothing is asked for.
+    window.location.hash = '#/home?title=movie-603';
+    await act(async () => void window.dispatchEvent(new HashChangeEvent('hashchange')));
+    expect(screen.getByRole('button', { name: 'Shows' })).toHaveAttribute('aria-pressed', 'true');
+    expect(asked).toEqual(['movies/weekly', 'shows/weekly']);
+  });
+
   it('loads a page at a time as the end of the grid nears the screen, up to the chart’s end', async () => {
     const starts: number[] = [];
     const { ctx } = setup((request) => {

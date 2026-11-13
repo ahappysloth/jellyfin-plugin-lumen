@@ -375,6 +375,29 @@ describe('request progress', () => {
     expect(announcedCalls()).toHaveLength(1);
   });
 
+  it('keeps the pop-up for the next Lumen page when a request becomes ready on one of jellyfin-web’s', async () => {
+    answers = [
+      { Requests: [myRequest()] },
+      { Requests: [myRequest({ Status: 'Ready', Announce: true, RequestIds: [7] })] },
+    ];
+    const lumenPage = render(<ToastHost />);
+    start();
+    await advance(1000);
+    // The Dashboard, a music library: Lumen's page (and its pop-ups' host) is unmounted, the checks go on.
+    lumenPage.unmount();
+    await advance(NORMAL_MS);
+    expect(mineCalls()).toHaveLength(2);
+    // Nothing could show it, so the server isn't told it was shown (the user's other devices still may).
+    expect(announcedCalls()).toHaveLength(0);
+
+    // Back on a Lumen page: shown now, from the answer it has (with nothing in flight there's no further check).
+    render(<ToastHost />);
+    await advance(0);
+    expect(screen.getByRole('alert')).toHaveTextContent('The Matrix is ready to watch');
+    expect(announcedCalls()).toHaveLength(1);
+    expect(mineCalls()).toHaveLength(2);
+  });
+
   it('sums several ready requests up in one pop-up that opens My requests', async () => {
     answers = [
       {
@@ -459,5 +482,21 @@ describe('progress words', () => {
     );
     expect(progressDetail(myRequest({ Status: 'Processing' }), now)).toBe('Adding to your library');
     expect(progressDetail(myRequest({ Status: 'Queued', Percent: null }), now)).toBe('');
+  });
+
+  it('rounds the time left to whole minutes before splitting it into hours, and counts one day as one', () => {
+    const left = (seconds: number): string =>
+      progressDetail(myRequest({ Percent: 45, SecondsLeft: seconds }), 0).replace('45% · ', '');
+    expect(left(59)).toBe('Less than a minute left');
+    expect(left(60)).toBe('1 min left');
+    expect(left(3569)).toBe('59 min left');
+    // Half a minute short of the hour, of two hours and of a day: never "60 min".
+    expect(left(3570)).toBe('1 hr 0 min left');
+    expect(left(3600)).toBe('1 hr 0 min left');
+    expect(left(7170)).toBe('2 hr 0 min left');
+    expect(left(86_399)).toBe('1 day left');
+    expect(left(86_400)).toBe('1 day left');
+    expect(left(129_000)).toBe('1 day left');
+    expect(left(3 * 86_400)).toBe('3 days left');
   });
 });

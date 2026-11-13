@@ -64,6 +64,46 @@ test('Top 10 ranks Trakt’s weekly titles: the ones here open their page, the r
   await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
 });
 
+test('Back from a title that isn’t on the server returns to its card, where the page was', async ({ page }) => {
+  await enableTop10({ trakt: true, seerr: true });
+  await login(page, ADMIN);
+  const movies = page.getByRole('region', { name: 'Top 10 Movies This Week' });
+  // A library card first: home remembers it, and used to come back to it from every catalog title opened after it.
+  await movies.getByRole('link', { name: '1, Lumen Beta' }).click();
+  await expect(page).toHaveURL(/#\/details\?id=/);
+  await page.goBack();
+
+  const matrix = movies.getByRole('button', { name: '2, The Matrix' });
+  await expect(matrix).toBeVisible();
+  await matrix.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 120));
+  const top = (await matrix.boundingBox())!.y;
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await matrix.click();
+  await expect(page).toHaveURL(/#\/home\?title=movie-603$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'The Matrix' })).toBeVisible();
+
+  await page.goBack();
+  await expect(matrix).toBeFocused();
+  await expect.poll(async () => Math.abs((await matrix.boundingBox())!.y - top)).toBeLessThan(2);
+});
+
+test('a long Top 10 title ends in an ellipsis on a phone, and keeps See all in the row', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 740 });
+  const title = 'The ten films everybody in this house watched the most this week';
+  await configureTrakt({ trakt: true, seerr: false }, [{ Type: 'Top10Movies', Title: title }]);
+  await login(page, ADMIN);
+
+  const link = page.getByRole('link', { name: `${title}, see all in Top charts` });
+  await expect(link).toBeVisible();
+  // All of it but a fraction of a pixel (WebKit lays the title's box out at a part-pixel width).
+  await expect(link.locator('.lmn-row__see-all')).toBeInViewport({ ratio: 0.95 });
+  const text = link.locator('.lmn-row__link-text');
+  expect(await text.evaluate((el) => el.scrollWidth > el.clientWidth && getComputedStyle(el).textOverflow === 'ellipsis')).toBe(true);
+  await link.click();
+  await expect(page).toHaveURL(/#\/home\?lumen=charts&chart=movies&period=weekly$/);
+});
+
 test('without Seerr, Top 10 shows just the ranked titles on the server', async ({ page }) => {
   await enableTop10({ trakt: true, seerr: false });
   await login(page, ADMIN);

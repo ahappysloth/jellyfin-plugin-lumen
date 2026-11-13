@@ -24,7 +24,7 @@ interface Props {
   onSelect: (item: BaseItem, row: HomeRow) => void;
   onMenu?: CardMenuHandler;
   /** A title from Seerr's catalog (only in catalog rows). */
-  onSelectCatalog?: (item: CatalogItem) => void;
+  onSelectCatalog?: (item: CatalogItem, row: HomeRow) => void;
   /** Whether the user may request this catalog title; Top 10 rows then show a Request button that calls onRequest. */
   canRequest?: (item: CatalogItem) => boolean;
   onRequest?: (item: CatalogItem) => void;
@@ -74,7 +74,7 @@ export function Row(props: Props) {
       <h2 class="lmn-row__title">
         {seeAll ? (
           <a class="lmn-row__link" href={seeAll} aria-label={strings.seeAllNamed(row.Title)}>
-            {row.Title}
+            <span class="lmn-row__link-text">{row.Title}</span>{' '}
             <span class="lmn-row__see-all" aria-hidden="true">
               {strings.seeAll}
               <Icon name="chevronRight" size={18} />
@@ -108,7 +108,7 @@ export function Row(props: Props) {
                     client={client}
                     imageToken={catalogImageToken}
                     variant="landscape"
-                    onSelect={(c) => onSelectCatalog?.(c)}
+                    onSelect={(c) => onSelectCatalog?.(c, row)}
                   />
                 ) : entry.Item ? (
                   <Card

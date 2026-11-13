@@ -34,6 +34,13 @@
   text-decoration: none;
   outline: none;
 }
+/* The title itself gives way (with the ellipsis the heading would have given it), so a long one (a row the admin
+   renamed, on a phone) never pushes "See all" out of the row. */
+.lmn-row__link-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .lmn-row__see-all {
   display: inline-flex;
   flex: 0 0 auto;

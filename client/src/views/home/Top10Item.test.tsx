@@ -91,7 +91,8 @@ describe('Top 10 rows', () => {
     fireEvent.click(buttons[0]!);
     expect(onRequest).toHaveBeenCalledWith(matrix);
     fireEvent.click(screen.getByRole('button', { name: '2, The Matrix' }));
-    expect(onSelectCatalog).toHaveBeenCalledWith(matrix);
+    // With its row, as a library card is: home remembers both, for Back.
+    expect(onSelectCatalog).toHaveBeenCalledWith(matrix, top10);
     fireEvent.click(screen.getByRole('link', { name: '1, Alpha' }));
     expect(onSelect).toHaveBeenCalledWith(top10.Entries![0]!.Item, top10);
   });
@@ -159,7 +160,10 @@ describe('Trakt rows', () => {
 
     const link = screen.getByRole('link', { name: 'Top 10 Movies This Week, see all in Top charts' });
     expect(link).toHaveAttribute('href', '#/home?lumen=charts');
-    expect(link).toHaveTextContent('Top 10 Movies This WeekSee all');
+    // A space between the two: run together, the link's text ("…This WeekSee all") isn't part of its name ("…This
+    // Week, see all in Top charts"), which speech input goes by (axe's label-content-name-mismatch).
+    expect(link).toHaveTextContent('Top 10 Movies This Week See all');
+    expect(link.querySelector('.lmn-row__link-text')).toHaveTextContent('Top 10 Movies This Week');
   });
 
   it('has a plain title otherwise', () => {

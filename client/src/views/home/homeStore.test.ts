@@ -57,6 +57,16 @@ describe('restoreScrollTop', () => {
     );
   });
 
+  it('finds a catalog card (a title not on the server) by its key', () => {
+    const root = document.createElement('div');
+    root.innerHTML = '<section data-row-id="r1"><button data-catalog-key="movie-603"></button></section>';
+    root.querySelector('button')!.getBoundingClientRect = () => ({ top: 615 }) as DOMRect;
+
+    expect(restoreScrollTop(root, { itemId: 'movie-603', rowId: 'r1', scrollY: 1071, top: 300 }, 1071)).toBe(
+      1386,
+    );
+  });
+
   it('falls back to the saved scroll offset when the card is gone or ids are unsafe', () => {
     expect(restoreScrollTop(page(0), { itemId: 'gone', rowId: 'r1', scrollY: 700, top: 300 }, 0)).toBe(700);
     expect(restoreScrollTop(page(0), { itemId: 'm1"]', scrollY: 500, top: 10 }, 0)).toBe(500);

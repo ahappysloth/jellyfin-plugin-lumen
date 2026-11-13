@@ -107,6 +107,23 @@ test.describe('Top charts', () => {
     expect(await ranks(page)).toEqual(['1', '4']);
   });
 
+  test('follow the address to another chart while the page is open, and Back to the one before', async ({ page }) => {
+    await configureTrakt({ trakt: true, seerr: false }, [{ Type: 'Top10Movies' }]);
+    await login(page, ADMIN);
+    await page.goto('/web/#/home?lumen=charts&chart=movies&period=weekly');
+    await expect(chart(page, 'Top movies this week').getByRole('link', { name: '4, Lumen Alpha' })).toBeVisible();
+
+    // Another chart's address (a link, the address bar): the same route, so the page isn't opened afresh for it.
+    await page.evaluate(() => (location.hash = '#/home?lumen=charts&chart=shows&period=monthly'));
+    await expect(chart(page, 'Top shows this month').getByRole('link', { name: '1, Lumen Show' })).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Movies or shows' }).getByRole('button', { name: 'Shows' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('group', { name: 'Period' }).getByRole('button', { name: 'This month' })).toHaveAttribute('aria-pressed', 'true');
+
+    await page.goBack();
+    await expect(page).toHaveURL(/chart=movies&period=weekly$/);
+    await expect(chart(page, 'Top movies this week').getByRole('link', { name: '4, Lumen Alpha' })).toBeVisible();
+  });
+
   test('without a Trakt key there is no Top charts page, and no See all', async ({ page }) => {
     await configureTrakt({ trakt: false, seerr: true }, [{ Type: 'Top10Movies' }]);
     await login(page, ADMIN);

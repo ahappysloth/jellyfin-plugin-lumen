@@ -13,7 +13,7 @@ import { catalogHash, loadRequestStatus, useCatalogImageToken } from '../catalog
 import { LazyQuickRequest } from '../catalog/lazyTitle';
 import type { ViewContext } from '../context';
 import { CatalogEntry } from '../home/Top10Item';
-import { CHART_PERIODS, chartFromHash } from './chartsRoute';
+import { CHART_PERIODS, chartFromHash, isChartsHash } from './chartsRoute';
 import { chartsStrings } from './chartsStrings';
 
 /** Titles per page: a few rows of posters at a time, so a TV never draws (or fetches art for) all 100 at once. */
@@ -111,6 +111,20 @@ export function ChartsView({ ctx }: { ctx: ViewContext }) {
     const hash = chartsHash(type, span);
     if (window.location.hash !== hash) window.history.replaceState(window.history.state, '', hash);
   }, [type, span]);
+
+  // The other way round: the URL changed under the open page (a link to another chart, the address edited). The page
+  // isn't opened afresh for that (it's the same route), so it follows; its own switches replace the URL without a
+  // hashchange. Not on the way to another page, which takes this one down.
+  useEffect(() => {
+    const onHash = (): void => {
+      if (!isChartsHash(window.location.hash)) return;
+      const asked = chartFromHash(window.location.hash);
+      setType(asked.chart);
+      setSpan(asked.period);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
 
   /** Asks for the chart's next page (its first when there's no copy), unless one is already on its way. */
   const load = (): void => {

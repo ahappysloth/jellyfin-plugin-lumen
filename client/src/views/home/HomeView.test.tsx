@@ -290,6 +290,43 @@ describe('HomeView', () => {
     expect(getSelection('user1')?.itemId).toBe('m1');
   });
 
+  it('remembers a catalog card too (a Top 10 title not on the server), in its row', async () => {
+    const top10: HomeResponse = {
+      ConfigVersion: 1,
+      Hero: [],
+      Rows: [
+        ...home.Rows,
+        {
+          Id: 'r10',
+          Type: 'Top10Movies',
+          Title: 'Top 10 Movies This Week',
+          Items: [],
+          Entries: [
+            {
+              Catalog: {
+                Key: 'movie-603',
+                MediaType: 'movie',
+                TmdbId: 603,
+                Title: 'The Matrix',
+                GenreNames: [],
+                State: 'Requested',
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const ctx = makeContext(createFakeClient(routes({ 'Lumen/Home': top10 })));
+    render(<HomeView ctx={ctx} />);
+    // An earlier visit to a library card: Back from the catalog title mustn't return to that one.
+    fireEvent.click(await screen.findByRole('link', { name: 'Alpha' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '1, The Matrix, Requested' }));
+
+    expect(ctx.navigate).toHaveBeenLastCalledWith('#/home?title=movie-603');
+    expect(getSelection('user1')).toMatchObject({ itemId: 'movie-603', rowId: 'r10' });
+  });
+
   describe('hero Play on a series', () => {
     const seriesHome: HomeResponse = {
       ConfigVersion: 1,

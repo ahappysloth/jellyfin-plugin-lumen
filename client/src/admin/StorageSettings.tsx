@@ -74,7 +74,9 @@ export function StorageSettings({ api, pollMs = POLL_MS }: { api: AdminApi; poll
     };
   }, []);
 
-  const computing = status?.State === 'Computing';
+  // A check that failed mid-scan ends the polling (nothing is asked again by itself), so the card stops saying
+  // "Computing…": Refresh, which the alert points to, would otherwise stay disabled until the page was reloaded.
+  const computing = status?.State === 'Computing' && !requestFailed;
   const report = status?.Report ?? null;
   // Only on a TV are the numbers stops of their own; elsewhere Tab goes from Refresh straight to the titles.
   const tv = getLayout() === 'tv';

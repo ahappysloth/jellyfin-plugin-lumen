@@ -733,6 +733,20 @@ html.layout-tv .lmn-admin .lmna-sections-wrap input:focus {
   padding: 8px 10px;
   border-bottom: 1px solid var(--a-line);
 }
+/* Four columns don't fit a phone, and took the page sideways with them: there the long values (a browser's user agent,
+   the checks' names) break wherever they must, so the columns share the card; the version and the date stay whole.
+   Not a table that scrolls in its card: a region scrolling on its own has to be a keyboard stop too. */
+@media (max-width: 480px) {
+  .lmn-admin .lmn-admin__diagnostics th,
+  .lmn-admin .lmn-admin__diagnostics td {
+    padding-right: 6px;
+    padding-left: 6px;
+  }
+  .lmn-admin .lmn-admin__diagnostics td:first-child,
+  .lmn-admin .lmn-admin__diagnostics td:nth-child(3) {
+    word-break: break-word;
+  }
+}
 .lmn-admin .lmna-empty {
   margin: 0;
   color: var(--a-dim);
@@ -847,6 +861,17 @@ html.layout-tv .lmn-admin .lmna-sections-wrap input:focus {
 .lmn-admin .lmna-savebar .lmna-btn {
   flex: none;
   min-width: 96px;
+}
+/* Phones: what it says on a line of its own, above the buttons. Beside them it had a few words' width (five lines for a
+   failed save's message), and under about 340 px its text ran under Discard. */
+@media (max-width: 480px) {
+  .lmn-admin .lmna-savebar {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .lmn-admin .lmna-savebar__status {
+    flex: 1 0 100%;
+  }
 }
 
 /* Shared Dropdown component (styles/dropdown.css) inside admin fields: full width, admin accent. */
@@ -1249,18 +1274,18 @@ html.layout-tv .lmn-admin .lmna-sections-wrap input:focus {
 .lmn-admin .lmna-bar__seg + .lmna-bar__seg {
   margin-left: 2px;
 }
+/* Each part's name in the text's own colour, its numbers dimmed. The list itself isn't dimmed: --a-fg is currentColor,
+   so a name couldn't be brought back from a dimmed list, and the numbers were dimmed twice (3.4:1 on the dark theme). */
 .lmn-admin .lmna-legend {
   display: flex;
   flex-wrap: wrap;
   margin: 6px 0 0;
   padding: 0;
-  color: var(--a-dim);
   font-size: 12.5px;
   list-style: none;
 }
 .lmn-admin .lmna-legend li {
   display: inline-flex;
-  color: var(--a-fg);
   align-items: center;
   margin: 0 14px 2px 0;
   white-space: nowrap;

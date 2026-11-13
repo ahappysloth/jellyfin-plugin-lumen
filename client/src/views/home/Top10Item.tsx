@@ -42,7 +42,7 @@ export function Top10Items({
   badges?: Record<string, BadgeKey>;
   onSelect: (item: BaseItem, row: HomeRow) => void;
   onMenu?: CardMenuHandler;
-  onSelectCatalog?: (item: CatalogItem) => void;
+  onSelectCatalog?: (item: CatalogItem, row: HomeRow) => void;
   canRequest?: (item: CatalogItem) => boolean;
   onRequest?: (item: CatalogItem) => void;
 }) {
@@ -59,7 +59,7 @@ export function Top10Items({
           badge={entry.Item ? badges?.[entry.Item.Id] : undefined}
           onSelect={(selected) => onSelect(selected, row)}
           onMenu={onMenu}
-          onSelectCatalog={onSelectCatalog}
+          onSelectCatalog={(selected) => onSelectCatalog?.(selected, row)}
           onRequest={entry.Catalog && canRequest?.(entry.Catalog) ? onRequest : undefined}
         />
       ))}
