@@ -11,8 +11,16 @@ import {
   trailerUrl,
   type TrailerOption,
 } from './trailerStream';
+import { TRAILER_FADE_MS, TRAILER_STARTED_SECONDS, TRAILER_START_TIMEOUT_MS } from './trailerTiming';
 
-interface Props {
+/** What the hero's pager reads of a playing trailer: a <video>, or the YouTube player's clock (youTubePlayer.ts). */
+export interface TrailerClock {
+  readonly currentTime: number;
+  readonly duration: number;
+  readonly isConnected: boolean;
+}
+
+export interface TrailerProps {
   trailerId: string;
   delaySeconds: number;
   client: JellyfinApiClient;
@@ -30,7 +38,7 @@ interface Props {
    */
   onPlayingChange?: (playing: boolean) => void;
   /** Called as the video plays, once it's under way (TRAILER_STARTED_SECONDS): the hero's pager follows it. */
-  onProgress?: (video: HTMLVideoElement) => void;
+  onProgress?: (clock: TrailerClock) => void;
   /**
    * Called once the preview is over for good: it ended (as it starts fading back to the backdrop), or no way to play it
    * worked. Not when it merely stops because it's out of view (it plays again when it's back).
@@ -48,19 +56,9 @@ interface Props {
   allowTranscode?: boolean;
 }
 
-/**
- * How long a preview may take to get going before the next way to play it is tried. Some failures never raise an
- * error: WebKit stalls on HEVC the server copied into HLS for a user who may not transcode, unpaused, with all the
- * data it wants, and its clock a few microseconds past zero.
- */
-export const TRAILER_START_TIMEOUT_MS = 12_000;
-/** How far a preview must have played to count as under way (see TRAILER_START_TIMEOUT_MS), and to show. */
-export const TRAILER_STARTED_SECONDS = 0.25;
-/**
- * How long an ended preview takes to fade back to the backdrop before it's removed: the longest of the CSS fades
- * (.lmn-hero__video's transition, longer on the details page).
- */
-export const TRAILER_FADE_MS = 1200;
+export { TRAILER_FADE_MS, TRAILER_STARTED_SECONDS, TRAILER_START_TIMEOUT_MS };
+// The YouTube preview is part of this file's download: lazyTrailer.tsx picks whichever the title has.
+export { YouTubePreview } from './YouTubePreview';
 
 interface Plan {
   source: MediaSourceInfo | null;
@@ -84,7 +82,7 @@ export function TrailerPreview({
   onFinish,
   startAt,
   allowTranscode = false,
-}: Props) {
+}: TrailerProps) {
   const wrapper = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLVideoElement>(null);
   const visible = useVisible(wrapper);

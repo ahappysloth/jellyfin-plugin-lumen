@@ -28,6 +28,14 @@
 //          A test may call it itself, for a request filed in Seerr's own interface, which Lumen hasn't seen.
 //   (Catalog and request routes act as a user: they need the key and an X-Api-User header, 400 without it.)
 //   GET  /t/p/:size/:file                       → a tiny PNG (TMDB image stand-in)
+//   GET  /embed/:videoId?autoplay=&mute=&start=&origin=…  → a stand-in for YouTube's embedded player (the server's
+//        LUMEN_YOUTUBE_EMBED_BASE points the browser here: CI can't reach YouTube). It speaks the player's postMessage
+//        protocol to the page named by `origin`, as checked against the real embed (client/src/views/home/
+//        youTubePlayer.ts): after `listening` it sends initialDelivery and onReady, then infoDelivery every 250 ms
+//        while it plays and on every change of state; it obeys playVideo, pauseVideo, seekTo, mute and unMute, and
+//        sends onStateChange once asked to (addEventListener). A 30 s "video" by default, by id: stubShort10 runs 10 s,
+//        stubErr0150 can't be embedded (onError 150), stubErr0100 was removed (onError 100). The page shows its state
+//        (and has it on <body data-state data-time data-muted>) for the tests to read.
 //   Trakt (LUMEN_TRAKT_API_BASE points here, under /trakt): every call needs `trakt-api-version: 2` and
 //   `trakt-api-key: stub-trakt-key`, else 403 (as Trakt answers an invalid key). Lists take ?page=&limit= and answer
 //   with Trakt's X-Pagination-* headers.
@@ -78,6 +86,74 @@ const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
   'base64',
 );
+// YouTube's embedded player, as far as Lumen's trailer preview talks to it (see the header).
+const embedPage = (videoId) => `<!doctype html>
+<html><head><meta charset="utf-8"><title>Stub YouTube player</title>
+<style>html,body{height:100%;margin:0}body{display:flex;align-items:center;justify-content:center;background:#1d5c8a;color:#fff;font:600 28px sans-serif}</style></head>
+<body data-state="-1" data-time="0"><div id="label"></div><script>
+const videoId = ${JSON.stringify(videoId)};
+const params = new URLSearchParams(location.search);
+const pageOrigin = params.get('origin') || '*';
+const error = { stubErr0150: 150, stubErr0100: 100 }[videoId];
+const duration = videoId === 'stubShort10' ? 10 : 30;
+let state = -1, time = Number(params.get('start') || 0), muted = params.get('mute') === '1';
+let channel = null, stateListener = false, last = performance.now();
+const post = (event, info) => {
+  if (channel) parent.postMessage(JSON.stringify({ event, info, id: channel, channel: 'widget' }), pageOrigin);
+};
+const show = () => {
+  document.body.dataset.state = String(state);
+  document.body.dataset.time = time.toFixed(2);
+  document.body.dataset.muted = String(muted);
+  document.getElementById('label').textContent = 'Stub YouTube ' + videoId + ' · state ' + state + ' · ' + time.toFixed(1) + ' s';
+};
+const setState = (next) => {
+  if (state === next) return;
+  state = next;
+  last = performance.now();
+  show();
+  post('infoDelivery', { playerState: state, currentTime: time, duration });
+  if (stateListener) post('onStateChange', state);
+};
+// Like the real one: buffering first, playing a moment later.
+const play = () => {
+  if (error || state === 1 || state === 0) return;
+  setState(3);
+  setTimeout(() => state === 3 && setState(1), 100);
+};
+setInterval(() => {
+  if (state !== 1) return;
+  const now = performance.now();
+  time = Math.min(duration, time + (now - last) / 1000);
+  last = now;
+  show();
+  if (time >= duration) return setState(0);
+  post('infoDelivery', { currentTime: time });
+}, 250);
+addEventListener('message', (e) => {
+  if (e.source !== parent || (pageOrigin !== '*' && e.origin !== pageOrigin)) return;
+  let data;
+  try { data = JSON.parse(e.data); } catch { return; }
+  if (data.event === 'listening') {
+    const first = !channel;
+    channel = data.id;
+    if (!first) return post('alreadyInitialized', null);
+    post('initialDelivery', { playerState: state, currentTime: time, duration: error ? 0 : duration - 0.5, muted, volume: 100 });
+    post('onReady', null);
+    if (error) post('onError', error);
+    return;
+  }
+  if (data.event !== 'command') return;
+  const args = data.args || [];
+  if (data.func === 'addEventListener' && args[0] === 'onStateChange') stateListener = true;
+  else if (data.func === 'playVideo') play();
+  else if (data.func === 'pauseVideo') { if (state === 1 || state === 3) setState(2); }
+  else if (data.func === 'seekTo') { time = Math.max(0, Math.min(duration, Number(args[0]) || 0)); show(); if (state === 1) { setState(3); setTimeout(() => state === 3 && setState(1), 100); } }
+  else if (data.func === 'mute' || data.func === 'unMute') { muted = data.func === 'mute'; show(); post('infoDelivery', { muted, volume: 100 }); }
+});
+show();
+if (params.get('autoplay') === '1') play();
+</script></body></html>`;
 let users = {};
 // How many Radarr and Sonarr servers this "Seerr" has (Settings → Services).
 let services = { radarr: 1, sonarr: 1 };
@@ -344,6 +420,11 @@ createServer((req, res) => {
       json(res, 200, { ok: true });
     });
     return;
+  }
+  const embed = path.match(/^\/embed\/([A-Za-z0-9_-]{11})$/);
+  if (embed && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end(embedPage(embed[1]));
   }
   if (path.startsWith('/t/p/')) {
     res.writeHead(200, { 'Content-Type': 'image/png' });

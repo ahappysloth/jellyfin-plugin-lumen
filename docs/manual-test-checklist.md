@@ -25,6 +25,15 @@ Run against the release build on the latest stable Jellyfin.
 - [ ] Switch seasons on a series page: the ⋯ beside the picker always opens the season shown (its title is in the menu).
 - [ ] Unticking "Replace the home screen" in the dashboard restores the stock home after a reload.
 
+## YouTube trailers ("Use YouTube trailers when there's no local one")
+
+- [ ] Off (the default): nothing loads from youtube-nocookie.com on home or a details page (the Network tab).
+- [ ] On, a title without a local trailer: the backdrop first, then its trailer fades in on its hero slide and behind
+      its details page, with no YouTube title, logo, pause button or captions at any point, also on a phone. Pause
+      brings the backdrop back and Play resumes about where it was; a swipe or a tab in the background removes it.
+- [ ] A title with a local trailer still plays that one. The TV layout shows the backdrop only.
+- [ ] With "Let trailers finish" on, the slide stays until the trailer ends and fades out before YouTube's end screen.
+
 ## Safari (macOS or iOS)
 
 - [ ] With an MKV trailer (H.264, HEVC or AV1): no preview on home (the backdrop stays, and the Dashboard shows no

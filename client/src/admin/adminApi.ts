@@ -55,6 +55,8 @@ export interface LumenConfig {
   TrailerPreview: boolean;
   TrailerDelaySeconds: number;
   HeroWaitForTrailer: boolean;
+  /** Absent from servers before the setting existed: off. */
+  YouTubeTrailers?: boolean;
   Sections: SectionDef[];
   RequestsEnabled?: boolean;
   SeerrUrl?: string | null;

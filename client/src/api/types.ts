@@ -158,6 +158,8 @@ export interface ChartPage {
 export interface HeroItem {
   Item: BaseItem;
   TrailerItemId: string | null;
+  /** Without a local trailer and with "Use YouTube trailers" on: the trailer's YouTube video id. */
+  TrailerYouTubeId?: string | null;
 }
 
 /** Card badges the server computes for home items (see BadgeService). */
@@ -184,6 +186,10 @@ export interface ClientConfig {
   TrailerDelaySeconds: number;
   /** A hero slide whose trailer is playing stays until it ends (Hero.tsx). */
   HeroWaitForTrailer: boolean;
+  /** Titles without a local trailer preview theirs from YouTube (views/home/YouTubePreview.tsx). */
+  YouTubeTrailers?: boolean;
+  /** Where YouTube's player loads from instead of YouTube: only set for the E2E tests' stub player. */
+  YouTubeEmbedBase?: string | null;
   /** Seerr is set up (whether this user has request features is GET /Lumen/Requests/Status's to say). */
   Requests?: boolean;
   /** A Trakt key is saved: the Top charts page exists and the Top 10 rows link to it (the key stays on the server). */

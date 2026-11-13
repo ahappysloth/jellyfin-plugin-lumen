@@ -34,6 +34,8 @@ interface Props {
   primary: PrimaryAction | null;
   /** Local trailer: plays muted behind the header and backs the Trailer button. */
   trailerId: string | null;
+  /** Without a local trailer: its trailer on YouTube, for the muted preview only (useYouTubeTrailer). */
+  youTubeId?: string | null;
   onTrailer?: () => void;
   /** The item's file, where the user may download it (download.ts). */
   download?: DownloadLink | null;
@@ -82,7 +84,9 @@ export function DetailsHeader(props: Props) {
     (props.backdropFallback ? resolveImage(props.backdropFallback, ['Backdrop']) : null);
   // An episode would borrow its show's logo; its own name is the title.
   const logo = item.Type === 'Episode' ? null : resolveImage(item, ['Logo']);
-  const preview = props.trailerId && props.config.TrailerPreview && !reducedMotion ? props.trailerId : null;
+  const previews = props.config.TrailerPreview && !reducedMotion;
+  const localId = (previews && props.trailerId) || null;
+  const preview = localId || (previews && props.youTubeId) || null;
   const meta = [
     item.CommunityRating ? item.CommunityRating.toFixed(1) : undefined,
     item.Type === 'Episode' ? airDate(item.PremiereDate) : item.ProductionYear?.toString(),
@@ -102,7 +106,9 @@ export function DetailsHeader(props: Props) {
       {preview && (
         <LazyTrailer
           key={preview}
-          trailerId={preview}
+          trailerId={localId}
+          youTubeId={props.youTubeId}
+          embedBase={props.config.YouTubeEmbedBase}
           delaySeconds={DETAILS_TRAILER_DELAY_SECONDS}
           client={client}
           muted={muted}

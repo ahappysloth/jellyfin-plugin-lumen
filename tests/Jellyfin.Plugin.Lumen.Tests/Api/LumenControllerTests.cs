@@ -206,6 +206,22 @@ public class LumenControllerTests
     }
 
     [Theory]
+    [InlineData(true, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    public void ClientConfig_SaysWhetherYouTubeTrailersAreOn_OnlyWithPreviews(bool previews, bool youTube, bool expected)
+    {
+        _config.Current.Returns(new PluginConfiguration { TrailerPreview = previews, YouTubeTrailers = youTube });
+
+        var dto = Create().GetClientConfig().Value!;
+
+        Assert.Equal(expected, dto.YouTubeTrailers);
+
+        // No override outside the E2E run: the client then uses YouTube's own address.
+        Assert.Null(dto.YouTubeEmbedBase);
+    }
+
+    [Theory]
     [InlineData(true, "http://seerr:5055", "key", true)]
     [InlineData(false, "http://seerr:5055", "key", false)]
     [InlineData(true, "http://seerr:5055", null, false)]

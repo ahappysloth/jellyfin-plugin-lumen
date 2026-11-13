@@ -6,6 +6,7 @@ import { clearStarting, showStarting, startingFor, useStartingButton } from '../
 import { strings } from '../../strings';
 import type { ViewContext } from '../context';
 import { showToast } from '../../components/Toast';
+import { usePrefersReducedMotion } from '../../components/usePrefersReducedMotion';
 import { reconcileUserData, togglePlayed, toggleUserData, useUserData } from '../userDataStore';
 
 /**
@@ -66,6 +67,35 @@ export function useLocalTrailer(item: BaseItem, ctx: ViewContext): string | null
     };
   }, [item.Id]);
   return trailerId;
+}
+
+/**
+ * The YouTube video id of the item's trailer, for an item without a local one, where YouTube previews play: the setting
+ * is on, the user hasn't asked for less motion, and it isn't a TV (see Hero.tsx).
+ */
+export function useYouTubeTrailer(item: BaseItem, ctx: ViewContext): string | null {
+  const [id, setId] = useState<string | null>(null);
+  const reducedMotion = usePrefersReducedMotion();
+  const wanted =
+    !!ctx.config.YouTubeTrailers &&
+    ctx.config.TrailerPreview &&
+    ctx.layout !== 'tv' &&
+    !reducedMotion &&
+    !item.LocalTrailerCount;
+  useEffect(() => {
+    if (!wanted) return;
+    let cancelled = false;
+    ctx.api
+      .getYouTubeTrailer(item.Id)
+      .then((trailer) => {
+        if (!cancelled) setId(trailer.YouTubeId || null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [item.Id, wanted]);
+  return wanted ? id : null;
 }
 
 /** Back to wherever the user came from; home when the details page was opened directly. */

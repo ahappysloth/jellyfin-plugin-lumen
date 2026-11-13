@@ -321,6 +321,11 @@ export class LumenApi {
     return this.get(`Items/${id}/LocalTrailers`, () => ({ userId: this.userId() }));
   }
 
+  /** The YouTube video id of a title's trailer, for one without a local trailer ("Use YouTube trailers"). */
+  getYouTubeTrailer(id: string): Promise<{ YouTubeId?: string | null }> {
+    return this.get(`Lumen/Items/${id}/YouTubeTrailer`);
+  }
+
   /** Stops the server's transcode for one play session (it would otherwise run on until its ping timeout). */
   stopTranscoding(deviceId: string, playSessionId: string): Promise<void> {
     return this.send('DELETE', 'Videos/ActiveEncodings', () => ({ deviceId, playSessionId }));
