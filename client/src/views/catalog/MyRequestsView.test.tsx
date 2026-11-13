@@ -64,6 +64,39 @@ describe('MyRequestsView', () => {
     expect(links[1]).toHaveTextContent('Ready');
     expect(within(links[1]!).queryByRole('progressbar')).toBeNull();
     expect(links[2]).toHaveTextContent('Declined');
+    // Poster, the words, the status (a column of its own, so the statuses line up down the list), the chevron.
+    for (const link of links) {
+      expect(Array.from(link.children, (c) => c.classList[0])).toEqual([
+        'lmn-request__art',
+        'lmn-request__body',
+        'lmn-request-progress',
+        'lmn-icon',
+      ]);
+    }
+  });
+
+  it('shows the shape of the rows while they load, hidden from screen readers', async () => {
+    const client = createFakeClient(
+      routes({
+        'Lumen/Requests/Mine': () => new Promise(() => undefined),
+        'Lumen/Requests/Status': {
+          Enabled: true,
+          CanRequestMovies: true,
+          CanRequestTv: true,
+          ImageToken: 't',
+        },
+      }),
+    );
+    const ctx = makeContext(client, { config });
+    startRequestProgress(ctx);
+    const { container } = render(<MyRequestsView ctx={ctx} />);
+
+    const pending = container.querySelector('.lmn-browse__pending')!;
+    expect(pending).toHaveAttribute('aria-busy', 'true');
+    await waitFor(() => expect(pending.querySelectorAll('.lmn-request--skeleton')).toHaveLength(3));
+    expect(pending.firstElementChild).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.queryByRole('list', { name: 'My requests' })).toBeNull();
+    expect(screen.queryAllByRole('link')).toHaveLength(0);
   });
 
   it('says when there are none', async () => {
@@ -182,6 +215,7 @@ describe('MyRequestsView search and filters', () => {
 
     expect(screen.queryByRole('list', { name: 'My requests' })).toBeNull();
     expect(screen.getByText('No requests match “nothing like it”')).toBeInTheDocument();
+    expect(document.querySelector('.lmn-requests-empty .lmn-browse__empty-icon svg')).not.toBeNull();
     const clear = screen.getAllByRole('button', { name: 'Clear search' });
     fireEvent.click(clear[clear.length - 1]!);
     expect(rowTitles()).toHaveLength(5);

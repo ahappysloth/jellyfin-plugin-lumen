@@ -2,6 +2,19 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.6.3] - 2026-11-13
+
+### Changed
+- My requests is laid out again: one centred column, with the header, notifications toggle, search, filter chips and
+  list sharing its edges. **Everyone's requests** is a row of its own under the notifications toggle (a TV's remote
+  reaches it from anywhere on the page). Each row's status sits in a column of its own, the same width on every row,
+  so the statuses and their progress bars line up down the list. The list shows the shape of its rows while it loads,
+  and an empty search or chip says so beside an icon. Phones keep a layout of their own, with the status under the
+  title.
+- Back on its own (one page in) turns wholly white under the pointer, the remote or a press, the pill's full size,
+  instead of a white disc inside a dark ring. With Home beside it, each keeps its smaller disc inside the pill, and
+  the pill is the same size either way.
+
 ## [0.6.2] - 2026-11-13
 
 ### Added

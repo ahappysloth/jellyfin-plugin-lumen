@@ -521,7 +521,8 @@ test('the notifications toggle shows on My requests and the profile page', { tag
     push: 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window,
     iphone: /iPhone/.test(navigator.userAgent),
   }));
-  const card = page.locator('.lmn-push');
+  // The notifications card, not the admin's "Everyone's requests" row below it, which is drawn like it.
+  const card = page.locator('.lmn-push:not(.lmn-requests-everyone)');
   if (support.push) {
     await expect(card.getByRole('switch', { name: TOGGLE })).toHaveAttribute('aria-checked', 'false');
   } else if (support.iphone) {

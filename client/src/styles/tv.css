@@ -23,6 +23,10 @@
 .layout-tv .lmn-details__trailer-controls > .lmn-icon-button:focus {
   outline-offset: 1px;
 }
+/* Back alone is the whole pill: its ring stands off it as any round button's does. */
+.layout-tv .lmn-pill--single > .lmn-icon-button:focus {
+  outline-offset: 3px;
+}
 .layout-tv .lmn-card:focus .lmn-card__art > img:first-child {
   transform: scale(1.06);
 }

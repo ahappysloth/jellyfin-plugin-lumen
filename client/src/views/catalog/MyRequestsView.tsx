@@ -117,7 +117,22 @@ export function MyRequestsView({ ctx }: { ctx: ViewContext }) {
           onRetry={() => (everyone ? all.retry() : void refreshRequestProgress())}
         />
       ) : (
-        <div class="lmn-browse__pending" aria-busy="true" />
+        <div class="lmn-browse__pending" aria-busy="true">
+          {/* Once the page's styles are in: the shape of the rows to come, where they'll be. */}
+          {styled && (
+            <div class="lmn-requests" aria-hidden="true">
+              {[0, 1, 2].map((i) => (
+                <div key={i} class="lmn-request lmn-request--skeleton">
+                  <span class="lmn-request__art" />
+                  <span class="lmn-request__body">
+                    <span class="lmn-skeleton-line" />
+                    <span class="lmn-skeleton-line" />
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       );
   } else if (requests.length === 0) {
     body = (
@@ -133,6 +148,9 @@ export function MyRequestsView({ ctx }: { ctx: ViewContext }) {
     // Nothing for this search, or under this chip: say which, with the way back.
     body = (
       <div class="lmn-browse__empty lmn-requests-empty">
+        <span class="lmn-browse__empty-icon">
+          <Icon name={words.length ? 'search' : 'download'} size={32} />
+        </span>
         <p class="lmn-browse__empty-title">
           {words.length ? titleStrings.noMatch(query.trim()) : titleStrings.filterEmpty[filter]}
         </p>
@@ -176,48 +194,16 @@ export function MyRequestsView({ ctx }: { ctx: ViewContext }) {
       {features && <LazyPushToggle ctx={ctx} />}
       {features && styled && (tools || admin) && (
         <div class="lmn-requests-tools">
-          <div class="lmn-requests-tools__row">
-            {tools && (
-              <form
-                class="lmn-requests-search"
-                role="search"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  field.current?.blur(); // closes a phone's keyboard; the list is already filtered
-                }}
-              >
-                <Icon name="search" size={20} class="lmn-requests-search__icon" />
-                <input
-                  ref={field}
-                  class="lmn-requests-search__input"
-                  type="search"
-                  enterKeyHint="search"
-                  autoComplete="off"
-                  spellcheck={false}
-                  placeholder={titleStrings.searchRequests}
-                  aria-label={titleStrings.searchRequests}
-                  value={query}
-                  onInput={(e) => setQuery(e.currentTarget.value)}
-                />
-                {query && (
-                  <button
-                    type="button"
-                    class="lmn-icon-button lmn-requests-search__clear"
-                    aria-label={titleStrings.clearSearch}
-                    onClick={() => {
-                      setQuery('');
-                      field.current?.focus();
-                    }}
-                  >
-                    <Icon name="close" size={18} />
-                  </button>
-                )}
-              </form>
-            )}
-            {admin && (
-              <div class="lmn-requests-everyone">
-                <label class="lmn-requests-everyone__label" for="lmn-requests-everyone">
-                  {titleStrings.everyone}
+          {/* A settings row of its own, as the notifications toggle above is (its classes and stylesheet: push.css): the
+              D-pad reaches it from the search below, which keeps Left and Right for its text. */}
+          {admin && (
+            <div class="lmn-push lmn-requests-everyone">
+              <div class="lmn-push__row">
+                <span class="lmn-push__icon">
+                  <Icon name="user" size={20} />
+                </span>
+                <label class="lmn-push__text" for="lmn-requests-everyone">
+                  <span class="lmn-push__label">{titleStrings.everyone}</span>
                 </label>
                 <button
                   id="lmn-requests-everyone"
@@ -231,8 +217,45 @@ export function MyRequestsView({ ctx }: { ctx: ViewContext }) {
                   }}
                 />
               </div>
-            )}
-          </div>
+            </div>
+          )}
+          {tools && (
+            <form
+              class="lmn-requests-search"
+              role="search"
+              onSubmit={(e) => {
+                e.preventDefault();
+                field.current?.blur(); // closes a phone's keyboard; the list is already filtered
+              }}
+            >
+              <Icon name="search" size={20} class="lmn-requests-search__icon" />
+              <input
+                ref={field}
+                class="lmn-requests-search__input"
+                type="search"
+                enterKeyHint="search"
+                autoComplete="off"
+                spellcheck={false}
+                placeholder={titleStrings.searchRequests}
+                aria-label={titleStrings.searchRequests}
+                value={query}
+                onInput={(e) => setQuery(e.currentTarget.value)}
+              />
+              {query && (
+                <button
+                  type="button"
+                  class="lmn-icon-button lmn-requests-search__clear"
+                  aria-label={titleStrings.clearSearch}
+                  onClick={() => {
+                    setQuery('');
+                    field.current?.focus();
+                  }}
+                >
+                  <Icon name="close" size={18} />
+                </button>
+              )}
+            </form>
+          )}
           {tools && (
             // Like the library pages' chips (Toolbar.tsx Segmented), but none takes the TV's first focus: the newest
             // request does, as before.
@@ -312,8 +335,9 @@ function RequestRow({
           <span class="lmn-request__title">{item.Title}</span>
           {by && <RequesterLine ctx={ctx} by={by} />}
           <span class="lmn-request__meta">{meta.join(' · ')}</span>
-          <RequestProgressBlock request={request} compact receivedAt={receivedAt} />
         </div>
+        {/* A column of its own, as wide on every row: the statuses and their bars line up down the list. */}
+        <RequestProgressBlock request={request} compact receivedAt={receivedAt} />
         <Icon name="chevronRight" size={20} class="lmn-request__go" />
       </a>
     </li>

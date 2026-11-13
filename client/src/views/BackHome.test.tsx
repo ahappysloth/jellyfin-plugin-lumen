@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import buttonsCss from '../styles/buttons.css?raw';
+import tvCss from '../styles/tv.css?raw';
 import { trackPageDepth } from '../takeover/pageDepth';
 import { BackHome, goBack } from './BackHome';
 
@@ -29,6 +31,11 @@ describe('BackHome', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(onBack).toHaveBeenCalledOnce();
     expect(screen.queryByRole('link', { name: 'Home' })).toBeNull();
+    // Back fills the pill on its own: the white disc is the whole circle, with no dark ring of padding round it.
+    expect(screen.getByRole('button', { name: 'Back' }).parentElement).toHaveClass(
+      'lmn-pill',
+      'lmn-pill--single',
+    );
   });
 
   it('adds Home, a link to Lumen’s home, more than one page in', () => {
@@ -41,6 +48,8 @@ describe('BackHome', () => {
     // Both in one pill, Back first.
     const pill = container.querySelector('.lmn-pill')!;
     expect(Array.from(pill.children)).toEqual([screen.getByRole('button', { name: 'Back' }), home]);
+    // Two buttons keep their smaller discs inside the pill.
+    expect(pill).not.toHaveClass('lmn-pill--single');
     // Icons only, in the buttons' own colour (white on the glass, dark on the white disc).
     for (const icon of pill.querySelectorAll('svg')) expect(icon).toHaveAttribute('stroke', 'currentColor');
   });
@@ -52,6 +61,37 @@ describe('BackHome', () => {
 
     act(() => go(ACTOR));
     expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Home' }).parentElement).not.toHaveClass('lmn-pill--single');
+  });
+
+  // jsdom lays nothing out, so this reads the stylesheet: the pill is as tall with one button as with two, so it
+  // doesn't jump as Home comes and goes, and never changes size under the pointer.
+  it('is the same height with Back alone as with Home beside it', () => {
+    const px = (selector: string, property: string, css = buttonsCss): number => {
+      // A rule of its own, not the end of a longer selector list (a line ending in a comma before it).
+      let start = css.indexOf(`\n${selector} {`);
+      while (start > 0 && css[start - 1] === ',') start = css.indexOf(`\n${selector} {`, start + 1);
+      expect(start, selector).toBeGreaterThanOrEqual(0);
+      const match = new RegExp(`\\b${property}: (\\d+)(?:px)?;`).exec(
+        css.slice(start, css.indexOf('}', start)),
+      );
+      expect(match, `${selector} ${property}`).not.toBeNull();
+      return Number(match![1]);
+    };
+    const two =
+      2 * px('.lmn-pill,\n.lmn-details__trailer-controls', 'padding') + px('.lmn-icon-button--lg', 'height');
+    expect(px('.lmn-pill--single', 'padding')).toBe(0);
+    expect(px('.lmn-pill--single > .lmn-icon-button', 'height')).toBe(two);
+    expect(px('.lmn-pill--single > .lmn-icon-button', 'width')).toBe(two);
+    // Hover and focus only change colours, never the size.
+    for (const state of [':hover', ':active', ':focus-visible']) {
+      const start = buttonsCss.indexOf(`.lmn-icon-button${state} {`);
+      expect(buttonsCss.slice(start, buttonsCss.indexOf('}', start))).not.toMatch(
+        /width|height|padding|transform/,
+      );
+    }
+    // On a TV, Back alone's ring stands off it as a lone round button's does (not the pill buttons' 1px).
+    expect(px('.layout-tv .lmn-pill--single > .lmn-icon-button:focus', 'outline-offset', tvCss)).toBe(3);
   });
 
   it('takes the page’s default focus on a TV only where it’s asked to', () => {
