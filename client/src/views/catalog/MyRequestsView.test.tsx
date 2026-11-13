@@ -68,6 +68,38 @@ describe('MyRequestsView', () => {
     expect(await screen.findByText('No requests yet')).toBeInTheDocument();
   });
 
+  it("says when they couldn't be loaded, with Try again, focused on a TV, then the first request once it works", async () => {
+    let fail = true;
+    const client = createFakeClient(
+      routes({
+        'Lumen/Requests/Mine': () =>
+          fail ? Promise.reject({ status: 502 }) : { Requests: [myRequest({ title: 'Lumen Saga' })] },
+        'Lumen/Requests/Status': {
+          Enabled: true,
+          CanRequestMovies: true,
+          CanRequestTv: true,
+          ImageToken: 't',
+        },
+      }),
+    );
+    const ctx = makeContext(client, { config, layout: 'tv' });
+    startRequestProgress(ctx);
+    await act(() => refreshRequestProgress());
+    render(<MyRequestsView ctx={ctx} />);
+
+    expect(screen.getByText("Couldn't load your requests from Seerr.")).toBeInTheDocument();
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    expect(retry).toHaveFocus();
+
+    fail = false;
+    await act(async () => {
+      retry.click();
+      await refreshRequestProgress();
+    });
+    const list = await screen.findByRole('list', { name: 'My requests' });
+    expect(within(list).getByRole('link')).toHaveFocus();
+  });
+
   it('says so on a server without Seerr, and asks nothing', () => {
     const client = createFakeClient(routes({}));
     render(<MyRequestsView ctx={makeContext(client)} />);

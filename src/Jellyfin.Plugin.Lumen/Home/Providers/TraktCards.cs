@@ -232,7 +232,7 @@ public sealed class TraktCards
         {
             if (!e.IsCircuitOpen && _logger.IsEnabled(LogLevel.Debug))
             {
-                _logger.LogDebug("Lumen skipped Trakt's TMDB {MediaType} {TmdbId}: {Message}", mediaType, tmdbId, e.Message);
+                _logger.LogDebug("Lumen skipped Trakt's TMDB {MediaType} {TmdbId}: {Message}", mediaType, tmdbId, e.LogText);
             }
 
             if (e.Status != System.Net.HttpStatusCode.NotFound)

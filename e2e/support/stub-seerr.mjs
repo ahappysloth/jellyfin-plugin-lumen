@@ -12,7 +12,7 @@
 //   GET  /api/v1/discover/tv?page=              → show 1399
 //   GET  /api/v1/discover/movies/upcoming?page= → movie 605 "Lumen Future" (released a year from now)
 //   GET  /api/v1/discover/tv/upcoming?page=     → empty
-//   GET  /api/v1/user/:id/requests?take=&skip=&sort=
+//   GET  /api/v1/user/:id/requests?take=&skip=
 //        → { pageInfo, results: [{ id, status, createdAt, type, media: { tmdbId, mediaType, status, status4k,
 //          jellyfinMediaId } }] }: the requests this user filed via POST /request, newest first (media status: see
 //          mediaStatus below); 403 unless X-Api-User is that user
@@ -27,6 +27,10 @@
 //          409 { message } if this user already requested the same mediaId + seasons; recorded for /__stub/requests.
 //          A test may call it itself, for a request filed in Seerr's own interface, which Lumen hasn't seen.
 //   (Catalog and request routes act as a user: they need the key and an X-Api-User header, 400 without it.)
+//   Like Seerr, which checks every /api/v1 call against its OpenAPI spec: a query parameter that seerr-api.yml doesn't
+//   define for the route (SEERR_QUERY below), or a number parameter that isn't one, is a 400 { message, errors } in the
+//   words of Seerr's validator; so is a POST /request body without a field the spec requires, or with one it doesn't
+//   list (Seerr would ignore that one: the stub is stricter, so a misspelt field fails too).
 //   GET  /t/p/:size/:file                       → a tiny PNG (TMDB image stand-in)
 //   GET  /embed/:videoId?autoplay=&mute=&start=&origin=…  → a stand-in for YouTube's embedded player (the server's
 //        LUMEN_YOUTUBE_EMBED_BASE points the browser here: CI can't reach YouTube). It speaks the player's postMessage
@@ -68,8 +72,9 @@
 //          by that many bytes on each such call (a download moving between polls); one that reaches 0 is "completed".
 //          null clears it (test control)
 //   Movies 701–799 have details too ("Stub Request 7xx", or the names in REQUEST_TITLES), for requests in each state.
-//   POST /__stub/fail     { ['movie/603']: 503 }                    → those title lookups answer that status; {} clears
-//                                                                       them (test control)
+//   POST /__stub/fail     { ['movie/603']: 503, requests: 400 }     → those title lookups answer that status, and with
+//                                                                       `requests` GET /user/:id/requests does, as a Seerr
+//                                                                       that won't list them; {} clears them (test control)
 //   GET  /__stub/requests                                           → [{ user, body }] of requests filed (test control)
 //   POST /__stub/services { radarr, sonarr }                        → how many Radarr and Sonarr servers it has (test control)
 //   POST /__stub/webhook { enabled, types, webhookUrl, authHeader }  → its webhook agent's settings (test control)
@@ -352,6 +357,53 @@ const withLibrary = (media) => {
 const requestKey = (user, body) =>
   JSON.stringify([user, body.mediaType, body.mediaId, Array.isArray(body.seasons) ? [...body.seasons].sort((a, b) => a - b) : body.seasons ?? null]);
 
+// The query parameters seerr-api.yml (seerr-team/seerr) defines for each route the stub serves, and which of them are
+// numbers. Seerr's express-openapi-validator rejects any other parameter with a 400 ("Unknown query parameter"), so a
+// parameter Lumen sends must be in this list *and* in the spec: copy from the spec, never from Lumen.
+const SEERR_LANGUAGE = { language: 'string' };
+const SEERR_PAGE = { page: 'number', ...SEERR_LANGUAGE };
+const SEERR_DISCOVER = {
+  ...SEERR_PAGE, genre: 'string', keywords: 'string', excludeKeywords: 'string', sortBy: 'string',
+  withRuntimeGte: 'number', withRuntimeLte: 'number', voteAverageGte: 'number', voteAverageLte: 'number',
+  voteCountGte: 'number', voteCountLte: 'number', watchRegion: 'string', watchProviders: 'string',
+  certification: 'string', certificationGte: 'string', certificationLte: 'string', certificationCountry: 'string',
+  certificationMode: 'string',
+};
+const SEERR_QUERY = [
+  [/^\/api\/v1\/status$/, { checkUpdateAvailable: 'boolean' }],
+  [/^\/api\/v1\/settings\/(jellyfin|radarr|sonarr|notifications\/webhook)$/, {}],
+  [/^\/api\/v1\/user\/jellyfin\/[^/]+$/, {}],
+  [/^\/api\/v1\/user\/\d+\/requests$/, { take: 'number', skip: 'number' }],
+  [/^\/api\/v1\/search$/, { query: 'string', ...SEERR_PAGE }],
+  [/^\/api\/v1\/discover\/trending$/, { ...SEERR_PAGE, mediaType: 'string', timeWindow: 'string' }],
+  [/^\/api\/v1\/discover\/movies$/, { ...SEERR_DISCOVER, studio: 'number', primaryReleaseDateGte: 'string', primaryReleaseDateLte: 'string' }],
+  [/^\/api\/v1\/discover\/tv$/, { ...SEERR_DISCOVER, network: 'number', firstAirDateGte: 'string', firstAirDateLte: 'string', status: 'string' }],
+  [/^\/api\/v1\/discover\/(movies|tv)\/upcoming$/, SEERR_PAGE],
+  [/^\/api\/v1\/(movie|tv)\/\d+$/, SEERR_LANGUAGE],
+  [/^\/api\/v1\/(movie|tv)\/\d+\/recommendations$/, SEERR_PAGE],
+  // POST /request takes no query parameters (GET /request, which Lumen doesn't call, has sort, filter…).
+  [/^\/api\/v1\/request$/, {}],
+];
+// POST /request's body properties in seerr-api.yml, and the required ones.
+const SEERR_REQUEST_BODY = ['mediaType', 'mediaId', 'tvdbId', 'seasons', 'is4k', 'serverId', 'profileId', 'rootFolder', 'languageProfileId', 'userId', 'ignoreQuota'];
+const SEERR_REQUEST_REQUIRED = ['mediaType', 'mediaId'];
+/** Seerr's validator's 400 for the first query parameter its spec rejects on this route, or null if it takes them all. */
+const seerrQueryError = (path, searchParams) => {
+  const allowed = SEERR_QUERY.find(([route]) => route.test(path))?.[1];
+  if (!allowed) return null;
+  for (const [name, value] of searchParams) {
+    if (!(name in allowed)) return `Unknown query parameter '${name}'`;
+    if (allowed[name] === 'number' && (value === '' || !Number.isFinite(Number(value)))) return `request/query/${name} must be number`;
+  }
+  return null;
+};
+const seerrBodyError = (body) => {
+  const unknown = Object.keys(body).find((k) => !SEERR_REQUEST_BODY.includes(k));
+  if (unknown) return `request/body must NOT have additional properties: '${unknown}'`;
+  const missing = SEERR_REQUEST_REQUIRED.find((k) => !(k in body));
+  return missing ? `request/body must have required property '${missing}'` : null;
+};
+
 const json = (res, status, body, headers = {}) => {
   res.writeHead(status, { 'Content-Type': 'application/json', ...headers });
   res.end(JSON.stringify(body));
@@ -452,6 +504,11 @@ createServer((req, res) => {
     if (traktLists[resource]) return paged(res, url, traktLists[resource]);
     return json(res, 404, { error: 'not found' });
   }
+  if (path.startsWith('/api/v1/')) {
+    // Before authentication, as in Seerr, where the validator runs ahead of every route.
+    const invalid = seerrQueryError(path, url.searchParams);
+    if (invalid) return json(res, 400, { message: invalid, errors: [{ path: '.query', message: invalid }] });
+  }
   if (path === '/api/v1/status') return json(res, 200, { version: '3.5.1-stub', commitTag: 'stub' });
   if (req.headers['x-api-key'] !== STUB_API_KEY) return json(res, 403, { message: 'You do not have permission' });
   // Real Seerr also returns its Jellyfin API key here; Lumen must only read name and serverId.
@@ -500,6 +557,7 @@ createServer((req, res) => {
   if (userRequests && req.method === 'GET') {
     // Like Seerr: only that user (or a request manager, which Lumen never relies on) may list them.
     if (userRequests[1] !== actingUser) return json(res, 403, { message: 'You do not have permission to view these requests.' });
+    if (failing.requests) return json(res, failing.requests, { message: 'stub: failing' });
     const take = Number(url.searchParams.get('take') ?? 10);
     const skip = Number(url.searchParams.get('skip') ?? 0);
     advanceDownloads();
@@ -534,6 +592,8 @@ createServer((req, res) => {
       } catch {
         return json(res, 400, { message: 'stub: invalid JSON' });
       }
+      const invalid = seerrBodyError(body);
+      if (invalid) return json(res, 400, { message: invalid, errors: [{ path: '.body', message: invalid }] });
       const key = requestKey(actingUser, body);
       if (requests.some((r) => requestKey(r.user, r.body) === key)) {
         return json(res, 409, { message: 'Request for this media already exists.' });

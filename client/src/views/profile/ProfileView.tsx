@@ -17,6 +17,7 @@ import { type Account, accountAccess, avatarUrl, loadAccount } from '../account/
 import type { ViewContext } from '../context';
 import { initials } from '../details/CastRow';
 import { useSyncPlayState } from '../syncplay/syncPlayState';
+import { useCatalogImageToken } from '../catalog/catalog';
 import { useMyRequests } from '../catalog/requestProgress';
 import { routeEnabled } from '../../takeover/takeover';
 import { LazyPushToggle } from '../push/lazyPush';
@@ -56,7 +57,12 @@ export function ProfileView({ ctx }: { ctx: ViewContext }) {
   const [serverName, setServerName] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const syncPlay = useSyncPlayState(ctx);
-  const myRequests = useMyRequests().available === true;
+  // My requests, for a user with request features: their list says so, or, before it and while it fails, their request
+  // status, whose image token is there exactly when it's Enabled (Requests/Mine is a 404 when it isn't). So a list
+  // Seerr won't give leaves the entry, and My requests says what went wrong, with Try again.
+  const imageToken = useCatalogImageToken(ctx, !!ctx.config.Requests);
+  const requestsAvailable = useMyRequests().available;
+  const myRequests = requestsAvailable === true || (requestsAvailable !== false && !!imageToken);
   useAutoFocus(rootRef, account !== null, ctx.layout);
 
   useEffect(() => {

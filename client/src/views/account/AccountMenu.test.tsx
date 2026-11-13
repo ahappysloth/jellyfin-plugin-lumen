@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createFakeClient, routes } from '../../../test/fakeClient';
+import { createFakeClient, routes, type FakeClient } from '../../../test/fakeClient';
 import { changePage } from '../../../test/navigation';
 import { makeContext, testConfig } from '../../../test/viewContext';
 import { ContextMenuHost } from '../../components/ContextMenu';
@@ -127,12 +127,56 @@ describe('AccountMenu', () => {
     );
   });
 
+  it("keeps My requests for a user with request features when their requests couldn't be loaded", async () => {
+    // Seerr refused the list (a 502 from Lumen): the entry stays, so My requests can say so and offer Try again.
+    const ctx = makeContext(
+      createFakeClient((request) =>
+        request.url.includes('Lumen/Requests/Mine')
+          ? Promise.reject({ status: 502 })
+          : routes({
+              'Users/user1': SAM,
+              'QuickConnect/Enabled': false,
+              'Lumen/Requests/Status': {
+                Enabled: true,
+                CanRequestMovies: true,
+                CanRequestTv: true,
+                ImageToken: 't',
+              },
+            })(request),
+      ),
+      { config: { ...testConfig, Requests: true } },
+    );
+    startRequestProgress(ctx);
+    await act(() => refreshRequestProgress());
+    render(<AccountMenu ctx={ctx} syncPlay={NO_SYNCPLAY} current={false} />);
+
+    const menu = await openByClick(screen.getByRole('button', { name: /^Account/ }));
+    await waitFor(() => expect(names(menu)).toEqual(['History', 'My requests', 'Settings', 'Profile']));
+  });
+
+  it("leaves My requests out where Seerr isn't set up, without asking for a request status", async () => {
+    const { ctx, button } = setup();
+    const menu = await openByClick(button);
+    expect(names(menu)).toEqual(['History', 'Settings', 'Profile']);
+    const client = ctx.client as unknown as FakeClient;
+    expect(client.requests.some((r) => r.url.includes('Lumen/Requests'))).toBe(false);
+  });
+
   it('leaves My requests out for a user without request features', async () => {
     const ctx = makeContext(
       createFakeClient((request) =>
         request.url.includes('Lumen/Requests/Mine')
           ? Promise.reject({ status: 404 })
-          : routes({ 'Users/user1': SAM, 'QuickConnect/Enabled': false })(request),
+          : routes({
+              'Users/user1': SAM,
+              'QuickConnect/Enabled': false,
+              'Lumen/Requests/Status': {
+                Enabled: false,
+                CanRequestMovies: false,
+                CanRequestTv: false,
+                ImageToken: null,
+              },
+            })(request),
       ),
       { config: { ...testConfig, Requests: true } },
     );

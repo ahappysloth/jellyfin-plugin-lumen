@@ -163,11 +163,18 @@ public sealed class SeerrClient : ISeerrClient
     public async Task<IReadOnlyList<SeerrUserRequest>> GetUserRequestsAsync(SeerrEndpoint endpoint, int seerrUserId, CancellationToken cancellationToken, int take = RequestsTake)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(take, 1);
-        var path = string.Create(CultureInfo.InvariantCulture, $"api/v1/user/{seerrUserId}/requests?take={take}&skip=0&sort=added");
+
+        // Only take and skip: Seerr checks every call against its OpenAPI spec (seerr-api.yml), which defines no other
+        // parameter for this route, and answers anything else (a `sort`, which only GET /request has) with a 400. It
+        // lists the newest request (highest id) first, but the order is put right here rather than relied on.
+        var path = string.Create(CultureInfo.InvariantCulture, $"api/v1/user/{seerrUserId}/requests?take={take}&skip=0");
 
         // Per user: a 5xx here may be this user's data, so it doesn't pause request features for everyone (see SendAsync).
         var page = await SendAsync<SeerrUserRequestPage>(endpoint, HttpMethod.Get, path, seerrUserId, null, true, cancellationToken, userScoped: true).ConfigureAwait(false) ?? throw Unexpected();
-        return page.Results ?? [];
+        return (page.Results ?? [])
+            .OrderByDescending(r => r.CreatedAt ?? DateTimeOffset.MinValue)
+            .ThenByDescending(r => r.Id)
+            .ToList();
     }
 
     public async Task<SeerrTitle> GetTitleSummaryAsync(SeerrEndpoint endpoint, int seerrUserId, string mediaType, int tmdbId, CancellationToken cancellationToken) =>
@@ -247,6 +254,10 @@ public sealed class SeerrClient : ISeerrClient
 
         return null;
     }
+
+    /// <summary>Seerr's message without the API key, should it ever echo it (the message is logged and shown to users).</summary>
+    private static string? Redact(string? message, string apiKey) =>
+        message is null || apiKey.Length == 0 ? message : message.Replace(apiKey, "[API key]", StringComparison.Ordinal);
 
     private static string Describe(HttpStatusCode status) => status switch
     {
@@ -406,7 +417,7 @@ public sealed class SeerrClient : ISeerrClient
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode || (method == HttpMethod.Post && response.StatusCode == HttpStatusCode.Accepted))
             {
-                var message = await ReadMessageAsync(response, timeout.Token).ConfigureAwait(false);
+                var message = Redact(await ReadMessageAsync(response, timeout.Token).ConfigureAwait(false), endpoint.ApiKey);
                 throw new SeerrException(Describe(response.StatusCode), response.StatusCode, null, message);
             }
 

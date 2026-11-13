@@ -86,7 +86,7 @@ public abstract class Top10Provider : TraktRowProvider
             // Fail open, like the catalog rows: the row just disappears. The breaker already logs outages once.
             if (!e.IsCircuitOpen && _logger.IsEnabled(LogLevel.Debug))
             {
-                _logger.LogDebug("Lumen dropped the {Type} row: {Message}", Type, e.Message);
+                _logger.LogDebug("Lumen dropped the {Type} row: {Message}", Type, e.LogText);
             }
 
             return [];
