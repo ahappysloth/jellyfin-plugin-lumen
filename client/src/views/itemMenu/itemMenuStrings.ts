@@ -11,6 +11,7 @@ export const itemMenuStrings = {
   streamUrlCopied: 'Stream URL copied',
   copyFailed: 'Couldn’t copy the stream URL',
   mediaInfo: 'Media info',
+  trailerInfo: 'Trailer info',
   editMetadata: 'Edit metadata',
   editImages: 'Edit images',
   editSubtitles: 'Edit subtitles',

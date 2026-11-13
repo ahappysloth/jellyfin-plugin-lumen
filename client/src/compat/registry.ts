@@ -271,6 +271,14 @@ export const ACTION_SHEET_MARKERS = ['actionSheetMenuItem', 'resolveOnClick'] as
 export const REFRESH_DIALOG = { field: '#selectMetadataRefreshMode', dialog: '.dialog' } as const;
 
 /**
+ * jellyfin-web's Media info dialog (components/itemMediaInfo, 10.9–12.4): its stock content, which it fills with
+ * innerHTML once it has the user, inside `.dialogContentInner`. Lumen's Trailer section goes in beside it
+ * (views/trailerInfo/TrailerInfo.tsx), and is taken down on the dialog's `close` event, as for REFRESH_DIALOG.
+ * e2e/specs/trailer-info.spec.ts opens it on a real server.
+ */
+export const MEDIA_INFO_DIALOG = { content: '#mediaInfoContent', dialog: '.dialog' } as const;
+
+/**
  * jellyfin-web's metadata manager (`#/metadata?id=`, controllers/edititemmetadata.js via scripts/editorsidebar.js),
  * opened on one item: where Lumen sends an administrator's edit when it can't open jellyfin-web's dialog.
  */

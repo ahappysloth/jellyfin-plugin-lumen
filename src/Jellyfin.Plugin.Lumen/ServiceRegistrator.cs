@@ -52,6 +52,7 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IYouTubeTrailers, YouTubeTrailers>();
         serviceCollection.AddSingleton<IImdbTrailers, ImdbTrailers>();
         serviceCollection.AddSingleton<IOnlineTrailers, OnlineTrailers>();
+        serviceCollection.AddSingleton<TrailerRefreshLimiter>();
         serviceCollection.AddSingleton<IHeroService, HeroService>();
         serviceCollection.AddSingleton<IHomeDtoMapper, HomeDtoMapper>();
         serviceCollection.AddSingleton<IBadgeService, BadgeService>();

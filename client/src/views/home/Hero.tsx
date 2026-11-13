@@ -435,6 +435,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
                   }
                   onFinish={waitForTrailer ? endTrailer : undefined}
                   startAt={waitForTrailer ? trailerStart : undefined}
+                  logKey={hero.Item.Id}
                 />
               )}
             </Slide>

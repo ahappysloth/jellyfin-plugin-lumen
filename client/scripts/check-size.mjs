@@ -1,6 +1,7 @@
 // Fails when what every page loads (lumen.js, the chunks it loads at startup, lumen.css), or one of the chunks loaded
 // when they're needed (the player, its Skip button and next-episode card, the trailer preview, the restart banner, the
-// catalog title page and My requests, the profile pages, the item menu, the secondary views, Top charts, Quick Connect), or one of
+// catalog title page and My requests, the profile pages, the item menu, the Trailer section of Media info, the secondary
+// views, Top charts, Quick Connect), or one of
 // the stylesheets linked where they're used, exceeds its gzipped budget,
 // or Lumen's fonts exceed theirs.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -22,7 +23,7 @@ const coreChunk = oneChunk('main');
 // Loaded when they're needed: views/player/lazyPlayer.tsx, views/home/lazyTrailer.tsx, takeover/restartWatch.ts,
 // views/catalog/lazyTitle.tsx, views/profile/lazyProfile.tsx, views/itemMenu/lazyItemMenu.ts,
 // views/secondary/lazySecondary.tsx, views/charts/lazyCharts.tsx, views/quickconnect/lazyQuickConnect.tsx,
-// views/push/lazyPush.tsx, views/player/lazySegments.tsx.
+// views/push/lazyPush.tsx, views/player/lazySegments.tsx, views/trailerInfo/lazyTrailerInfo.ts.
 const playerChunk = oneChunk('PlayerView');
 const segmentsChunk = oneChunk('SegmentPrompts');
 const trailerChunk = oneChunk('TrailerPreview');
@@ -34,6 +35,7 @@ const secondaryChunk = oneChunk('SecondaryViews');
 const chartsChunk = oneChunk('ChartsView');
 const quickConnectChunk = oneChunk('QuickConnect');
 const pushChunk = oneChunk('PushSettings');
+const trailerInfoChunk = oneChunk('TrailerInfo');
 // Startup is lumen.js and the core it imports, which the server preloads with it. Another chunk would be a download
 // the core waits for (vite.config.ts keeps it to one).
 const others = chunks.filter(
@@ -51,6 +53,7 @@ const others = chunks.filter(
       chartsChunk,
       quickConnectChunk,
       pushChunk,
+      trailerInfoChunk,
     ].includes(f),
 );
 if (others.length) {
@@ -110,6 +113,15 @@ console.log(`lumen profile: ${kb(profile)} gzipped (budget ${PROFILE_BUDGET / 10
 const ITEM_MENU_BUDGET = 5 * 1024;
 const itemMenu = gz(`dist/${itemMenuChunk}`);
 console.log(`lumen item menu: ${kb(itemMenu)} gzipped (budget ${ITEM_MENU_BUDGET / 1024} KB)`);
+// The Trailer section of a title's Media info and the show's Trailer info dialog, with their stylesheet
+// (views/trailerInfo/lazyTrailerInfo.ts): fetched as Media info or Trailer info opens, from the item menu. A file of its
+// own, with its own budget, since 0.6.4: the startup file has no room, and the item menu and trailer preview are
+// downloaded by everyone who opens a details page or sees a trailer, which this needn't weigh on.
+const TRAILER_INFO_BUDGET = 4.25 * 1024;
+const trailerInfo = gz(`dist/${trailerInfoChunk}`) + gz('dist/lumen-trailerinfo.css');
+console.log(
+  `lumen trailer info + styles: ${kb(trailerInfo)} gzipped (budget ${TRAILER_INFO_BUDGET / 1024} KB)`,
+);
 // Search, person and collection pages, a library's Suggestions and Upcoming tabs, History and the Watch together menu,
 // with their stylesheet (views/secondary/lazySecondary.tsx): fetched once the first page is up. Moving them out of the
 // core freed about 4.7 KB at startup, with their strings and styles.
@@ -185,6 +197,7 @@ if (
   title > TITLE_BUDGET ||
   profile > PROFILE_BUDGET ||
   itemMenu > ITEM_MENU_BUDGET ||
+  trailerInfo > TRAILER_INFO_BUDGET ||
   secondary > SECONDARY_BUDGET ||
   charts > CHARTS_BUDGET ||
   quickConnect > QUICK_CONNECT_BUDGET ||

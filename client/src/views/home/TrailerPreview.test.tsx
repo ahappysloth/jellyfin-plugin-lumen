@@ -5,6 +5,7 @@ import { createFakeClient, routes } from '../../../test/fakeClient';
 import { resetSessionCaches } from '../../util/sessionCaches';
 import { TRAILER_FADE_MS, TRAILER_START_TIMEOUT_MS, TrailerPreview } from './TrailerPreview';
 import { TRAILER_HOLD_MS } from './trailerTiming';
+import { lastAttempt } from '../trailerInfo/deviceLog';
 
 const MKV_HEVC: MediaSourceInfo = {
   Id: 'ms1',
@@ -923,5 +924,84 @@ describe('TrailerPreview', () => {
       container.querySelector('video')!.dispatchEvent(new Event('loadedmetadata'));
     });
     expect(seek).not.toHaveBeenCalled();
+  });
+});
+
+describe('TrailerPreview notes how it went on this device (its Media info)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+  });
+  afterEach(() => {
+    cleanup();
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    resetSessionCaches();
+    sessionStorage.clear();
+  });
+
+  it('each file it tried: 1080p timed out, 720p failed with the media error', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1920);
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(1080);
+    const { container } = render(
+      <TrailerPreview
+        src="https://imdb-video.media-imdb.com/vi1/a_720p.mp4"
+        srcHd="https://imdb-video.media-imdb.com/vi1/a_1080p.mp4"
+        delaySeconds={0}
+        client={createFakeClient()}
+        logKey="m1"
+      />,
+    );
+    await run(0);
+    expect(lastAttempt('m1')!.steps).toEqual([{ source: 'imdb', quality: 'hd', outcome: 'pending' }]);
+
+    await run(TRAILER_START_TIMEOUT_MS);
+    const video = container.querySelector('video')!;
+    Object.defineProperty(video, 'error', { value: { code: 4, message: 'Format error' } });
+    act(() => {
+      video.dispatchEvent(new Event('error'));
+    });
+
+    expect(lastAttempt('m1')!.steps).toEqual([
+      { source: 'imdb', quality: 'hd', outcome: 'timeout' },
+      { source: 'imdb', quality: 'main', outcome: 'error', code: 4, message: 'Format error' },
+    ]);
+  });
+
+  it('when it got under way, and how long after it was asked to play', async () => {
+    const time = vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0);
+    const { container } = render(
+      <TrailerPreview
+        src="https://imdb-video.media-imdb.com/vi1/a.mp4"
+        delaySeconds={0}
+        client={createFakeClient()}
+        logKey="m1"
+      />,
+    );
+    await run(0);
+    await run(800);
+    time.mockReturnValue(0.3);
+    act(() => {
+      container.querySelector('video')!.dispatchEvent(new Event('timeupdate'));
+    });
+
+    expect(lastAttempt('m1')!.steps).toEqual([
+      { source: 'imdb', quality: 'main', outcome: 'played', ms: 800 },
+    ]);
+  });
+
+  it('a browser that refused to start it, and a local trailer it can’t play', async () => {
+    runAs(SAFARI);
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockRejectedValue(new DOMException('no', 'NotAllowedError'));
+    render(<TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MP4_H264)} logKey="m1" />);
+    await startAfter(0);
+    expect(lastAttempt('m1')!.steps).toEqual([{ source: 'local', quality: 'direct', outcome: 'blocked' }]);
+
+    cleanup();
+    resetSessionCaches(); // the trailer's media source, looked up above
+    render(<TrailerPreview trailerId="t1" delaySeconds={0} client={clientFor(MKV_HEVC)} logKey="m2" />);
+    await startAfter(0);
+    expect(lastAttempt('m2')!.steps).toEqual([{ source: 'local', outcome: 'unsupported' }]);
   });
 });

@@ -109,6 +109,45 @@ public sealed record OnlineTrailerDto(string? ImdbUrl, string? YouTubeId, string
 }
 
 /// <summary>
+/// Response of GET /Lumen/Items/{itemId}/TrailerInfo and GET /Lumen/Requests/Title/{mediaType}/{tmdbId}/TrailerInfo
+/// (and their POST …/Refresh, "Check again"): what the server found of the title's trailer, for the Trailer section of
+/// its Media info. Statuses and reasons are stable strings (<see cref="TrailerStatus"/>, <see cref="TrailerSkip"/>,
+/// <see cref="TrailerSource"/>) with a few words of detail; never an address, a key or an exception's text. IMDb's
+/// trailer is named by its qualities only: its addresses are signed. <c>LocalTrailer</c> is null for a catalog title;
+/// <c>CanRefresh</c> is for administrators, the only ones the refresh accepts.
+/// </summary>
+public sealed record TrailerInfoDto(
+    bool Previews,
+    bool OnlineTrailers,
+    bool? LocalTrailer,
+    string? Skipped,
+    ImdbInfoDto Imdb,
+    YouTubeInfoDto YouTube,
+    bool CanRefresh)
+{
+    public static TrailerInfoDto From(TrailerDiagnosis diagnosis, bool canRefresh)
+    {
+        ArgumentNullException.ThrowIfNull(diagnosis);
+        var imdb = diagnosis.Imdb;
+        var youTube = diagnosis.YouTube;
+        return new(
+            diagnosis.Previews,
+            diagnosis.Online,
+            diagnosis.LocalTrailer,
+            diagnosis.Skipped,
+            new ImdbInfoDto(imdb.ImdbId, imdb.Outcome.Status, imdb.Outcome.Detail, imdb.Qualities, imdb.Cached, imdb.Outcome.FetchedAt),
+            new YouTubeInfoDto(youTube.Outcome.Status, youTube.VideoId, youTube.Source, youTube.Outcome.Detail, youTube.Cached, youTube.Outcome.FetchedAt),
+            canRefresh && diagnosis.Skipped is null);
+    }
+}
+
+/// <summary>The IMDb part of <see cref="TrailerInfoDto"/>: the id asked by (null: none in the metadata).</summary>
+public sealed record ImdbInfoDto(string? Id, string Status, string? Detail, IReadOnlyList<string> Qualities, bool Cached, DateTimeOffset? FetchedAt);
+
+/// <summary>The YouTube part of <see cref="TrailerInfoDto"/>: the video id, a checked one (<see cref="YouTubeId"/>), and its source.</summary>
+public sealed record YouTubeInfoDto(string Status, string? VideoId, string? Source, string? Detail, bool Cached, DateTimeOffset? FetchedAt);
+
+/// <summary>
 /// One home row. Catalog rows (discover lists, My Requests) have an empty <c>Items</c> and set <c>Entries</c>, one ordered
 /// list mixing library cards and catalog cards (requests design spec, §3); other rows leave <c>Entries</c> null.
 /// </summary>

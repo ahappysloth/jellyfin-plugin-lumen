@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { useVisible } from '../../components/useVisible';
 import { strings } from '../../strings';
 import type { TrailerProps } from './TrailerPreview';
+import { type TrailerStep, useTrailerLog } from './trailerLog';
 import { TRAILER_FADE_MS, TRAILER_HOLD_MS, TRAILER_START_TIMEOUT_MS } from './trailerTiming';
 import {
   connectYouTubePlayer,
@@ -88,7 +89,15 @@ export function YouTubePreview({
   onProgress,
   onFinish,
   startAt,
+  logKey,
+  log: given,
 }: Props) {
+  const log = useTrailerLog(given, logKey);
+  /** This play's step in the log, and when its frame was asked for. */
+  const step = useRef<{ step: TrailerStep; asked: number } | null>(null);
+  const end = (change: Partial<TrailerStep>): void => {
+    if (step.current) log?.end(step.current.step, change);
+  };
   const wrapper = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const player = useRef<YouTubePlayer | null>(null);
@@ -166,6 +175,7 @@ export function YouTubePreview({
     everShown.current = false;
     showing.current = false;
     silenced.current = false;
+    if (log) step.current = { asked: Date.now(), step: log.add({ source: 'youtube', outcome: 'pending' }) };
     let reveal: ReturnType<typeof setTimeout> | undefined;
     // The picture shows or gives way to the backdrop, and its sound with it: a preview the page has unmuted plays
     // muted through every stretch it isn't seen (its first seconds, after Pause, a stall), not over a still backdrop.
@@ -178,7 +188,12 @@ export function YouTubePreview({
     const onStatus = (status: PlayerStatus): void => {
       clearTimeout(reveal);
       setGoing(status === 'playing');
-      if (status === 'error') return setState('done');
+      if (status === 'error') {
+        end({ outcome: 'error', code: player.current?.error });
+        return setState('done');
+      }
+      if (status === 'playing' && step.current)
+        end({ outcome: 'played', ms: Date.now() - step.current.asked });
       if (status === 'ended') return everShown.current ? setEnding(true) : setState('done');
       if (status === 'playing') {
         if (latest.current.paused) return player.current?.pause(); // told to wait (autoplay off), and didn't
@@ -255,7 +270,10 @@ export function YouTubePreview({
   // left alone, however late it started: its interface's seconds run out by themselves.
   useEffect(() => {
     if (!playing || halted || shown || ending || going) return;
-    const watchdog = setTimeout(() => setState('done'), TRAILER_START_TIMEOUT_MS);
+    const watchdog = setTimeout(() => {
+      end({ outcome: 'timeout' });
+      setState('done');
+    }, TRAILER_START_TIMEOUT_MS);
     return () => clearTimeout(watchdog);
   }, [playing, src, halted, shown, ending, going]);
 

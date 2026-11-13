@@ -144,6 +144,8 @@ export interface PlayerEvents {
 export interface YouTubePlayer {
   readonly clock: PlayerClock;
   readonly status: PlayerStatus;
+  /** The player's error code once it reported one (2, 5, 100, 101, 150…), for the title's Media info. */
+  readonly error?: number;
   play(): void;
   pause(): void;
   /** Goes back `seconds` (not past the start); the clock stays where it was until the player is there again. */
@@ -185,6 +187,7 @@ export function connectYouTubePlayer(
     // embedBase() only lets an origin through
   }
   let status: PlayerStatus = 'loading';
+  let error: number | undefined;
   let heard = false;
   let destroyed = false;
   let tries = 0;
@@ -241,7 +244,10 @@ export function connectYouTubePlayer(
       command('addEventListener', ['onStateChange']);
       command('addEventListener', ['onError']);
     }
-    if (message.error !== undefined) return setStatus('error');
+    if (message.error !== undefined) {
+      error = message.error;
+      return setStatus('error');
+    }
     // The exact length comes first and a rounded-up one later: the shortest is the one the video ends at.
     if (message.duration !== undefined && (duration === 0 || message.duration < duration))
       duration = message.duration;
@@ -275,6 +281,9 @@ export function connectYouTubePlayer(
     clock,
     get status() {
       return status;
+    },
+    get error() {
+      return error;
     },
     play: () => command('playVideo'),
     pause: () => command('pauseVideo'),

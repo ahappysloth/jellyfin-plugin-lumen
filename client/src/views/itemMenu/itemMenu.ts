@@ -23,6 +23,7 @@ import { strings } from '../../strings';
 import { whenStockCss } from '../../veil/stockCss';
 import type { ViewContext } from '../context';
 import { downloadUrl, nativeDownload } from '../details/download';
+import { loadTrailerInfo } from '../trailerInfo/lazyTrailerInfo';
 import { forgetItem, rememberEdit } from '../itemChanges';
 import { COMMAND_GROUPS, type ItemCommand, itemCommands, type MenuItem } from './itemCommands';
 import { ITEM_MENU_ICONS } from './itemMenuIcons';
@@ -77,8 +78,9 @@ function currentUser(ctx: ViewContext): Promise<UserInfo> {
   return user;
 }
 
-/** Commands that are jellyfin-web dialogs (the downloads are Lumen's own). */
-const isDialog = (command: ItemCommand): boolean => command !== 'download' && command !== 'copy-stream';
+/** Commands that are jellyfin-web dialogs (the downloads and Trailer info are Lumen's own). */
+const isDialog = (command: ItemCommand): boolean =>
+  command !== 'download' && command !== 'copy-stream' && command !== 'trailerinfo';
 /** An administrator's editors, which the metadata manager also has (its own ⋯ menu has Identify, Refresh, …). */
 const IN_METADATA_MANAGER: readonly ItemCommand[] = ['edit', 'editimages', 'identify', 'refresh'];
 
@@ -89,6 +91,7 @@ const LABELS: Record<ItemCommand, (item: MenuItem) => string> = {
   downloadall: () => itemMenuStrings.downloadAll,
   'copy-stream': () => itemMenuStrings.copyStreamUrl,
   moremediainfo: () => itemMenuStrings.mediaInfo,
+  trailerinfo: () => itemMenuStrings.trailerInfo,
   edit: () => itemMenuStrings.editMetadata,
   editimages: () => itemMenuStrings.editImages,
   editsubtitles: () => itemMenuStrings.editSubtitles,
@@ -103,6 +106,7 @@ const ICONS: Record<ItemCommand, IconRef> = {
   downloadall: 'download',
   'copy-stream': ITEM_MENU_ICONS.copy,
   moremediainfo: 'info',
+  trailerinfo: 'film',
   edit: 'edit',
   editimages: ITEM_MENU_ICONS.image,
   editsubtitles: ITEM_MENU_ICONS.closedCaption,
@@ -212,6 +216,21 @@ async function run(
       () => showToast(itemMenuStrings.streamUrlCopied),
       () => showToast(itemMenuStrings.copyFailed),
     );
+  const target = { key: item.Id, of: `Items/${item.Id}`, name: item.Name };
+  if (command === 'trailerinfo') {
+    const from = document.activeElement;
+    return loadTrailerInfo().then(
+      (module) => module.openTrailerInfoDialog(ctx, target, from),
+      () => showToast(strings.itemMenuFailed),
+    );
+  }
+  // A movie's Media info gets the Trailer section once it shows: its own file, so the dialog opens as it would without
+  // (and stays as jellyfin-web has it should that file fail).
+  if (command === 'moremediainfo' && item.Type === 'Movie')
+    void loadTrailerInfo().then(
+      (module) => module.attachToMediaInfo(ctx, target),
+      () => undefined,
+    );
   try {
     // What had focus as the menu closed (its button or card), for when the dialog closes: jellyfin-web puts focus back
     // only in the TV layout, and not always. (Refresh resolves once its dialog has closed: compat/itemMenu.ts.)
@@ -282,13 +301,17 @@ export async function prepareItemMenu(
   const commands = itemCommands(full, user.Policy ?? {}, {
     tv: ctx.layout === 'tv',
     downloadButton: options.downloadButton,
-  }).filter((command) =>
-    stock
-      ? stock.includes(command)
-      : dialogs ||
-        !isDialog(command) ||
-        !!options.fallback ||
-        (IN_METADATA_MANAGER.includes(command) && !!user.Policy?.IsAdministrator),
+    trailerInfo: ctx.config.TrailerPreview,
+  }).filter(
+    (command) =>
+      // Lumen's own: jellyfin-web's menu has no such command.
+      command === 'trailerinfo' ||
+      (stock
+        ? stock.includes(command)
+        : dialogs ||
+          !isDialog(command) ||
+          !!options.fallback ||
+          (IN_METADATA_MANAGER.includes(command) && !!user.Policy?.IsAdministrator)),
   );
   return {
     item: full,

@@ -12,6 +12,7 @@ import {
   type TrailerOption,
 } from './trailerStream';
 import { trailerFiles } from './trailerQuality';
+import { type TrailerLogger, type TrailerStep, useTrailerLog } from './trailerLog';
 import {
   TRAILER_FADE_MS,
   TRAILER_HOLD_MS,
@@ -71,6 +72,10 @@ export interface TrailerProps {
    * The hero's slides show a preview for a few seconds each, not worth a server stream: the file or nothing.
    */
   allowTranscode?: boolean;
+  /** The title's id, to note how its trailer went on this device (trailerLog.ts, read by its Media info). */
+  logKey?: string | null;
+  /** The attempt to note it in, when this is part of one already (OnlineTrailerPreview's). */
+  log?: TrailerLogger | null;
 }
 
 export { TRAILER_FADE_MS, TRAILER_STARTED_SECONDS, TRAILER_START_TIMEOUT_MS };
@@ -121,7 +126,15 @@ export function TrailerPreview({
   onFinish,
   startAt,
   allowTranscode = false,
+  logKey,
+  log: given,
 }: TrailerProps) {
+  const log = useTrailerLog(given, logKey);
+  /** This session's step in the log, and when it was asked to play. */
+  const step = useRef<{ session: string; step: TrailerStep; asked: number } | null>(null);
+  const end = (change: Partial<TrailerStep>): void => {
+    if (step.current) log?.end(step.current.step, change);
+  };
   const wrapper = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLVideoElement>(null);
   const visible = useVisible(wrapper);
@@ -163,7 +176,10 @@ export function TrailerPreview({
   }, [visible, plan, trailerId]);
 
   useEffect(() => {
-    if (plan && plan.options.length === 0) setState('done');
+    if (plan && plan.options.length === 0) {
+      log?.add({ source: 'local', outcome: 'unsupported' });
+      setState('done');
+    }
   }, [plan]);
 
   // In view, the delay runs: the video is put in place to load PRELOAD_LEAD_MS before it's up, and played as much
@@ -230,12 +246,27 @@ export function TrailerPreview({
       return;
     }
     asked.current = true;
+    if (log && step.current?.session !== session) {
+      const file = files.current[attempt];
+      step.current = {
+        session,
+        asked: Date.now(),
+        step: log.add({
+          source: src ? 'imdb' : 'local',
+          quality: src ? (file && file === srcHd ? 'hd' : 'main') : option.kind,
+          outcome: 'pending',
+        }),
+      };
+    }
     let current = true;
     try {
       const playing = element.play();
       if (playing)
         playing.catch((e: unknown) => {
-          if (current && (e as { name?: string } | null)?.name === 'NotAllowedError') setState('done');
+          if (current && (e as { name?: string } | null)?.name === 'NotAllowedError') {
+            end({ outcome: 'blocked' });
+            setState('done');
+          }
         });
     } catch {
       // jsdom, or a browser whose play() returns nothing
@@ -274,7 +305,9 @@ export function TrailerPreview({
   useEffect(() => {
     if (!run) return;
     const watchdog = setTimeout(() => {
-      if (!started.current) onError();
+      if (started.current) return;
+      end({ outcome: 'timeout' });
+      onError();
     }, TRAILER_START_TIMEOUT_MS);
     return () => clearTimeout(watchdog);
   }, [run, session]);
@@ -322,6 +355,7 @@ export function TrailerPreview({
       return;
     }
     started.current = true;
+    if (step.current?.session === session) end({ outcome: 'played', ms: Date.now() - step.current.asked });
     if (shownSession !== session) setShownSession(session);
     onProgress?.(element);
   };
@@ -356,7 +390,11 @@ export function TrailerPreview({
           onLoadedMetadata={startAt ? seekToStart : undefined}
           onPlaying={markStarted}
           onTimeUpdate={markStarted}
-          onError={onError}
+          onError={(e) => {
+            const error = e.currentTarget.error;
+            end({ outcome: 'error', code: error?.code, message: error?.message || undefined });
+            onError();
+          }}
           onEnded={() => setEnding(true)}
         />
       )}

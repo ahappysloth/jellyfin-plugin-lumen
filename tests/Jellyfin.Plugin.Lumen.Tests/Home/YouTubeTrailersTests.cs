@@ -314,6 +314,77 @@ public class YouTubeTrailersTests
         Assert.Null(YouTubeTrailers.FromSeerr(null));
     }
 
+    [Fact]
+    public async Task Diagnose_TheItemsOwnTrailer_ComesFromJellyfinsMetadata_WithoutAskingSeerr()
+    {
+        var info = await _trailers.DiagnoseAsync(Movie(603, "https://www.youtube.com/watch?v=" + OwnId), _user, false, CancellationToken.None);
+
+        Assert.Equal(new YouTubeDiagnosis(OwnId, TrailerSource.Jellyfin, new TrailerOutcome(TrailerStatus.Found, null, null), false), info);
+        Assert.Empty(_seerr.ReceivedCalls());
+    }
+
+    [Fact]
+    public async Task Diagnose_SeerrsTrailer_ComesFromSeerr_ThenFromTheCache()
+    {
+        var first = await _trailers.DiagnoseAsync(Movie(603), _user, false, CancellationToken.None);
+        _time.Advance(TimeSpan.FromMinutes(5));
+        var second = await _trailers.DiagnoseAsync(Movie(603), _user, false, CancellationToken.None);
+
+        Assert.Equal(new YouTubeDiagnosis(SeerrId, TrailerSource.Seerr, new TrailerOutcome(TrailerStatus.Found, null, TestData.Now), false), first);
+        Assert.Equal(first with { Cached = true }, second);
+        await _seerr.ReceivedWithAnyArgs(1).GetTitleSummaryAsync(default!, default, default!, default, default);
+    }
+
+    [Fact]
+    public async Task Diagnose_Refresh_AsksSeerrAgain()
+    {
+        await Get(Movie(603));
+        _seerr.GetTitleSummaryAsync(default!, default, default!, default, default).ReturnsForAnyArgs(Title());
+
+        var info = await _trailers.DiagnoseAsync(Movie(603), _user, true, CancellationToken.None);
+
+        Assert.Equal(TrailerStatus.NotFound, info.Outcome.Status);
+        Assert.Null(info.VideoId);
+        await _seerr.ReceivedWithAnyArgs(2).GetTitleSummaryAsync(default!, default, default!, default, default);
+        Assert.Null(await Get(Movie(603)));
+    }
+
+    [Fact]
+    public async Task Diagnose_WithoutSeerr_OrATmdbId_OrAccess_SaysSo()
+    {
+        Assert.Equal(TrailerStatus.NoId, (await _trailers.DiagnoseAsync(Movie(null), _user, false, CancellationToken.None)).Outcome.Status);
+
+        _users.GetAccessAsync(_user.Id, Arg.Any<CancellationToken>()).Returns(new RequestAccess(false, false, false, null, null));
+        Assert.Equal(
+            new TrailerOutcome(TrailerStatus.NoSeerr, "no Seerr access for this user", null),
+            (await _trailers.DiagnoseAsync(Series(1399), _user, false, CancellationToken.None)).Outcome);
+
+        _config.Current.Returns(new PluginConfiguration { YouTubeTrailers = true });
+        Assert.Equal(
+            new TrailerOutcome(TrailerStatus.NoSeerr, "Seerr isn't set up", null),
+            (await _trailers.DiagnoseAsync(Movie(603), _user, false, CancellationToken.None)).Outcome);
+    }
+
+    [Fact]
+    public async Task Diagnose_SeerrFailing_IsAnError_WithItsStatusOnly()
+    {
+        _seerr.GetTitleSummaryAsync(default!, default, default!, default, default)
+            .ThrowsAsyncForAnyArgs(new SeerrException("Seerr answered with HTTP 503 at http://seerr:5055/api/v1/movie/603", HttpStatusCode.ServiceUnavailable));
+
+        var info = await _trailers.DiagnoseAsync(Movie(603), _user, false, CancellationToken.None);
+
+        Assert.Equal(new TrailerOutcome(TrailerStatus.Error, "Seerr answered HTTP 503", TestData.Now), info.Outcome);
+    }
+
+    [Fact]
+    public async Task Diagnose_SeerrNotKnowingTheTitle_IsNotFound()
+    {
+        _seerr.GetTitleSummaryAsync(default!, default, default!, default, default)
+            .ThrowsAsyncForAnyArgs(new SeerrException("not found", HttpStatusCode.NotFound));
+
+        Assert.Equal(TrailerStatus.NotFound, (await _trailers.DiagnoseAsync(Movie(603), _user, false, CancellationToken.None)).Outcome.Status);
+    }
+
     private static PluginConfiguration WithSeerr(string url = "http://seerr:5055") =>
         new() { YouTubeTrailers = true, RequestsEnabled = true, SeerrUrl = url, SeerrApiKey = "k" };
 

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient } from '../../../test/fakeClient';
 import { OnlineTrailerPreview } from './OnlineTrailerPreview';
 import { YOUTUBE_DWELL_MS } from './YouTubePreview';
+import { lastAttempt } from '../trailerInfo/deviceLog';
 
 const URL_720 = 'https://imdb-video.media-imdb.com/vi1/a.mp4?Expires=1&Signature=s';
 
@@ -163,5 +164,70 @@ describe('OnlineTrailerPreview', () => {
       expect(container).toBeEmptyDOMElement();
       unmount();
     }
+  });
+
+  it('notes on a TV that YouTube’s was skipped, and a lookup that failed or found nothing', async () => {
+    document.documentElement.classList.add('layout-tv');
+    render(
+      <OnlineTrailerPreview
+        youTubeId="dQw4w9WgXcQ"
+        delaySeconds={0}
+        client={createFakeClient()}
+        logKey="m1"
+      />,
+    );
+    await run(0);
+    expect(lastAttempt('m1')).toMatchObject({
+      tv: true,
+      steps: [{ source: 'youtube', outcome: 'skipped', message: 'tv' }],
+    });
+    cleanup();
+    document.documentElement.classList.remove('layout-tv');
+
+    render(
+      <OnlineTrailerPreview
+        lookup={() => Promise.reject({ status: 502 })}
+        delaySeconds={0}
+        client={createFakeClient()}
+        logKey="m2"
+      />,
+    );
+    await run(0);
+    expect(lastAttempt('m2')!.steps).toEqual([{ source: 'lookup', outcome: 'error', code: 502 }]);
+
+    render(
+      <OnlineTrailerPreview
+        lookup={() => Promise.resolve({})}
+        delaySeconds={0}
+        client={createFakeClient()}
+        logKey="m3"
+      />,
+    );
+    await run(0);
+    expect(lastAttempt('m3')!.steps).toEqual([{ source: 'lookup', outcome: 'none' }]);
+    sessionStorage.clear();
+  });
+
+  it("notes IMDb's file failing, then YouTube's tried, as one attempt", async () => {
+    const { container } = render(
+      <OnlineTrailerPreview
+        imdbUrl={URL_720}
+        youTubeId="dQw4w9WgXcQ"
+        delaySeconds={0}
+        client={createFakeClient()}
+        logKey="m1"
+      />,
+    );
+    await run(0);
+    act(() => {
+      container.querySelector('video')!.dispatchEvent(new Event('error'));
+    });
+    await run(YOUTUBE_DWELL_MS);
+    expect(container.querySelector('iframe')).not.toBeNull();
+    expect(lastAttempt('m1')!.steps).toEqual([
+      { source: 'imdb', quality: 'main', outcome: 'error' },
+      { source: 'youtube', outcome: 'pending' },
+    ]);
+    sessionStorage.clear();
   });
 });

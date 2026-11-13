@@ -411,6 +411,94 @@ public sealed class ImdbTrailersTests : IDisposable
         Assert.Equal(new ImdbCheck(null, null), await _trailers.CheckAsync(Id, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Diagnose_NoId_IsNotAsked()
+    {
+        var info = await _trailers.DiagnoseAsync(null, false, CancellationToken.None);
+
+        Assert.Equal(new ImdbDiagnosis(null, new TrailerOutcome(TrailerStatus.NoId, null, null), [], false), info);
+        Assert.Empty(_imdb.Requests);
+    }
+
+    [Fact]
+    public async Task Diagnose_Found_NamesItsQualitiesBestFirst_NeverItsAddresses_AndWhenItWasAsked()
+    {
+        var info = await _trailers.DiagnoseAsync(Id, false, CancellationToken.None);
+
+        Assert.Equal(Id, info.ImdbId);
+        Assert.Equal(new TrailerOutcome(TrailerStatus.Found, null, TestData.Now), info.Outcome);
+        Assert.Equal(["1080p", "720p"], info.Qualities);
+        Assert.False(info.Cached);
+    }
+
+    [Fact]
+    public async Task Diagnose_ATrailerWithOneQuality_NamesThatOne()
+    {
+        _imdb.Answer = _ => Answer(Video("Trailer", 120, ("480p", Mp4("a480"))));
+
+        Assert.Equal(["480p"], (await _trailers.DiagnoseAsync(Id, false, CancellationToken.None)).Qualities);
+    }
+
+    [Fact]
+    public async Task Diagnose_NoTrailerOnIMDb_IsNotFound()
+    {
+        _imdb.Answer = _ => Json("""{"data":{"title":null}}""");
+
+        var info = await _trailers.DiagnoseAsync(Id, false, CancellationToken.None);
+
+        Assert.Equal(TrailerStatus.NotFound, info.Outcome.Status);
+        Assert.Empty(info.Qualities);
+    }
+
+    [Theory]
+    [InlineData("403", TrailerStatus.HttpError, "HTTP 403")]
+    [InlineData("500", TrailerStatus.HttpError, "HTTP 500")]
+    [InlineData("302", TrailerStatus.HttpError, "HTTP 302")]
+    [InlineData("timeout", TrailerStatus.Timeout, "no answer within 4 s")]
+    [InlineData("throws", TrailerStatus.Error, "couldn't connect")]
+    [InlineData("errors", TrailerStatus.Error, "query refused")]
+    [InlineData("garbage", TrailerStatus.Error, "unreadable answer")]
+    public async Task Diagnose_IMDbFailing_SaysHow_WithoutAnAddressOrTheExceptionsText(string failure, string status, string detail)
+    {
+        _imdb.Answer = _ => Fail(failure);
+
+        var info = await _trailers.DiagnoseAsync(Id, false, CancellationToken.None);
+
+        Assert.Equal(new TrailerOutcome(status, detail, TestData.Now), info.Outcome);
+        Assert.Empty(info.Qualities);
+    }
+
+    [Fact]
+    public async Task Diagnose_ReadsTheAnswerTheHeroCached_WithWhenItWasAsked()
+    {
+        await Get(Id);
+        _time.Advance(TimeSpan.FromMinutes(30));
+
+        var info = await _trailers.DiagnoseAsync(Id, false, CancellationToken.None);
+
+        Assert.True(info.Cached);
+        Assert.Equal(TestData.Now, info.Outcome.FetchedAt);
+        Assert.Single(_imdb.Requests);
+    }
+
+    [Fact]
+    public async Task Diagnose_ACachedFailure_StaysAFailure_UntilRefreshed_AndTheRefreshIsCachedForEveryone()
+    {
+        _imdb.Answer = _ => Fail("500");
+        await Get(Id);
+        Assert.Equal(TrailerStatus.HttpError, (await _trailers.DiagnoseAsync(Id, false, CancellationToken.None)).Outcome.Status);
+
+        _imdb.Answer = _ => Answer(Video("Trailer", 120, ("720p", Mp4("back"))));
+        _time.Advance(TimeSpan.FromMinutes(1));
+        var refreshed = await _trailers.DiagnoseAsync(Id, true, CancellationToken.None);
+
+        Assert.Equal(new TrailerOutcome(TrailerStatus.Found, null, TestData.Now + TimeSpan.FromMinutes(1)), refreshed.Outcome);
+        Assert.False(refreshed.Cached);
+        Assert.Equal(2, _imdb.Requests.Count);
+        Assert.Equal(Mp4("back"), await Get(Id));
+        Assert.Equal(2, _imdb.Requests.Count);
+    }
+
     [Theory]
     [InlineData("https://x/a.mp4?Expires=1794667866&Signature=s", 1794667866L)]
     [InlineData("https://x/a.mp4?Signature=s&Expires=5", 5L)]
