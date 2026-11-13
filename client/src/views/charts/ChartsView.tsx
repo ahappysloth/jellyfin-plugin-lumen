@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import type { BaseItem, CatalogItem, ChartEntry, RequestStatus } from '../../api/types';
+import type { BaseItem, CatalogItem, ChartEntry, ChartPage, RequestStatus } from '../../api/types';
 import { Card } from '../../components/Card';
 import { LoadError } from '../../components/LoadError';
 import { Icon } from '../../components/icons';
@@ -27,6 +27,29 @@ interface Chart {
   next: number;
   /** When its first page came (Date.now()): an older copy is fetched again on the next visit (CHART_STALE_AFTER). */
   fetchedAt: number;
+  /**
+   * Where the pages start that came without some of their titles (Seerr failed on them, or was too slow: the page's
+   * Missing). The page says so and offers to try again, and a copy with any isn't shown again on the next visit.
+   */
+  short: number[];
+}
+
+/** Puts a page into its chart's copy as it is now (another page may have landed meanwhile); `fresh` starts a new copy. */
+function merge(forKey: string, page: ChartPage, fresh = false): void {
+  const now = fresh ? null : (cache.get(forKey) ?? null);
+  const seen = new Set((now?.entries ?? []).map(entryKey));
+  cache.set(forKey, {
+    // In rank order: a page asked for again brings the titles it lacked, which belong among those already here.
+    entries: [...(now?.entries ?? []), ...page.Entries.filter((e) => !seen.has(entryKey(e)))].sort(
+      (a, b) => a.Rank - b.Rank,
+    ),
+    total: page.TotalCount,
+    next: Math.max(now?.next ?? 0, page.StartIndex + CHART_PAGE),
+    fetchedAt: now?.fetchedAt ?? Date.now(),
+    short: (now?.short ?? [])
+      .filter((s) => s !== page.StartIndex)
+      .concat(page.Missing ? [page.StartIndex] : []),
+  });
 }
 
 /**
@@ -142,16 +165,8 @@ export function ChartsView({ ctx }: { ctx: ViewContext }) {
     ctx.api.getChart(type, span, from, CHART_PAGE).then(
       (page) => {
         if (asked !== session) return;
-        // Into the chart's copy as it is now (another page may have landed meanwhile), whether or not it's showing.
-        const now = from === 0 ? null : (cache.get(forKey) ?? null);
-        const seen = new Set((now?.entries ?? []).map(entryKey));
-        const chart: Chart = {
-          entries: [...(now?.entries ?? []), ...page.Entries.filter((e) => !seen.has(entryKey(e)))],
-          total: page.TotalCount,
-          next: Math.max(now?.next ?? 0, page.StartIndex + CHART_PAGE),
-          fetchedAt: now?.fetchedAt ?? Date.now(),
-        };
-        cache.set(forKey, chart);
+        // Whether or not the chart is showing.
+        merge(forKey, page, from === 0);
         settle(true);
       },
       () => {
@@ -161,15 +176,52 @@ export function ChartsView({ ctx }: { ctx: ViewContext }) {
     );
   };
 
+  /**
+   * Asks again for the pages that came without some of their titles, one at a time (each is up to 24 lookups for a
+   * Seerr that was just struggling). A page that fails outright stays as it was, and the note with it.
+   */
+  const retryShort = (): void => {
+    const forKey = key;
+    const starts = cache.get(forKey)?.short ?? [];
+    if (pending.has(forKey) || !starts.length) return;
+    const asked = session;
+    pending.add(forKey);
+    setPages((n) => n + 1);
+    void starts
+      .reduce(
+        (before, from) =>
+          before.then(() =>
+            ctx.api.getChart(type, span, from, CHART_PAGE).then(
+              (page) => void (asked === session && merge(forKey, page)),
+              () => undefined,
+            ),
+          ),
+        Promise.resolve(),
+      )
+      .then(() => {
+        if (asked !== session) return;
+        pending.delete(forKey);
+        listeners.forEach((settled) => settled(forKey, true));
+        // The note goes once nothing is missing, and a TV remote's focus with its button: to the chart's first card.
+        window.setTimeout(() => {
+          if (!document.activeElement || document.activeElement === document.body)
+            rootRef.current
+              ?.querySelector<HTMLElement>('.lmn-charts__grid a, .lmn-charts__grid button')
+              ?.focus();
+        });
+      });
+  };
+
   // A new chart or period: the copy from this session if there is one, else its first page. A copy older than
-  // CHART_STALE_AFTER is fetched again, unless the user is coming Back to it (to the card they left, where they were).
+  // CHART_STALE_AFTER, or one short of some titles, is fetched again, unless the user is coming Back to it (to the card
+  // they left, where they were).
   useEffect(() => {
     let cached = cache.get(key) ?? null;
     if (
       cached &&
       !pending.has(key) &&
       restore?.key !== key &&
-      Date.now() - cached.fetchedAt > CHART_STALE_AFTER
+      (cached.short.length > 0 || Date.now() - cached.fetchedAt > CHART_STALE_AFTER)
     ) {
       cache.delete(key);
       cached = null;
@@ -293,6 +345,20 @@ export function ChartsView({ ctx }: { ctx: ViewContext }) {
           onChange={setSpan}
         />
       </PageHeader>
+      {data && data.short.length > 0 && (
+        <p class="lmn-charts__partial" role="status">
+          <span>{chartsStrings.partial}</span>
+          {/* Not disabled while it tries: that would drop a TV remote's focus. retryShort ignores a second press. */}
+          <button
+            type="button"
+            class={`lmn-button lmn-button--secondary${loading ? ' is-busy' : ''}`}
+            aria-busy={loading ? 'true' : undefined}
+            onClick={retryShort}
+          >
+            {loading ? strings.retrying : strings.retry}
+          </button>
+        </p>
+      )}
       {data && data.total === 0 ? (
         <div class="lmn-browse__empty">
           <span class="lmn-browse__empty-icon">

@@ -76,11 +76,12 @@ export function Dropdown<T extends string>({
     const below = window.innerHeight - rect.bottom;
     setPlacement(below < 280 && rect.top > below ? 'up' : 'down');
     const width = list.current?.offsetWidth ?? 0;
-    setAlign(
-      rect.left + width > window.innerWidth - VIEWPORT_MARGIN && rect.right - width >= VIEWPORT_MARGIN
-        ? 'end'
-        : 'start',
-    );
+    const startRoom = window.innerWidth - VIEWPORT_MARGIN - rect.left;
+    const end = width > startRoom && rect.right - width >= VIEWPORT_MARGIN;
+    setAlign(end ? 'end' : 'start');
+    // Where it fits neither way (a long option on a small phone), no wider than the room it has: its options end in an
+    // ellipsis rather than the list running off the side.
+    if (list.current) list.current.style.maxWidth = `${end ? rect.right - VIEWPORT_MARGIN : startRoom}px`;
     list.current?.focus({ preventScroll: true });
   }, [open]);
   useEffect(() => {

@@ -123,7 +123,7 @@ export function RequestsSettings({
 
       {sameServer === false ? (
         <div class="lmna-callout lmna-callout--warn" role="note">
-          <h3>Seerr is linked to a different Jellyfin server</h3>
+          <h2>Seerr is linked to a different Jellyfin server</h2>
           <p>
             Seerr uses “{seerrServerName}”, not this server. Seerr accounts only match users of the Jellyfin
             server it's linked to, so nobody here will see the catalog. Install Lumen on that server instead.
@@ -133,7 +133,7 @@ export function RequestsSettings({
         users &&
         users.Unmapped.length > 0 && (
           <div class="lmna-callout lmn-admin__unmapped">
-            <h3>Users without a Seerr account</h3>
+            <h2>Users without a Seerr account</h2>
             <p>They won't see the catalog until they have one. In Seerr: Users → Import Jellyfin Users.</p>
             <ul class="lmna-chips">
               {users.Unmapped.map((u) => (

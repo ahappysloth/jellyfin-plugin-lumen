@@ -81,7 +81,7 @@ public sealed class ChartsController : ControllerBase
                 : mapped.TryGetValue(e.Item.Id, out var dto) ? new ChartEntryDto(e.Rank, dto, null) : null)
             .OfType<ChartEntryDto>()
             .ToList();
-        return new ChartPageDto(entries, page.TotalCount, page.StartIndex);
+        return new ChartPageDto(entries, page.TotalCount, page.StartIndex, page.Missing);
     }
 
     internal static TraktListKind? ParseKind(string? type) => type?.ToLowerInvariant() switch
@@ -101,8 +101,11 @@ public sealed class ChartsController : ControllerBase
     };
 }
 
-/// <summary>A page of a chart. <c>TotalCount</c> is how many titles the chart has for this user (its pages' end).</summary>
-public sealed record ChartPageDto(IReadOnlyList<ChartEntryDto> Entries, int TotalCount, int StartIndex);
+/// <summary>
+/// A page of a chart. <c>TotalCount</c> is how many titles the chart has for this user (its pages' end); <c>Missing</c>,
+/// how many of this page's titles Seerr couldn't describe this time (the page says so, and offers to try again).
+/// </summary>
+public sealed record ChartPageDto(IReadOnlyList<ChartEntryDto> Entries, int TotalCount, int StartIndex, int Missing = 0);
 
 /// <summary>A chart's title: its Trakt rank, and a library card (<c>Item</c>) or a catalog card (<c>Catalog</c>).</summary>
 public sealed record ChartEntryDto(int Rank, BaseItemDto? Item, CatalogItemDto? Catalog);

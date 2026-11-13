@@ -13,6 +13,7 @@ using MediaBrowser.Model.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Xunit;
@@ -132,6 +133,32 @@ public class ChartServiceTests
         var page = (await Service().GetPageAsync(_user, TraktListKind.Movies, TraktPeriod.Weekly, 0, 24, CancellationToken.None))!;
 
         Assert.Equal([1, 3], page.Entries.Select(e => e.Rank));
+
+        // Seerr doesn't know the title: asking again wouldn't bring it, so the page isn't short of it.
+        Assert.Equal(0, page.Missing);
+    }
+
+    [Fact]
+    public async Task APageSaysHowManyTitlesSeerrFailedOn_SoThePageCanOfferToTryAgain()
+    {
+        _lists.GetAsync(default!, default).ReturnsForAnyArgs(Chart(5));
+        _seerr.GetTitleSummaryAsync(Arg.Any<SeerrEndpoint>(), Arg.Any<int>(), "movie", 2, Arg.Any<CancellationToken>())
+            .ThrowsAsync(new SeerrException("502", System.Net.HttpStatusCode.BadGateway));
+        _seerr.GetTitleSummaryAsync(Arg.Any<SeerrEndpoint>(), Arg.Any<int>(), "movie", 4, Arg.Any<CancellationToken>())
+            .ThrowsAsync(new SeerrException("Seerr is down.") { IsCircuitOpen = true });
+
+        // Never answers: left out once the page's time for Seerr is up.
+        _seerr.GetTitleSummaryAsync(Arg.Any<SeerrEndpoint>(), Arg.Any<int>(), "movie", 5, Arg.Any<CancellationToken>())
+            .Returns(new TaskCompletionSource<SeerrTitle>().Task);
+        var time = new FakeTimeProvider(TestData.Now);
+
+        var pending = Service(time).GetPageAsync(_user, TraktListKind.Movies, TraktPeriod.Weekly, 0, 24, CancellationToken.None);
+        time.Advance(ChartService.DetailsBudget);
+        var page = (await pending)!;
+
+        Assert.Equal([1, 3], page.Entries.Select(e => e.Rank));
+        Assert.Equal(3, page.Missing);
+        Assert.Equal(5, page.TotalCount);
     }
 
     [Fact]
@@ -221,10 +248,11 @@ public class ChartServiceTests
     private static TraktList Chart(int count, TraktListKind kind = TraktListKind.Movies) =>
         new(Enumerable.Range(1, count).Select(i => new TraktTitle("T" + i, 2026, i, null, kind)).ToList());
 
-    private ChartService Service()
+    private ChartService Service(TimeProvider? time = null)
     {
-        var cards = new TraktCards(_seerr, new CatalogMapper(_library), _library, TimeProvider.System, NullLogger<TraktCards>.Instance);
-        return new ChartService(_lists, new CatalogRowAccess(_users), cards, TimeProvider.System);
+        time ??= TimeProvider.System;
+        var cards = new TraktCards(_seerr, new CatalogMapper(_library), _library, time, NullLogger<TraktCards>.Instance);
+        return new ChartService(_lists, new CatalogRowAccess(_users), cards, time);
     }
 
     private ChartsController Controller(PluginConfiguration config, IHomeDtoMapper? mapper = null)

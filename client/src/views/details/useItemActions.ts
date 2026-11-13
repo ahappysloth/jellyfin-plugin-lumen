@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { HOME_HASH } from '../../compat/jellyfin';
 import type { BaseItem } from '../../api/types';
 import { playItem } from '../../playback/play';
 import { clearStarting, showStarting, startingFor, useStartingButton } from '../../playback/starting';
@@ -98,8 +97,4 @@ export function useYouTubeTrailer(item: BaseItem, ctx: ViewContext): string | nu
   return wanted ? id : null;
 }
 
-/** Back to wherever the user came from; home when the details page was opened directly. */
-export function goBack(ctx: ViewContext): void {
-  if (window.history.length > 1) window.history.back();
-  else ctx.navigate(HOME_HASH);
-}
+export { goBack } from '../BackHome';

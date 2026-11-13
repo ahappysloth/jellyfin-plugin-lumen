@@ -25,6 +25,8 @@ export const chartsStrings = {
   listLabel: (type: string, period: string) => `Top ${type.toLowerCase()} ${period.toLowerCase()}`,
   /** The visible rank on a card. */
   rank: (rank: number) => formatNumber(rank),
+  /** Seerr couldn't describe some of the chart's titles this time, so they're left out. */
+  partial: 'Some titles couldn’t be loaded.',
   empty: 'Nothing here yet',
   emptyHint: "None of this chart's titles are on this server.",
 };

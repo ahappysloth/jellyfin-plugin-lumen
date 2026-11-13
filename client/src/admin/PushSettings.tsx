@@ -68,7 +68,7 @@ export function PushSettings({ api, confirm }: { api: AdminApi; confirm: (messag
   const last = status.LastSend ? describeSend(status.LastSend) : null;
   return (
     <div class="lmna-callout lmn-admin__push" style={{ marginTop: '14px' }}>
-      <h3>Notifications</h3>
+      <h2>Notifications</h2>
       <p>
         Users can turn on a notification for when their requests are ready to watch, on each device (in My
         requests or their profile page). On an iPhone or iPad, that’s in the Home Screen app.

@@ -13,6 +13,13 @@ Run against the release build on the latest stable Jellyfin.
       page; Play/Resume, Trailer, My List, and Watched all work; You may like opens another title.
 - [ ] Series details: smart play label is correct, switching seasons works, and clicking an episode plays it.
 - [ ] Back from details returns to home at the same scroll position.
+- [ ] The round buttons over artwork (Back, the hero's Pause, a trailer's Pause and Mute, the rows' arrows) are frosted
+      glass, and turn into a white disc with a dark icon under the pointer, when pressed, and with Tab's focus (a ring
+      too). The player's buttons are bare at rest and turn white the same way.
+- [ ] Home → a movie: the pill at the top left holds Back only. → a cast member → one of their titles: Back and Home.
+      Back, a page at a time, drops Home again one page from where you set out. Home opens Lumen's home, and the
+      browser's Back then returns to the page Home was pressed on, with Home still in its pill. A reload two pages in
+      keeps Home; a details page opened from a bookmark has Back only.
 - [ ] As an administrator, More on a movie, series, season (the ⋯ beside the season picker) and episode lists
       jellyfin-web's actions; Edit metadata, Identify, Edit images, Edit subtitles, Media info, Add to collection, Add
       to playlist and Refresh metadata each open jellyfin-web's own dialog, and a saved edit shows on the page without
@@ -69,6 +76,9 @@ Add Top 10 Movies and Top 10 Shows under Home sections first.
 - [ ] Top charts: Movies / Shows and This week / This month / This year / All time each show their own chart, ranked
       as on Trakt (compare with trakt.tv/movies/watched/monthly…). All time loads more as you scroll, up to 100. A title
       on the server opens its page; Back returns to the same chart and period.
+- [ ] Open Lumen, then stop Seerr (or block it) and open a chart Lumen hasn't shown in the last ten minutes: the titles
+      on the server show, with "Some titles couldn't be loaded. Try again" above them. Start Seerr again: Try again
+      brings the rest into their places by rank, and the note goes.
 - [ ] With Seerr, titles the server doesn't have show Request under the card; requesting one turns the card to
       Requested (and to a progress bar once it downloads). Without Seerr, only titles on the server show, at their true
       rank (e.g. 4, 9, 23), not renumbered.
@@ -135,7 +145,12 @@ Automated tests use a stub Seerr; only a real one shows Radarr's and Sonarr's qu
       more. With a request in flight, one about every 45 s (10 s on its title page or My requests while it
       downloads), and none while the tab is in the background.
 - [ ] Seerr without Radarr/Sonarr connected: the statuses show without a bar or time left.
+- [ ] As a user Seerr has no account for (Seerr set up, the user not imported): the network panel shows no GET
+      /Lumen/Requests/Mine at all, and the console no 404.
 - [ ] TV layout: from the account menu, Down reaches My requests; on it the arrows reach every request.
+- [ ] TV layout: when the "ready to watch" pop-up shows, the remote's focus is on Open (OK opens the title); Right is
+      Dismiss, and after it (or when the pop-up goes by itself) focus is back where it was.
+- [ ] A phone on its side: the pop-up sits just above the tab bar, not over the page's title or sort buttons.
 
 ## Push notifications (a real iPhone, the server on https, a real Seerr)
 
@@ -239,11 +254,18 @@ real phone shows what the installer and the launch do.
       title from its page: Back focuses the card next to where it was.
 - [ ] On a real TV browser, a home card's "More actions…" opens the title's page (jellyfin-web hasn't loaded its item
       menu on home there); that page's More has the actions.
+- [ ] Details: Up from Play reaches Back, a white disc with a ring while it has focus; two pages in, Right moves to
+      Home and Left back, and OK on Home opens home. On a real TV (webOS 5 has no backdrop blur) Back and the hero's
+      Pause are a plain dark disc at rest and still read over a bright backdrop; newer TVs blur behind them without
+      the page stuttering as it scrolls.
 
 ## Admin
 
 - [ ] Reorder, add, and remove sections; save; the result is reflected on home.
-- [ ] An invalid setting (collection hero source with no collection) shows an error and saves nothing.
+- [ ] An invalid setting (collection hero source with no collection) shows an error and saves nothing. A section's
+      error names it as the list does, with its row: "Trakt list (row 4): …".
+- [ ] On a phone (320 px wide too): every Home section's name shows whole, on two lines or more if it must, and the
+      "Choose a section to add…" list stays inside the screen.
 - [ ] The save bar slides up with the first change and stays at the bottom of the window wherever you scroll, on a phone too (clear of the home indicator); after Save it says "Settings saved." and slides away. A failed save keeps it up.
 - [ ] Health tab (next to Settings and Storage): every group shows, each row with its status in words; the tab is kept
       across a reload in the same browser tab, and shows a red count while a row is a Problem.

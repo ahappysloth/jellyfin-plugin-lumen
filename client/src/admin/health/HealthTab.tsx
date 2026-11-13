@@ -54,7 +54,7 @@ function CheckRow({ check, onOpenSetting }: { check: HealthCheck; onOpenSetting:
     <li class={`lmna-health__row lmna-health__row--${check.Status}`} data-check={check.Id}>
       <div class="lmna-health__head">
         <Status status={check.Status} />
-        <h4 class="lmna-health__title">{check.Title}</h4>
+        <h2 class="lmna-health__title">{check.Title}</h2>
       </div>
       <p class="lmna-health__message">{check.Message}</p>
       {check.Detail && <p class="lmna-health__detail">{check.Detail}</p>}
@@ -68,7 +68,7 @@ function DeviceItem({ device }: { device: DeviceRow }) {
     <li class={`lmna-health__row lmna-health__row--${device.status}`} data-device>
       <div class="lmna-health__head">
         <Status status={device.status} />
-        <h4 class="lmna-health__title">{device.title}</h4>
+        <h2 class="lmna-health__title">{device.title}</h2>
       </div>
       <dl class="lmna-health__facts">
         <dt>What broke</dt>

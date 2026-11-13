@@ -10,6 +10,7 @@ import { strings } from '../../strings';
 import { formatDate } from '../../util/locale';
 import type { PreparedMenu } from '../itemMenu/itemMenu';
 import { useMoreButton } from '../itemMenu/lazyItemMenu';
+import { BackHome } from '../BackHome';
 import { LazyTrailer } from '../home/lazyTrailer';
 import { formatRuntime } from './badges';
 import { type DownloadLink, nativeDownload } from './download';
@@ -119,15 +120,8 @@ export function DetailsHeader(props: Props) {
         />
       )}
       <div class="lmn-details__scrim" />
-      <div class="lmn-details__topbar">
-        <button
-          type="button"
-          class="lmn-icon-button lmn-icon-button--lg"
-          aria-label={strings.back}
-          onClick={props.onBack}
-        >
-          <Icon name="back" size={20} />
-        </button>
+      <div class="lmn-details__topbar focuscontainer-x">
+        <BackHome onBack={props.onBack} />
         {trailerPlaying && (
           <div class="lmn-details__trailer-controls">
             <button

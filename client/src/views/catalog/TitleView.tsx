@@ -10,7 +10,7 @@ import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import type { ViewContext } from '../context';
 import { FailedPageMark } from '../pageError';
 import { initials } from '../details/CastRow';
-import { goBack } from '../details/useItemActions';
+import { BackHome, goBack } from '../BackHome';
 import {
   catalogHash,
   catalogImageUrl,
@@ -210,15 +210,8 @@ function TitleHeader({
         />
       )}
       <div class="lmn-details__scrim" />
-      <div class="lmn-details__topbar">
-        <button
-          type="button"
-          class="lmn-icon-button lmn-icon-button--lg"
-          aria-label={strings.back}
-          onClick={() => goBack(ctx)}
-        >
-          <Icon name="back" size={20} />
-        </button>
+      <div class="lmn-details__topbar focuscontainer-x">
+        <BackHome onBack={() => goBack(ctx)} />
       </div>
       <div class="lmn-details__info">
         {!owned && <p class="lmn-title__kicker">{titleStrings.notInLibrary}</p>}

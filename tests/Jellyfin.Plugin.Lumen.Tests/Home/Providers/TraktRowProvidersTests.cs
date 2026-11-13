@@ -176,7 +176,7 @@ public class TraktRowProvidersTests
         else
         {
             Assert.Equal(
-                "Section 1 (TraktList): Enter a public Trakt list's address, like https://trakt.tv/users/name/lists/list-name.",
+                "Trakt list (row 1): Enter a public Trakt list's address, like https://trakt.tv/users/name/lists/list-name.",
                 Assert.Single(errors));
         }
     }

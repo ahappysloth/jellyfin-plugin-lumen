@@ -7,9 +7,21 @@
 .layout-tv .lmn-nav__item:focus,
 .layout-tv .lmn-person:focus,
 .layout-tv .lmn-chip:focus,
-.layout-tv .lmn-dropdown__button:focus {
+.layout-tv .lmn-dropdown__button:focus,
+.layout-tv .lmn-toast__action:focus,
+.layout-tv .lmn-toast__close:focus {
   outline: 3px solid var(--lmn-focus);
   outline-offset: 3px;
+}
+/* The round glass buttons turn white under the remote too (buttons.css), ring and all. */
+.layout-tv .lmn-icon-button:focus {
+  background: #fff;
+  color: #0f0f0f;
+}
+/* In a pill the ring ends at the pill's edge (its 4px of padding), not past it. */
+.layout-tv .lmn-pill > .lmn-icon-button:focus,
+.layout-tv .lmn-details__trailer-controls > .lmn-icon-button:focus {
+  outline-offset: 1px;
 }
 .layout-tv .lmn-card:focus .lmn-card__art > img:first-child {
   transform: scale(1.06);

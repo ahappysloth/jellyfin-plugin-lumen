@@ -90,6 +90,29 @@ describe('useAutoFocus', () => {
     nav.remove();
   });
 
+  it('leaves focus on a toast’s button (the "ready to watch" pop-up) when the view finishes loading under it', () => {
+    let setReady: (ready: boolean) => void = () => undefined;
+    function Late() {
+      const ref = useRef<HTMLDivElement>(null);
+      const [ready, set] = useState(false);
+      setReady = set;
+      useAutoFocus(ref, ready, 'tv');
+      return <div ref={ref}>{ready && <button class="lmn-autofocus">primary</button>}</div>;
+    }
+    const host = document.createElement('div');
+    host.innerHTML =
+      '<div class="lmn-toast-host" role="alert"><p class="lmn-toast"><button>Open</button></p></div>';
+    document.body.appendChild(host);
+    const open = host.querySelector('button')!;
+    render(<Late />);
+    open.focus();
+
+    act(() => setReady(true));
+
+    expect(document.activeElement).toBe(open);
+    host.remove();
+  });
+
   it('does not move focus on desktop or mobile', () => {
     (document.activeElement as HTMLElement | null)?.blur();
     render(<Harness layout="desktop" />);

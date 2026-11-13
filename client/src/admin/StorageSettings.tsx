@@ -204,7 +204,7 @@ function Report({ report, tv }: { report: StorageReport; tv: boolean }) {
 
       {report.Libraries.length > 0 && (
         <section class="lmna-storage__section" aria-label="Libraries">
-          <h3>Libraries</h3>
+          <h2>Libraries</h2>
           {overlaps(report) && (
             <p class="lmna-storage__overlap">
               Some files are in more than one library, so these add up to more than the total.
@@ -218,7 +218,7 @@ function Report({ report, tv }: { report: StorageReport; tv: boolean }) {
 
       {report.BiggestMovies.length > 0 && (
         <section class="lmna-storage__section" aria-label="Biggest movies">
-          <h3>Biggest movies</h3>
+          <h2>Biggest movies</h2>
           <ol class="lmna-top">
             {report.BiggestMovies.map((m) => (
               <li key={m.Id} class="lmna-top__item">
@@ -248,7 +248,7 @@ function Report({ report, tv }: { report: StorageReport; tv: boolean }) {
 
       {report.BiggestSeries.length > 0 && (
         <section class="lmna-storage__section" aria-label="Biggest shows">
-          <h3>Biggest shows</h3>
+          <h2>Biggest shows</h2>
           <ol class="lmna-top">
             {report.BiggestSeries.map((s) => (
               <li key={s.Id} class="lmna-top__item">

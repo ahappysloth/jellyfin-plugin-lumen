@@ -10,6 +10,8 @@ import { refreshRequestProgress } from './requestProgress';
 export type CatalogImageSize = 'w185' | 'w300' | 'w780' | 'w1280';
 
 const NO_ACCESS: RequestStatus = { Enabled: false, CanRequestMovies: false, CanRequestTv: false };
+/** The status couldn't be had (a failed call): no request features for now, and not the server's word on it. */
+export const STATUS_UNKNOWN: RequestStatus = { ...NO_ACCESS };
 
 /** One status lookup per user per page load; request features stay hidden until (and unless) it says yes. */
 const statusByUser = new Map<string, Promise<RequestStatus>>();
@@ -25,7 +27,7 @@ export function loadRequestStatus(ctx: Pick<ViewContext, 'api' | 'userId'>): Pro
       },
       () => {
         statusByUser.delete(userId); // a transient failure is retried next time, not remembered
-        return NO_ACCESS;
+        return STATUS_UNKNOWN;
       },
     );
     statusByUser.set(ctx.userId, status);

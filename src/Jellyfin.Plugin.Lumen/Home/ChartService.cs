@@ -9,8 +9,11 @@ namespace Jellyfin.Plugin.Lumen.Home;
 /// <summary>One title of a chart: its place in Trakt's ranking, and its library item or catalog card.</summary>
 public sealed record ChartEntry(int Rank, BaseItem? Item, CatalogItemDto? Catalog);
 
-/// <summary>A page of a chart. <c>TotalCount</c> counts the titles the user could be shown, not Trakt's 100.</summary>
-public sealed record ChartPage(IReadOnlyList<ChartEntry> Entries, int TotalCount, int StartIndex);
+/// <summary>
+/// A page of a chart. <c>TotalCount</c> counts the titles the user could be shown, not Trakt's 100. <c>Missing</c> is how
+/// many of this page's titles were left out because Seerr failed or was too slow: asking for the page again may bring them.
+/// </summary>
+public sealed record ChartPage(IReadOnlyList<ChartEntry> Entries, int TotalCount, int StartIndex, int Missing = 0);
 
 /// <summary>
 /// The Top charts page (Trakt design note, 2026-11-12): Trakt's most watched movies or shows of a week, month, year or
@@ -66,7 +69,9 @@ public sealed class ChartService
             .Where(i => TraktCards.CanShow(titles, i, owned, caller is not null) && (!owned.TryGetValue(i, out var item) || ownedSeen.Add(item.Id)))
             .ToList();
         var page = shown.Skip(startIndex).Take(limit).ToList();
-        var cards = await _cards.ResolveAsync(titles, page, owned, caller, user, started, DetailsBudget, cancellationToken).ConfigureAwait(false);
+        var missing = 0;
+        var cards = await _cards.ResolveAsync(titles, page, owned, caller, user, started, DetailsBudget, cancellationToken, () => Interlocked.Increment(ref missing)).ConfigureAwait(false);
+        var missed = Volatile.Read(ref missing);
 
         // A title Seerr couldn't describe (or not in time) is left out of this page; it's usually there next time. One
         // Seerr says is on the server (its VisibleItem) can be an item the page already has: it shows once, at the better
@@ -78,6 +83,6 @@ public sealed class ChartService
             .OfType<ChartEntry>()
             .Where(e => e.Item is null ? catalogKeys.Add(e.Catalog!.Key) : items.Add(e.Item.Id))
             .ToList();
-        return new ChartPage(entries, shown.Count, startIndex);
+        return new ChartPage(entries, shown.Count, startIndex, missed);
     }
 }

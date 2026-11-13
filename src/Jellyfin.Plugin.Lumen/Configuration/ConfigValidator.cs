@@ -130,12 +130,18 @@ public sealed partial class ConfigValidator
             var section = sections[i];
             if (section is null)
             {
-                errors.Add(string.Create(CultureInfo.InvariantCulture, $"Section {i + 1}: is missing."));
+                errors.Add(string.Create(CultureInfo.InvariantCulture, $"Row {i + 1}: is missing."));
                 continue;
             }
 
             section.Params ??= [];
-            var label = string.Create(CultureInfo.InvariantCulture, $"Section {i + 1} ({section.Type})");
+
+            // Named as the editor names the row (its own title, else its type's name), with its place in the list: the
+            // editor shows no numbers and no internal type names, so "Section 20 (TraktList)" took counting to find.
+            _providers.TryGetValue(section.Type ?? string.Empty, out var provider);
+            var name = !string.IsNullOrWhiteSpace(section.Title) ? section.Title.Trim()
+                : provider?.DisplayName ?? (string.IsNullOrWhiteSpace(section.Type) ? "Section" : section.Type);
+            var label = string.Create(CultureInfo.InvariantCulture, $"{name} (row {i + 1})");
 
             if (string.IsNullOrWhiteSpace(section.Type))
             {
@@ -152,7 +158,7 @@ public sealed partial class ConfigValidator
                 errors.Add($"{label}: duplicate id.");
             }
 
-            if (!_providers.TryGetValue(section.Type, out var provider))
+            if (provider is null)
             {
                 errors.Add($"{label}: unknown section type '{section.Type}'.");
                 continue;

@@ -86,6 +86,32 @@ describe('Dropdown', () => {
     }
   });
 
+  it('is never wider than the room from its button to the window’s edge (a long option on a small phone)', () => {
+    const width = vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(320);
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ left: 18, right: 302, top: 100, bottom: 140 } as DOMRect);
+    // As wide as the stylesheet lets it be (100vw - 16px): too wide to line up with either of the button's edges.
+    const list = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(304);
+    render(<Dropdown label="Fruit" value="a" options={options} onChange={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button'));
+    // From the button's left edge (18) to 8 px short of the window's right edge.
+    expect(screen.getByRole('listbox')).toHaveStyle({ maxWidth: '294px' });
+    expect(screen.getByRole('listbox')).toHaveClass('lmn-dropdown__list--start');
+    fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
+
+    // Lined up with the button's right edge instead where that fits: then up to that edge.
+    rect.mockReturnValue({ left: 200, right: 312, top: 100, bottom: 140 } as DOMRect);
+    list.mockReturnValue(220);
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByRole('listbox')).toHaveClass('lmn-dropdown__list--end');
+    expect(screen.getByRole('listbox')).toHaveStyle({ maxWidth: '304px' });
+    width.mockRestore();
+    rect.mockRestore();
+    list.mockRestore();
+  });
+
   it('closes on an outside press without changing the value', () => {
     const onChange = vi.fn();
     render(<Dropdown label="Fruit" value="a" options={options} onChange={onChange} />);

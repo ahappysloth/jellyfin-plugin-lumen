@@ -506,7 +506,8 @@ html.lmna-dragging * {
 .lmn-admin .lmna-section__title > * + * {
   margin-left: 2px;
 }
-/* Its name, and the type's under a title of its own: both cut short with an ellipsis rather than wrapping. */
+/* Its name, and the type's under a title of its own: both cut short with an ellipsis rather than wrapping (on a phone
+   the name wraps: below). */
 .lmn-admin .lmna-section__name {
   display: flex;
   flex: 0 1 auto;
@@ -522,6 +523,14 @@ html.lmna-dragging * {
 }
 .lmn-admin .lmna-section__label {
   font-weight: 650;
+}
+/* Phones: the name wraps, onto as many lines as it needs (a word too long for the column breaks). On one line a 320 px
+   screen showed about seven letters of it, and "Top 10 Movies" and "Top 10 Shows" read the same. */
+@media (max-width: 480px) {
+  .lmn-admin .lmna-section__label {
+    overflow-wrap: break-word;
+    white-space: normal;
+  }
 }
 .lmn-admin .lmna-section__name small {
   color: var(--a-dim);
@@ -691,7 +700,8 @@ html.layout-tv .lmn-admin .lmna-sections-wrap input:focus {
 .lmn-admin .lmna-callout--error {
   border-left-color: #ef5350;
 }
-.lmn-admin .lmna-callout h3 {
+/* h2: the page's h1 is the only heading above them (an h3 here skipped a level). */
+.lmn-admin .lmna-callout h2 {
   margin: 0 0 4px;
   font-size: 14px;
   font-weight: 700;
@@ -1160,7 +1170,7 @@ html.layout-tv .lmn-admin .lmna-sections-wrap input:focus {
 .lmn-admin .lmna-storage__section:last-child {
   margin-bottom: 0;
 }
-.lmn-admin .lmna-storage__section h3 {
+.lmn-admin .lmna-storage__section h2 {
   margin: 0 0 8px;
   font-size: 14px;
   font-weight: 650;

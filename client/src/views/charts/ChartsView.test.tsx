@@ -449,6 +449,114 @@ describe('ChartsView', () => {
     expect(asked).toBe(2);
   });
 
+  it('says when a page came without some of its titles, and Try again brings them into their places', async () => {
+    let asked = 0;
+    const { ctx, client } = setup(() => {
+      asked++;
+      // Seerr failed on two of the page's titles the first time (the server says how many).
+      return asked === 1
+        ? { ...page([owned(1, 'Alpha'), owned(4, 'Delta')]), Missing: 2 }
+        : page([owned(1, 'Alpha'), owned(2, 'Beta'), owned(3, 'Gamma'), owned(4, 'Delta')]);
+    });
+    render(<ChartsView ctx={ctx} />);
+
+    const note = await screen.findByRole('status');
+    expect(note).toHaveTextContent('Some titles couldn’t be loaded.');
+    fireEvent.click(within(note).getByRole('button', { name: 'Try again' }));
+
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+    const list = screen.getByRole('list', { name: 'Top movies this week' });
+    expect(
+      within(list)
+        .getAllByRole('link')
+        .map((l) => l.getAttribute('aria-label')),
+    ).toEqual(['1, Alpha', '2, Beta', '3, Gamma', '4, Delta']);
+    // The same page again, nothing more.
+    expect(client.requests.filter((r) => r.url.includes('Lumen/Charts')).map((r) => r.url)).toEqual([
+      expect.stringContaining('startIndex=0'),
+      expect.stringContaining('startIndex=0'),
+    ]);
+  });
+
+  it('keeps the note while a page is still short, or its Try again fails, and says nothing of a whole chart', async () => {
+    let answer: () => ChartPage = () => ({ ...page([owned(1, 'Alpha')]), Missing: 1 });
+    const { ctx } = setup(() => answer());
+    render(<ChartsView ctx={ctx} />);
+
+    const retry = within(await screen.findByRole('status')).getByRole('button', { name: 'Try again' });
+    fireEvent.click(retry);
+    // Not disabled while it tries (a TV remote's focus stays on it); a second press asks nothing more.
+    expect(retry).toHaveAttribute('aria-busy', 'true');
+    expect(retry).toBeEnabled();
+    await waitFor(() => expect(retry).not.toHaveAttribute('aria-busy'));
+    expect(screen.getByRole('status')).toBeInTheDocument();
+
+    answer = () => {
+      throw new Error('offline');
+    };
+    fireEvent.click(retry);
+    await waitFor(() => expect(retry).not.toHaveAttribute('aria-busy'));
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '1, Alpha' })).toBeInTheDocument();
+
+    answer = () => page([owned(1, 'Alpha'), owned(2, 'Beta')]);
+    fireEvent.click(retry);
+    expect(await screen.findByRole('link', { name: '2, Beta' })).toBeInTheDocument();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('asks again only for the pages that were short, one after another', async () => {
+    const full = (start: number): ChartEntry[] =>
+      Array.from({ length: CHART_PAGE }, (_, i) => owned(start + i + 1, `T${start + i + 1}`));
+    const times: Record<string, number> = {};
+    const { ctx, client } = setup((request) => {
+      const start = Number(new URL(request.url).searchParams.get('startIndex'));
+      times[start] = (times[start] ?? 0) + 1;
+      const entries = full(start);
+      // The first and third pages each come one title short the first time.
+      return times[start] === 1 && start !== CHART_PAGE
+        ? { ...page(entries.slice(1), 72, start), Missing: 1 }
+        : page(entries, 72, start);
+    });
+    render(<ChartsView ctx={ctx} />);
+    await screen.findByRole('link', { name: '2, T2' });
+    // Preact runs effects after the paint: the grid's end is watched once it has.
+    await waitFor(() => expect(observers).toHaveLength(1));
+    act(scrollToEnd);
+    await screen.findByRole('link', { name: '25, T25' });
+    await waitFor(() => expect(observers).toHaveLength(1));
+    act(scrollToEnd);
+    await screen.findByRole('link', { name: '50, T50' });
+
+    fireEvent.click(within(screen.getByRole('status')).getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+
+    expect(times).toEqual({ 0: 2, [CHART_PAGE]: 1, [2 * CHART_PAGE]: 2 });
+    const names = screen.getAllByRole('link').map((l) => l.getAttribute('aria-label'));
+    expect(names).toHaveLength(72);
+    expect(names.slice(0, 2)).toEqual(['1, T1', '2, T2']);
+    expect(names.slice(47, 50)).toEqual(['48, T48', '49, T49', '50, T50']);
+    expect(client.requests.filter((r) => r.url.includes('Lumen/Charts'))).toHaveLength(5);
+  });
+
+  it('doesn’t show a short copy again on the next visit: the chart is fetched afresh', async () => {
+    let asked = 0;
+    const { ctx } = setup(() => {
+      asked++;
+      return asked === 1
+        ? { ...page([owned(1, 'Alpha')]), Missing: 3 }
+        : page([owned(1, 'Alpha'), owned(2, 'Beta')]);
+    });
+    render(<ChartsView ctx={ctx} />);
+    await screen.findByRole('status');
+    cleanup();
+
+    render(<ChartsView ctx={ctx} />);
+    expect(await screen.findByRole('link', { name: '2, Beta' })).toBeInTheDocument();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(asked).toBe(2);
+  });
+
   it('opens on the chart and period in the URL', async () => {
     window.location.hash = '#/home?lumen=charts&chart=shows&period=weekly';
     const { ctx } = setup(() => page([owned(1, 'Show')]));

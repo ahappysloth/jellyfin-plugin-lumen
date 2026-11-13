@@ -292,7 +292,7 @@ export function AdminApp({
           role="alert"
           style={{ marginBottom: '16px' }}
         >
-          <h3>Please fix these problems</h3>
+          <h2>Please fix these problems</h2>
           <ul>
             {errors.map((e) => (
               <li key={e}>{e}</li>

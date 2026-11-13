@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
-import { ADMIN, SEERR_URL, STUB_SEERR, api, loadState, resetLumen } from '../support/api';
+import { ADMIN, KID, SEERR_URL, STUB_SEERR, api, loadState, resetLumen } from '../support/api';
 import { walkDpad } from '../support/dpad';
 import { login } from '../support/login';
 import { accountButton, accountMenu, openSettingsMenu } from '../support/nav';
@@ -315,6 +315,105 @@ test('My requests on a phone: a long title ends in an ellipsis, and the page doe
   const box = (await row.boundingBox())!;
   expect(box.x + box.width).toBeLessThanOrEqual(360);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+});
+
+/**
+ * A request of the admin's that's ready (as Lumen Alpha), which every check on this page says to announce. (The server
+ * says so once, for a request it saw in flight: the tests above cover that, and take a server cache's time each.)
+ */
+async function readyToAnnounce(page: Page): Promise<void> {
+  await stub('library', { tmdbId: 706, jellyfinMediaId: loadState().items['Lumen Alpha']!.replace(/-/g, '') });
+  await request(706);
+  await page.route(/\/Lumen\/Requests\/Mine\b/, async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    expect(body.Requests[0].Status).toBe('Ready');
+    body.Requests[0].Announce = true;
+    await route.fulfill({ response, json: body });
+  });
+}
+
+test('TV layout: the ready pop-up takes the remote’s focus to Open, and gives it back when dismissed', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.addInitScript(() => localStorage.setItem('layout', 'tv'));
+  await enableSeerr();
+  await readyToAnnounce(page);
+  await login(page, ADMIN);
+  await expect(page.locator('html')).toHaveClass(/\blayout-tv\b/);
+
+  // From the hero's Play, where a TV's focus starts, nothing leads to a box floating over the page: focus goes to it.
+  const toast = page.getByRole('alert');
+  const open = toast.getByRole('button', { name: 'Open' });
+  await expect(toast).toContainText('is ready to watch', { timeout: 10_000 });
+  await expect(open).toBeFocused();
+  // And stays there: home finishing its load under the pop-up doesn't take the remote back to the hero. (A moment is
+  // enough to show it: it used to go within a few hundred milliseconds.)
+  await page.waitForTimeout(1000);
+  await expect(open).toBeFocused();
+  // Its ring shows from the couch (TVs' browsers have no :focus-visible).
+  expect(await open.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
+
+  // Right is Dismiss; OK there, and the remote is back on the page, where it was.
+  await page.keyboard.press('ArrowRight');
+  await expect(toast.getByRole('button', { name: 'Dismiss' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(toast).toBeEmpty();
+  await expect(page.locator('#lmn-root .lmn-hero__slide.is-current .lmn-button--primary')).toBeFocused();
+
+  // Next time, OK on Open: the title's page.
+  await page.reload();
+  await expect(open).toBeFocused({ timeout: 10_000 });
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(new RegExp(`#/details\\?id=${loadState().items['Lumen Alpha']!.replace(/-/g, '')}`));
+  await expect(page.locator('#lmn-root .lmn-details--movie').getByRole('button', { name: 'Play', exact: true })).toBeFocused();
+});
+
+test('on a phone held sideways the ready pop-up sits just above the tab bar, clear of the page’s toolbar', async ({ page }) => {
+  // An iPhone 15 on its side: the tab bar is still up (under 910 px wide), with 393 px of height for everything.
+  await page.setViewportSize({ width: 852, height: 393 });
+  await enableSeerr();
+  await readyToAnnounce(page);
+  await login(page, ADMIN);
+  await page.goto(`/web/#/movies?topParentId=${loadState().libraries.movies}`);
+  await page.reload();
+
+  const toast = page.locator('#lmn-root .lmn-toast-host .lmn-toast');
+  await expect(toast).toContainText('is ready to watch', { timeout: 10_000 });
+  const toolbar = page.locator('#lmn-root .lmn-browse__toolbar');
+  await expect(toolbar).toBeVisible();
+  // Measured once it has slid in.
+  await expect
+    .poll(async () => {
+      const [pop, bar, tabs] = await Promise.all(
+        [toast, toolbar, page.locator('#lmn-root .lmn-tabbar')].map(async (l) => (await l.boundingBox())!),
+      );
+      return pop.y >= bar.y + bar.height && pop.y + pop.height <= tabs.y;
+    })
+    .toBe(true);
+});
+
+test('a user Seerr has no account for is never asked for their requests: no 404 on every page load', async ({ page }) => {
+  await page.clock.install();
+  // Seerr is set up, and knows the admin; the kid has no account there.
+  await enableSeerr();
+  const checks = countChecks(page);
+  const notFound: string[] = [];
+  page.on('response', (r) => void (r.status() === 404 && notFound.push(r.url())));
+  const errors: string[] = [];
+  page.on('console', (m) => void (m.type() === 'error' && errors.push(m.text())));
+  const status = page.waitForResponse(/\/Lumen\/Requests\/Status\b/);
+
+  await login(page, KID);
+  await expect(page.locator('#lmn-root .lmn-home')).toBeVisible();
+  await page.clock.fastForward(4_000); // past the idle callback's deadline, when the first check is due
+  expect(await (await status).json()).toMatchObject({ Enabled: false });
+  for (let i = 0; i < 3; i++) await page.clock.fastForward('01:00');
+
+  expect(checks()).toBe(0);
+  expect(notFound.filter((url) => url.includes('/Lumen/'))).toEqual([]);
+  expect(errors.filter((text) => /\b404\b/.test(text))).toEqual([]);
+  // The server would have said so (and the browser logged it): the call is skipped, not answered differently.
+  await expect(api('/Lumen/Requests/Mine', { token: loadState().kid.token })).rejects.toThrow(/404/);
 });
 
 test('nothing in flight, no polling: one check per page load, and none without Seerr', async ({ page }) => {
