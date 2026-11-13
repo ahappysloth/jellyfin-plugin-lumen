@@ -52,14 +52,11 @@ public sealed class OnlineTrailers : IOnlineTrailers
             return OnlineTrailer.None;
         }
 
-        if (await _imdb.GetAsync(ImdbTrailers.IdOf(item), cancellationToken).ConfigureAwait(false) is { Length: > 0 } url)
-        {
-            return new OnlineTrailer(url, null);
-        }
-
-        return await _youTube.GetAsync(item, user, cancellationToken).ConfigureAwait(false) is { Length: > 0 } id
-            ? new OnlineTrailer(null, id)
-            : OnlineTrailer.None;
+        // Both, side by side: YouTube's is the browser's fallback should IMDb's file not play there (a proxy's policy, an
+        // ad blocker, IMDb refusing it), and asking at once costs no more time than asking IMDb alone.
+        var imdb = _imdb.GetAsync(ImdbTrailers.IdOf(item), cancellationToken);
+        var youTube = _youTube.GetAsync(item, user, cancellationToken);
+        return Of(await imdb.ConfigureAwait(false), await youTube.ConfigureAwait(false));
     }
 
     public async Task<OnlineTrailer> GetAsync(SeerrTitle title, CancellationToken cancellationToken)
@@ -70,13 +67,13 @@ public sealed class OnlineTrailers : IOnlineTrailers
             return OnlineTrailer.None;
         }
 
-        if (await _imdb.GetAsync(title.ImdbTitleId, cancellationToken).ConfigureAwait(false) is { Length: > 0 } url)
-        {
-            return new OnlineTrailer(url, null);
-        }
-
-        return YouTubeTrailers.FromSeerr(title.RelatedVideos) is { } id ? new OnlineTrailer(null, id) : OnlineTrailer.None;
+        return Of(await _imdb.GetAsync(title.ImdbTitleId, cancellationToken).ConfigureAwait(false), YouTubeTrailers.FromSeerr(title.RelatedVideos));
     }
+
+    private static OnlineTrailer Of(string? imdbUrl, string? youTubeId) =>
+        string.IsNullOrEmpty(imdbUrl) && string.IsNullOrEmpty(youTubeId)
+            ? OnlineTrailer.None
+            : new OnlineTrailer(string.IsNullOrEmpty(imdbUrl) ? null : imdbUrl, string.IsNullOrEmpty(youTubeId) ? null : youTubeId);
 
     private static bool IsOn(PluginConfiguration config) => config.Enabled && config.TrailerPreview && config.YouTubeTrailers;
 }

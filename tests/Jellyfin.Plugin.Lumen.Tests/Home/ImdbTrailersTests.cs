@@ -146,6 +146,7 @@ public sealed class ImdbTrailersTests : IDisposable
     [InlineData(" tt0133093")]
     [InlineData("tt0133093\"}")]
     [InlineData("tt013309３")]
+    [InlineData("tt0133093\n")]
     public async Task AnythingButAnIMDbTitleId_IsNotAsked(string? id)
     {
         Assert.Null(await Get(id));

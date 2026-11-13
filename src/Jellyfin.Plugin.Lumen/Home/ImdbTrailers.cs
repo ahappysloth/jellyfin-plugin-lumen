@@ -272,7 +272,7 @@ public sealed partial class ImdbTrailers : IImdbTrailers
         }
     }
 
-    [GeneratedRegex("^tt[0-9]{7,9}$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^tt[0-9]{7,9}\z", RegexOptions.CultureInvariant)]
     private static partial Regex TitleId();
 
     private async Task AskAsync(TaskCompletionSource<string?> answer, string imdbId)

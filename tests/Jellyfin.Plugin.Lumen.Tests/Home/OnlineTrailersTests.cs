@@ -27,13 +27,29 @@ public class OnlineTrailersTests
     }
 
     [Fact]
-    public async Task IMDbsTrailer_WinsOverYouTubes_WhichIsntLookedUp()
+    public async Task IMDbsTrailer_ComesWithYouTubes_AsTheBrowsersFallback()
     {
         var movie = Movie("tt0133093");
         _imdb.GetAsync("tt0133093", Arg.Any<CancellationToken>()).Returns(Url);
 
-        Assert.Equal(new OnlineTrailer(Url, null), await _online.GetAsync(movie, _user, CancellationToken.None));
-        Assert.Empty(_youTube.ReceivedCalls());
+        Assert.Equal(new OnlineTrailer(Url, "dQw4w9WgXcQ"), await _online.GetAsync(movie, _user, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task IMDbAndYouTube_AreAskedSideBySide()
+    {
+        var imdb = new TaskCompletionSource<string?>();
+        var youTube = new TaskCompletionSource<string?>();
+        _imdb.GetAsync("tt0133093", Arg.Any<CancellationToken>()).Returns(imdb.Task);
+        _youTube.GetAsync(default!, default!, default).ReturnsForAnyArgs(youTube.Task);
+
+        var asking = _online.GetAsync(Movie("tt0133093"), _user, CancellationToken.None);
+
+        // YouTube is asked before IMDb has answered.
+        await _youTube.ReceivedWithAnyArgs(1).GetAsync(default!, default!, default);
+        imdb.SetResult(Url);
+        youTube.SetResult(null);
+        Assert.Equal(new OnlineTrailer(Url, null), await asking);
     }
 
     [Fact]
@@ -89,6 +105,15 @@ public class OnlineTrailersTests
 
         var show = new SeerrTitle { Id = 1396, ExternalIds = new SeerrExternalIds { ImdbId = "tt0903747" } };
         Assert.Equal(new OnlineTrailer(Url, null), await _online.GetAsync(show, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ACatalogTitle_OnIMDb_AlsoCarriesSeerrsYouTubeTrailer()
+    {
+        _imdb.GetAsync("tt0133093", Arg.Any<CancellationToken>()).Returns(Url);
+        var title = new SeerrTitle { Id = 603, ImdbId = "tt0133093", RelatedVideos = [new SeerrVideo { Site = "YouTube", Type = "Trailer", Key = "trailerOne1" }] };
+
+        Assert.Equal(new OnlineTrailer(Url, "trailerOne1"), await _online.GetAsync(title, CancellationToken.None));
     }
 
     [Fact]

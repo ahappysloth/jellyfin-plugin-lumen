@@ -43,6 +43,49 @@ describe('OnlineTrailerPreview', () => {
     expect(container.querySelector('iframe')).toBeNull();
   });
 
+  it("falls back to YouTube's when IMDb's file won't play here, and only then says it's over", async () => {
+    const onFinish = vi.fn();
+    const { container } = render(
+      <OnlineTrailerPreview
+        imdbUrl={URL_720}
+        youTubeId="dQw4w9WgXcQ"
+        delaySeconds={0}
+        client={createFakeClient()}
+        onFinish={onFinish}
+      />,
+    );
+    await run(0);
+    // Refused (a proxy's policy, an ad blocker, IMDb): the <video> errors before it ever played.
+    act(() => {
+      container.querySelector('video')!.dispatchEvent(new Event('error'));
+    });
+    await run(YOUTUBE_DWELL_MS);
+
+    expect(container.querySelector('video')).toBeNull();
+    expect(container.querySelector('iframe')!.getAttribute('src')).toContain('/embed/dQw4w9WgXcQ?');
+    expect(onFinish).not.toHaveBeenCalled();
+  });
+
+  it("without YouTube's to fall back on, a file that won't play is simply over", async () => {
+    const onFinish = vi.fn();
+    const { container } = render(
+      <OnlineTrailerPreview
+        imdbUrl={URL_720}
+        delaySeconds={0}
+        client={createFakeClient()}
+        onFinish={onFinish}
+      />,
+    );
+    await run(0);
+    act(() => {
+      container.querySelector('video')!.dispatchEvent(new Event('error'));
+    });
+    await run(YOUTUBE_DWELL_MS);
+
+    expect(container.querySelector('iframe')).toBeNull();
+    expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+
   it("plays YouTube's when that's all there is, but not on a TV", async () => {
     const { container, unmount } = render(
       <OnlineTrailerPreview youTubeId="dQw4w9WgXcQ" delaySeconds={0} client={createFakeClient()} />,

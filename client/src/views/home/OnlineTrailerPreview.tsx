@@ -30,6 +30,9 @@ export function OnlineTrailerPreview({
   ...props
 }: OnlineTrailerPreviewProps) {
   const [found, setFound] = useState<{ trailer: OnlineTrailer; delaySeconds: number } | null>(null);
+  /** IMDb's file never got under way here (a proxy's policy, an ad blocker, IMDb refusing it): YouTube's instead. */
+  const [imdbFailed, setImdbFailed] = useState(false);
+  const imdbPlayed = useRef(false);
   const asked = useRef(Date.now());
   useEffect(() => {
     if (!lookup) return;
@@ -52,13 +55,24 @@ export function OnlineTrailerPreview({
   if (!trailer) return null;
   // Looked up, the wait for the answer was part of the delay; the hero's own (0 for a trailer put back) is used as is.
   const delaySeconds = lookup ? found!.delaySeconds : props.delaySeconds;
-  if (trailer.ImdbUrl) return <TrailerPreview {...props} src={trailer.ImdbUrl} delaySeconds={delaySeconds} />;
-  return trailer.YouTubeId && getLayout() !== 'tv' ? (
-    <YouTubePreview
-      {...props}
-      youTubeId={trailer.YouTubeId}
-      embedBase={embedBase}
-      delaySeconds={delaySeconds}
-    />
+  const fallback = getLayout() !== 'tv' ? trailer.YouTubeId : null;
+  if (trailer.ImdbUrl && !imdbFailed)
+    return (
+      <TrailerPreview
+        {...props}
+        src={trailer.ImdbUrl}
+        delaySeconds={delaySeconds}
+        onPlayingChange={(on) => {
+          if (on) imdbPlayed.current = true;
+          props.onPlayingChange?.(on);
+        }}
+        onFinish={() => {
+          if (!imdbPlayed.current && fallback) setImdbFailed(true);
+          else props.onFinish?.();
+        }}
+      />
+    );
+  return fallback ? (
+    <YouTubePreview {...props} youTubeId={fallback} embedBase={embedBase} delaySeconds={delaySeconds} />
   ) : null;
 }
