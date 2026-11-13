@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/ahappysloth/jellyfin-plugin-lumen/main/assets/lumen-plugin.png",
     "versions": [
       {
+        "version": "0.6.2.0",
+        "changelog": "\n### Added\n- My requests has a search box that filters by title as you type, and filter chips with counts: All, Pending\n  (waiting for approval), Downloading (approved, downloading or being added, a show partly there included),\n  Available, and Declined or failed. Each says when it has nothing to show, with a way back.\n- Administrators can turn on **Everyone's requests** in My requests: every user's recent requests, each with who\n  asked (their Jellyfin name and picture, or their Seerr name), searchable by that name too. The switch is kept per\n  device; nobody else sees it, and the server refuses everyone else the list.",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/ahappysloth/jellyfin-plugin-lumen/releases/download/v0.6.2/lumen_0.6.2.0.zip",
+        "checksum": "24ecbe8cc911194b27154204e4dbc781",
+        "timestamp": "2026-11-13T18:58:40Z"
+      },
+      {
         "version": "0.6.1.0",
         "changelog": "\n### Changed\n- Trailers scrolled out of view (or left in a background tab) pause where they are, and carry on at once when they're\n  back, instead of starting over after the delay. One that stays away for a minute is let go.\n- Trailers start as soon as their delay is up: the video loads during the delay instead of after it. On title pages\n  the delay is 1 second (was 1.5).\n- Online trailers play in 1080p where the screen needs it (phones, desktops and TVs), 720p in a small window or with\n  the browser's data saver on. IMDb's 720p looked soft on a phone, which shows the middle third of it full-height.\n\n### Fixed\n- On title pages, YouTube's trailer takes over again when IMDb's won't play in the browser (0.6.0 never sent it along).",
         "targetAbi": "12.1.0.0",
