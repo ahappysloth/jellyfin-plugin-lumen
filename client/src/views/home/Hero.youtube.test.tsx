@@ -308,12 +308,27 @@ describe('Hero: a trailer from YouTube', () => {
       player.play(2);
       expect(player.frame).not.toHaveClass('is-shown');
 
+      // Paused where it is, the same player.
       inView(false);
-      expect(frameOf(container)).toBeNull();
-      advance(60_000);
+      expect(frameOf(container)).toBe(player.frame);
+      expect(player.commands).toContain('pauseVideo');
+      advance(30_000);
       expect(showing('Alpha')).toBeInTheDocument();
 
-      // Back where it was, less what plays unseen, at once.
+      // Back, it plays on at once (nothing had shown: nothing to go back for).
+      inView(true);
+      expect(frameOf(container)).toBe(player.frame);
+      expect(player.commands.slice(-1)).toEqual(['playVideo']);
+      player.play(3);
+      advance(YOUTUBE_CHROME_MS);
+      expect(player.frame).toHaveClass('is-shown');
+      expect(showing('Alpha')).toBeInTheDocument();
+
+      // Away for long, it's let go; back, it's put back where it was, less what plays unseen, at once.
+      inView(false);
+      advance(60_000);
+      expect(frameOf(container)).toBeNull();
+      expect(showing('Alpha')).toBeInTheDocument();
       inView(true);
       advance(0);
       const back = playerIn(container);

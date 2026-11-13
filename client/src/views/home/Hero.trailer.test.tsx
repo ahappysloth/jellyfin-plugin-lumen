@@ -253,6 +253,31 @@ describe('Hero: letting trailers finish (HeroWaitForTrailer)', () => {
     expect(showing('Beta')).toBeInTheDocument();
   });
 
+  it('holds while its trailer is paused out of view, however long, and carries on with the same video when back', () => {
+    const { container } = renderHero();
+    advance(4000);
+    const v = video();
+    start(v);
+    play(v, 3);
+    const before = scale(container);
+
+    // Out of view: TrailerPreview pauses it in place (still connected, where it was) and says it isn't playing.
+    act(() => trailer!.onPlayingChange?.(false));
+    advance(30_000);
+    expect(showing('Alpha')).toBeInTheDocument();
+    expect(mounts).toBe(1);
+    expect(scale(container)).toBeCloseTo(before, 2);
+
+    // Back: the same video plays on, and the fill with it.
+    act(() => trailer!.onPlayingChange?.(true));
+    play(v, 2);
+    expect(scale(container)).toBeGreaterThan(before);
+    expect(showing('Alpha')).toBeInTheDocument();
+    end();
+    advance(1500 + SLIDE);
+    expect(showing('Beta')).toBeInTheDocument();
+  });
+
   it('carries the fill on from where it was when a trailer put back starts from the beginning', () => {
     const { container } = renderHero();
     advance(4000);

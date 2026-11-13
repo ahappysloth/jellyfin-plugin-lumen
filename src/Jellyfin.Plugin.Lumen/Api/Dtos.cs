@@ -88,21 +88,23 @@ public sealed class CompatReportDto
 
 /// <summary>
 /// One hero slide. Without a local trailer, at most one of: <c>TrailerImdbUrl</c>, an MP4 on IMDb's video CDN (checked by
-/// <see cref="ImdbTrailers"/>, never another address), or <c>TrailerYouTubeId</c>, a checked YouTube video id
-/// (<see cref="YouTubeId"/>), never a URL.
+/// <see cref="ImdbTrailers"/>, never another address), with <c>TrailerImdbUrlHd</c> its 1080p MP4 there when IMDb has
+/// that besides; or <c>TrailerYouTubeId</c>, a checked YouTube video id (<see cref="YouTubeId"/>), never a URL.
 /// </summary>
-public sealed record HeroItemDto(BaseItemDto Item, Guid? TrailerItemId, string? TrailerYouTubeId = null, string? TrailerImdbUrl = null);
+public sealed record HeroItemDto(BaseItemDto Item, Guid? TrailerItemId, string? TrailerYouTubeId = null, string? TrailerImdbUrl = null, string? TrailerImdbUrlHd = null);
 
 /// <summary>
 /// Response of GET /Lumen/Items/{itemId}/Trailer and GET /Lumen/Requests/Title/{mediaType}/{tmdbId}/Trailer: the title's
-/// trailer online (<see cref="OnlineTrailer"/>), both null when there's none to play.
+/// trailer online (<see cref="OnlineTrailer"/>), all null when there's none to play. A title page gets IMDb's MP4 (and
+/// its 1080p one, when there is one) and YouTube's video id together: YouTube's plays should IMDb's file not play in the
+/// browser.
 /// </summary>
-public sealed record OnlineTrailerDto(string? ImdbUrl, string? YouTubeId)
+public sealed record OnlineTrailerDto(string? ImdbUrl, string? YouTubeId, string? ImdbUrlHd = null)
 {
     public static OnlineTrailerDto From(OnlineTrailer trailer)
     {
         ArgumentNullException.ThrowIfNull(trailer);
-        return new(trailer.ImdbUrl, trailer.ImdbUrl is null ? trailer.YouTubeId : null);
+        return new(trailer.ImdbUrl, trailer.YouTubeId, trailer.ImdbUrlHd);
     }
 }
 

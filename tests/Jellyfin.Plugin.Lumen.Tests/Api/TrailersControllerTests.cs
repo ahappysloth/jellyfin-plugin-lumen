@@ -48,14 +48,16 @@ public class TrailersControllerTests
     }
 
     [Fact]
-    public async Task ReturnsTheItemsImdbTrailer_AndNotYouTubesWithIt()
+    public async Task ReturnsTheItemsImdbTrailer_ItsHdFile_AndYouTubesAsTheFallback()
     {
         const string Url = "https://imdb-video.media-imdb.com/vi1/v_720p.mp4";
-        _online.GetAsync(_movie, _user, Arg.Any<CancellationToken>()).Returns(new OnlineTrailer(Url, "dQw4w9WgXcQ"));
+        const string Hd = "https://imdb-video.media-imdb.com/vi1/v_1080p.mp4";
+        _online.GetAsync(_movie, _user, Arg.Any<CancellationToken>()).Returns(new OnlineTrailer(Url, "dQw4w9WgXcQ", Hd));
 
         var result = await Create().GetTrailer(_movie.Id, CancellationToken.None);
 
-        Assert.Equal(new OnlineTrailerDto(Url, null), result.Value);
+        // YouTube's id comes too: the page plays it should IMDb's file not play in the browser (0.6.0 dropped it).
+        Assert.Equal(new OnlineTrailerDto(Url, "dQw4w9WgXcQ", Hd), result.Value);
     }
 
     [Fact]

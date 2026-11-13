@@ -22,11 +22,11 @@ namespace Jellyfin.Plugin.Lumen.Home;
 public interface IImdbTrailers
 {
     /// <summary>
-    /// The address of the trailer's 720p MP4 (else 480p, else 1080p) for the IMDb title <paramref name="imdbId"/>, or
-    /// null: the setting is off, the id isn't an IMDb title id, IMDb has no trailer for it, or IMDb couldn't be asked.
-    /// Never throws for an IMDb failure.
+    /// The trailer for the IMDb title <paramref name="imdbId"/>: its 720p MP4 (else 480p, else 1080p), and its 1080p one
+    /// besides when that isn't the first already (<see cref="ImdbTrailer.UrlHd"/>); or null: the setting is off, the id
+    /// isn't an IMDb title id, IMDb has no trailer for it, or IMDb couldn't be asked. Never throws for an IMDb failure.
     /// </summary>
-    Task<string?> GetAsync(string? imdbId, CancellationToken cancellationToken);
+    Task<ImdbTrailer?> GetAsync(string? imdbId, CancellationToken cancellationToken);
 
     /// <summary>The Health tab's check: one lookup of <paramref name="imdbId"/>, past the cache and the setting.</summary>
     Task<ImdbCheck> CheckAsync(string imdbId, CancellationToken cancellationToken);
@@ -86,9 +86,14 @@ public sealed partial class ImdbTrailers : IImdbTrailers
     /// <summary>An answer for ten videos is about 30 KB; anything much bigger isn't one.</summary>
     private const long MaxResponseBytes = 1024 * 1024;
 
+    /// <summary>The quality sent besides the first, for a browser that needs more (see <see cref="Qualities"/>).</summary>
+    private const string HdQuality = "1080p";
+
     /// <summary>
-    /// The qualities Lumen takes, in order: 720p looks right on a TV and starts quickly; 1080p is 60% bigger. "SD", which
-    /// some older videos have alone, is a last resort. Never "AUTO" (HLS, which only Safari plays in a plain video).
+    /// The qualities Lumen takes, in order: 720p starts quickly and is enough for a small box; "SD", which some older
+    /// videos have alone, is a last resort. Never "AUTO" (HLS, which only Safari plays in a plain video). The video's
+    /// <see cref="HdQuality"/> goes with it as well, for a browser whose box needs more (a phone in portrait shows a third
+    /// of the picture's width over its whole height; a large screen or a TV shows all of it big): about 60% bigger.
     /// </summary>
     private static readonly string[] Qualities = ["720p", "480p", "1080p", "SD"];
 
@@ -96,7 +101,7 @@ public sealed partial class ImdbTrailers : IImdbTrailers
 
     private readonly Lock _lock = new();
     private readonly Dictionary<string, Entry> _cache = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, Task<string?>> _asking = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Task<ImdbTrailer?>> _asking = new(StringComparer.Ordinal);
     private readonly IHttpClientFactory _http;
     private readonly ILumenConfigReader _config;
     private readonly TimeProvider _time;
@@ -137,7 +142,7 @@ public sealed partial class ImdbTrailers : IImdbTrailers
     public static string? IdOf(BaseItem item) =>
         item is Movie or Series && item.GetProviderId(MetadataProvider.Imdb)?.Trim() is { } id && IsTitleId(id) ? id : null;
 
-    public async Task<string?> GetAsync(string? imdbId, CancellationToken cancellationToken)
+    public async Task<ImdbTrailer?> GetAsync(string? imdbId, CancellationToken cancellationToken)
     {
         var config = _config.Current;
         if (!config.Enabled || !config.TrailerPreview || !config.YouTubeTrailers || !IsTitleId(imdbId))
@@ -145,18 +150,18 @@ public sealed partial class ImdbTrailers : IImdbTrailers
             return null;
         }
 
-        TaskCompletionSource<string?>? mine = null;
-        Task<string?> answer;
+        TaskCompletionSource<ImdbTrailer?>? mine = null;
+        Task<ImdbTrailer?> answer;
         lock (_lock)
         {
             if (_cache.TryGetValue(imdbId!, out var entry) && entry.Expires > _time.GetUtcNow())
             {
-                return entry.Url;
+                return entry.Trailer;
             }
 
             if (!_asking.TryGetValue(imdbId!, out var asking))
             {
-                mine = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+                mine = new TaskCompletionSource<ImdbTrailer?>(TaskCreationOptions.RunContinuationsAsynchronously);
                 asking = mine.Task;
                 _asking[imdbId!] = asking;
             }
@@ -194,7 +199,8 @@ public sealed partial class ImdbTrailers : IImdbTrailers
     /// <summary>
     /// The trailer in IMDb's answer: of its videos of kind "Trailer" (never a clip or a featurette), the first that runs at
     /// least <see cref="PreferredSeconds"/>, else the first; in the first of <see cref="Qualities"/> it has as an MP4 on
-    /// <paramref name="videoOrigin"/>. A video with none of those is passed over for the next. Null when there's none.
+    /// <paramref name="videoOrigin"/>, and in 1080p besides (the same video) unless that's the one. A video with none of
+    /// those is passed over for the next. Null when there's none. Its expiry is the sooner of the two addresses'.
     /// </summary>
     internal static ImdbTrailer? Pick(JsonElement? title, string videoOrigin)
     {
@@ -206,14 +212,19 @@ public sealed partial class ImdbTrailers : IImdbTrailers
         {
             foreach (var quality in Qualities)
             {
-                var url = (video.PlaybackUrls ?? [])
-                    .Where(p => string.Equals(p?.DisplayName?.Value, quality, StringComparison.OrdinalIgnoreCase))
-                    .Select(p => AllowedUrl(p!.Url, videoOrigin))
-                    .FirstOrDefault(u => u is not null);
-                if (url is not null)
+                if (File(video, quality, videoOrigin) is not { } url)
                 {
-                    return new ImdbTrailer(url.AbsoluteUri, ExpiresOf(url));
+                    continue;
                 }
+
+                var hd = string.Equals(quality, HdQuality, StringComparison.Ordinal) ? null : File(video, HdQuality, videoOrigin);
+                var expires = ExpiresOf(url);
+                if (hd is not null && ExpiresOf(hd) is { } hdExpires && !(expires <= hdExpires))
+                {
+                    expires = hdExpires;
+                }
+
+                return new ImdbTrailer(url.AbsoluteUri, expires, hd?.AbsoluteUri);
             }
         }
 
@@ -255,6 +266,13 @@ public sealed partial class ImdbTrailers : IImdbTrailers
         return null;
     }
 
+    /// <summary>The video's first MP4 in <paramref name="quality"/> on <paramref name="videoOrigin"/>, or null.</summary>
+    private static Uri? File(VideoBody video, string quality, string videoOrigin) =>
+        (video.PlaybackUrls ?? [])
+            .Where(p => string.Equals(p?.DisplayName?.Value, quality, StringComparison.OrdinalIgnoreCase))
+            .Select(p => AllowedUrl(p!.Url, videoOrigin))
+            .FirstOrDefault(u => u is not null);
+
     private static IEnumerable<VideoBody> Videos(JsonElement? title)
     {
         if (title is not { ValueKind: JsonValueKind.Object } value)
@@ -275,9 +293,9 @@ public sealed partial class ImdbTrailers : IImdbTrailers
     [GeneratedRegex(@"^tt[0-9]{7,9}\z", RegexOptions.CultureInvariant)]
     private static partial Regex TitleId();
 
-    private async Task AskAsync(TaskCompletionSource<string?> answer, string imdbId)
+    private async Task AskAsync(TaskCompletionSource<ImdbTrailer?> answer, string imdbId)
     {
-        string? url = null;
+        ImdbTrailer? trailer = null;
         var now = _time.GetUtcNow();
         var expires = now + FailureTtl;
         try
@@ -295,7 +313,7 @@ public sealed partial class ImdbTrailers : IImdbTrailers
             }
             else
             {
-                url = found.Url;
+                trailer = found;
                 var until = now + HitTtl;
                 expires = found.Expires is { } at && at - ExpiryMargin < until ? at - ExpiryMargin : until;
             }
@@ -311,11 +329,11 @@ public sealed partial class ImdbTrailers : IImdbTrailers
 
         lock (_lock)
         {
-            StoreLocked(imdbId, url, expires);
+            StoreLocked(imdbId, trailer, expires);
             _asking.Remove(imdbId);
         }
 
-        answer.SetResult(url);
+        answer.SetResult(trailer);
     }
 
     /// <summary>One lookup: the trailer, or null when IMDb has none. Throws <see cref="ImdbException"/> when it can't say.</summary>
@@ -384,7 +402,7 @@ public sealed partial class ImdbTrailers : IImdbTrailers
         }
     }
 
-    private void StoreLocked(string imdbId, string? url, DateTimeOffset expires)
+    private void StoreLocked(string imdbId, ImdbTrailer? trailer, DateTimeOffset expires)
     {
         var now = _time.GetUtcNow();
         _cache.Remove(imdbId);
@@ -401,10 +419,10 @@ public sealed partial class ImdbTrailers : IImdbTrailers
             _cache.Remove(_cache.MinBy(e => e.Value.Sequence).Key);
         }
 
-        _cache[imdbId] = new Entry(url, expires, ++_sequence);
+        _cache[imdbId] = new Entry(trailer, expires, ++_sequence);
     }
 
-    private sealed record Entry(string? Url, DateTimeOffset Expires, long Sequence);
+    private sealed record Entry(ImdbTrailer? Trailer, DateTimeOffset Expires, long Sequence);
 
     private sealed class TitleBody
     {
@@ -458,8 +476,11 @@ public sealed partial class ImdbTrailers : IImdbTrailers
     }
 }
 
-/// <summary>A trailer on IMDb: its MP4's address and, for a signed one, when that stops working.</summary>
-public sealed record ImdbTrailer(string Url, DateTimeOffset? Expires);
+/// <summary>
+/// A trailer on IMDb: its MP4's address, its 1080p MP4's (<paramref name="UrlHd"/>) when IMDb has that as well and it isn't
+/// <paramref name="Url"/> already, and, for signed ones, when the first of them stops working.
+/// </summary>
+public sealed record ImdbTrailer(string Url, DateTimeOffset? Expires, string? UrlHd = null);
 
 /// <summary>IMDb couldn't be asked, or its answer couldn't be read. The message is plain words, without an address.</summary>
 public sealed class ImdbException : Exception

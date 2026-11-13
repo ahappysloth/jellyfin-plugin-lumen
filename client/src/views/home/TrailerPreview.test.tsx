@@ -4,6 +4,7 @@ import type { MediaSourceInfo } from '../../api/types';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { resetSessionCaches } from '../../util/sessionCaches';
 import { TRAILER_FADE_MS, TRAILER_START_TIMEOUT_MS, TrailerPreview } from './TrailerPreview';
+import { TRAILER_HOLD_MS } from './trailerTiming';
 
 const MKV_HEVC: MediaSourceInfo = {
   Id: 'ms1',
@@ -69,6 +70,48 @@ const startAfter = async (ms: number) => {
   }
 };
 
+/** Lets `ms` pass, in one act(). */
+const run = async (ms: number) => {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+};
+
+/** An IntersectionObserver whose entries the test sets: in view to begin with. */
+const observeViewport = () => {
+  const callbacks: IntersectionObserverCallback[] = [];
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      constructor(private callback: IntersectionObserverCallback) {
+        callbacks.push(callback);
+      }
+      observe() {
+        this.callback(
+          [{ isIntersecting: true, intersectionRatio: 1 } as IntersectionObserverEntry],
+          this as never,
+        );
+      }
+      disconnect() {}
+    },
+  );
+  return (on: boolean) =>
+    act(() => {
+      for (const callback of callbacks)
+        callback(
+          [{ isIntersecting: on, intersectionRatio: on ? 1 : 0 } as IntersectionObserverEntry],
+          {} as never,
+        );
+    });
+};
+
+const setHidden = (hidden: boolean) => {
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
+  act(() => {
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+};
+
 describe('TrailerPreview', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -82,6 +125,7 @@ describe('TrailerPreview', () => {
     vi.clearAllTimers();
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     resetSessionCaches();
     Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
   });
@@ -101,20 +145,130 @@ describe('TrailerPreview', () => {
   });
 
   it("plays a trailer online (IMDb's MP4) from its own address, asking the server nothing, after the delay", async () => {
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
     const client = createFakeClient();
     const url = 'https://imdb-video.media-imdb.com/vi1/a.mp4?Expires=1&Signature=s';
-    const { container } = render(<TrailerPreview src={url} delaySeconds={2} client={client} />);
-    await startAfter(0);
-    // Nothing is fetched before the delay is up: no <video> at all yet.
+    const { container } = render(<TrailerPreview src={url} delaySeconds={5} client={client} />);
+    // Nothing is fetched until 3 s before the delay is up: no <video> at all yet.
+    await run(2000 - 1);
     expect(container.querySelector('video')).toBeNull();
 
-    await startAfter(2000);
-
+    // Then it's put in place to load, paused, ...
+    await run(1);
     const video = container.querySelector('video')!;
     expect(video.getAttribute('src')).toBe(url);
     expect(video.muted).toBe(true);
-    expect(video.getAttribute('preload')).toBe('none');
+    expect(video.getAttribute('preload')).toBe('auto');
+    expect(play).not.toHaveBeenCalled();
+
+    // ... and played a quarter of a second before the delay is up, as long as it takes to get under way: it shows as
+    // the delay ends.
+    await run(2750 - 1);
+    expect(play).not.toHaveBeenCalled();
+    await run(1);
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('video')).toBe(video);
     expect(client.requests).toHaveLength(0);
+  });
+
+  it('shows as soon as it is under way, not a timeupdate later', async () => {
+    const time = vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0);
+    const { container } = render(
+      <TrailerPreview
+        src="https://imdb-video.media-imdb.com/vi1/a.mp4"
+        delaySeconds={1}
+        client={createFakeClient()}
+      />,
+    );
+    await run(750);
+    const video = container.querySelector('video')!;
+    act(() => {
+      video.dispatchEvent(new Event('playing'));
+    });
+    time.mockReturnValue(0.26);
+    // No timeupdate: it looks again itself, as it should be under way.
+    await run(300);
+    expect(video).toHaveClass('is-shown');
+  });
+
+  it('releases a video still loading for the delay when it goes, download included', async () => {
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    const { container, unmount } = render(
+      <TrailerPreview
+        src="https://imdb-video.media-imdb.com/vi1/a.mp4"
+        delaySeconds={4}
+        client={createFakeClient()}
+      />,
+    );
+    await run(1000);
+    const video = container.querySelector('video')!;
+    const load = (video.load = vi.fn());
+    expect(play).not.toHaveBeenCalled();
+
+    act(() => {
+      unmount();
+    });
+
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(video.hasAttribute('src')).toBe(false);
+  });
+
+  it('plays the 1080p file where the box needs more than 720p, the 720p one where it does not', async () => {
+    const sd = 'https://imdb-video.media-imdb.com/vi1/a_720p.mp4';
+    const hd = 'https://imdb-video.media-imdb.com/vi1/a_1080p.mp4';
+    const size = (width: number, height: number) => {
+      vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(width);
+      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(height);
+    };
+    const fileFor = async (ratio: number) => {
+      vi.stubGlobal('devicePixelRatio', ratio);
+      const { container, unmount } = render(
+        <TrailerPreview src={sd} srcHd={hd} delaySeconds={0} client={createFakeClient()} />,
+      );
+      await run(0);
+      const file = container.querySelector('video')!.getAttribute('src');
+      unmount();
+      return file;
+    };
+
+    // An iPhone in portrait: a third of the picture's width over 660 px at 3x.
+    size(390, 660);
+    expect(await fileFor(3)).toBe(hd);
+    // A desktop's banner.
+    size(1440, 890);
+    expect(await fileFor(1)).toBe(hd);
+    // A small one.
+    size(1024, 560);
+    expect(await fileFor(1)).toBe(sd);
+    // Without a 1080p file, the one there is.
+    const { container } = render(<TrailerPreview src={sd} delaySeconds={0} client={createFakeClient()} />);
+    size(390, 660);
+    await run(0);
+    expect(container.querySelector('video')!.getAttribute('src')).toBe(sd);
+  });
+
+  it('falls back to the 720p file when the 1080p one fails or stalls', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1920);
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(1080);
+    const sd = 'https://imdb-video.media-imdb.com/vi1/a_720p.mp4';
+    const hd = 'https://imdb-video.media-imdb.com/vi1/a_1080p.mp4';
+    const onFinish = vi.fn();
+    const { container } = render(
+      <TrailerPreview src={sd} srcHd={hd} delaySeconds={0} client={createFakeClient()} onFinish={onFinish} />,
+    );
+    await run(0);
+    expect(container.querySelector('video')!.getAttribute('src')).toBe(hd);
+
+    await run(TRAILER_START_TIMEOUT_MS);
+    expect(container.querySelector('video')!.getAttribute('src')).toBe(sd);
+    expect(onFinish).not.toHaveBeenCalled();
+
+    act(() => {
+      container.querySelector('video')!.dispatchEvent(new Event('error'));
+    });
+    await run(0);
+    expect(container.querySelector('video')).toBeNull();
+    expect(onFinish).toHaveBeenCalledTimes(1);
   });
 
   it('shows a trailer online only once it is under way, as a local one, and gives up on it after an error', async () => {
@@ -567,19 +721,134 @@ describe('TrailerPreview', () => {
     expect(video.hasAttribute('src')).toBe(false);
   });
 
-  it('stops when the page becomes hidden', async () => {
+  it('scrolled out of view, pauses where it is, and carries on at once when back: the same video, no delay', async () => {
+    const inView = observeViewport();
+    vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(1);
+    const onPlayingChange = vi.fn();
+    const onFinish = vi.fn();
+    const { container } = render(
+      <TrailerPreview
+        src="https://imdb-video.media-imdb.com/vi1/a.mp4"
+        delaySeconds={4}
+        client={createFakeClient()}
+        onPlayingChange={onPlayingChange}
+        onFinish={onFinish}
+      />,
+    );
+    await run(4000);
+    const video = container.querySelector('video')!;
+    const pause = (video.pause = vi.fn());
+    const play = (video.play = vi.fn(async () => undefined));
+    act(() => {
+      video.dispatchEvent(new Event('timeupdate'));
+    });
+    expect(video).toHaveClass('is-shown');
+    expect(onPlayingChange).toHaveBeenLastCalledWith(true);
+
+    inView(false);
+    expect(pause).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('video')).toBe(video);
+    // Not playing as far as the page knows (the hero doesn't take it for a stall), and not over either.
+    expect(onPlayingChange).toHaveBeenLastCalledWith(false);
+    // However long it's away short of the hold, it isn't taken for a stall or let go.
+    await run(TRAILER_HOLD_MS - 1);
+    expect(container.querySelector('video')).toBe(video);
+
+    inView(true);
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('video')).toBe(video);
+    expect(video).toHaveClass('is-shown');
+    expect(onPlayingChange).toHaveBeenLastCalledWith(true);
+    expect(onFinish).not.toHaveBeenCalled();
+  });
+
+  it('does the same when the page goes to the background and comes back', async () => {
     const { container } = render(
       <TrailerPreview trailerId="t1" delaySeconds={0} client={createFakeClient()} />,
     );
     await startAfter(0);
-    expect(container.querySelector('video')).not.toBeNull();
+    const video = container.querySelector('video')!;
+    const pause = (video.pause = vi.fn());
+    const play = (video.play = vi.fn(async () => undefined));
 
-    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
-    act(() => {
-      document.dispatchEvent(new Event('visibilitychange'));
-    });
+    setHidden(true);
+    expect(pause).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('video')).toBe(video);
+
+    setHidden(false);
+    await run(0);
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('video')).toBe(video);
+  });
+
+  it('lets a video go that stays out of view for long, and starts after the delay when back', async () => {
+    const inView = observeViewport();
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    const { container } = render(
+      <TrailerPreview
+        src="https://imdb-video.media-imdb.com/vi1/a.mp4"
+        delaySeconds={1}
+        client={createFakeClient()}
+      />,
+    );
+    await run(1000);
+    const video = container.querySelector('video')!;
+    const load = (video.load = vi.fn());
+
+    inView(false);
+    await run(TRAILER_HOLD_MS);
+    expect(container.querySelector('video')).toBeNull();
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(video.hasAttribute('src')).toBe(false);
+
+    play.mockClear();
+    inView(true);
+    await run(0);
+    const again = container.querySelector('video')!;
+    expect(again).not.toBe(video);
+    expect(play).not.toHaveBeenCalled();
+    await run(750);
+    expect(play).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets a transcode go as soon as it is out of view, which stops it on the server', async () => {
+    runAs(SAFARI);
+    const inView = observeViewport();
+    const client = clientFor(MKV_HEVC);
+    const { container } = render(
+      <TrailerPreview trailerId="t1" delaySeconds={0} client={client} allowTranscode />,
+    );
+    await startAfter(0);
+    expect(srcOf(container).pathname).toBe('/Videos/t1/master.m3u8');
+
+    inView(false);
+    await run(0);
 
     expect(container.querySelector('video')).toBeNull();
+    expect(client.requests.some((r) => r.type === 'DELETE')).toBe(true);
+  });
+
+  it('out of view during the delay, keeps the video loading and runs the delay again when back', async () => {
+    const inView = observeViewport();
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    const { container } = render(
+      <TrailerPreview
+        src="https://imdb-video.media-imdb.com/vi1/a.mp4"
+        delaySeconds={1}
+        client={createFakeClient()}
+      />,
+    );
+    await run(500);
+    const video = container.querySelector('video')!;
+    inView(false);
+    await run(5000);
+    expect(play).not.toHaveBeenCalled();
+    expect(container.querySelector('video')).toBe(video);
+
+    inView(true);
+    await run(750);
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('video')).toBe(video);
   });
 
   it('says it is over once it ends or fails for good, not when it stops out of sight (the hero waits for it)', async () => {
@@ -635,16 +904,12 @@ describe('TrailerPreview', () => {
     });
     expect(seek).not.toHaveBeenCalled(); // from the start
 
-    // Out of sight and back: the new video starts where the last got to.
+    // Out of sight for long (it's let go) and back: the new video starts where the last got to.
     at = 42;
-    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
-    act(() => {
-      document.dispatchEvent(new Event('visibilitychange'));
-    });
-    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
-    act(() => {
-      document.dispatchEvent(new Event('visibilitychange'));
-    });
+    setHidden(true);
+    await run(TRAILER_HOLD_MS);
+    expect(container.querySelector('video')).toBeNull();
+    setHidden(false);
     await startAfter(0);
     act(() => {
       container.querySelector('video')!.dispatchEvent(new Event('loadedmetadata'));

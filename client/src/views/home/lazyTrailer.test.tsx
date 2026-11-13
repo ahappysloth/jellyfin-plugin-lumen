@@ -152,7 +152,7 @@ describe('LazyTrailer', () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined); // jsdom has no media playback
     try {
       const start = Date.now();
-      const { container } = render(<fresh.LazyTrailer {...props} delaySeconds={4} />);
+      render(<fresh.LazyTrailer {...props} delaySeconds={4} />);
       /** Runs the clock to `ms` after the render, in steps: effects that an act() schedules run as it ends. */
       const runTo = async (ms: number) => {
         while (Date.now() - start < ms) {
@@ -162,10 +162,12 @@ describe('LazyTrailer', () => {
         }
       };
 
-      await runTo(3900);
-      expect(container.querySelector('video')).toBeNull();
-      await runTo(4100);
-      expect(container.querySelector('video')).not.toBeNull(); // 4 s in, not 5
+      const play = vi.mocked(HTMLMediaElement.prototype.play);
+      // Played a quarter of a second before the delay is up (so it shows as it ends): about 4 s in, not 5.
+      await runTo(3600);
+      expect(play).not.toHaveBeenCalled();
+      await runTo(4000);
+      expect(play).toHaveBeenCalledTimes(1);
     } finally {
       cleanup(); // while timers are still fake (see TrailerPreview.test)
       vi.clearAllTimers();

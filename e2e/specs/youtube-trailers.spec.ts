@@ -269,6 +269,45 @@ test('the details page plays the trailer from YouTube behind its header, with Pa
   await expect(header.getByRole('button', { name: 'Trailer', exact: true })).toHaveCount(0);
 });
 
+/**
+ * Scrolls the page (whatever element scrolls it) by `dy` pixels, or to the top: mobile WebKit has no mouse wheel to do
+ * it with.
+ */
+const scrollPage = (page: Page, dy: number | 'top') =>
+  page.locator('#lmn-root .lmn-details__header').evaluate((header, by) => {
+    let scroller: Element | null = header.parentElement;
+    while (scroller && !(scroller.scrollHeight > scroller.clientHeight && /auto|scroll/.test(getComputedStyle(scroller).overflowY)))
+      scroller = scroller.parentElement;
+    const target = scroller ?? document.scrollingElement!;
+    if (by === 'top') target.scrollTop = 0;
+    else target.scrollTop += by;
+  }, dy);
+
+test("the details page's YouTube trailer scrolled out of view pauses in the same player, and plays on when back", async ({ page }) => {
+  // A short window, so the header can leave it.
+  await page.setViewportSize({ width: 1280, height: 560 });
+  const { items } = loadState();
+  await login(page, ADMIN);
+  await page.goto(`/web/#/details?id=${items[SHOW]}`);
+  const header = page.locator('#lmn-root .lmn-details__header');
+  const frame = header.locator('.lmn-details__trailer iframe');
+  const FRAME = '#lmn-root .lmn-details__trailer iframe';
+  await expect(frame).toHaveClass(/\bis-shown\b/, { timeout: 15_000 });
+  await frame.evaluate((f) => f.setAttribute('data-test-mark', 'first'));
+
+  await scrollPage(page, 4000);
+  await expect.poll(() => header.evaluate((h) => h.getBoundingClientRect().bottom)).toBeLessThan(200);
+  // The same player, paused, rather than taken off.
+  await expect(playerIn(page, FRAME)).toHaveAttribute('data-state', '2');
+  await expect(frame).toHaveAttribute('data-test-mark', 'first');
+
+  await scrollPage(page, 'top');
+  await expect(playerIn(page, FRAME)).toHaveAttribute('data-state', '1');
+  await expect(frame).toHaveAttribute('data-test-mark', 'first');
+  // Back after the seconds YouTube's own interface shows.
+  await expect(frame).toHaveClass(/\bis-shown\b/, { timeout: 15_000 });
+});
+
 test('TV layout: no YouTube player, in the hero or behind details, only the backdrop', async ({ page }) => {
   const { items } = loadState();
   await page.addInitScript(() => localStorage.setItem('layout', 'tv'));

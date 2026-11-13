@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { useVisible } from '../../components/useVisible';
 import { strings } from '../../strings';
 import type { TrailerProps } from './TrailerPreview';
-import { TRAILER_FADE_MS, TRAILER_START_TIMEOUT_MS } from './trailerTiming';
+import { TRAILER_FADE_MS, TRAILER_HOLD_MS, TRAILER_START_TIMEOUT_MS } from './trailerTiming';
 import {
   connectYouTubePlayer,
   embedBase,
@@ -71,7 +71,8 @@ export function coverSize(box: Size): Size & { left: number; top: number } {
  *   when the interface has gone: about when a local trailer would, some seconds into the trailer (its studio logos,
  *   mostly). The hero holds the slide for it once it plays (Hero.tsx).
  * - Pause fades it out to the backdrop and stops it; Play picks it up a few seconds back and fades it in at the
- *   moment it was paused at.
+ *   moment it was paused at. Out of view (scrolled away, the page in the background) it's paused the same way, and
+ *   played again as it's back; one away for TRAILER_HOLD_MS is let go, and asked for again (where it was) when back.
  * - Unmuted (the details page), it has sound only while it shows: it plays muted through every unseen stretch.
  * - The frame takes no pointer or keyboard input at all, so swipes and taps reach the page and nothing in it can be
  *   clicked. Removing the frame is what stops the video: there's nothing else to release.
@@ -116,9 +117,11 @@ export function YouTubePreview({
   /** Whether this play's frame has fired its load event: it may, before the effect below connects to it. */
   const loaded = useRef(false);
   const base = embedBase(baseOverride);
+  /** Paused by the page, or out of view: the player is paused either way. */
+  const halted = paused || !visible;
   // The callbacks and flags as they are now, for the player's events (it's connected once per play).
-  const latest = useRef({ paused, muted, onProgress });
-  latest.current = { paused, muted, onProgress };
+  const latest = useRef({ paused: halted, muted, onProgress });
+  latest.current = { paused: halted, muted, onProgress };
 
   // The frame is sized in pixels: nothing in CSS covers a box with a fixed-ratio frame on Chromium 68 or Safari 13.
   useLayoutEffect(() => {
@@ -227,12 +230,14 @@ export function YouTubePreview({
     };
   }, [playing, src]);
 
+  // Out of view it's paused (below), and let go once it's been away TRAILER_HOLD_MS. Said outright: the hero took it
+  // for under way from when it played, before it showed, and one out of view isn't stalled, it waits to be seen (as a
+  // local trailer does).
   useEffect(() => {
     if (visible || state !== 'playing') return;
-    setState('waiting');
-    // Said outright: the hero took it for under way from when it played, before it showed, and one out of view isn't
-    // stalled, it waits to be seen (as a local trailer does).
     onPlayingChange?.(false);
+    const timer = setTimeout(() => setState('waiting'), TRAILER_HOLD_MS);
+    return () => clearTimeout(timer);
   }, [visible, state]);
 
   // Fades back to the backdrop before it goes, as a local trailer does.
@@ -249,22 +254,23 @@ export function YouTubePreview({
   // or it stalled and didn't recover. The backdrop stays, and a hero slide waiting for it moves on. One that plays is
   // left alone, however late it started: its interface's seconds run out by themselves.
   useEffect(() => {
-    if (!playing || paused || shown || ending || going) return;
+    if (!playing || halted || shown || ending || going) return;
     const watchdog = setTimeout(() => setState('done'), TRAILER_START_TIMEOUT_MS);
     return () => clearTimeout(watchdog);
-  }, [playing, src, paused, shown, ending, going]);
+  }, [playing, src, halted, shown, ending, going]);
 
-  // Pause stops it where it is. Play goes back as far as plays unseen before the picture returns.
-  const pausedBefore = useRef(paused);
+  // Pause (or out of view) stops it where it is. Play (or back) goes back as far as plays unseen before the picture
+  // returns.
+  const haltedBefore = useRef(halted);
   useEffect(() => {
-    if (pausedBefore.current === paused) return;
-    pausedBefore.current = paused;
+    if (haltedBefore.current === halted) return;
+    haltedBefore.current = halted;
     const connected = player.current;
     if (!connected) return;
-    if (paused) return connected.pause();
+    if (halted) return connected.pause();
     if (everShown.current) connected.rewind(YOUTUBE_CHROME_MS / 1000);
     connected.play();
-  }, [paused]);
+  }, [halted]);
 
   // Mute and Unmute take effect while it shows; unseen it's muted whatever the page says (see `show`).
   useEffect(() => {
@@ -272,14 +278,16 @@ export function YouTubePreview({
     if (showing.current) player.current?.setMuted(muted);
   }, [muted]);
 
-  // As TrailerPreview: the page's controls show once the picture has, and stay through Pause and Play.
+  // As TrailerPreview: the page's controls show once the picture has, and stay through Pause and Play; out of view it
+  // says it isn't playing.
   const controlled = useRef(false);
   if (!playing || ending) controlled.current = false;
   const under = playing && !ending && (shown || (paused && everShown.current) || controlled.current);
   if (under) controlled.current = true;
+  const on = under && visible;
   useEffect(() => {
-    onPlayingChange?.(under);
-  }, [under]);
+    onPlayingChange?.(on);
+  }, [on]);
 
   const finished = ending || state === 'done';
   useEffect(() => {

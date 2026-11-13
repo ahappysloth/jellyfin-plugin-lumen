@@ -31,10 +31,12 @@ type LocalProps = ComponentProps<TrailerModule['TrailerPreview']>;
  * TrailerPreview's props. Without a local trailer (`trailerId`), the title's trailer online plays instead ("Use online
  * trailers"): IMDb's MP4 in the same <video> as a local one, else YouTube's player.
  */
-export type LazyTrailerProps = Omit<LocalProps, 'trailerId' | 'src'> & {
+export type LazyTrailerProps = Omit<LocalProps, 'trailerId' | 'src' | 'srcHd'> & {
   trailerId?: string | null;
   /** The trailer's MP4 on IMDb's video CDN: only used when there's no local trailer. */
   imdbUrl?: string | null;
+  /** The same in 1080p, where IMDb has it: played instead where the box needs it. */
+  imdbUrlHd?: string | null;
   /** The trailer's YouTube video id: only used when there's neither a local trailer nor IMDb's. */
   youTubeId?: string | null;
   /**

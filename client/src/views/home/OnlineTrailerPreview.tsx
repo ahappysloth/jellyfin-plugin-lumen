@@ -4,9 +4,10 @@ import { getLayout } from '../../compat/jellyfin';
 import { TrailerPreview, type TrailerProps } from './TrailerPreview';
 import { YouTubePreview } from './YouTubePreview';
 
-export type OnlineTrailerPreviewProps = Omit<TrailerProps, 'trailerId' | 'src'> & {
-  /** The trailer online, where it's known already (the hero's slides carry theirs): IMDb's MP4, … */
+export type OnlineTrailerPreviewProps = Omit<TrailerProps, 'trailerId' | 'src' | 'srcHd'> & {
+  /** The trailer online, where it's known already (the hero's slides carry theirs): IMDb's MP4 (and its 1080p one), … */
   imdbUrl?: string | null;
+  imdbUrlHd?: string | null;
   /** … else YouTube's video id. */
   youTubeId?: string | null;
   /** Else asks the server for it (GET …/Trailer), once, as this mounts. */
@@ -24,6 +25,7 @@ export type OnlineTrailerPreviewProps = Omit<TrailerProps, 'trailerId' | 'src'> 
  */
 export function OnlineTrailerPreview({
   imdbUrl,
+  imdbUrlHd,
   youTubeId,
   lookup,
   embedBase,
@@ -51,7 +53,7 @@ export function OnlineTrailerPreview({
       live = false;
     };
   }, []);
-  const trailer = lookup ? found?.trailer : { ImdbUrl: imdbUrl, YouTubeId: youTubeId };
+  const trailer = lookup ? found?.trailer : { ImdbUrl: imdbUrl, ImdbUrlHd: imdbUrlHd, YouTubeId: youTubeId };
   if (!trailer) return null;
   // Looked up, the wait for the answer was part of the delay; the hero's own (0 for a trailer put back) is used as is.
   const delaySeconds = lookup ? found!.delaySeconds : props.delaySeconds;
@@ -61,6 +63,7 @@ export function OnlineTrailerPreview({
       <TrailerPreview
         {...props}
         src={trailer.ImdbUrl}
+        srcHd={trailer.ImdbUrlHd}
         delaySeconds={delaySeconds}
         onPlayingChange={(on) => {
           if (on) imdbPlayed.current = true;

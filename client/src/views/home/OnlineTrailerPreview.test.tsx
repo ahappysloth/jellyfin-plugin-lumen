@@ -110,15 +110,48 @@ describe('OnlineTrailerPreview', () => {
     );
     await run(1000);
     expect(container).toBeEmptyDOMElement();
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
     answer({ ImdbUrl: URL_720 });
-    rerender(<OnlineTrailerPreview lookup={lookup} delaySeconds={1.5} client={createFakeClient()} paused />);
+    rerender(<OnlineTrailerPreview lookup={lookup} delaySeconds={1.5} client={createFakeClient()} />);
 
-    // A second after it was asked, the answer: half a second of the delay is left.
-    await run(499);
-    expect(container.querySelector('video')).toBeNull();
-    await run(1);
+    // A second after it was asked, the answer: the video loads at once, and plays as half a second of the delay is up
+    // (less the moment it takes to get under way).
+    await run(0);
     expect(container.querySelector('video')!.getAttribute('src')).toBe(URL_720);
+    await run(249);
+    expect(play).not.toHaveBeenCalled();
+    await run(1);
+    expect(play).toHaveBeenCalledTimes(1);
     expect(lookup).toHaveBeenCalledTimes(1);
+  });
+
+  it("a title page's lookup brings IMDb's 1080p file, played where the box needs it; then 720p, then YouTube's", async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(390);
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(660);
+    vi.stubGlobal('devicePixelRatio', 3);
+    const hd = 'https://imdb-video.media-imdb.com/vi1/a_1080p.mp4';
+    const lookup = () => Promise.resolve({ ImdbUrl: URL_720, ImdbUrlHd: hd, YouTubeId: 'dQw4w9WgXcQ' });
+    try {
+      const { container } = render(
+        <OnlineTrailerPreview lookup={lookup} delaySeconds={1} client={createFakeClient()} />,
+      );
+      await run(0);
+      expect(container.querySelector('video')!.getAttribute('src')).toBe(hd);
+
+      act(() => {
+        container.querySelector('video')!.dispatchEvent(new Event('error'));
+      });
+      expect(container.querySelector('video')!.getAttribute('src')).toBe(URL_720);
+
+      act(() => {
+        container.querySelector('video')!.dispatchEvent(new Event('error'));
+      });
+      await run(YOUTUBE_DWELL_MS);
+      expect(container.querySelector('video')).toBeNull();
+      expect(container.querySelector('iframe')).not.toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('shows nothing when the server knows of no trailer, or the lookup fails', async () => {

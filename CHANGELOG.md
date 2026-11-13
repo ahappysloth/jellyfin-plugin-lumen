@@ -2,6 +2,19 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.6.1] - 2026-11-13
+
+### Changed
+- Trailers scrolled out of view (or left in a background tab) pause where they are, and carry on at once when they're
+  back, instead of starting over after the delay. One that stays away for a minute is let go.
+- Trailers start as soon as their delay is up: the video loads during the delay instead of after it. On title pages
+  the delay is 1 second (was 1.5).
+- Online trailers play in 1080p where the screen needs it (phones, desktops and TVs), 720p in a small window or with
+  the browser's data saver on. IMDb's 720p looked soft on a phone, which shows the middle third of it full-height.
+
+### Fixed
+- On title pages, YouTube's trailer takes over again when IMDb's won't play in the browser (0.6.0 never sent it along).
+
 ## [0.6.0] - 2026-11-13
 
 ### Added

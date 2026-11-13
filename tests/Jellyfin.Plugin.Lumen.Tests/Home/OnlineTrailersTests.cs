@@ -22,7 +22,7 @@ public class OnlineTrailersTests
     {
         _config.Current.Returns(new PluginConfiguration { YouTubeTrailers = true });
         _youTube.GetAsync(default!, default!, default).ReturnsForAnyArgs("dQw4w9WgXcQ");
-        _imdb.GetAsync(default, default).ReturnsForAnyArgs((string?)null);
+        _imdb.GetAsync(default, default).ReturnsForAnyArgs((ImdbTrailer?)null);
         _online = new OnlineTrailers(_imdb, _youTube, _config);
     }
 
@@ -30,15 +30,25 @@ public class OnlineTrailersTests
     public async Task IMDbsTrailer_ComesWithYouTubes_AsTheBrowsersFallback()
     {
         var movie = Movie("tt0133093");
-        _imdb.GetAsync("tt0133093", Arg.Any<CancellationToken>()).Returns(Url);
+        _imdb.GetAsync("tt0133093", Arg.Any<CancellationToken>()).Returns(new ImdbTrailer(Url, null));
 
         Assert.Equal(new OnlineTrailer(Url, "dQw4w9WgXcQ"), await _online.GetAsync(movie, _user, CancellationToken.None));
     }
 
     [Fact]
+    public async Task IMDbs1080pFile_ComesWithIt()
+    {
+        const string Hd = "https://imdb-video.media-imdb.com/vi1/a_1080p.mp4";
+        _imdb.GetAsync("tt0133093", Arg.Any<CancellationToken>()).Returns(new ImdbTrailer(Url, null, Hd));
+
+        Assert.Equal(new OnlineTrailer(Url, "dQw4w9WgXcQ", Hd), await _online.GetAsync(Movie("tt0133093"), _user, CancellationToken.None));
+        Assert.Equal(new OnlineTrailer(Url, null, Hd), await _online.GetAsync(new SeerrTitle { Id = 603, ImdbId = "tt0133093" }, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task IMDbAndYouTube_AreAskedSideBySide()
     {
-        var imdb = new TaskCompletionSource<string?>();
+        var imdb = new TaskCompletionSource<ImdbTrailer?>();
         var youTube = new TaskCompletionSource<string?>();
         _imdb.GetAsync("tt0133093", Arg.Any<CancellationToken>()).Returns(imdb.Task);
         _youTube.GetAsync(default!, default!, default).ReturnsForAnyArgs(youTube.Task);
@@ -47,7 +57,7 @@ public class OnlineTrailersTests
 
         // YouTube is asked before IMDb has answered.
         await _youTube.ReceivedWithAnyArgs(1).GetAsync(default!, default!, default);
-        imdb.SetResult(Url);
+        imdb.SetResult(new ImdbTrailer(Url, null));
         youTube.SetResult(null);
         Assert.Equal(new OnlineTrailer(Url, null), await asking);
     }
@@ -93,7 +103,7 @@ public class OnlineTrailersTests
     [Fact]
     public async Task ACatalogMovie_UsesSeerrsImdbId()
     {
-        _imdb.GetAsync("tt0133093", Arg.Any<CancellationToken>()).Returns(Url);
+        _imdb.GetAsync("tt0133093", Arg.Any<CancellationToken>()).Returns(new ImdbTrailer(Url, null));
 
         Assert.Equal(new OnlineTrailer(Url, null), await _online.GetAsync(new SeerrTitle { Id = 603, ImdbId = "tt0133093" }, CancellationToken.None));
     }
@@ -101,7 +111,7 @@ public class OnlineTrailersTests
     [Fact]
     public async Task ACatalogShow_UsesItsExternalImdbId()
     {
-        _imdb.GetAsync("tt0903747", Arg.Any<CancellationToken>()).Returns(Url);
+        _imdb.GetAsync("tt0903747", Arg.Any<CancellationToken>()).Returns(new ImdbTrailer(Url, null));
 
         var show = new SeerrTitle { Id = 1396, ExternalIds = new SeerrExternalIds { ImdbId = "tt0903747" } };
         Assert.Equal(new OnlineTrailer(Url, null), await _online.GetAsync(show, CancellationToken.None));
@@ -110,7 +120,7 @@ public class OnlineTrailersTests
     [Fact]
     public async Task ACatalogTitle_OnIMDb_AlsoCarriesSeerrsYouTubeTrailer()
     {
-        _imdb.GetAsync("tt0133093", Arg.Any<CancellationToken>()).Returns(Url);
+        _imdb.GetAsync("tt0133093", Arg.Any<CancellationToken>()).Returns(new ImdbTrailer(Url, null));
         var title = new SeerrTitle { Id = 603, ImdbId = "tt0133093", RelatedVideos = [new SeerrVideo { Site = "YouTube", Type = "Trailer", Key = "trailerOne1" }] };
 
         Assert.Equal(new OnlineTrailer(Url, "trailerOne1"), await _online.GetAsync(title, CancellationToken.None));

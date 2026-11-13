@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render } from '@testing-library/preact';
 import { render as preactRender } from 'preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TRAILER_FADE_MS, TRAILER_START_TIMEOUT_MS } from './trailerTiming';
+import { TRAILER_FADE_MS, TRAILER_HOLD_MS, TRAILER_START_TIMEOUT_MS } from './trailerTiming';
 import { coverSize, YOUTUBE_CHROME_MS, YOUTUBE_DWELL_MS, YouTubePreview } from './YouTubePreview';
 
 const ORIGIN = 'https://www.youtube-nocookie.com';
@@ -410,13 +410,47 @@ describe('YouTubePreview', () => {
     expect(onFinish).toHaveBeenCalledTimes(1);
   });
 
-  it('takes the frame off while the page is in the background, and starts over when it is back', () => {
-    const { container, player } = playing({ delaySeconds: 6 });
+  it('pauses while the page is in the background, and plays on when it is back, a few seconds back, unseen till then', () => {
+    const onPlayingChange = vi.fn();
+    const { container, player } = playing({ delaySeconds: 6, onPlayingChange });
     advance(YOUTUBE_CHROME_MS);
+    expect(player.frame).toHaveClass('is-shown');
+    player.posted.length = 0;
     act(() => {
       Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
       document.dispatchEvent(new Event('visibilitychange'));
     });
+    // The same player, paused: nothing plays unseen, and the page knows it isn't playing.
+    expect(frameOf(container)).toBe(player.frame);
+    expect(player.commands()).toEqual(['pauseVideo']);
+    expect(onPlayingChange).toHaveBeenLastCalledWith(false);
+    player.say('onStateChange', 2);
+    expect(player.frame).not.toHaveClass('is-shown');
+    // Paused out of view isn't a stall.
+    advance(TRAILER_START_TIMEOUT_MS);
+    expect(frameOf(container)).toBe(player.frame);
+
+    act(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(frameOf(container)).toBe(player.frame);
+    expect(player.commands()).toEqual(['pauseVideo', 'seekTo', 'playVideo']);
+    player.play(30);
+    advance(YOUTUBE_CHROME_MS);
+    expect(player.frame).toHaveClass('is-shown');
+    expect(onPlayingChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it('lets the player go once it has been out of view for long, and starts over after the delay when back', () => {
+    const { container, player } = playing({ delaySeconds: 6 });
+    act(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    advance(TRAILER_HOLD_MS - 1);
+    expect(frameOf(container)).toBe(player.frame);
+    advance(1);
     expect(frameOf(container)).toBeNull(); // nothing plays, or downloads, unseen
 
     act(() => {
@@ -439,9 +473,9 @@ describe('YouTubePreview', () => {
       Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
       document.dispatchEvent(new Event('visibilitychange'));
     });
-    expect(frameOf(container)).toBeNull();
+    expect(frameOf(container)).toBe(player.frame);
     expect(onPlayingChange).toHaveBeenCalledWith(false);
-    expect(player.frame.isConnected).toBe(false);
+    expect(player.commands()).toContain('pauseVideo');
   });
 
   it("is put back where the hero says it was, less what plays unseen before it's shown", () => {
