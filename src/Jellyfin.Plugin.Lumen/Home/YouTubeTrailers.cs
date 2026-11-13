@@ -25,9 +25,10 @@ public interface IYouTubeTrailers
 /// <see cref="IYouTubeTrailers"/>, while "Use YouTube trailers" is on. It reads the item's own metadata first
 /// (<see cref="BaseItem.RemoteTrailers"/>, which Jellyfin fills from TMDB, so no Seerr is needed), then asks Seerr for the
 /// title's videos if it's set up and the item has a TMDB id. Seerr's answer is kept for <see cref="HitTtl"/> (no trailer:
-/// <see cref="MissTtl"/>, in case one is published), for everyone: the home hero asks for every slide on every build, and a
-/// video id is no secret. Only who may ask Seerr is per user: the call acts as the user, as every catalog call does, so a
-/// user without a Seerr account gets what's cached and the item's own metadata.
+/// <see cref="MissTtl"/>, in case one is published; Seerr failing: <see cref="FailureTtl"/>), for everyone: the home hero
+/// asks for every slide on every build, and a video id is no secret. One title is asked for once at a time: whoever asks
+/// while that's under way waits for the same answer. Only who may ask Seerr is per user: the call acts as the user, as
+/// every catalog call does, so a user without a Seerr account gets what's cached and the item's own metadata.
 /// </summary>
 public sealed class YouTubeTrailers : IYouTubeTrailers
 {
@@ -35,8 +36,15 @@ public sealed class YouTubeTrailers : IYouTubeTrailers
     public static readonly TimeSpan HitTtl = TimeSpan.FromHours(24);
     public static readonly TimeSpan MissTtl = TimeSpan.FromHours(1);
 
+    /// <summary>
+    /// Seerr down, slow or refusing: no trailer for this long. Without it every home build would ask again for every slide
+    /// (a stalled Seerr times out only after the hero has stopped waiting), until the circuit breaker opens.
+    /// </summary>
+    public static readonly TimeSpan FailureTtl = TimeSpan.FromMinutes(5);
+
     private readonly Lock _lock = new();
     private readonly Dictionary<(string Endpoint, string MediaType, int TmdbId), Entry> _cache = [];
+    private readonly Dictionary<(string Endpoint, string MediaType, int TmdbId), Task<string?>> _asking = [];
     private readonly ILumenConfigReader _config;
     private readonly ISeerrClient _seerr;
     private readonly ISeerrUserMap _users;
@@ -120,67 +128,111 @@ public sealed class YouTubeTrailers : IYouTubeTrailers
         }
 
         var key = (endpoint.CacheKey, mediaType, tmdbId);
+        TaskCompletionSource<string?>? mine = null;
+        Task<string?> answer;
+        lock (_lock)
+        {
+            if (TryGetCachedLocked(key, out cached))
+            {
+                return cached;
+            }
+
+            if (!_asking.TryGetValue(key, out var asking))
+            {
+                mine = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+                asking = mine.Task;
+                _asking[key] = asking;
+            }
+
+            answer = asking;
+        }
+
+        if (mine is not null)
+        {
+            // Not cancelled with this caller: others may be waiting for it, and the answer is cached for the next.
+            _ = AskSeerrAsync(mine, key, endpoint, seerrUserId, mediaType, tmdbId);
+        }
+
+        return await answer.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task AskSeerrAsync(
+        TaskCompletionSource<string?> answer,
+        (string Endpoint, string MediaType, int TmdbId) key,
+        SeerrEndpoint endpoint,
+        int seerrUserId,
+        string mediaType,
+        int tmdbId)
+    {
+        string? found = null;
+        var ttl = FailureTtl;
         try
         {
-            var title = await _seerr.GetTitleSummaryAsync(endpoint, seerrUserId, mediaType, tmdbId, cancellationToken).ConfigureAwait(false);
-            var found = FromSeerr(title.RelatedVideos);
-            Store(key, found);
-            return found;
+            var title = await _seerr.GetTitleSummaryAsync(endpoint, seerrUserId, mediaType, tmdbId, CancellationToken.None).ConfigureAwait(false);
+            found = FromSeerr(title.RelatedVideos);
+            ttl = found is null ? MissTtl : HitTtl;
         }
         catch (SeerrException e) when (e.Status == HttpStatusCode.NotFound)
         {
             // Seerr (TMDB) doesn't know the title: nothing to ask again for a while.
-            Store(key, null);
-            return null;
+            ttl = MissTtl;
         }
-        catch (SeerrException e)
+        catch (Exception e)
         {
-            // Not kept: Seerr is asked again next time (its circuit breaker spares it while it's down, and logs that).
-            if (!e.IsCircuitOpen && _logger.IsEnabled(LogLevel.Debug))
+            // Asked again after FailureTtl (the circuit breaker spares Seerr meanwhile, and logs that it's down).
+            if (!(e is SeerrException { IsCircuitOpen: true }) && _logger.IsEnabled(LogLevel.Debug))
             {
                 _logger.LogDebug("Lumen couldn't ask Seerr for a trailer: {Message}", e.Message);
             }
-
-            return null;
         }
+
+        lock (_lock)
+        {
+            StoreLocked(key, found, ttl);
+            _asking.Remove(key);
+        }
+
+        answer.SetResult(found);
     }
 
     private bool TryGetCached((string Endpoint, string MediaType, int TmdbId) key, out string? id)
     {
         lock (_lock)
         {
-            if (_cache.TryGetValue(key, out var entry) && entry.Expires > _time.GetUtcNow())
-            {
-                id = entry.Id;
-                return true;
-            }
+            return TryGetCachedLocked(key, out id);
+        }
+    }
+
+    private bool TryGetCachedLocked((string Endpoint, string MediaType, int TmdbId) key, out string? id)
+    {
+        if (_cache.TryGetValue(key, out var entry) && entry.Expires > _time.GetUtcNow())
+        {
+            id = entry.Id;
+            return true;
         }
 
         id = null;
         return false;
     }
 
-    private void Store((string Endpoint, string MediaType, int TmdbId) key, string? id)
+    private void StoreLocked((string Endpoint, string MediaType, int TmdbId) key, string? id, TimeSpan ttl)
     {
-        lock (_lock)
+        var now = _time.GetUtcNow();
+        _cache.Remove(key);
+        if (_cache.Count >= Capacity)
         {
-            var now = _time.GetUtcNow();
-            _cache.Remove(key);
-            if (_cache.Count >= Capacity)
+            foreach (var expired in _cache.Where(e => e.Value.Expires <= now).Select(e => e.Key).ToList())
             {
-                foreach (var expired in _cache.Where(e => e.Value.Expires <= now).Select(e => e.Key).ToList())
-                {
-                    _cache.Remove(expired);
-                }
+                _cache.Remove(expired);
             }
-
-            while (_cache.Count >= Capacity)
-            {
-                _cache.Remove(_cache.MinBy(e => e.Value.Sequence).Key);
-            }
-
-            _cache[key] = new Entry(id, now + (id is null ? MissTtl : HitTtl), ++_sequence);
         }
+
+        while (_cache.Count >= Capacity)
+        {
+            _cache.Remove(_cache.MinBy(e => e.Value.Sequence).Key);
+        }
+
+        _cache[key] = new Entry(id, now + ttl, ++_sequence);
     }
 
     private sealed record Entry(string? Id, DateTimeOffset Expires, long Sequence);

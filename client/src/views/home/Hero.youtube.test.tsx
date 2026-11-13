@@ -4,7 +4,7 @@ import { createFakeClient } from '../../../test/fakeClient';
 import type { ClientConfig, HeroItem } from '../../api/types';
 import { Hero } from './Hero';
 import { loadTrailer } from './lazyTrailer';
-import { YOUTUBE_CHROME_MS } from './YouTubePreview';
+import { YOUTUBE_CHROME_MS, YOUTUBE_DWELL_MS } from './YouTubePreview';
 
 // The hero with a title whose trailer is on YouTube, down to the player's frame: the real LazyTrailer and
 // YouTubePreview, and a player that says what the tests have it say (jsdom loads nothing into the frame). The hero's
@@ -43,6 +43,8 @@ const advance = (ms: number) =>
     vi.advanceTimersByTime(ms);
   });
 const showing = (name: string) => screen.getByRole('heading', { level: 2, name });
+const fill = (container: Element) => container.querySelector<HTMLElement>('.lmn-hero__fill')!;
+const scale = (container: Element) => Number(/scaleX\(([^)]+)\)/.exec(fill(container).style.transform)?.[1]);
 const frameOf = (container: Element) => container.querySelector('iframe');
 
 const renderHero = (overrides: Partial<ClientConfig> = {}, hero = items) =>
@@ -109,11 +111,12 @@ describe('Hero: a trailer from YouTube', () => {
     vi.useRealTimers();
     document.documentElement.classList.remove('layout-tv');
     Reflect.deleteProperty(window, 'matchMedia');
+    vi.unstubAllGlobals();
   });
 
   it("frames the slide's video, over a backdrop that stays until the player has played its interface away", () => {
     const { container } = renderHero();
-    advance(0);
+    advance(YOUTUBE_DWELL_MS);
     const slide = container.querySelector('.lmn-hero__slide.is-current')!;
     expect(slide.querySelector('.lmn-hero__backdrop')).not.toBeNull();
     expect(frameOf(slide)!.getAttribute('src')).toContain(`${ORIGIN}/embed/dQw4w9WgXcQ?autoplay=1&mute=1`);
@@ -166,28 +169,51 @@ describe('Hero: a trailer from YouTube', () => {
   it('prefers the local trailer of a slide that has both', () => {
     const both = [{ ...items[0]!, TrailerItemId: 't1' }, items[1]!];
     const { container } = renderHero({}, both);
-    advance(0);
+    advance(YOUTUBE_DWELL_MS);
     expect(frameOf(container)).toBeNull();
     expect(container.querySelector('.lmn-hero__trailer')).not.toBeNull(); // the local preview's
   });
 
-  it('Pause takes it off with the slideshow (a trailer the next slide would cut short anyway)', () => {
+  it('Pause stops it where it is and holds the slide; Play carries on', () => {
     const { container } = renderHero();
-    advance(0);
-    playerIn(container).start();
+    advance(YOUTUBE_DWELL_MS);
+    const player = playerIn(container);
+    player.start();
     advance(YOUTUBE_CHROME_MS);
-    expect(frameOf(container)).toHaveClass('is-shown');
+    expect(player.frame).toHaveClass('is-shown');
 
     fireEvent.click(screen.getByRole('button', { name: 'Pause slideshow' }));
-    expect(frameOf(container)).toBeNull();
+    expect(player.commands).toContain('pauseVideo');
+    player.say('infoDelivery', { playerState: 2, currentTime: 4.5 });
+    expect(frameOf(container)).toBe(player.frame);
+    expect(player.frame).not.toHaveClass('is-shown');
+    advance(60_000);
+    expect(showing('Alpha')).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', { name: 'Play slideshow' }));
-    advance(0);
-    expect(frameOf(container)).not.toBeNull();
+    expect(player.commands.slice(-2)).toEqual(['seekTo', 'playVideo']);
+  });
+
+  it('asks YouTube for nothing on slides only passed through', () => {
+    const many: HeroItem[] = ['a', 'b', 'c', 'd'].map((id) => ({
+      Item: { Id: id, Name: id.toUpperCase(), Type: 'Movie', BackdropImageTags: ['b'] },
+      TrailerItemId: null,
+      TrailerYouTubeId: `dQw4w9WgXc${id.toUpperCase()}`,
+    }));
+    const { container } = renderHero({ TrailerDelaySeconds: 0 }, many);
+    for (let i = 0; i < 3; i++) {
+      advance(YOUTUBE_DWELL_MS - 200);
+      expect(frameOf(container)).toBeNull();
+      fireEvent.keyDown(screen.getAllByRole('tab')[i]!, { key: 'ArrowRight' });
+    }
+    expect(showing('D')).toBeInTheDocument();
+    advance(YOUTUBE_DWELL_MS);
+    expect(frameOf(container)!.getAttribute('src')).toContain('/embed/dQw4w9WgXcD?');
   });
 
   it('takes the frame off as a swipe starts, and with the slide it leaves', () => {
     const { container } = renderHero();
-    advance(0);
+    advance(YOUTUBE_DWELL_MS);
     playerIn(container).start();
     advance(YOUTUBE_CHROME_MS);
     const hero = container.querySelector<HTMLElement>('.lmn-hero')!;
@@ -204,7 +230,7 @@ describe('Hero: a trailer from YouTube', () => {
 
   it('moves on at its interval when the video cannot be embedded, with the backdrop and no message', () => {
     const { container } = renderHero();
-    advance(0);
+    advance(YOUTUBE_DWELL_MS);
     const player = playerIn(container);
     fireEvent.load(player.frame);
     player.say('initialDelivery', { playerState: -1, currentTime: 0, duration: 0 });
@@ -218,11 +244,92 @@ describe('Hero: a trailer from YouTube', () => {
     expect(showing('Beta')).toBeInTheDocument();
   });
 
+  describe('held for (with or without HeroWaitForTrailer)', () => {
+    it('keeps its slide from when it plays until it ends, the pager following it, then a beat', () => {
+      // The default 8 s a slide: the trailer shows from about 5.5 s in, and plays on well past that.
+      const { container } = renderHero();
+      advance(YOUTUBE_DWELL_MS);
+      const player = playerIn(container);
+      player.start(30);
+      player.play(20);
+      expect(showing('Alpha')).toBeInTheDocument();
+      expect(player.frame).toHaveClass('is-shown');
+      expect(fill(container)).toHaveClass('is-trailer');
+      // The fill follows the trailer, not the slide's 8 s: two thirds in.
+      expect(scale(container)).toBeGreaterThan(0.6);
+      expect(scale(container)).toBeLessThan(0.75);
+
+      player.play(8);
+      player.say('infoDelivery', { playerState: 0, currentTime: 30 });
+      advance(1500 - 1);
+      expect(showing('Alpha')).toBeInTheDocument();
+      advance(1 + SLIDE);
+      expect(showing('Beta')).toBeInTheDocument();
+    });
+
+    it("doesn't hold a slide whose trailer hasn't started playing by the end of its interval", () => {
+      const { container } = renderHero();
+      advance(YOUTUBE_DWELL_MS);
+      fireEvent.load(playerIn(container).frame); // loading still
+      advance(8000 - YOUTUBE_DWELL_MS + SLIDE);
+      expect(showing('Beta')).toBeInTheDocument();
+    });
+
+    it('scrolled away before it shows, waits to be seen rather than being given up', () => {
+      const observers: IntersectionObserverCallback[] = [];
+      vi.stubGlobal(
+        'IntersectionObserver',
+        class {
+          constructor(private callback: IntersectionObserverCallback) {
+            observers.push(callback);
+          }
+          observe() {
+            this.callback(
+              [{ isIntersecting: true, intersectionRatio: 1 } as IntersectionObserverEntry],
+              this as never,
+            );
+          }
+          disconnect() {}
+        },
+      );
+      const inView = (on: boolean) =>
+        act(() =>
+          observers.forEach((callback) =>
+            callback(
+              [{ isIntersecting: on, intersectionRatio: on ? 1 : 0 } as IntersectionObserverEntry],
+              {} as never,
+            ),
+          ),
+        );
+      const { container } = renderHero();
+      advance(YOUTUBE_DWELL_MS);
+      const player = playerIn(container);
+      player.start(60);
+      player.play(2);
+      expect(player.frame).not.toHaveClass('is-shown');
+
+      inView(false);
+      expect(frameOf(container)).toBeNull();
+      advance(60_000);
+      expect(showing('Alpha')).toBeInTheDocument();
+
+      // Back where it was, less what plays unseen, at once.
+      inView(true);
+      advance(0);
+      const back = playerIn(container);
+      expect(back.frame).not.toBe(player.frame);
+      back.start(60);
+      advance(YOUTUBE_CHROME_MS);
+      expect(back.frame).toHaveClass('is-shown');
+      expect(showing('Alpha')).toBeInTheDocument();
+    });
+  });
+
   describe('with trailers let finish (HeroWaitForTrailer)', () => {
     it('holds the slide from when the trailer plays, shown yet or not, and moves on a beat after it ends', () => {
       // 3 s a slide: less than YouTube's player takes to put its interface away.
       const { container } = renderHero({ HeroWaitForTrailer: true, HeroIntervalSeconds: 3 });
-      advance(0);
+      advance(YOUTUBE_DWELL_MS);
       const player = playerIn(container);
       player.start(30);
       player.play(4);
@@ -245,7 +352,7 @@ describe('Hero: a trailer from YouTube', () => {
 
     it('Pause stops the trailer where it is and holds the slide; Play carries on', () => {
       const { container } = renderHero({ HeroWaitForTrailer: true });
-      advance(0);
+      advance(YOUTUBE_DWELL_MS);
       const player = playerIn(container);
       player.start(60);
       player.play(10);
@@ -270,7 +377,7 @@ describe('Hero: a trailer from YouTube', () => {
 
     it("doesn't hold the slide for a video that cannot be embedded", () => {
       const { container } = renderHero({ HeroWaitForTrailer: true });
-      advance(0);
+      advance(YOUTUBE_DWELL_MS);
       const player = playerIn(container);
       fireEvent.load(player.frame);
       player.say('onError', 101);
@@ -281,7 +388,7 @@ describe('Hero: a trailer from YouTube', () => {
 
     it('gives up on a trailer that stops getting anywhere, as on a local one', () => {
       const { container } = renderHero({ HeroWaitForTrailer: true });
-      advance(0);
+      advance(YOUTUBE_DWELL_MS);
       const player = playerIn(container);
       player.start(120);
       player.play(10);

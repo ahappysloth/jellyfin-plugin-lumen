@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render } from '@testing-library/preact';
 import { render as preactRender } from 'preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TRAILER_FADE_MS, TRAILER_START_TIMEOUT_MS } from './trailerTiming';
-import { coverSize, YOUTUBE_CHROME_MS, YouTubePreview } from './YouTubePreview';
+import { coverSize, YOUTUBE_CHROME_MS, YOUTUBE_DWELL_MS, YouTubePreview } from './YouTubePreview';
 
 const ORIGIN = 'https://www.youtube-nocookie.com';
 const ID = 'dQw4w9WgXcQ';
@@ -39,6 +39,8 @@ const playerIn = (container: Element, origin = ORIGIN) => {
     posted,
     say,
     commands: () => posted.filter((p) => p.event === 'command').map((p) => p.func),
+    /** The commands, but for taking its captions off (it's told again whenever it plays). */
+    told: () => posted.filter((p) => p.event === 'command' && p.func !== 'unloadModule').map((p) => p.func),
     /** Loaded and answering, not started yet. */
     ready: (duration = 120) => {
       fireEvent.load(frame);
@@ -54,7 +56,7 @@ const playerIn = (container: Element, origin = ORIGIN) => {
 /** Mounted, its frame up (a delay of 4 s is all spent on YouTube's own interface), loaded and playing. */
 const playing = (props: Partial<Parameters<typeof YouTubePreview>[0]> = {}) => {
   const view = render(<YouTubePreview youTubeId={ID} delaySeconds={4} {...props} />);
-  advance(Math.max(0, (props.delaySeconds ?? 4) * 1000 - YOUTUBE_CHROME_MS));
+  advance(Math.max(YOUTUBE_DWELL_MS, (props.delaySeconds ?? 4) * 1000 - YOUTUBE_CHROME_MS));
   const player = playerIn(view.container);
   player.ready();
   player.play();
@@ -81,18 +83,28 @@ describe('YouTubePreview', () => {
     expect(frameOf(container)).not.toBeNull();
   });
 
-  it('loads it at once when the delay is shorter than that', () => {
+  it('loads it once the title has been up a moment when the delay is shorter than that, not before', () => {
     const { container } = render(<YouTubePreview youTubeId={ID} delaySeconds={4} />);
+    advance(YOUTUBE_DWELL_MS - 1);
     expect(frameOf(container)).toBeNull();
-    advance(0);
+    advance(1);
     expect(frameOf(container)).not.toBeNull();
+  });
+
+  it('asks YouTube for nothing for a title that was only passed through', () => {
+    const { container, unmount } = render(<YouTubePreview youTubeId={ID} delaySeconds={0} />);
+    advance(YOUTUBE_DWELL_MS - 1);
+    expect(frameOf(container)).toBeNull();
+    unmount(); // the next slide
+    advance(YOUTUBE_DWELL_MS);
+    expect(document.querySelector('iframe')).toBeNull();
   });
 
   it("frames YouTube's no-cookie player for this video: muted, inline, no controls, and out of reach", () => {
     const { container } = render(
       <YouTubePreview youTubeId={ID} delaySeconds={0} class="lmn-details__trailer" />,
     );
-    advance(0);
+    advance(YOUTUBE_DWELL_MS);
     const url = srcOf(container);
     expect(url.origin + url.pathname).toBe(`${ORIGIN}/embed/${ID}`);
     expect(url.searchParams.get('autoplay')).toBe('1');
@@ -134,7 +146,7 @@ describe('YouTubePreview', () => {
     const { container } = render(
       <YouTubePreview youTubeId={ID} delaySeconds={4} onPlayingChange={onPlayingChange} />,
     );
-    advance(0);
+    advance(YOUTUBE_DWELL_MS);
     const player = playerIn(container);
     player.ready();
     advance(3000); // loading, buffering: nothing to see
@@ -152,7 +164,7 @@ describe('YouTubePreview', () => {
 
   it("takes the player's captions off, and starts one that hasn't begun", () => {
     const { container } = render(<YouTubePreview youTubeId={ID} delaySeconds={0} />);
-    advance(0);
+    advance(YOUTUBE_DWELL_MS);
     const player = playerIn(container);
     player.ready();
     expect(player.posted[0]).toMatchObject({ event: 'listening' });
@@ -168,7 +180,8 @@ describe('YouTubePreview', () => {
     document.body.append(container);
     try {
       preactRender(<YouTubePreview youTubeId={ID} delaySeconds={0} />, container);
-      for (let ms = 0; ms < 500 && !frameOf(container); ms++) await vi.advanceTimersByTimeAsync(1);
+      for (let ms = 0; ms < YOUTUBE_DWELL_MS + 500 && !frameOf(container); ms++)
+        await vi.advanceTimersByTimeAsync(1);
       const frame = frameOf(container)!;
       const posted: string[] = [];
       vi.spyOn(frame.contentWindow!, 'postMessage').mockImplementation(((data: string) => {
@@ -187,7 +200,7 @@ describe('YouTubePreview', () => {
 
   it("doesn't tell a player that's already going to play", () => {
     const { container } = render(<YouTubePreview youTubeId={ID} delaySeconds={0} />);
-    advance(0);
+    advance(YOUTUBE_DWELL_MS);
     const player = playerIn(container);
     fireEvent.load(player.frame);
     player.say('initialDelivery', { playerState: 3, currentTime: 0, duration: 120 });
@@ -263,7 +276,7 @@ describe('YouTubePreview', () => {
 
   it("waits when it's mounted paused, and plays when that's lifted", () => {
     const { container, rerender } = render(<YouTubePreview youTubeId={ID} delaySeconds={0} paused />);
-    advance(0);
+    advance(YOUTUBE_DWELL_MS);
     expect(srcOf(container).searchParams.get('autoplay')).toBe('0');
     const player = playerIn(container);
     player.ready();
@@ -279,7 +292,7 @@ describe('YouTubePreview', () => {
 
   it('pauses a player that started although it was told to wait', () => {
     const { container } = render(<YouTubePreview youTubeId={ID} delaySeconds={0} paused />);
-    advance(0);
+    advance(YOUTUBE_DWELL_MS);
     const player = playerIn(container);
     player.ready();
     player.play();
@@ -332,7 +345,7 @@ describe('YouTubePreview', () => {
   it.each([2, 5, 100, 101, 150])('keeps the backdrop, with no message, on error %i', (code) => {
     const onFinish = vi.fn();
     const { container } = render(<YouTubePreview youTubeId={ID} delaySeconds={0} onFinish={onFinish} />);
-    advance(0);
+    advance(YOUTUBE_DWELL_MS);
     const player = playerIn(container);
     player.ready();
     player.say('onError', code);
@@ -347,12 +360,32 @@ describe('YouTubePreview', () => {
   it('gives up on a player that never starts (blocked, offline), keeping the backdrop', () => {
     const onFinish = vi.fn();
     const { container } = render(<YouTubePreview youTubeId={ID} delaySeconds={0} onFinish={onFinish} />);
-    advance(0);
+    advance(YOUTUBE_DWELL_MS);
     advance(TRAILER_START_TIMEOUT_MS - 1);
     expect(frameOf(container)).not.toBeNull();
     advance(1);
     expect(frameOf(container)).toBeNull();
     expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+
+  it("doesn't give up on one that starts late: it's playing, and shows once its interface has gone", () => {
+    const { container } = render(<YouTubePreview youTubeId={ID} delaySeconds={0} />);
+    advance(YOUTUBE_DWELL_MS);
+    const player = playerIn(container);
+    player.ready();
+    advance(8000); // a slow network
+    player.play();
+    advance(TRAILER_START_TIMEOUT_MS - 8000 + 1);
+    expect(frameOf(container)).toBe(player.frame);
+    advance(YOUTUBE_CHROME_MS - (TRAILER_START_TIMEOUT_MS - 8000 + 1));
+    expect(player.frame).toHaveClass('is-shown');
+
+    // Stalling later still gives it the whole wait again.
+    player.say('onStateChange', 3);
+    advance(TRAILER_START_TIMEOUT_MS - 1);
+    expect(frameOf(container)).toBe(player.frame);
+    advance(1);
+    expect(frameOf(container)).toBeNull();
   });
 
   it("doesn't give up on one that's playing, shown or about to be", () => {
@@ -397,6 +430,20 @@ describe('YouTubePreview', () => {
     expect(frameOf(container)).not.toHaveClass('is-shown');
   });
 
+  it('out of view before it has shown, tells the page it is not playing: it waits to be seen', () => {
+    const onPlayingChange = vi.fn();
+    const { container, player } = playing({ onPlayingChange });
+    advance(1000);
+    onPlayingChange.mockClear();
+    act(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(frameOf(container)).toBeNull();
+    expect(onPlayingChange).toHaveBeenCalledWith(false);
+    expect(player.frame.isConnected).toBe(false);
+  });
+
   it("is put back where the hero says it was, less what plays unseen before it's shown", () => {
     const { container } = render(<YouTubePreview youTubeId={ID} delaySeconds={0} startAt={() => 42.7} />);
     advance(0);
@@ -408,13 +455,17 @@ describe('YouTubePreview', () => {
     expect(srcOf(early.container).searchParams.has('start')).toBe(false);
   });
 
-  it('unmutes and mutes when the page asks, once it plays', () => {
+  it('unmuted, has sound only once it shows, and mutes and unmutes when the page asks', () => {
     const { container, rerender } = render(<YouTubePreview youTubeId={ID} delaySeconds={0} muted={false} />);
-    advance(0);
+    advance(YOUTUBE_DWELL_MS);
     const player = playerIn(container);
     player.ready();
-    expect(player.commands()).not.toContain('unMute'); // it must start muted to start at all
     player.play();
+    // It must start muted to start at all, and nothing is to be heard over the backdrop.
+    advance(YOUTUBE_CHROME_MS - 1);
+    expect(player.commands()).not.toContain('unMute');
+    advance(1);
+    expect(player.frame).toHaveClass('is-shown');
     expect(player.commands()).toContain('unMute');
     player.posted.length = 0;
 
@@ -423,10 +474,64 @@ describe('YouTubePreview', () => {
     expect(player.commands()).toEqual(['mute', 'unMute']);
   });
 
+  it('unmuted, plays muted again whenever the backdrop is back: Pause and Play, a stall', () => {
+    const { container, rerender } = render(<YouTubePreview youTubeId={ID} delaySeconds={0} muted={false} />);
+    advance(YOUTUBE_DWELL_MS);
+    const player = playerIn(container);
+    player.ready();
+    player.play();
+    advance(YOUTUBE_CHROME_MS);
+    player.tick(20);
+    player.posted.length = 0;
+
+    rerender(<YouTubePreview youTubeId={ID} delaySeconds={0} muted={false} paused />);
+    player.say('infoDelivery', { playerState: 2, currentTime: 20 });
+    expect(player.told()).toEqual(['pauseVideo', 'mute']);
+    player.posted.length = 0;
+
+    // Play goes back a few seconds, unseen: those play without sound, until the picture is back.
+    rerender(<YouTubePreview youTubeId={ID} delaySeconds={0} muted={false} />);
+    player.say('infoDelivery', { playerState: 1, currentTime: 15.5 });
+    advance(YOUTUBE_CHROME_MS - 1);
+    expect(player.told()).toEqual(['seekTo', 'playVideo']);
+    advance(1);
+    expect(player.frame).toHaveClass('is-shown');
+    expect(player.told()).toEqual(['seekTo', 'playVideo', 'unMute']);
+    player.posted.length = 0;
+
+    player.say('onStateChange', 3);
+    expect(player.told()).toEqual(['mute']);
+    player.say('onStateChange', 1);
+    advance(YOUTUBE_CHROME_MS);
+    expect(player.told()).toEqual(['mute', 'unMute']);
+  });
+
+  it('unmuted and stopped by the browser for it (no tap to allow sound), plays on muted', () => {
+    const { container, rerender } = render(<YouTubePreview youTubeId={ID} delaySeconds={0} muted={false} />);
+    advance(YOUTUBE_DWELL_MS);
+    const player = playerIn(container);
+    player.ready();
+    player.play();
+    advance(YOUTUBE_CHROME_MS);
+    player.posted.length = 0;
+
+    player.say('onStateChange', 2); // nobody asked for that
+    expect(player.told()).toEqual(['mute', 'playVideo']);
+    player.say('onStateChange', 1);
+    advance(YOUTUBE_CHROME_MS);
+    expect(player.frame).toHaveClass('is-shown');
+    expect(player.commands()).not.toContain('unMute');
+
+    // Unmute pressed again (a tap): sound is tried again.
+    rerender(<YouTubePreview youTubeId={ID} delaySeconds={0} muted />);
+    rerender(<YouTubePreview youTubeId={ID} delaySeconds={0} muted={false} />);
+    expect(player.told()).toEqual(['mute', 'playVideo', 'mute', 'unMute']);
+  });
+
   it("loads the tests' stub player from where the server says, and listens to that origin only", () => {
     const stub = 'http://localhost:5055';
     const { container } = render(<YouTubePreview youTubeId={ID} delaySeconds={0} embedBase={stub} />);
-    advance(0);
+    advance(YOUTUBE_DWELL_MS);
     expect(srcOf(container).origin).toBe(stub);
 
     const real = playerIn(container); // says it's YouTube: not where this frame was loaded from

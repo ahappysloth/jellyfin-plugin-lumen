@@ -194,15 +194,74 @@ public class YouTubeTrailersTests
         await _seerr.ReceivedWithAnyArgs(1).GetTitleSummaryAsync(default!, default, default!, default, default);
     }
 
-    [Fact]
-    public async Task SeerrDown_NoTrailer_NotCached()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SeerrDown_NoTrailer_CachedForFiveMinutes(bool circuitOpen)
     {
-        _seerr.GetTitleSummaryAsync(default!, default, default!, default, default).ThrowsAsyncForAnyArgs(new SeerrException("down"));
+        _seerr.GetTitleSummaryAsync(default!, default, default!, default, default).ThrowsAsyncForAnyArgs(new SeerrException("down") { IsCircuitOpen = circuitOpen });
 
         Assert.Null(await Get(Movie(603)));
-
         _seerr.GetTitleSummaryAsync(default!, default, default!, default, default).ReturnsForAnyArgs(Title(Video(SeerrId)));
+        _time.Advance(YouTubeTrailers.FailureTtl - TimeSpan.FromSeconds(1));
+        Assert.Null(await Get(Movie(603)));
+        await _seerr.ReceivedWithAnyArgs(1).GetTitleSummaryAsync(default!, default, default!, default, default);
+
+        _time.Advance(TimeSpan.FromSeconds(2));
         Assert.Equal(SeerrId, await Get(Movie(603)));
+    }
+
+    [Fact]
+    public async Task SomethingElseFailing_IsNoTrailer_AndCachedAsAFailure()
+    {
+        _seerr.GetTitleSummaryAsync(default!, default, default!, default, default).ThrowsAsyncForAnyArgs(new InvalidOperationException("bug"));
+
+        Assert.Null(await Get(Movie(603)));
+        Assert.Null(await Get(Movie(603)));
+        await _seerr.ReceivedWithAnyArgs(1).GetTitleSummaryAsync(default!, default, default!, default, default);
+    }
+
+    [Fact]
+    public async Task ConcurrentLookups_AskSeerrOnce_AndAllGetTheAnswer()
+    {
+        var seerr = new TaskCompletionSource<SeerrTitle>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _seerr.GetTitleSummaryAsync(default!, default, default!, default, default).ReturnsForAnyArgs(seerr.Task);
+
+        var first = Get(Movie(603));
+        var second = Get(Movie(603));
+        var other = Get(Movie(604));
+        Assert.False(first.IsCompleted);
+        await _seerr.Received(1).GetTitleSummaryAsync(Endpoint, SeerrUserId, CatalogMediaType.Movie, 603, Arg.Any<CancellationToken>());
+        await _seerr.Received(1).GetTitleSummaryAsync(Endpoint, SeerrUserId, CatalogMediaType.Movie, 604, Arg.Any<CancellationToken>());
+
+        seerr.SetResult(new SeerrTitle { Id = 1, RelatedVideos = [Video(SeerrId)] });
+        Assert.Equal(SeerrId, await first);
+        Assert.Equal(SeerrId, await second);
+        Assert.Equal(SeerrId, await other);
+
+        // And then from the cache.
+        Assert.Equal(SeerrId, await Get(Movie(603)));
+        await _seerr.ReceivedWithAnyArgs(2).GetTitleSummaryAsync(default!, default, default!, default, default);
+    }
+
+    [Fact]
+    public async Task ACallerThatGivesUp_DoesNotCancelTheLookupForTheOthers()
+    {
+        var seerr = new TaskCompletionSource<SeerrTitle>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _seerr.GetTitleSummaryAsync(default!, default, default!, default, default).ReturnsForAnyArgs(seerr.Task);
+        using var cancel = new CancellationTokenSource();
+
+        var leaving = _trailers.GetAsync(Movie(603), _user, cancel.Token);
+        var staying = Get(Movie(603));
+        await cancel.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => leaving);
+
+        // Seerr isn't told to stop for the caller that left.
+        await _seerr.Received(1).GetTitleSummaryAsync(Endpoint, SeerrUserId, CatalogMediaType.Movie, 603, CancellationToken.None);
+        seerr.SetResult(new SeerrTitle { Id = 1, RelatedVideos = [Video(SeerrId)] });
+        Assert.Equal(SeerrId, await staying);
+        Assert.Equal(SeerrId, await Get(Movie(603)));
+        await _seerr.ReceivedWithAnyArgs(1).GetTitleSummaryAsync(default!, default, default!, default, default);
     }
 
     [Fact]

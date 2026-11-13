@@ -209,9 +209,10 @@ test('a video that cannot be embedded leaves the backdrop, without a message, an
   await expect.poll(() => title(page), { timeout: 10_000 }).not.toBe(SHOW);
 });
 
-test('a YouTube trailer that ends fades back to the backdrop, and the next title follows', async ({ page }) => {
-  // A 10 s video: shown from about 4.5 s in, fading out a couple of seconds before its end.
-  await openHome(page, SHOW, (slide) => (slide.TrailerYouTubeId = 'stubShort10'));
+test('a YouTube trailer keeps its slide until it ends, without "Let trailers finish", then the next title follows', async ({ page }) => {
+  // A 10 s video: shown from about 4.5 s in, fading out a couple of seconds before its end. The slide waits for it
+  // though HeroWaitForTrailer is off: its 3 s are long gone by the time the picture shows.
+  await openHome(page, SHOW, (slide) => (slide.TrailerYouTubeId = 'stubShort10'), { HeroWaitForTrailer: false });
   const frame = current(page).locator('iframe');
   await expect(frame).toHaveClass(/\bis-shown\b/, { timeout: 15_000 });
   expect(await title(page)).toBe(SHOW);
@@ -251,12 +252,19 @@ test('the details page plays the trailer from YouTube behind its header, with Pa
   await expect(playerIn(page, FRAME)).toHaveAttribute('data-muted', 'false');
   await expect(frame).toHaveClass(/\bis-shown\b/); // unmuting doesn't take it off
 
+  // Unmuted, it's heard only while it's seen: Pause mutes it with the picture, and Play has it play its unseen seconds
+  // (back to where it was paused) without sound, until the picture is back.
   await header.getByRole('button', { name: 'Pause trailer' }).click();
   await expect(playerIn(page, FRAME)).toHaveAttribute('data-state', '2');
   await expect(frame).not.toHaveClass(/\bis-shown\b/);
+  await expect(playerIn(page, FRAME)).toHaveAttribute('data-muted', 'true');
   await header.getByRole('button', { name: 'Play trailer' }).click();
   await expect(playerIn(page, FRAME)).toHaveAttribute('data-state', '1');
+  await page.waitForTimeout(2000);
+  await expect(frame).not.toHaveClass(/\bis-shown\b/);
+  await expect(playerIn(page, FRAME)).toHaveAttribute('data-muted', 'true');
   await expect(frame).toHaveClass(/\bis-shown\b/, { timeout: 15_000 });
+  await expect(playerIn(page, FRAME)).toHaveAttribute('data-muted', 'false');
   // It's the preview only: the Trailer button plays a local trailer in the player, and this title has none.
   await expect(header.getByRole('button', { name: 'Trailer', exact: true })).toHaveCount(0);
 });

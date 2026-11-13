@@ -74,7 +74,7 @@ export function HeroSettings({
             />
             <Switch
               label="Use YouTube trailers when there's no local one"
-              hint="The viewer's browser then loads the trailer from YouTube (youtube-nocookie.com), which sees its address. A local trailer always wins. Not on TVs."
+              hint="The viewer's browser then loads the trailer from YouTube (youtube-nocookie.com), which sees its address. A local trailer always wins. A YouTube trailer keeps its slide until it finishes. Not on TVs."
               checked={!!config.YouTubeTrailers}
               onChange={(v) => update({ YouTubeTrailers: v })}
             />

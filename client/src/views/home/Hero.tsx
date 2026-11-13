@@ -80,12 +80,15 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
     null;
   const trailerId = localId || youTubeId;
   // With HeroWaitForTrailer a slide stays up while its trailer plays. Pause then stops the trailer where it is, to go on
-  // with the slideshow; otherwise Pause removes it (a trailer the timer would cut short anyway).
-  const waitForTrailer = config.HeroWaitForTrailer && !!trailerId;
+  // with the slideshow; otherwise Pause removes it (a trailer the timer would cut short anyway). A trailer from YouTube
+  // is waited for regardless, once it plays: its player's own interface takes its first seconds (YouTubePreview.tsx),
+  // so on a slide that kept to its interval (8 s by default) it would show for a moment at best, or not at all.
+  const waitForTrailer = !!trailerId && (config.HeroWaitForTrailer || !!youTubeId);
   /**
-   * The current slide's trailer, once it's under way (HeroWaitForTrailer only), for the rest of this visit to the slide.
-   * It holds the slide until it's `over`, which happens once: when it ends, fails or stalls. Taken off meanwhile (a
-   * swipe that springs back, a tab in the background, the hero scrolled away) it holds on, and is put back where it was.
+   * The current slide's trailer, once it's under way (one the slide waits for only), for the rest of this visit to the
+   * slide. It holds the slide until it's `over`, which happens once: when it ends, fails or stalls. Taken off meanwhile
+   * (a swipe that springs back, a tab in the background, the hero scrolled away) it holds on, and is put back where it
+   * was.
    */
   const [trailer, setTrailer] = useState<TrailerState | null>(null);
   const started = trailer?.index === index ? trailer : null;

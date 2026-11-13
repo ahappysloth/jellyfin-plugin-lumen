@@ -32,6 +32,12 @@ export const YOUTUBE_CHROME_MS = 4500;
  */
 export const YOUTUBE_END_LEAD_SECONDS = 2.2;
 /**
+ * How long a title must stay up before YouTube is asked for its player, however short the delay: with a delay under
+ * YOUTUBE_CHROME_MS the frame would otherwise load the instant a slide settles, and going through five slides would
+ * load five players (and tell YouTube of five titles) nobody stopped to watch.
+ */
+export const YOUTUBE_DWELL_MS = 1000;
+/**
  * The player's frame is this much taller than the space it fills, top and bottom, on top of covering it at 16:9: its
  * title and bottom row sit there, out of sight, should they show while the picture does (a stall it recovers from).
  */
@@ -61,10 +67,12 @@ export function coverSize(box: Size): Size & { left: number; top: number } {
  *
  * The player is YouTube's own, in a frame from youtube-nocookie.com, so it differs where YouTube makes it:
  * - Its interface shows for a few seconds after every start (YOUTUBE_CHROME_MS), so it loads and plays that much
- *   ahead of `delaySeconds`, unseen, and fades in when the interface has gone: about when a local trailer would,
- *   some seconds into the trailer (its studio logos, mostly).
+ *   ahead of `delaySeconds` (though not before the title has been up for YOUTUBE_DWELL_MS), unseen, and fades in
+ *   when the interface has gone: about when a local trailer would, some seconds into the trailer (its studio logos,
+ *   mostly). The hero holds the slide for it once it plays (Hero.tsx).
  * - Pause fades it out to the backdrop and stops it; Play picks it up a few seconds back and fades it in at the
  *   moment it was paused at.
+ * - Unmuted (the details page), it has sound only while it shows: it plays muted through every unseen stretch.
  * - The frame takes no pointer or keyboard input at all, so swipes and taps reach the page and nothing in it can be
  *   clicked. Removing the frame is what stops the video: there's nothing else to release.
  */
@@ -92,9 +100,19 @@ export function YouTubePreview({
   const [shown, setShown] = useState(false);
   const [ending, setEnding] = useState(false);
   const [box, setBox] = useState<Size | null>(null);
-  /** Whether this play's video has got going at all (it takes Mute then), and whether it has shown yet. */
-  const started = useRef(false);
+  /**
+   * The player says it's playing: the wait for its interface is on (or over, once `shown`). The watchdog below is for
+   * a player that isn't.
+   */
+  const [going, setGoing] = useState(false);
+  /** Whether this play's video has shown yet, and whether it shows now (for the player's events, as `latest` is). */
   const everShown = useRef(false);
+  const showing = useRef(false);
+  /**
+   * The browser stopped this play's video as it was unmuted (see the player's events): it stays muted, whatever the
+   * page says, until the user presses Mute or Unmute again (a tap, which may start sound).
+   */
+  const silenced = useRef(false);
   /** Whether this play's frame has fired its load event: it may, before the effect below connects to it. */
   const loaded = useRef(false);
   const base = embedBase(baseOverride);
@@ -114,11 +132,14 @@ export function YouTubePreview({
   }, []);
 
   // The player's interface shows for YOUTUBE_CHROME_MS once it plays: that wait is part of the delay, not added to it.
+  // Never sooner than YOUTUBE_DWELL_MS, except for a trailer being put back where it was (the hero's startAt, after a
+  // swipe that sprang back): YouTube has been asked for that one already.
   useEffect(() => {
     if (state !== 'waiting' || !visible) return;
+    const resumeAt = startAt?.() ?? 0;
     const timer = setTimeout(
       () => {
-        // Put back where it was (the hero's startAt), less what plays unseen before it shows again.
+        // Less what plays unseen before it shows again.
         const at = (startAt?.() ?? 0) - YOUTUBE_CHROME_MS / 1000;
         loaded.current = false;
         setSrc(
@@ -130,7 +151,7 @@ export function YouTubePreview({
         );
         setState('playing');
       },
-      Math.max(0, delaySeconds * 1000 - YOUTUBE_CHROME_MS),
+      Math.max(resumeAt > 0 ? 0 : YOUTUBE_DWELL_MS, delaySeconds * 1000 - YOUTUBE_CHROME_MS),
     );
     return () => clearTimeout(timer);
   }, [state, visible, delaySeconds]);
@@ -139,27 +160,42 @@ export function YouTubePreview({
   useEffect(() => {
     const element = frame.current;
     if (!playing || !element) return;
-    started.current = false;
     everShown.current = false;
+    showing.current = false;
+    silenced.current = false;
     let reveal: ReturnType<typeof setTimeout> | undefined;
+    // The picture shows or gives way to the backdrop, and its sound with it: a preview the page has unmuted plays
+    // muted through every stretch it isn't seen (its first seconds, after Pause, a stall), not over a still backdrop.
+    const show = (on: boolean): void => {
+      if (showing.current !== on && !latest.current.muted && !silenced.current) player.current?.setMuted(!on);
+      showing.current = on;
+      if (on) everShown.current = true;
+      setShown(on);
+    };
     const onStatus = (status: PlayerStatus): void => {
       clearTimeout(reveal);
+      setGoing(status === 'playing');
       if (status === 'error') return setState('done');
       if (status === 'ended') return everShown.current ? setEnding(true) : setState('done');
       if (status === 'playing') {
-        started.current = true;
         if (latest.current.paused) return player.current?.pause(); // told to wait (autoplay off), and didn't
         // Again once it plays: the captions module may have loaded with the video.
         player.current?.hideCaptions();
-        if (!latest.current.muted) player.current?.setMuted(false);
-        reveal = setTimeout(() => {
-          everShown.current = true;
-          setShown(true);
-        }, YOUTUBE_CHROME_MS);
+        reveal = setTimeout(() => show(true), YOUTUBE_CHROME_MS);
+        return;
+      }
+      // A pause the page didn't ask for, in a preview it has unmuted: a browser that only lets a tap start sound
+      // (iOS) may have stopped it as it was unmuted, seconds after the tap. It plays on muted rather than not at all.
+      if (status === 'paused' && !latest.current.paused && !latest.current.muted && !silenced.current) {
+        silenced.current = true;
+        showing.current = false;
+        setShown(false);
+        player.current?.setMuted(true);
+        player.current?.play();
         return;
       }
       // Paused, or stalled: the interface comes back with the picture, so the backdrop takes over meanwhile.
-      setShown(false);
+      show(false);
     };
     const connected = connectYouTubePlayer(
       element,
@@ -185,12 +221,18 @@ export function YouTubePreview({
       clearTimeout(reveal);
       connected.destroy();
       player.current = null;
+      showing.current = false;
       setShown(false);
+      setGoing(false);
     };
   }, [playing, src]);
 
   useEffect(() => {
-    if (!visible && state === 'playing') setState('waiting');
+    if (visible || state !== 'playing') return;
+    setState('waiting');
+    // Said outright: the hero took it for under way from when it played, before it showed, and one out of view isn't
+    // stalled, it waits to be seen (as a local trailer does).
+    onPlayingChange?.(false);
   }, [visible, state]);
 
   // Fades back to the backdrop before it goes, as a local trailer does.
@@ -203,13 +245,14 @@ export function YouTubePreview({
     return () => clearTimeout(timer);
   }, [ending]);
 
-  // Not showing after this long, though it should be: it never started (blocked, a network that can't reach YouTube),
-  // or it stalled and didn't recover. The backdrop stays, and a hero slide waiting for it moves on.
+  // Not playing after this long, though it should be: it never started (blocked, a network that can't reach YouTube),
+  // or it stalled and didn't recover. The backdrop stays, and a hero slide waiting for it moves on. One that plays is
+  // left alone, however late it started: its interface's seconds run out by themselves.
   useEffect(() => {
-    if (!playing || paused || shown || ending) return;
+    if (!playing || paused || shown || ending || going) return;
     const watchdog = setTimeout(() => setState('done'), TRAILER_START_TIMEOUT_MS);
     return () => clearTimeout(watchdog);
-  }, [playing, src, paused, shown, ending]);
+  }, [playing, src, paused, shown, ending, going]);
 
   // Pause stops it where it is. Play goes back as far as plays unseen before the picture returns.
   const pausedBefore = useRef(paused);
@@ -223,8 +266,10 @@ export function YouTubePreview({
     connected.play();
   }, [paused]);
 
+  // Mute and Unmute take effect while it shows; unseen it's muted whatever the page says (see `show`).
   useEffect(() => {
-    if (started.current) player.current?.setMuted(muted);
+    silenced.current = false;
+    if (showing.current) player.current?.setMuted(muted);
   }, [muted]);
 
   // As TrailerPreview: the page's controls show once the picture has, and stay through Pause and Play.
@@ -258,6 +303,9 @@ export function YouTubePreview({
             height: `${size.height}px`,
             left: `${size.left}px`,
             top: `${size.top}px`,
+            // Over .lmn-hero__video's inset: 0, which in a right-to-left page would win over `left`.
+            right: 'auto',
+            bottom: 'auto',
             border: 0,
             pointerEvents: 'none',
           }}
