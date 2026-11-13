@@ -117,16 +117,26 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
     onDeleted: () => setHome((current) => current && withLocalChanges(ctx.userId, current)),
     onChanged: () => setVersion((v) => v + 1),
   });
-  const select = (item: BaseItem, row: HomeRow): void => {
-    const card = rootRef.current?.querySelector(`[data-row-id="${row.Id}"] [data-item-id="${item.Id}"]`);
+  /** Notes the card being opened (by its `attribute`) and where it is, so Back returns to it. */
+  const remember = (row: HomeRow, attribute: 'data-item-id' | 'data-catalog-key', id: string): void => {
+    const card = rootRef.current?.querySelector(`[data-row-id="${row.Id}"] [${attribute}="${id}"]`);
     rememberSelection(ctx.userId, {
-      itemId: item.Id,
+      itemId: id,
       rowId: row.Id,
       scrollY: window.scrollY,
       top: card?.getBoundingClientRect().top,
     });
+  };
+  const select = (item: BaseItem, row: HomeRow): void => {
+    remember(row, 'data-item-id', item.Id);
     // A card always opens its page (an episode opens its season); playing is one click away there, or in the menu.
     ctx.navigate(infoHash(item));
+  };
+  // A title not on the server (a Top 10, Trakt or catalog row's): remembered like any card. Unremembered, Back from its
+  // page came back to the top of home, or to whichever library card was opened last.
+  const selectCatalog = (item: CatalogItem, row: HomeRow): void => {
+    remember(row, 'data-catalog-key', item.Key);
+    ctx.navigate(catalogHash(item));
   };
 
   if (!home) return <div class="lmn-home lmn-home--loading" aria-busy="true" />;
@@ -156,7 +166,7 @@ export function HomeView({ ctx }: { ctx: ViewContext }) {
             badges={home.Badges}
             onSelect={select}
             onMenu={onMenu}
-            onSelectCatalog={(item) => ctx.navigate(catalogHash(item))}
+            onSelectCatalog={selectCatalog}
             canRequest={canRequest}
             onRequest={setRequesting}
             // With a Trakt key, a Top 10 row's title opens its Top chart (This week, where the row comes from); not

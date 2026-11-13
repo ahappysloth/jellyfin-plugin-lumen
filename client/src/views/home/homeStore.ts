@@ -77,6 +77,7 @@ export function usableCachedHome(userId: string): HomeResponse | undefined {
 
 /** The card the user last opened from home, and where it was on screen, so Back can put it back in the same place. */
 export interface Selection {
+  /** A library card's item id, or a catalog card's key ("movie-603"). */
   itemId: string;
   scrollY: number;
   rowId?: string;
@@ -117,7 +118,10 @@ const SAFE_ID = /^[\w-]+$/;
 export function restoreScrollTop(root: ParentNode, sel: Selection, scrollY: number): number {
   if (sel.top !== undefined && SAFE_ID.test(sel.itemId) && (!sel.rowId || SAFE_ID.test(sel.rowId))) {
     const scope = sel.rowId ? `[data-row-id="${sel.rowId}"] ` : '';
-    const card = root.querySelector(`${scope}[data-item-id="${sel.itemId}"]`);
+    // A library card by its item id, or a catalog card (a title not on the server) by its key, as useAutoFocus finds it.
+    const card = root.querySelector(
+      `${scope}[data-item-id="${sel.itemId}"], ${scope}[data-catalog-key="${sel.itemId}"]`,
+    );
     if (card) return Math.max(0, Math.round(card.getBoundingClientRect().top + scrollY - sel.top));
   }
   return sel.scrollY;
