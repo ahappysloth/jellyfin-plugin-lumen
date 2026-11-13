@@ -86,7 +86,7 @@ test.describe('hero pager', () => {
     });
   });
 
-  test("fills the current slide's bar over its interval, and stops with the slideshow", async ({ page }) => {
+  test("fills the current slide's bar over its interval, and stops with the slideshow", async ({ page, browserName }) => {
     await login(page, ADMIN);
     const pager = page.getByRole('tablist', { name: 'Featured titles' });
     await expect(pager).toBeVisible();
@@ -113,9 +113,12 @@ test.describe('hero pager', () => {
     const pagerBox = (await pager.boundingBox())!;
     expect((await pause.boundingBox())!.x).toBeGreaterThanOrEqual(pagerBox.x + pagerBox.width);
     await pager.getByRole('tab', { selected: true }).focus();
-    await page.keyboard.press('Tab');
+    // Safari's Tab stops only at text fields and lists unless the user has it highlight each item; Option+Tab stops at
+    // every control. Playwright's WebKit does as the Mac it runs on does (on Linux, either key stops at buttons).
+    const tab = browserName === 'webkit' ? 'Alt+Tab' : 'Tab';
+    await page.keyboard.press(tab);
     await expect(pause).toBeFocused();
-    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press(`Shift+${tab}`);
     await expect(pager.getByRole('tab', { selected: true })).toBeFocused();
     // Keyboard focus in the hero holds the slideshow; once focus leaves, it runs on.
     await page.evaluate(() => (document.activeElement as HTMLElement).blur());
@@ -156,7 +159,9 @@ test.describe('hero pager', () => {
     // The slideshow moves on to a title with a trailer (not every one has one), whose preview starts at once.
     await expect(video).toBeVisible({ timeout: 30_000 });
     const showing = await title();
-    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(4);
+    // Up to the trailer's whole length: the preview is on the page before it plays, so 4 s in can be more than the
+    // 5 s a poll waits by default away (WebKit starts it slowest).
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 15_000 }).toBeGreaterThan(4);
 
     // Past the 3 s interval: still this title, its bar following the trailer rather than the clock.
     expect(await title()).toBe(showing);

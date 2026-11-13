@@ -26,7 +26,7 @@ test('movie details are rendered by Lumen, including the local trailer', { tag: 
   await expect(details.getByRole('button', { name: 'Trailer' })).toBeVisible();
 });
 
-test('movie details offer the file as a download beside Play', async ({ page }) => {
+test('movie details offer the file as a download beside Play', async ({ page, browserName }) => {
   const { items } = loadState();
   await login(page, ADMIN);
 
@@ -41,7 +41,10 @@ test('movie details offer the file as a download beside Play', async ({ page }) 
 
   const file = page.waitForEvent('download');
   await download.click();
-  expect((await file).suggestedFilename()).toBe('Lumen Alpha (2001).webm');
+  // Named after the file, as the server sends it. WebKit on Linux (the nightly's) writes the name's spaces as
+  // underscores; Safari, and WebKit on a Mac, keep them.
+  const underscored = browserName === 'webkit' && process.platform === 'linux';
+  expect((await file).suggestedFilename()).toBe(underscored ? 'Lumen_Alpha_(2001).webm' : 'Lumen Alpha (2001).webm');
 });
 
 test('the details trailer fades in over the backdrop once it plays, Mute in the corner', async ({ page, browserName }) => {
