@@ -117,6 +117,29 @@ public sealed class SeerrCatalogClientTests : IDisposable
     }
 
     [Fact]
+    public async Task Refusals_NeverPassOnTheApiKey()
+    {
+        _http.Respond = _ => FakeHttp.Json("""{"message":"Bad key key123 for this call"}""", HttpStatusCode.BadRequest);
+
+        var error = await Assert.ThrowsAsync<SeerrException>(() => Client().SearchAsync(Endpoint, 7, "x", 1, CancellationToken.None));
+
+        Assert.Equal("Bad key [API key] for this call", error.SeerrMessage);
+        Assert.Equal("Seerr returned HTTP 400. Seerr said: Bad key [API key] for this call", error.LogText);
+        Assert.DoesNotContain("key123", error.LogText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task LogText_AddsSeerrsMessage_OnlyToARefusal()
+    {
+        // A 5xx's message is Seerr's own trouble (and the breaker logs outages); a 4xx's says what it objected to.
+        _http.Respond = _ => FakeHttp.Json("""{"message":"Something broke"}""", HttpStatusCode.InternalServerError);
+
+        var error = await Assert.ThrowsAsync<SeerrException>(() => Client().SearchAsync(Endpoint, 7, "x", 1, CancellationToken.None));
+
+        Assert.Equal(error.Message, error.LogText);
+    }
+
+    [Fact]
     public async Task Errors_WithoutAJsonMessage_HaveNoSeerrMessage()
     {
         _http.Respond = _ => new HttpResponseMessage(HttpStatusCode.BadGateway) { Content = new StringContent("<html>bad gateway</html>") };

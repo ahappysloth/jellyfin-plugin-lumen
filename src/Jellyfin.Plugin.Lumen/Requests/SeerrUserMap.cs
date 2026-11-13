@@ -66,7 +66,7 @@ public sealed class SeerrUserMap : ISeerrUserMap
         }
         catch (SeerrException e)
         {
-            _logger.LogWarning("Lumen couldn't look up the Seerr account for a user: {Message}", e.Message);
+            _logger.LogWarning("Lumen couldn't look up the Seerr account for a user: {Message}", e.LogText);
             return RequestAccess.None;
         }
     }

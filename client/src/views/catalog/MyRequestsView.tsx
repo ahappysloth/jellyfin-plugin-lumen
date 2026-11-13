@@ -32,6 +32,8 @@ export function MyRequestsView({ ctx }: { ctx: ViewContext }) {
   const imageToken = useCatalogImageToken(ctx, !!ctx.config.Requests);
   const rootRef = useRef<HTMLDivElement>(null);
   useAutoFocus(rootRef, requests !== null, ctx.layout);
+  // Couldn't load: on a TV, Try again takes focus (the D-pad has nothing else here), until the list comes.
+  useAutoFocus(rootRef, failed && requests === null, ctx.layout);
   usePollFast(!!requests?.some((r) => isMoving(r.Status)));
   useEffect(() => {
     liftVeil();

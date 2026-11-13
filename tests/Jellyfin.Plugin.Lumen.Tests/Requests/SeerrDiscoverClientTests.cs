@@ -56,7 +56,9 @@ public sealed class SeerrDiscoverClientTests : IDisposable
         var requests = await _client.GetUserRequestsAsync(Endpoint, 7, CancellationToken.None);
 
         var request = Assert.Single(_http.Requests);
-        Assert.Equal("/base/api/v1/user/7/requests?take=20&skip=0&sort=added", request.RequestUri!.PathAndQuery);
+
+        // Exactly the parameters seerr-api.yml defines for this route: Seerr answers any other (a `sort`) with a 400.
+        Assert.Equal("/base/api/v1/user/7/requests?take=20&skip=0", request.RequestUri!.PathAndQuery);
         Assert.Equal("7", Assert.Single(request.Headers.GetValues("X-Api-User")));
         Assert.Equal(2, requests.Count);
         var first = requests[0];
@@ -64,6 +66,39 @@ public sealed class SeerrDiscoverClientTests : IDisposable
         Assert.Equal(new DateTimeOffset(2026, 11, 7, 10, 0, 0, TimeSpan.Zero), first.CreatedAt);
         Assert.Equal((1399, "tv", 4, "0123456789abcdef0123456789abcdef"), (first.Media!.TmdbId, first.Media.MediaType, first.Media.Status, first.Media.JellyfinMediaId));
         Assert.Equal((3, 603), (requests[1].Status, requests[1].Media!.TmdbId));
+    }
+
+    [Fact]
+    public async Task UserRequests_AreNewestFirst_WhateverOrderSeerrListsThem()
+    {
+        // Seerr lists them by id, newest first; Lumen doesn't rely on that (nor ask for an order Seerr doesn't take).
+        _http.Respond = _ => FakeHttp.Json(
+            """
+            {"results":[
+              {"id":3,"createdAt":"2026-11-05T10:00:00.000Z","media":{"tmdbId":3}},
+              {"id":1,"createdAt":"2026-11-07T10:00:00.000Z","media":{"tmdbId":1}},
+              {"id":4,"media":{"tmdbId":4}},
+              {"id":2,"createdAt":"2026-11-07T10:00:00.000Z","media":{"tmdbId":2}}
+            ]}
+            """);
+
+        var requests = await _client.GetUserRequestsAsync(Endpoint, 7, CancellationToken.None, take: 5);
+
+        Assert.Equal("/base/api/v1/user/7/requests?take=5&skip=0", Assert.Single(_http.Requests).RequestUri!.PathAndQuery);
+        Assert.Equal([2, 1, 3, 4], requests.Select(r => r.Id));
+    }
+
+    [Fact]
+    public async Task UserRequests_Refused_CarrySeerrsReason_ForTheLog()
+    {
+        // What Seerr's OpenAPI validator answers a parameter its spec doesn't define.
+        _http.Respond = _ => FakeHttp.Json("""{"message":"Unknown query parameter 'sort'","errors":[{"path":".query.sort"}]}""", HttpStatusCode.BadRequest);
+
+        var error = await Assert.ThrowsAsync<SeerrException>(() => _client.GetUserRequestsAsync(Endpoint, 7, CancellationToken.None));
+
+        Assert.Equal(HttpStatusCode.BadRequest, error.Status);
+        Assert.Equal("Seerr returned HTTP 400.", error.Message);
+        Assert.Equal("Seerr returned HTTP 400. Seerr said: Unknown query parameter 'sort'", error.LogText);
     }
 
     [Fact]

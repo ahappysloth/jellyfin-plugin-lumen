@@ -220,6 +220,46 @@ test('My requests lists the user’s requests newest first, and opens each title
   await expect(page.getByRole('heading', { name: 'The Matrix', level: 1 })).toBeVisible();
 });
 
+test('My requests loads from a Seerr that checks its calls against its API spec', async () => {
+  // Seerr answers a query parameter its OpenAPI spec doesn't define for a route with a 400, and so does the stub: Lumen
+  // once asked for its users' requests with `sort=added`, which only Seerr's GET /request takes, and My requests,
+  // its progress and ready notifications all failed against a real Seerr while passing here.
+  const refused = await fetch(`${STUB_SEERR}/api/v1/user/${ADMIN_SEERR_ID}/requests?take=1&skip=0&sort=added`, {
+    headers: { 'X-Api-Key': 'stub-key', 'X-Api-User': String(ADMIN_SEERR_ID) },
+  });
+  expect(refused.status).toBe(400);
+  expect(await refused.json()).toMatchObject({ message: "Unknown query parameter 'sort'" });
+
+  const { admin } = loadState();
+  await enableSeerr();
+  await request(701, { mediaStatus: 3 });
+  const mine = await api<{ Requests: { Item: { Title: string } }[] }>('/Lumen/Requests/Mine', { token: admin.token });
+  expect(mine.Requests.map((r) => r.Item.Title)).toEqual(['Stub Queued']);
+});
+
+test('when Seerr won’t list the requests, My requests is still offered, says so, and Try again recovers', { tag: '@smoke' }, async ({
+  page,
+}) => {
+  await enableSeerr();
+  await request(701, { mediaStatus: 3 });
+  await stub('fail', { requests: 400 });
+  await login(page, ADMIN);
+  // Offered from the user's request status even though their list can't be loaded.
+  await myRequestsPage(page);
+  await expect(page.getByText("Couldn't load your requests from Seerr.")).toBeVisible();
+  const tryAgain = page.getByRole('button', { name: 'Try again' });
+  await expect(tryAgain).toBeVisible();
+
+  await stub('fail', {});
+  // Lumen keeps a failed answer for 5 s (RequestProgressService.FailureTtl): Try again until the list comes.
+  const rows = page.getByRole('list', { name: 'My requests' }).getByRole('link');
+  await expect(async () => {
+    if (await tryAgain.isVisible()) await tryAgain.click();
+    await expect(rows).toHaveCount(1, { timeout: 1_000 });
+  }).toPass({ timeout: 20_000 });
+  await expect(rows.first().locator('.lmn-request__title')).toHaveText('Stub Queued');
+});
+
 test('a pop-up says when a request is ready to watch, once, on every device', async ({ page, browser }) => {
   test.setTimeout(90_000);
   const { items } = loadState();
@@ -483,4 +523,29 @@ test('TV layout: the D-pad reaches My requests from the account menu, and every 
 
   const { unreachable } = await walkDpad(page, rows.nth(0));
   expect(unreachable.map((c) => c.name)).toEqual([]);
+});
+
+test('TV layout: when Seerr won’t list the requests, the D-pad still reaches My requests, and Try again has focus', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.addInitScript(() => localStorage.setItem('layout', 'tv'));
+  await enableSeerr();
+  await stub('fail', { requests: 400 });
+  const checked = page.waitForResponse(/\/Lumen\/Requests\/Mine\b/);
+  await login(page, ADMIN);
+  await expect(page.locator('html')).toHaveClass(/\blayout-tv\b/);
+  expect((await checked).status()).toBe(502);
+
+  const account = page.getByRole('button', { name: /^Account/ });
+  await account.focus();
+  await page.keyboard.press('Enter');
+  const menu = page.getByRole('menu', { name: 'Account' });
+  await expect(menu.getByRole('menuitem', { name: 'History' })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(menu.getByRole('menuitem', { name: 'My requests' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/#\/home\?lumen=requests$/);
+  await expect(page.getByText("Couldn't load your requests from Seerr.")).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Try again' })).toBeFocused();
 });

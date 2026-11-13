@@ -325,7 +325,7 @@ public sealed class RequestsController : ControllerBase
             // Recommendations are optional on the title page.
             if (_logger.IsEnabled(LogLevel.Debug))
             {
-                _logger.LogDebug("Lumen couldn't load Seerr recommendations: {Message}", e.Message);
+                _logger.LogDebug("Lumen couldn't load Seerr recommendations: {Message}", e.LogText);
             }
 
             return [];
@@ -352,7 +352,7 @@ public sealed class RequestsController : ControllerBase
     private ObjectResult SeerrUnavailable(SeerrException e, string what)
     {
         // SeerrException messages never contain the API key.
-        _logger.LogWarning("Lumen's Seerr {What} call failed: {Message}", what, e.Message);
+        _logger.LogWarning("Lumen's Seerr {What} call failed: {Message}", what, e.LogText);
         return StatusCode(StatusCodes.Status502BadGateway, new ErrorDto(Unavailable));
     }
 

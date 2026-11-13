@@ -2,6 +2,37 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.5.1] - 2026-11-13
+
+### Added
+- "Ready to watch" push notifications: turn them on in My requests (on iPhone and iPad, from the Home Screen app) and
+  a notification arrives when a title you requested can be played; tapping it opens the title. Lumen checks Seerr
+  every 2 minutes, at once with Seerr's webhook set up. A device that can't be reached is tried again, then the
+  in-app pop-up shows instead. Administrators see the devices in Lumen's settings (Requests → Notifications).
+- Skip Intro and Skip Credits in the player, from Jellyfin's media segments (set them up with Intro Skipper or
+  SkipMe.db: docs/skip-intro-setup.md), following Settings → Playback → Media Segment Actions (ask, skip or none),
+  and a next-episode card with a countdown as the credits start. Watch together gets buttons, never automatic skips.
+- A Health tab in Lumen's settings in place of Diagnostics: each check (Jellyfin version, updates, custom CSS, proxy
+  caching, HTTPS, Seerr and its Radarr/Sonarr, Trakt, Skip Intro, Quick Connect, notifications, devices) says what's
+  wrong in plain words with one fix. "Copy report" gives a summary without addresses or keys.
+- YouTube trailers for the muted previews in the home banner and behind title pages, for titles without a local
+  trailer ("Use YouTube trailers when there's no local one", off by default). The backdrop shows until the trailer
+  plays, with no YouTube controls; a slide with one stays until it ends. Not in the TV layout.
+- A Back and Home pill on title, person and Seerr title pages: Home shows once you're two or more pages in.
+
+### Changed
+- Lumen's round buttons are frosted glass and turn white with a dark icon on hover, press and remote focus.
+- On a TV the "ready to watch" pop-up's Open takes the remote (never from an open dialog or list); Top charts says
+  when some titles couldn't be loaded, with Try again; the Home sections editor fits phones down to 320 px and its
+  save errors name the section; the pop-up clears the toolbar on a phone held sideways.
+
+### Fixed
+- My requests, download progress on posters, the "ready" pop-up and notifications failed against a real Seerr ("Seerr
+  returned HTTP 400": Lumen sent a parameter Seerr doesn't take). My requests now stays in the menu if Seerr can't
+  give the list, with Try again, and Lumen's log quotes Seerr's reason when it refuses a call.
+- Users without a Seerr account no longer get a failed request on every page load.
+- An episode left with Play now on the next-episode card is marked watched even when the switch is quick.
+
 ## [0.5.0] - 2026-11-12
 
 ### Added

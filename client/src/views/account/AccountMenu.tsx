@@ -18,6 +18,7 @@ import type { ViewContext } from '../context';
 import { initials } from '../details/CastRow';
 import type { SyncPlayState } from '../syncplay/syncPlayState';
 import { openWatchTogether } from '../secondary/lazySecondary';
+import { useCatalogImageToken } from '../catalog/catalog';
 import { useMyRequests } from '../catalog/requestProgress';
 import { type Account, accountAccess, avatarUrl, loadAccount } from './account';
 
@@ -50,7 +51,7 @@ export function accountItems(
   syncPlay: SyncPlayState,
   onWatchTogether: () => void,
   win: Window = window,
-  /** The user has request features (requestProgress.ts found their requests list). */
+  /** The user has request features (see its caller). */
   myRequests = false,
 ): Item[][] {
   const access = accountAccess(account, win);
@@ -203,7 +204,12 @@ export function AccountMenu({
     setOpen(null);
   };
 
-  const myRequests = useMyRequests().available === true;
+  // My requests, for a user with request features: their list says so, or, before it and while it fails, their request
+  // status, whose image token is there exactly when it's Enabled (Requests/Mine is a 404 when it isn't). So a list
+  // Seerr won't give leaves the entry, and My requests says what went wrong, with Try again.
+  const imageToken = useCatalogImageToken(ctx, !!ctx.config.Requests);
+  const requestsAvailable = useMyRequests().available;
+  const myRequests = requestsAvailable === true || (requestsAvailable !== false && !!imageToken);
   const items = accountItems(
     ctx,
     account,

@@ -232,7 +232,7 @@ public sealed class ReadyPushJob : BackgroundService
             // Seerr's client and its circuit breaker have logged an outage once; this is every pass.
             if (_logger.IsEnabled(LogLevel.Debug))
             {
-                _logger.LogDebug("Lumen couldn't check a user's requests for notifications: {Message}", e.Message);
+                _logger.LogDebug("Lumen couldn't check a user's requests for notifications: {Message}", e.LogText);
             }
         }
         catch (Exception e) when (e is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
