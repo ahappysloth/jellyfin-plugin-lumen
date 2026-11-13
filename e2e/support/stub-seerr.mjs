@@ -50,8 +50,9 @@
 //        720p, and a 126 s Trailer in 1080p, 720p, 480p and AUTO (HLS), its 720p at /imdb/video/<id>_720p.mp4 signed for
 //        24 h; tt9000020 has only clips; any other title is a null title. Each lookup is recorded for /__stub/imdb.
 //   GET  /imdb/video/:name.mp4                  → a 20 s MP4 with range requests, as IMDb's CDN serves them: H.264 to
-//        WebKit, VP9 to Chromium (which has no H.264) and Firefox. From LUMEN_STUB_IMDB_MEDIA, else
-//        e2e/fixtures/media/imdb (scripts/gen-test-media.sh makes both files). Each request is recorded for /__stub/imdb.
+//        WebKit, VP9 to Chromium (which has no H.264) and Firefox; 1920x1080 for a `…_1080p` name, else 640x360. From
+//        LUMEN_STUB_IMDB_MEDIA, else e2e/fixtures/media/imdb (scripts/gen-test-media.sh makes the four files). Each
+//        request is recorded for /__stub/imdb.
 //   GET  /__stub/imdb                           → { lookups: [ids], videos: [{ name, range }] } (test control)
 //   Trakt (LUMEN_TRAKT_API_BASE points here, under /trakt): every call needs `trakt-api-version: 2` and
 //   `trakt-api-key: stub-trakt-key`, else 403 (as Trakt answers an invalid key). Lists take ?page=&limit= and answer
@@ -229,11 +230,15 @@ const imdbVideo = (type, seconds, name, qualities) => ({
     displayName: { value: q },
   })),
 });
-/** One of the fixture MP4s, with range requests: H.264 to WebKit, VP9 to the others (Playwright's Chromium has no H.264). */
+/**
+ * One of the fixture MP4s, with range requests: H.264 to WebKit, VP9 to the others (Playwright's Chromium has no H.264);
+ * 1080 lines tall for a `…_1080p` file, else 360.
+ */
 const serveImdbVideo = (req, res, name) => {
   const ua = req.headers['user-agent'] ?? '';
   const webkit = /AppleWebKit/.test(ua) && !/Chrome|Chromium|Firefox/.test(ua);
-  const file = join(IMDB_MEDIA, webkit ? 'trailer-h264.mp4' : 'trailer-vp9.mp4');
+  const hd = name.endsWith('_1080p') ? '-1080p' : '';
+  const file = join(IMDB_MEDIA, `${webkit ? 'trailer-h264' : 'trailer-vp9'}${hd}.mp4`);
   imdbVideos.push({ name, range: req.headers.range ?? null });
   if (!existsSync(file)) return json(res, 404, { message: `stub: no ${file} (run scripts/gen-test-media.sh)` });
   const size = statSync(file).size;

@@ -68,7 +68,7 @@ public sealed class HeroService : IHeroService
         }
 
         return hero.Select((h, i) => lookups[i].IsCompletedSuccessfully && lookups[i].Result is { } online
-            ? h with { TrailerImdbUrl = online.ImdbUrl, TrailerYouTubeId = online.ImdbUrl is null ? online.YouTubeId : null }
+            ? h with { TrailerImdbUrl = online.ImdbUrl, TrailerImdbUrlHd = online.ImdbUrl is null ? null : online.ImdbUrlHd, TrailerYouTubeId = online.ImdbUrl is null ? online.YouTubeId : null }
             : h).ToList();
     }
 

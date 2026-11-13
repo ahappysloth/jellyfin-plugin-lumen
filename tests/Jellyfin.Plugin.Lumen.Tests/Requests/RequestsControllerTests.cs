@@ -316,12 +316,12 @@ public sealed class RequestsControllerTests : IDisposable
         GrantAccess();
         var title = new SeerrTitle { Id = 1399, ImdbId = null, ExternalIds = new SeerrExternalIds { ImdbId = "tt0944947" } };
         _seerr.GetTitleSummaryAsync(Arg.Any<SeerrEndpoint>(), 9, "tv", 1399, Arg.Any<CancellationToken>()).Returns(title);
-        _trailers.GetAsync(title, Arg.Any<CancellationToken>()).Returns(new OnlineTrailer("https://imdb-video.media-imdb.com/a.mp4", "dQw4w9WgXcQ"));
+        _trailers.GetAsync(title, Arg.Any<CancellationToken>()).Returns(new OnlineTrailer("https://imdb-video.media-imdb.com/a.mp4", "dQw4w9WgXcQ", "https://imdb-video.media-imdb.com/a_1080p.mp4"));
 
         var trailer = (await Create().GetTitleTrailer("tv", 1399, CancellationToken.None)).Value;
 
-        // IMDb's wins: the client never gets both.
-        Assert.Equal(new OnlineTrailerDto("https://imdb-video.media-imdb.com/a.mp4", null), trailer);
+        // IMDb's files, and YouTube's id with them: the page plays YouTube's should IMDb's file not play in the browser.
+        Assert.Equal(new OnlineTrailerDto("https://imdb-video.media-imdb.com/a.mp4", "dQw4w9WgXcQ", "https://imdb-video.media-imdb.com/a_1080p.mp4"), trailer);
         await _seerr.DidNotReceiveWithAnyArgs().GetTvAsync(default!, default, default, default);
     }
 

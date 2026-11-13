@@ -133,10 +133,14 @@ done
 # Stand-ins for IMDb's trailer MP4s, which the tests' stub serves (e2e/support/stub-seerr.mjs, /imdb/video/…): outside
 # the libraries, so Jellyfin never scans them. Two of the same 20 s: H.264 as IMDb's are (WebKit, Firefox), and VP9 in
 # MP4 for Playwright's Chromium, which has no H.264. faststart puts the index first, so a browser starts from the first
-# range it fetches, as it does with IMDb's.
+# range it fetches, as it does with IMDb's. The same again 1080 lines tall, for IMDb's 1080p files (a phone's box needs
+# them), so a test can tell which one the browser plays.
 mkdir -p "$OUT/imdb"
-"$FFMPEG" -loglevel error -y -f lavfi -i "testsrc2=size=640x360:rate=24,hue=h=200" -t 20 \
-  -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 400k -an -movflags +faststart "$OUT/imdb/trailer-h264.mp4"
-"$FFMPEG" -loglevel error -y -f lavfi -i "testsrc2=size=640x360:rate=24,hue=h=200" -t 20 \
-  -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -b:v 300k -an -movflags +faststart "$OUT/imdb/trailer-vp9.mp4"
+for size in 640x360 1920x1080; do
+  suffix=""; [[ "$size" == 640x360 ]] || suffix="-1080p"
+  "$FFMPEG" -loglevel error -y -f lavfi -i "testsrc2=size=$size:rate=24,hue=h=200" -t 20 \
+    -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 400k -an -movflags +faststart "$OUT/imdb/trailer-h264$suffix.mp4"
+  "$FFMPEG" -loglevel error -y -f lavfi -i "testsrc2=size=$size:rate=24,hue=h=200" -t 20 \
+    -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -b:v 300k -an -movflags +faststart "$OUT/imdb/trailer-vp9$suffix.mp4"
+done
 echo "Fixture media written to $OUT"

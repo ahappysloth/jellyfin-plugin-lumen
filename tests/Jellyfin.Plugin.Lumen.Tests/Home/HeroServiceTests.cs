@@ -130,6 +130,19 @@ public class HeroServiceTests
     }
 
     [Fact]
+    public async Task ASlide_GetsIMDbs1080pFileWithIts720p()
+    {
+        const string Hd = "https://imdb-video.media-imdb.com/vi1/a_1080p.mp4";
+        var movie = TestData.Movie("m").WithImages(ImageType.Backdrop);
+        _library.GetItemList(Arg.Any<InternalItemsQuery>()).Returns(new BaseItem[] { movie });
+        _online.GetAsync(movie, _user, Arg.Any<CancellationToken>()).Returns(new OnlineTrailer(ImdbUrl, "dQw4w9WgXcQ", Hd));
+
+        var hero = await Create().GetHeroAsync(TestData.Context(_user), new PluginConfiguration { YouTubeTrailers = true }, CancellationToken.None);
+
+        Assert.Equal(new HeroItem(movie, null, null, ImdbUrl, Hd), Assert.Single(hero));
+    }
+
+    [Fact]
     public async Task ASlide_GetsIMDbsTrailer_NotBoth()
     {
         var movie = TestData.Movie("m").WithImages(ImageType.Backdrop);

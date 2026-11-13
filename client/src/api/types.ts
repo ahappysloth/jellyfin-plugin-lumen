@@ -164,11 +164,17 @@ export interface HeroItem {
   TrailerYouTubeId?: string | null;
   /** Without a local trailer and with "Use online trailers" on: the trailer's MP4 on IMDb's video CDN. */
   TrailerImdbUrl?: string | null;
+  /** With TrailerImdbUrl: the same trailer's 1080p MP4 there, when IMDb has that besides. */
+  TrailerImdbUrlHd?: string | null;
 }
 
-/** A title's trailer online (GET Lumen/Items/{id}/Trailer, …/Requests/Title/{type}/{id}/Trailer): at most one is set. */
+/**
+ * A title's trailer online (GET Lumen/Items/{id}/Trailer, …/Requests/Title/{type}/{id}/Trailer): IMDb's MP4 (and its
+ * 1080p one, when there is one), and YouTube's video id, the fallback should IMDb's file not play.
+ */
 export interface OnlineTrailer {
   ImdbUrl?: string | null;
+  ImdbUrlHd?: string | null;
   YouTubeId?: string | null;
 }
 

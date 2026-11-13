@@ -54,6 +54,58 @@ public sealed class ImdbTrailersTests : IDisposable
     }
 
     [Fact]
+    public async Task Its1080pMp4_ComesWithThe720p()
+    {
+        Assert.Equal(new ImdbTrailer(Mp4("a720"), null, Mp4("a1080")), await _trailers.GetAsync(Id, CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData("1080p,AUTO,270p", "1080p")]
+    [InlineData("720p,AUTO", "720p")]
+    [InlineData("SD", "SD")]
+    public async Task WithOnlyOneOfThem_OnlyThatOneIsSent(string offered, string expected)
+    {
+        _imdb.Answer = _ => Answer(Video("Trailer", 120, offered.Split(',').Select(q => (q, q == "AUTO" ? Cdn + "/vi1/hls-master.m3u8" : Mp4(q))).ToArray()));
+
+        Assert.Equal(new ImdbTrailer(Mp4(expected), null), await _trailers.GetAsync(Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task The1080pMp4_IsTheSameVideos_AndOnlyOnIMDbsVideoCdn()
+    {
+        _imdb.Answer = _ => Answer(
+            Video("Trailer", 120, ("720p", Mp4("first")), ("1080p", "https://evil.example/a_1080p.mp4")),
+            Video("Trailer", 100, ("720p", Mp4("second")), ("1080p", Mp4("second1080"))));
+
+        Assert.Equal(new ImdbTrailer(Mp4("first"), null), await _trailers.GetAsync(Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ATrailer_IsCachedUntilAnHourBeforeTheSoonerOfItsAddressesExpires()
+    {
+        var url = Mp4("a720", TestData.Now + TimeSpan.FromHours(24));
+        var hd = Mp4("a1080", TestData.Now + TimeSpan.FromHours(10));
+        _imdb.Answer = _ => Answer(Video("Trailer", 120, ("720p", url), ("1080p", hd)));
+
+        Assert.Equal(new ImdbTrailer(url, TestData.Now + TimeSpan.FromHours(10), hd), await _trailers.GetAsync(Id, CancellationToken.None));
+        _time.Advance(TimeSpan.FromHours(9) - TimeSpan.FromMinutes(1));
+        await Get(Id);
+        Assert.Single(_imdb.Requests);
+
+        _time.Advance(TimeSpan.FromMinutes(2));
+        await Get(Id);
+        Assert.Equal(2, _imdb.Requests.Count);
+    }
+
+    [Fact]
+    public async Task A1080pAddressAboutToExpire_IsNotPassedOn_NorIts720p()
+    {
+        _imdb.Answer = _ => Answer(Video("Trailer", 120, ("720p", Mp4("a", TestData.Now + TimeSpan.FromHours(24))), ("1080p", Mp4("b", TestData.Now + TimeSpan.FromMinutes(50)))));
+
+        Assert.Null(await Get(Id));
+    }
+
+    [Fact]
     public async Task PrefersATrailerOfAMinuteOrMore_OverAnEarlierTeaser_AndNeverAClip()
     {
         _imdb.Answer = _ => Answer(
@@ -370,7 +422,7 @@ public sealed class ImdbTrailersTests : IDisposable
         Assert.Equal(seconds is { } s ? DateTimeOffset.FromUnixTimeSeconds(s) : null, ImdbTrailers.ExpiresOf(new Uri(url)));
 
     [Fact]
-    public void AnExampleOfIMDbsRealAnswer_GivesIts720pTrailer()
+    public void AnExampleOfIMDbsRealAnswer_GivesIts720pTrailer_AndIts1080p()
     {
         // Trimmed from IMDb's answer for tt1745960 on 13 Nov 2026: labels and addresses as IMDb gives them.
         using var json = JsonDocument.Parse(
@@ -390,6 +442,9 @@ public sealed class ImdbTrailersTests : IDisposable
             "https://imdb-video.media-imdb.com/vi632472089/1434659379400-8cjq25-1648562542211.mp4?Expires=1794667866&Signature=a~b__&Key-Pair-Id=K",
             trailer!.Url);
         Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1794667866), trailer.Expires);
+        Assert.Equal(
+            "https://imdb-video.media-imdb.com/vi632472089/1434659529640-260ouz-1648562542211.mp4?Expires=1794667866&Signature=a~b__&Key-Pair-Id=K",
+            trailer.UrlHd);
     }
 
     private static string TitleId(int n) => "tt" + (1000000 + n).ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -421,7 +476,7 @@ public sealed class ImdbTrailersTests : IDisposable
         _ => throw new TaskCanceledException("timed out"),
     };
 
-    private Task<string?> Get(string? id) => _trailers.GetAsync(id, CancellationToken.None);
+    private async Task<string?> Get(string? id) => (await _trailers.GetAsync(id, CancellationToken.None))?.Url;
 
     /// <summary>IMDb's API: answers from <see cref="Answer"/>, recording each request and its body.</summary>
     private sealed class ImdbStub : HttpMessageHandler

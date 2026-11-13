@@ -39,10 +39,16 @@ Run against the release build on the latest stable Jellyfin.
 - [ ] An existing server that had "Use YouTube trailers" on shows the new setting on after the update.
 - [ ] On, a title without a local trailer that IMDb has a trailer for (most movies and shows with an IMDb id): on its
       hero slide, behind its details page and behind a Seerr title page (a title not in the library), the backdrop
-      first, then the trailer fades in about a second after "Seconds before the trailer starts" (1.5 s on title pages),
-      with Pause, and Mute on title pages. The Network tab shows ranges of a 720p MP4 from imdb-video.media-imdb.com,
-      not the whole file, and nothing for slides passed by. Also on an iPhone (Safari and the Home Screen app), and on
-      a TV (webOS): IMDb's trailers play there, YouTube's don't.
+      first, then the trailer fades in as "Seconds before the trailer starts" ends (1 s on title pages), with Pause,
+      and Mute on title pages. The Network tab shows the MP4 from imdb-video.media-imdb.com starting to load up to 3 s
+      before then (ranges, not the whole file), and nothing for slides passed by. A 1080p file (`…1080p…` in its name,
+      or the video's resolution in Safari's Web Inspector) on a phone, a desktop browser and a TV; 720p in a small
+      window. Also on an iPhone (Safari and the Home Screen app), and on a TV (webOS): IMDb's trailers play there,
+      YouTube's don't.
+- [ ] Scroll a playing trailer out of view (a title page's, or the home banner's) and back: it paused meanwhile, and
+      carries on at once from where it was, with no new request in the Network tab. Same for switching to another
+      app or tab and back. After more than a minute away it starts again after the delay (the banner's where it was).
+      Also on an iPhone's Home Screen app.
 - [ ] The Health tab's Trailers row says IMDb answers. Blocking api.graphql.imdb.com on the server (a DNS filter)
       turns it into a problem, and titles fall back to YouTube's trailers within 5 minutes.
 

@@ -253,7 +253,7 @@ describe('TitleView', () => {
     };
 
     it("plays IMDb's behind the header, with Pause and Mute once it shows", async () => {
-      vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined); // jsdom has no media playback
+      const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined); // jsdom has no media playback
       const time = vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0);
       try {
         const asked = vi.fn(() => ({ ImdbUrl: URL_720, YouTubeId: null }));
@@ -274,6 +274,8 @@ describe('TitleView', () => {
         expect(asked).toHaveBeenCalledTimes(1);
         // No controls while it loads: nothing shows yet.
         expect(screen.queryByRole('button', { name: 'Pause trailer' })).toBeNull();
+        // In place to load during the delay, then played.
+        await waitFor(() => expect(play).toHaveBeenCalled(), { timeout: 4000 });
 
         time.mockReturnValue(0.5);
         act(() => {

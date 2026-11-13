@@ -13,3 +13,10 @@ export const TRAILER_STARTED_SECONDS = 0.25;
  * (.lmn-hero__video's transition, longer on the details page).
  */
 export const TRAILER_FADE_MS = 1200;
+/**
+ * How long a preview that's out of view (scrolled away, or its page in the background) is kept, paused, to carry on at
+ * once from where it was when it's back. One away longer is let go, and starts again after the delay when it's back
+ * (the hero puts its trailer back where it was): a paused video holds its buffer, and a browser may hold its
+ * connection, which a page left open for good shouldn't.
+ */
+export const TRAILER_HOLD_MS = 60_000;

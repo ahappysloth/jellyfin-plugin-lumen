@@ -56,7 +56,8 @@ unit_tests() {
 }
 
 gen_media() {
-  [[ -d "$DATA/media/movies" ]] && return
+  # Made again when it predates the IMDb stand-ins' 1080p ones.
+  [[ -f "$DATA/media/imdb/trailer-vp9-1080p.mp4" ]] && return
   echo "==> Generating fixture media (jellyfin-ffmpeg from $JELLYFIN_IMAGE)"
   mkdir -p "$DATA"
   run --entrypoint bash -v "$ROOT/scripts:/scripts:ro" -v "$DATA:/data" "$JELLYFIN_IMAGE" -c \

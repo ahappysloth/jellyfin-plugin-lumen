@@ -19,11 +19,12 @@ public interface IOnlineTrailers
 }
 
 /// <summary>
-/// A title's trailer online, for one without a local trailer, while "Use online trailers" is on: at most one of the two
-/// is set. <paramref name="ImdbUrl"/> is an MP4 on IMDb's video CDN (<see cref="ImdbTrailers"/>);
-/// <paramref name="YouTubeId"/> a checked YouTube video id (<see cref="Home.YouTubeId"/>), never a URL.
+/// A title's trailer online, for one without a local trailer, while "Use online trailers" is on. <paramref name="ImdbUrl"/>
+/// is an MP4 on IMDb's video CDN (<see cref="ImdbTrailers"/>), with <paramref name="ImdbUrlHd"/> its 1080p MP4 there when
+/// IMDb has that besides; <paramref name="YouTubeId"/> a checked YouTube video id (<see cref="Home.YouTubeId"/>), never a
+/// URL: the browser's fallback should IMDb's file not play there.
 /// </summary>
-public sealed record OnlineTrailer(string? ImdbUrl, string? YouTubeId)
+public sealed record OnlineTrailer(string? ImdbUrl, string? YouTubeId, string? ImdbUrlHd = null)
 {
     public static readonly OnlineTrailer None = new(null, null);
 }
@@ -70,10 +71,10 @@ public sealed class OnlineTrailers : IOnlineTrailers
         return Of(await _imdb.GetAsync(title.ImdbTitleId, cancellationToken).ConfigureAwait(false), YouTubeTrailers.FromSeerr(title.RelatedVideos));
     }
 
-    private static OnlineTrailer Of(string? imdbUrl, string? youTubeId) =>
-        string.IsNullOrEmpty(imdbUrl) && string.IsNullOrEmpty(youTubeId)
+    private static OnlineTrailer Of(ImdbTrailer? imdb, string? youTubeId) =>
+        imdb is null && string.IsNullOrEmpty(youTubeId)
             ? OnlineTrailer.None
-            : new OnlineTrailer(string.IsNullOrEmpty(imdbUrl) ? null : imdbUrl, string.IsNullOrEmpty(youTubeId) ? null : youTubeId);
+            : new OnlineTrailer(imdb?.Url, string.IsNullOrEmpty(youTubeId) ? null : youTubeId, imdb?.UrlHd);
 
     private static bool IsOn(PluginConfiguration config) => config.Enabled && config.TrailerPreview && config.YouTubeTrailers;
 }

@@ -419,6 +419,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
                   key={trailerId}
                   trailerId={localId}
                   imdbUrl={imdbUrl}
+                  imdbUrlHd={current.TrailerImdbUrlHd}
                   youTubeId={youTubeId}
                   embedBase={config.YouTubeEmbedBase}
                   // Put back after it got going, it carries on at once.

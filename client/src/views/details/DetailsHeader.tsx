@@ -15,7 +15,7 @@ import { formatRuntime } from './badges';
 import { type DownloadLink, nativeDownload } from './download';
 
 /** The details trailer starts sooner than the home hero's: the user chose this title. The catalog title page's too. */
-export const DETAILS_TRAILER_DELAY_SECONDS = 1.5;
+export const DETAILS_TRAILER_DELAY_SECONDS = 1;
 
 export interface PrimaryAction {
   label: string;
