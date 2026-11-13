@@ -86,6 +86,9 @@ public sealed class RequestProgressService : IRequestProgressService
     /// </summary>
     public static readonly TimeSpan WaitingAfter = TimeSpan.FromDays(1);
 
+    /// <summary>How long title lookups may take before the list is returned with the titles found so far.</summary>
+    internal static readonly TimeSpan DetailsBudget = TimeSpan.FromSeconds(4);
+
     /// <summary>More requests than this remembered and the memory starts over (it only refines progress).</summary>
     private const int MaxMemories = 20_000;
 
@@ -94,10 +97,7 @@ public sealed class RequestProgressService : IRequestProgressService
 
     private static readonly IReadOnlySet<int> EmptySet = new HashSet<int>();
 
-    /// <summary>How long title lookups may take before the list is returned with the titles found so far.</summary>
-    private static readonly TimeSpan DetailsBudget = TimeSpan.FromSeconds(4);
-
-    private readonly ConcurrentDictionary<(string Endpoint, int User, int ConfigVersion), CacheEntry> _cache = new();
+    private readonly ConcurrentDictionary<(string Endpoint, int User, int ConfigVersion), SharedAnswer<IReadOnlyList<TrackedTitle>>> _cache = new();
     private readonly Dictionary<(string Endpoint, int User, string Title, bool Is4k), DownloadMemory> _memories = [];
     private readonly Lock _memoryLock = new();
     private readonly ISeerrClient _seerr;
@@ -146,7 +146,7 @@ public sealed class RequestProgressService : IRequestProgressService
 
         // Not disposed: lookups still running after the budget keep using it (it holds no OS handle).
         var gate = new SemaphoreSlim(MaxConcurrentDetails);
-        var lookups = titles.Select(t => ResolveAsync(endpoint, seerrUserId, t.Primary, user, gate, cancellationToken)).ToList();
+        var lookups = titles.Select(t => ResolveAsync(_seerr, _mapper, endpoint, seerrUserId, t.Primary, user, gate, cancellationToken)).ToList();
         var all = Task.WhenAll(lookups);
         await Task.WhenAny(all, Task.Delay(DetailsBudget, _time, cancellationToken)).ConfigureAwait(false);
         _ = all.ContinueWith(t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
@@ -208,7 +208,7 @@ public sealed class RequestProgressService : IRequestProgressService
 
         var due = titles.Where(t => t.All.Any(r => claimed.Contains(r.Request.Id))).ToList();
         var gate = new SemaphoreSlim(MaxConcurrentDetails);
-        var lookups = due.Select(t => ResolveAsync(endpoint, seerrUserId, t.Primary, user, gate, cancellationToken)).ToList();
+        var lookups = due.Select(t => ResolveAsync(_seerr, _mapper, endpoint, seerrUserId, t.Primary, user, gate, cancellationToken)).ToList();
         var all = Task.WhenAll(lookups);
         await Task.WhenAny(all, Task.Delay(DetailsBudget, _time, cancellationToken)).ConfigureAwait(false);
         _ = all.ContinueWith(t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
@@ -228,6 +228,49 @@ public sealed class RequestProgressService : IRequestProgressService
 
     public void Release(Guid jellyfinUserId, SeerrEndpoint endpoint, IEnumerable<int> requestIds) =>
         _announcements.Release(jellyfinUserId, endpoint.BaseUrl.ToString(), requestIds);
+
+    /// <summary>
+    /// The card for one requested title, as <paramref name="user"/> sees it (Seerr user <paramref name="seerrUserId"/>,
+    /// whose language the title is in), or null if Seerr couldn't give its details. At most <paramref name="gate"/>'s
+    /// count at once. Everyone's requests (<see cref="EveryonesRequests"/>) use it too.
+    /// </summary>
+    internal static async Task<CatalogItemDto?> ResolveAsync(
+        ISeerrClient seerr, CatalogMapper mapper, SeerrEndpoint endpoint, int seerrUserId, Tracked tracked, User? user, SemaphoreSlim gate, CancellationToken cancellationToken)
+    {
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        SeerrTitle title;
+        try
+        {
+            title = await seerr.GetTitleSummaryAsync(endpoint, seerrUserId, tracked.MediaType, tracked.Request.Media!.TmdbId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (SeerrException)
+        {
+            return null;
+        }
+        finally
+        {
+            gate.Release();
+        }
+
+        // Card fields from the (cached) details; the state and Jellyfin item from the request, which is fresh.
+        var media = tracked.Request.Media!;
+        var card = new SeerrMedia
+        {
+            MediaType = tracked.MediaType,
+            Id = media.TmdbId,
+            Title = title.Title,
+            Name = title.Name,
+            ReleaseDate = title.ReleaseDate,
+            FirstAirDate = title.FirstAirDate,
+            Overview = title.Overview,
+            PosterPath = title.PosterPath,
+            BackdropPath = title.BackdropPath,
+            VoteAverage = title.VoteAverage,
+            GenreIds = title.GenreIds,
+            MediaInfo = new SeerrMediaInfo { Status = media.Status, JellyfinMediaId = media.JellyfinMediaId },
+        };
+        return mapper.ToItem(tracked.MediaType, card, user, CatalogMapper.TitleGenreNames(title));
+    }
 
     /// <summary>
     /// The user's requested titles with their progress: cached for <see cref="Ttl"/> (a failure for
@@ -252,7 +295,7 @@ public sealed class RequestProgressService : IRequestProgressService
             }
 
             // Not tied to this caller's cancellation: others may be waiting on it (Seerr calls time out on their own).
-            var fresh = new CacheEntry(now);
+            var fresh = new SharedAnswer<IReadOnlyList<TrackedTitle>>(now, Ttl, FailureTtl);
             if (entry is null ? _cache.TryAdd(key, fresh) : _cache.TryUpdate(key, fresh, entry))
             {
                 fresh.Start(FetchAsync(endpoint, seerrUserId), _time);
@@ -346,87 +389,9 @@ public sealed class RequestProgressService : IRequestProgressService
         }
     }
 
-    /// <summary>The card for one requested title, or null if Seerr couldn't give its details.</summary>
-    private async Task<CatalogItemDto?> ResolveAsync(SeerrEndpoint endpoint, int seerrUserId, Tracked tracked, User? user, SemaphoreSlim gate, CancellationToken cancellationToken)
-    {
-        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        SeerrTitle title;
-        try
-        {
-            title = await _seerr.GetTitleSummaryAsync(endpoint, seerrUserId, tracked.MediaType, tracked.Request.Media!.TmdbId, cancellationToken).ConfigureAwait(false);
-        }
-        catch (SeerrException)
-        {
-            return null;
-        }
-        finally
-        {
-            gate.Release();
-        }
-
-        // Card fields from the (cached) details; the state and Jellyfin item from the request, which is fresh.
-        var media = tracked.Request.Media!;
-        var card = new SeerrMedia
-        {
-            MediaType = tracked.MediaType,
-            Id = media.TmdbId,
-            Title = title.Title,
-            Name = title.Name,
-            ReleaseDate = title.ReleaseDate,
-            FirstAirDate = title.FirstAirDate,
-            Overview = title.Overview,
-            PosterPath = title.PosterPath,
-            BackdropPath = title.BackdropPath,
-            VoteAverage = title.VoteAverage,
-            GenreIds = title.GenreIds,
-            MediaInfo = new SeerrMediaInfo { Status = media.Status, JellyfinMediaId = media.JellyfinMediaId },
-        };
-        return _mapper.ToItem(tracked.MediaType, card, user, CatalogMapper.TitleGenreNames(title));
-    }
-
     /// <summary>One of the user's requests, its title's key ("movie-603") and its progress when Seerr answered.</summary>
     internal sealed record Tracked(string Key, string MediaType, SeerrUserRequest Request, RequestProgressInfo Progress);
 
     /// <summary>A requested title: the request it shows (<see cref="Primary"/>), all of the user's for it, and its progress.</summary>
     internal sealed record TrackedTitle(Tracked Primary, IReadOnlyList<Tracked> All, RequestProgressInfo Shown);
-
-    /// <summary>A user's Seerr answer: on its way (<see cref="Pending"/>) or fetched at <see cref="Fetched"/>.</summary>
-    private sealed class CacheEntry
-    {
-        private readonly TaskCompletionSource<IReadOnlyList<TrackedTitle>> _source = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private long _fetched;
-
-        public CacheEntry(DateTimeOffset started)
-        {
-            _fetched = started.UtcTicks;
-        }
-
-        public Task<IReadOnlyList<TrackedTitle>> Task => _source.Task;
-
-        public bool Pending => !_source.Task.IsCompleted;
-
-        /// <summary>Gets when the answer arrived (the cache's age counts from then, not from when it was asked for).</summary>
-        public DateTimeOffset Fetched => new(Interlocked.Read(ref _fetched), TimeSpan.Zero);
-
-        /// <summary>Whether to answer from this entry: on its way, or an answer (or a failure) that's young enough.</summary>
-        public bool IsFresh(DateTimeOffset now) => Pending || Fetched + (_source.Task.IsFaulted ? FailureTtl : Ttl) > now;
-
-        public void Start(Task<IReadOnlyList<TrackedTitle>> fetch, TimeProvider time) =>
-            fetch.ContinueWith(
-                t =>
-                {
-                    Interlocked.Exchange(ref _fetched, time.GetUtcNow().UtcTicks);
-                    if (t.IsCompletedSuccessfully)
-                    {
-                        _source.TrySetResult(t.Result);
-                    }
-                    else
-                    {
-                        _source.TrySetException(t.Exception?.InnerException ?? new SeerrException("Seerr didn't answer."));
-                    }
-                },
-                CancellationToken.None,
-                TaskContinuationOptions.ExecuteSynchronously,
-                TaskScheduler.Default);
-    }
 }

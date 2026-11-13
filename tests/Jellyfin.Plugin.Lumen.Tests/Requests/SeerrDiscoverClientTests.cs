@@ -89,6 +89,64 @@ public sealed class SeerrDiscoverClientTests : IDisposable
     }
 
     [Fact]
+    public async Task AllRequests_AsksOnlyForTakeAndSkip_AsTheApiKeyItself_AndReadsWhoFiledEach()
+    {
+        // Seerr's user object also carries the requester's email address: Lumen doesn't read it.
+        _http.Respond = _ => FakeHttp.Json(
+            """
+            {"pageInfo":{"pages":1,"pageSize":100,"results":2,"page":1},"results":[
+              {"id":11,"status":1,"createdAt":"2026-11-06T10:00:00.000Z","type":"movie","media":{"tmdbId":603,"mediaType":"movie","status":2},
+               "requestedBy":{"id":8,"displayName":"bob","email":"bob@example.com","jellyfinUserId":"0123456789abcdef0123456789abcdef","permissions":32}},
+              {"id":12,"status":2,"createdAt":"2026-11-07T10:00:00.000Z","type":"tv","media":{"tmdbId":1399,"mediaType":"tv","status":3},
+               "requestedBy":{"id":9,"displayName":"carol"}}
+            ]}
+            """);
+
+        var requests = await _client.GetAllRequestsAsync(Endpoint, 100, CancellationToken.None);
+
+        var request = Assert.Single(_http.Requests);
+        Assert.Equal(HttpMethod.Get, request.Method);
+
+        // Only what Seerr's, Jellyseerr's and Overseerr's specs all define for GET /request (each answers anything else
+        // with a 400), and no filter: Lumen filters and sorts itself.
+        Assert.Equal("/base/api/v1/request?take=100&skip=0", request.RequestUri!.PathAndQuery);
+        Assert.Equal("key123", Assert.Single(request.Headers.GetValues("X-Api-Key")));
+
+        // As the API key (Seerr's owner, who sees everyone's), never as a user, who might see only their own.
+        Assert.False(request.Headers.Contains("X-Api-User"));
+        Assert.Equal([12, 11], requests.Select(r => r.Id));
+        Assert.Equal((9, "carol", null), (requests[0].RequestedBy!.Id, requests[0].RequestedBy!.DisplayName, requests[0].RequestedBy!.JellyfinUserId));
+        Assert.Equal((8, "bob", "0123456789abcdef0123456789abcdef"), (requests[1].RequestedBy!.Id, requests[1].RequestedBy!.DisplayName, requests[1].RequestedBy!.JellyfinUserId));
+    }
+
+    [Fact]
+    public async Task AllRequests_ASeerrError_Throws_WithoutPausingRequestFeatures()
+    {
+        // One bad request's data can make Seerr answer 500 to the whole list: that's not Seerr being down.
+        _http.Respond = _ => new HttpResponseMessage(HttpStatusCode.InternalServerError);
+
+        for (var i = 0; i < SeerrCircuitBreaker.Threshold + 1; i++)
+        {
+            var error = await Assert.ThrowsAsync<SeerrException>(() => _client.GetAllRequestsAsync(Endpoint, 100, CancellationToken.None));
+            Assert.Equal(HttpStatusCode.InternalServerError, error.Status);
+        }
+
+        Assert.False(_client.BreakerFor(Endpoint).IsOpen);
+    }
+
+    [Fact]
+    public async Task AllRequests_WhileSeerrIsKnownDown_AreNotAsked()
+    {
+        await TripAsync();
+        _http.Requests.Clear();
+
+        var error = await Assert.ThrowsAsync<SeerrException>(() => _client.GetAllRequestsAsync(Endpoint, 100, CancellationToken.None));
+
+        Assert.True(error.IsCircuitOpen);
+        Assert.Empty(_http.Requests);
+    }
+
+    [Fact]
     public async Task UserRequests_Refused_CarrySeerrsReason_ForTheLog()
     {
         // What Seerr's OpenAPI validator answers a parameter its spec doesn't define.

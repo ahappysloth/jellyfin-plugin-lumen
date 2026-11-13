@@ -1,6 +1,6 @@
 // Fails when what every page loads (lumen.js, the chunks it loads at startup, lumen.css), or one of the chunks loaded
 // when they're needed (the player, its Skip button and next-episode card, the trailer preview, the restart banner, the
-// catalog title page, the profile pages, the item menu, the secondary views, Top charts, Quick Connect), or one of
+// catalog title page and My requests, the profile pages, the item menu, the secondary views, Top charts, Quick Connect), or one of
 // the stylesheets linked where they're used, exceeds its gzipped budget,
 // or Lumen's fonts exceed theirs.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -91,10 +91,14 @@ const RESTART_BUDGET = 4 * 1024;
 const restart = gz(`dist/${restartChunk}`);
 console.log(`lumen restart banner: ${kb(restart)} gzipped (budget ${RESTART_BUDGET / 1024} KB)`);
 // Loads on a catalog title's page or My requests, or once catalog cards show (only with Seerr):
-// views/catalog/lazyTitle.tsx.
-const TITLE_BUDGET = 6 * 1024;
-const title = gz(`dist/${titleChunk}`);
-console.log(`lumen catalog title: ${kb(title)} gzipped (budget ${TITLE_BUDGET / 1024} KB)`);
+// views/catalog/lazyTitle.tsx; with My requests' stylesheet (lumen-requests.css), which that page links. 6 KB until
+// My requests' search, filter chips and "Everyone's requests" for administrators came here, as the file that holds
+// the page (the startup file has no room): about 2.1 KB of code and strings, and the 0.8 KB stylesheet counted here.
+const TITLE_BUDGET = 7.75 * 1024;
+const title = gz(`dist/${titleChunk}`) + gz('dist/lumen-requests.css');
+console.log(
+  `lumen catalog title + my requests styles: ${kb(title)} gzipped (budget ${TITLE_BUDGET / 1024} KB)`,
+);
 // Loads on the profile page or a stock settings page (views/profile/lazyProfile.tsx).
 const PROFILE_BUDGET = 5 * 1024;
 const profile = gz(`dist/${profileChunk}`);

@@ -167,6 +167,13 @@ Automated tests use a stub Seerr; only a real one shows Radarr's and Sonarr's qu
 - [ ] As a user Seerr has no account for (Seerr set up, the user not imported): the network panel shows no GET
       /Lumen/Requests/Mine at all, and the console no 404.
 - [ ] TV layout: from the account menu, Down reaches My requests; on it the arrows reach every request.
+- [ ] My requests: typing in the search box narrows the list at once (a phone's keyboard Search key closes the
+      keyboard); each chip shows its count and only its requests; a chip or search with nothing says so.
+- [ ] As an administrator, against a real Seerr (and once against Overseerr or Jellyseerr if you can): Everyone's
+      requests lists other users' requests with their names (Jellyfin users by their Jellyfin name and picture),
+      and Lumen's log shows no "Seerr returned HTTP 400". It stays on after a reload, on that device only. A user who
+      isn't an administrator has no switch.
+- [ ] TV layout: from the first request, Up reaches the chips, then the search box and the Everyone's requests switch.
 - [ ] TV layout: when the "ready to watch" pop-up shows, the remote's focus is on Open (OK opens the title); Right is
       Dismiss, and after it (or when the pop-up goes by itself) focus is back where it was.
 - [ ] A phone on its side: the pop-up sits just above the tab bar, not over the page's title or sort buttons.

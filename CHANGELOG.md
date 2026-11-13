@@ -2,6 +2,16 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.6.2] - 2026-11-13
+
+### Added
+- My requests has a search box that filters by title as you type, and filter chips with counts: All, Pending
+  (waiting for approval), Downloading (approved, downloading or being added, a show partly there included),
+  Available, and Declined or failed. Each says when it has nothing to show, with a way back.
+- Administrators can turn on **Everyone's requests** in My requests: every user's recent requests, each with who
+  asked (their Jellyfin name and picture, or their Seerr name), searchable by that name too. The switch is kept per
+  device; nobody else sees it, and the server refuses everyone else the list.
+
 ## [0.6.1] - 2026-11-13
 
 ### Changed

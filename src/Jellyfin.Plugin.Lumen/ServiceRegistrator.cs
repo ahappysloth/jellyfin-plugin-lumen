@@ -69,6 +69,7 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<CatalogMapper>();
         serviceCollection.AddSingleton<CatalogRowAccess>();
         serviceCollection.AddSingleton<IReadyAnnouncements, ReadyAnnouncements>();
+        serviceCollection.AddSingleton<IEveryonesRequests, EveryonesRequests>();
         serviceCollection.AddSingleton<IRequestProgressService, RequestProgressService>();
 
         // Push notifications. A push goes to the address a browser gave (checked against the known push services when

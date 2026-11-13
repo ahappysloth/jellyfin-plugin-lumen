@@ -16,6 +16,12 @@
 //        → { pageInfo, results: [{ id, status, createdAt, type, media: { tmdbId, mediaType, status, status4k,
 //          jellyfinMediaId } }] }: the requests this user filed via POST /request, newest first (media status: see
 //          mediaStatus below); 403 unless X-Api-User is that user
+//   GET  /api/v1/request?take=&skip=&filter=&sort=&sortDirection=&requestedBy=&mediaType=
+//        → { pageInfo, results }: every user's requests (filed via POST /request), newest first, shaped as the user's own
+//          above plus requestedBy { id, displayName, jellyfinUserId, email } (from /__stub/users; displayName "Seerr
+//          user N" for a Seerr account no mapping names). As Seerr: as the API key itself (no X-Api-User), its owner,
+//          or as an X-Api-User with ADMIN, MANAGE_REQUESTS or REQUEST_VIEW, everyone's; any other user, their own only.
+//          Only filter=all is honoured (Lumen sends none)
 //   GET  /api/v1/movie/:id   (603, 604, 605)    → movie details (credits, YouTube trailer, mediaInfo; 603 has an IMDb id)
 //   GET  /api/v1/tv/:id      (1399)             → show details (seasons 0–3, season availability, a request for S2,
 //                                                  its IMDb id in externalIds)
@@ -27,7 +33,7 @@
 //        → 201 { id, status: 2 if the user has ADMIN/AUTO_APPROVE else 1, media: { status: 2 } };
 //          409 { message } if this user already requested the same mediaId + seasons; recorded for /__stub/requests.
 //          A test may call it itself, for a request filed in Seerr's own interface, which Lumen hasn't seen.
-//   (Catalog and request routes act as a user: they need the key and an X-Api-User header, 400 without it.)
+//   (Catalog routes and POST /request act as a user: they need the key and an X-Api-User header, 400 without it.)
 //   Like Seerr, which checks every /api/v1 call against its OpenAPI spec: a query parameter that seerr-api.yml doesn't
 //   define for the route (SEERR_QUERY below), or a number parameter that isn't one, is a 400 { message, errors } in the
 //   words of Seerr's validator; so is a POST /request body without a field the spec requires, or with one it doesn't
@@ -104,6 +110,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const STUB_API_KEY = 'stub-key';
+// Also taken: a spec that links the kid to a Seerr account (requests-filters.spec.ts) uses this one. Lumen caches who
+// a user is in Seerr for 10 minutes per Seerr address and key (SeerrUserMap.HitTtl), so under the usual key the kid
+// would still have an account in the specs after it, which rely on them having none.
+export const STUB_API_KEY_2 = 'stub-key-filters';
 export const STUB_TRAKT_KEY = 'stub-trakt-key';
 const PORT = Number(process.env.LUMEN_STUB_SEERR_PORT ?? 5055);
 // 1×1 transparent PNG.
@@ -260,7 +270,9 @@ const serveImdbVideo = (req, res, name) => {
 
 // Seerr permission bits (server/lib/permissions.ts).
 const ADMIN = 2;
+const MANAGE_REQUESTS = 16;
 const AUTO_APPROVE = 1024;
+const REQUEST_VIEW = 16384;
 
 const cast = [
   { id: 6384, name: 'Stub Actor One', character: 'Lead', profilePath: '/stubcast1.jpg' },
@@ -399,6 +411,23 @@ const requestMedia = (body) => {
   }));
   return media;
 };
+// A filed request as Seerr lists it (GET /user/:id/requests, GET /request).
+const listedRequest = (r) => ({
+  id: r.id,
+  status: library[r.body.mediaId] ? 5 : (progress[r.body.mediaId]?.requestStatus ?? r.status),
+  createdAt: r.createdAt,
+  type: r.body.mediaType,
+  is4k: false,
+  seasons: (Array.isArray(r.body.seasons) ? r.body.seasons : []).map((n) => ({ seasonNumber: n, status: 2 })),
+  media: requestMedia(r.body),
+});
+// Who filed a request, as Seerr's GET /request has it: the user object, email included (Lumen must not pass it on).
+const requester = (seerrId) => {
+  const found = Object.entries(users).find(([, u]) => String(u.id) === String(seerrId));
+  return found
+    ? { id: found[1].id, displayName: found[1].displayName ?? `stub-${found[1].id}`, jellyfinUserId: found[0], email: 'must-not-leak@example.com', permissions: found[1].permissions }
+    : { id: Number(seerrId), displayName: `Seerr user ${seerrId}`, email: 'must-not-leak@example.com', permissions: 32 };
+};
 // One Seerr download sync: every scenario with a `step` moves on.
 const advanceDownloads = () => {
   for (const scenario of Object.values(progress)) {
@@ -461,15 +490,21 @@ const SEERR_QUERY = [
   [/^\/api\/v1\/discover\/(movies|tv)\/upcoming$/, SEERR_PAGE],
   [/^\/api\/v1\/(movie|tv)\/\d+$/, SEERR_LANGUAGE],
   [/^\/api\/v1\/(movie|tv)\/\d+\/recommendations$/, SEERR_PAGE],
-  // POST /request takes no query parameters (GET /request, which Lumen doesn't call, has sort, filter…).
-  [/^\/api\/v1\/request$/, {}],
+  // GET /request (everyone's requests, for an administrator). Seerr's; Overseerr's lacks sortDirection and mediaType.
+  [
+    /^\/api\/v1\/request$/,
+    { take: 'number', skip: 'number', filter: 'string', sort: 'string', sortDirection: 'string', requestedBy: 'number', mediaType: 'string' },
+    'GET',
+  ],
+  // POST /request takes no query parameters.
+  [/^\/api\/v1\/request$/, {}, 'POST'],
 ];
 // POST /request's body properties in seerr-api.yml, and the required ones.
 const SEERR_REQUEST_BODY = ['mediaType', 'mediaId', 'tvdbId', 'seasons', 'is4k', 'serverId', 'profileId', 'rootFolder', 'languageProfileId', 'userId', 'ignoreQuota'];
 const SEERR_REQUEST_REQUIRED = ['mediaType', 'mediaId'];
 /** Seerr's validator's 400 for the first query parameter its spec rejects on this route, or null if it takes them all. */
-const seerrQueryError = (path, searchParams) => {
-  const allowed = SEERR_QUERY.find(([route]) => route.test(path))?.[1];
+const seerrQueryError = (path, method, searchParams) => {
+  const allowed = SEERR_QUERY.find(([route, , only]) => route.test(path) && (!only || only === method))?.[1];
   if (!allowed) return null;
   for (const [name, value] of searchParams) {
     if (!(name in allowed)) return `Unknown query parameter '${name}'`;
@@ -619,11 +654,12 @@ createServer((req, res) => {
   }
   if (path.startsWith('/api/v1/')) {
     // Before authentication, as in Seerr, where the validator runs ahead of every route.
-    const invalid = seerrQueryError(path, url.searchParams);
+    const invalid = seerrQueryError(path, req.method, url.searchParams);
     if (invalid) return json(res, 400, { message: invalid, errors: [{ path: '.query', message: invalid }] });
   }
   if (path === '/api/v1/status') return json(res, 200, { version: '3.5.1-stub', commitTag: 'stub' });
-  if (req.headers['x-api-key'] !== STUB_API_KEY) return json(res, 403, { message: 'You do not have permission' });
+  if (req.headers['x-api-key'] !== STUB_API_KEY && req.headers['x-api-key'] !== STUB_API_KEY_2)
+    return json(res, 403, { message: 'You do not have permission' });
   // Real Seerr also returns its Jellyfin API key here; Lumen must only read name and serverId.
   if (path === '/api/v1/settings/jellyfin') return json(res, 200, { ...jellyfin, ip: 'jellyfin', apiKey: 'must-not-leak' });
   // Each server's settings carry its API key, as in Seerr: Lumen only counts them.
@@ -654,7 +690,7 @@ createServer((req, res) => {
   const actingUser = req.headers['x-api-user'];
   const isCatalog =
     path === '/api/v1/search' ||
-    path === '/api/v1/request' ||
+    (path === '/api/v1/request' && req.method === 'POST') ||
     /^\/api\/v1\/(movie|tv|discover)\//.test(path) ||
     /^\/api\/v1\/user\/\d+\/requests$/.test(path);
   if (isCatalog && !/^\d+$/.test(actingUser ?? '')) return json(res, 400, { message: 'stub: X-Api-User is required' });
@@ -666,6 +702,19 @@ createServer((req, res) => {
   if (path in discover && req.method === 'GET') {
     return json(res, 200, page(discover[path].map(withLibrary), Number(url.searchParams.get('page') ?? 1)));
   }
+  if (path === '/api/v1/request' && req.method === 'GET') {
+    // As the API key itself Seerr acts as its owner (user 1, an admin); X-Api-User acts as that user.
+    const asUser = actingUser ?? '1';
+    const seerrUser = Object.values(users).find((u) => String(u.id) === asUser);
+    const seesAll = !actingUser || ((seerrUser?.permissions ?? 0) & (ADMIN | MANAGE_REQUESTS | REQUEST_VIEW)) !== 0;
+    if (failing.requests) return json(res, failing.requests, { message: 'stub: failing' });
+    const take = Number(url.searchParams.get('take') ?? 10);
+    const skip = Number(url.searchParams.get('skip') ?? 0);
+    advanceDownloads();
+    const listed = requests.filter((r) => seesAll || r.user === asUser).reverse();
+    const results = listed.slice(skip, skip + take).map((r) => ({ ...listedRequest(r), requestedBy: requester(r.user) }));
+    return json(res, 200, { pageInfo: { pages: Math.ceil(listed.length / take), pageSize: take, results: listed.length, page: 1 + skip / take }, results });
+  }
   const userRequests = path.match(/^\/api\/v1\/user\/(\d+)\/requests$/);
   if (userRequests && req.method === 'GET') {
     // Like Seerr: only that user (or a request manager, which Lumen never relies on) may list them.
@@ -675,15 +724,7 @@ createServer((req, res) => {
     const skip = Number(url.searchParams.get('skip') ?? 0);
     advanceDownloads();
     const mine = requests.filter((r) => r.user === actingUser).reverse();
-    const results = mine.slice(skip, skip + take).map((r) => ({
-      id: r.id,
-      status: library[r.body.mediaId] ? 5 : (progress[r.body.mediaId]?.requestStatus ?? r.status),
-      createdAt: r.createdAt,
-      type: r.body.mediaType,
-      is4k: false,
-      seasons: (Array.isArray(r.body.seasons) ? r.body.seasons : []).map((n) => ({ seasonNumber: n, status: 2 })),
-      media: requestMedia(r.body),
-    }));
+    const results = mine.slice(skip, skip + take).map(listedRequest);
     return json(res, 200, { pageInfo: { pages: Math.ceil(mine.length / take), pageSize: take, results: mine.length, page: 1 + skip / take }, results });
   }
   const title = path.match(/^\/api\/v1\/(movie|tv)\/(\d+)(\/recommendations)?$/);

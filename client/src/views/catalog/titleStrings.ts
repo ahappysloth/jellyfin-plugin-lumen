@@ -39,5 +39,32 @@ export const titleStrings = {
   requestsFailed: "Couldn't load your requests from Seerr.",
   noRequestFeatures: "Requests aren't available for your account.",
   requestedOn: (date: string) => `Requested ${date}`,
+  // My requests' search, filter chips and "Everyone's requests" (MyRequestsView).
+  searchRequests: 'Search requests',
+  clearSearch: 'Clear search',
+  filterLabel: 'Show',
+  filters: {
+    all: 'All',
+    pending: 'Pending',
+    downloading: 'Downloading',
+    available: 'Available',
+    problem: 'Declined or failed',
+  },
+  /** Under a chip with nothing to show (no search). */
+  filterEmpty: {
+    all: '',
+    pending: 'Nothing is waiting for approval',
+    downloading: 'Nothing is downloading',
+    available: 'Nothing is ready to watch yet',
+    problem: 'Nothing was declined or failed',
+  },
+  showAll: 'Show all requests',
+  noMatch: (query: string) => `No requests match “${query}”`,
+  requestCount: (n: number) => (n === 1 ? '1 request' : `${n} requests`),
+  everyone: 'Everyone’s requests',
+  everyoneFailed: "Couldn't load everyone's requests from Seerr.",
+  noRequestsEveryone: 'Nobody has requested anything yet.',
+  requestedBy: 'Requested by ',
+  unknownRequester: 'Someone not on this server',
   runtimeMinutes: (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`),
 } as const;

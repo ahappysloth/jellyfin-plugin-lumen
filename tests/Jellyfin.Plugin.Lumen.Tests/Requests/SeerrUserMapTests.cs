@@ -41,6 +41,25 @@ public class SeerrUserMapTests
     }
 
     [Fact]
+    public async Task FindJellyfinUser_IsTheUserLatelyMappedToThatSeerrAccount_OnThatSeerr()
+    {
+        var endpoint = new SeerrEndpoint(new Uri("http://seerr:5055/"), "k");
+        _seerr.GetUserByJellyfinIdAsync(Arg.Any<SeerrEndpoint>(), _user, Arg.Any<CancellationToken>()).Returns(new SeerrUser(4, 32));
+        var map = Map();
+        Assert.Null(map.FindJellyfinUser(endpoint, 4));
+
+        await map.GetAccessAsync(_user, CancellationToken.None);
+
+        Assert.Equal(_user, map.FindJellyfinUser(endpoint, 4));
+        Assert.Null(map.FindJellyfinUser(endpoint, 5));
+        Assert.Null(map.FindJellyfinUser(new SeerrEndpoint(new Uri("http://other:5055/"), "k"), 4));
+
+        // Not after the mapping would be looked up again (it may have changed in Seerr).
+        _time.Advance(SeerrUserMap.HitTtl);
+        Assert.Null(map.FindJellyfinUser(endpoint, 4));
+    }
+
+    [Fact]
     public async Task MappedUser_GetsTheirSeerrPermissions_CachedForTenMinutes()
     {
         _seerr.GetUserByJellyfinIdAsync(Arg.Any<SeerrEndpoint>(), _user, Arg.Any<CancellationToken>()).Returns(new SeerrUser(4, 262144));

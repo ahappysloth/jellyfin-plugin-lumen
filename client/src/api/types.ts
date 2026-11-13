@@ -338,10 +338,28 @@ export interface MyRequest {
   RequestedAt?: string | null;
   /** It became ready since Lumen saw it in flight, and the user hasn't been told yet. */
   Announce: boolean;
+  /** Who requested it: only in everyone's requests (GET /Lumen/Requests/All). */
+  RequestedBy?: Requester | null;
 }
 
 export interface MyRequests {
   Requests: MyRequest[];
+}
+
+/**
+ * Who filed a request. `UserId` ("N" format) and `ImageTag` when they're a Jellyfin user; else `Name` is their Seerr
+ * name, or null when Seerr didn't say.
+ */
+export interface Requester {
+  Name?: string | null;
+  UserId?: string | null;
+  ImageTag?: string | null;
+}
+
+/** GET /Lumen/Requests/All (administrators): every user's requested titles. `Partial`: some are missing, ask again. */
+export interface AllRequests {
+  Requests: MyRequest[];
+  Partial: boolean;
 }
 
 export interface RequestResult {

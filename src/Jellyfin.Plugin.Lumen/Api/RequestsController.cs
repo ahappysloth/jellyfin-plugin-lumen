@@ -1,7 +1,10 @@
 using System.Net;
+using Jellyfin.Data;
 using Jellyfin.Database.Implementations.Entities;
+using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.Lumen.Home;
 using Jellyfin.Plugin.Lumen.Requests;
+using MediaBrowser.Common.Api;
 using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -33,6 +36,7 @@ public sealed class RequestsController : ControllerBase
     private readonly IRequestProgressService _progress;
     private readonly IReadyAnnouncements _announcements;
     private readonly IOnlineTrailers _trailers;
+    private readonly IEveryonesRequests _everyone;
     private readonly ILogger<RequestsController> _logger;
 
     public RequestsController(
@@ -45,6 +49,7 @@ public sealed class RequestsController : ControllerBase
         IRequestProgressService progress,
         IReadyAnnouncements announcements,
         IOnlineTrailers trailers,
+        IEveryonesRequests everyone,
         ILogger<RequestsController> logger)
     {
         _users = users;
@@ -56,6 +61,7 @@ public sealed class RequestsController : ControllerBase
         _progress = progress;
         _announcements = announcements;
         _trailers = trailers;
+        _everyone = everyone;
         _logger = logger;
     }
 
@@ -329,6 +335,47 @@ public sealed class RequestsController : ControllerBase
         catch (SeerrException e)
         {
             return SeerrUnavailable(e, "requests");
+        }
+    }
+
+    /// <summary>
+    /// Every user's requested titles, newest first, each with who requested it: for a Jellyfin administrator's My
+    /// requests ("Everyone's requests"). Seerr is asked as its API key (its owner), which sees every user's, so the
+    /// administrator check is the only gate: Jellyfin's policy refuses anyone else, and so does this action itself,
+    /// should the attribute ever be lost. An administrator without request features gets 404, as from Mine.
+    /// </summary>
+    [HttpGet("All")]
+    [Authorize(Policy = Policies.RequiresElevation)]
+    public async Task<ActionResult<AllRequestsDto>> GetAll(CancellationToken cancellationToken)
+    {
+        if (User.GetJellyfinUserId(_logger) is not { } userId)
+        {
+            return Unauthorized();
+        }
+
+        if (_userManager.GetUserById(userId)?.HasPermission(PermissionKind.IsAdministrator) != true)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new ErrorDto("Only administrators can see everyone's requests."));
+        }
+
+        var caller = await GetCallerAsync(cancellationToken).ConfigureAwait(false);
+        if (caller.Failure is { } failure)
+        {
+            return failure;
+        }
+
+        try
+        {
+            Response.Headers.CacheControl = "no-store";
+            return await _everyone.GetAsync(caller.User, caller.Endpoint!, caller.SeerrUserId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (SeerrException e) when (e.IsCircuitOpen)
+        {
+            return StatusCode(StatusCodes.Status502BadGateway, new ErrorDto(Unavailable));
+        }
+        catch (SeerrException e)
+        {
+            return SeerrUnavailable(e, "everyone's requests");
         }
     }
 

@@ -8,6 +8,12 @@ namespace Jellyfin.Plugin.Lumen.Requests;
 public interface ISeerrUserMap
 {
     Task<RequestAccess> GetAccessAsync(Guid jellyfinUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The Jellyfin user mapped to this Seerr account on <paramref name="endpoint"/>, as far as Lumen has looked them up
+    /// lately (no call to Seerr); null if it hasn't, or nobody is.
+    /// </summary>
+    Guid? FindJellyfinUser(SeerrEndpoint endpoint, int seerrUserId);
 }
 
 /// <summary>
@@ -69,5 +75,19 @@ public sealed class SeerrUserMap : ISeerrUserMap
             _logger.LogWarning("Lumen couldn't look up the Seerr account for a user: {Message}", e.LogText);
             return RequestAccess.None;
         }
+    }
+
+    public Guid? FindJellyfinUser(SeerrEndpoint endpoint, int seerrUserId)
+    {
+        var now = _time.GetUtcNow();
+        foreach (var ((user, key), (access, expires)) in _cache)
+        {
+            if (access.SeerrUserId == seerrUserId && key == endpoint.CacheKey && expires > now)
+            {
+                return user;
+            }
+        }
+
+        return null;
     }
 }

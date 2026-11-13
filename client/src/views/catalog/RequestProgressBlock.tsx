@@ -1,6 +1,18 @@
 import type { MyRequest } from '../../api/types';
 import { isMoving, progressDetail, progressLabel } from './requestProgress';
 import { titleStrings } from './titleStrings';
+import { strings } from '../../strings';
+
+/**
+ * progressDetail for a request from another list than the user's own (everyone's requests), whose time left counts
+ * down from when that list arrived, `at`: progressDetail counts from the user's own last answer.
+ */
+function detailFrom(request: MyRequest, at: number): string {
+  const rest = progressDetail({ ...request, SecondsLeft: null });
+  if (request.Status !== 'Downloading' || request.SecondsLeft == null) return rest;
+  const left = Math.max(0, request.SecondsLeft - Math.floor((Date.now() - at) / 1000));
+  return [rest, strings.timeLeft(left)].filter((p) => p).join(' · ');
+}
 
 /**
  * How the user's own request for a title is going, on its page and in My requests: the status and what it means
@@ -10,12 +22,15 @@ import { titleStrings } from './titleStrings';
 export function RequestProgressBlock({
   request,
   compact = false,
+  receivedAt,
 }: {
   request: MyRequest;
   compact?: boolean;
+  /** When the list it came in arrived, if it isn't the user's own (everyone's requests: allRequests.ts). */
+  receivedAt?: number;
 }) {
   const label = progressLabel(request.Status);
-  const detail = progressDetail(request);
+  const detail = receivedAt === undefined ? progressDetail(request) : detailFrom(request, receivedAt);
   const percent = isMoving(request.Status) && request.Percent != null ? request.Percent : null;
   const problem = request.Status === 'Declined' || request.Status === 'Failed';
   const note = compact ? null : titleStrings.progressNote[request.Status];

@@ -46,6 +46,7 @@ const REQUIRED = [
   'lumen-charts.css',
   'lumen-quickconnect.css',
   'lumen-push.css',
+  'lumen-requests.css',
   'lumen-push-sw.js',
   'lumen-segments.css',
 ];
