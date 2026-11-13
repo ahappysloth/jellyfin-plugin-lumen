@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/ahappysloth/jellyfin-plugin-lumen/main/assets/lumen-plugin.png",
     "versions": [
       {
+        "version": "0.6.1.0",
+        "changelog": "\n### Changed\n- Trailers scrolled out of view (or left in a background tab) pause where they are, and carry on at once when they're\n  back, instead of starting over after the delay. One that stays away for a minute is let go.\n- Trailers start as soon as their delay is up: the video loads during the delay instead of after it. On title pages\n  the delay is 1 second (was 1.5).\n- Online trailers play in 1080p where the screen needs it (phones, desktops and TVs), 720p in a small window or with\n  the browser's data saver on. IMDb's 720p looked soft on a phone, which shows the middle third of it full-height.\n\n### Fixed\n- On title pages, YouTube's trailer takes over again when IMDb's won't play in the browser (0.6.0 never sent it along).",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/ahappysloth/jellyfin-plugin-lumen/releases/download/v0.6.1/lumen_0.6.1.0.zip",
+        "checksum": "74ce6144d95ffd2db4248aa8848890d7",
+        "timestamp": "2026-11-13T17:59:41Z"
+      },
+      {
         "version": "0.6.0.0",
         "changelog": "\n### Added\n- Online trailers start in about a second: a title without a local trailer previews its trailer from IMDb, a plain\n  720p video the browser plays straight from IMDb's video servers (nothing stored on or streamed through your\n  server), before YouTube's, which take several seconds. They play like a local trailer, in the home banner and behind\n  title pages, TVs included (YouTube's still don't on TVs).\n- Seerr's title pages (titles you can request) play the title's trailer behind their header, with Pause and Mute, as\n  library title pages do.\n- A Health check that IMDb trailer lookups work while online trailers are on.\n\n### Changed\n- \"Use YouTube trailers when there's no local one\" is now \"Use online trailers when there's no local one (IMDb, then\n  YouTube)\". A server that had it on keeps it on, IMDb's trailers included. The viewer's browser then also contacts\n  IMDb's video servers.",
         "targetAbi": "12.1.0.0",
