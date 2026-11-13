@@ -26,17 +26,20 @@ export type ProbePage =
   | 'userMenu'
   | 'apiKeyDialog';
 
+export type Stylesheet =
+  | 'base.css'
+  | 'player.css'
+  | 'segments.css'
+  | 'stock-skin.css'
+  | 'toasts.css'
+  | 'dashboard.css'
+  | 'nav.css'
+  | 'stock-components.css';
+
 export interface StockSelectorMeta {
   probe: ProbePage | null;
-  /** The stylesheet that repeats this selector, if any. */
-  css?:
-    | 'base.css'
-    | 'player.css'
-    | 'stock-skin.css'
-    | 'toasts.css'
-    | 'dashboard.css'
-    | 'nav.css'
-    | 'stock-components.css';
+  /** The stylesheet that repeats this selector, if any; or each of them. */
+  css?: Stylesheet | readonly Stylesheet[];
 }
 
 export const STOCK_SELECTOR_META = {
@@ -52,8 +55,10 @@ export const STOCK_SELECTOR_META = {
   appFooter: { probe: 'home', css: 'nav.css' },
   videoOsd: { probe: 'player', css: 'player.css' },
   volumeOsd: { probe: null, css: 'player.css' },
-  skipIntro: { probe: null, css: 'player.css' },
-  upNext: { probe: null, css: 'player.css' },
+  // The skip prompt only exists once a segment has asked: e2e/specs/media-segments.spec.ts looks for it there.
+  // player.css keeps both above Lumen's player; segments.css hides them while Lumen draws its own.
+  skipIntro: { probe: null, css: ['player.css', 'segments.css'] },
+  upNext: { probe: 'player', css: ['player.css', 'segments.css'] },
   loginForm: { probe: 'login', css: 'stock-skin.css' },
   quickConnectButton: { probe: 'login', css: 'stock-skin.css' },
   submitButton: { probe: 'login', css: 'stock-skin.css' },

@@ -255,7 +255,11 @@ export class Takeover {
     const { win, doc } = this.options;
     const expected: { name: string; selectors: string[] }[] =
       route.kind === 'player'
-        ? [{ name: 'videoOsd', selectors: [STOCK_SELECTORS.videoOsd.selector] }]
+        ? [
+            { name: 'videoOsd', selectors: [STOCK_SELECTORS.videoOsd.selector] },
+            // Without it Lumen's next-episode card stays away and jellyfin-web's shows (views/player/SegmentPrompts.tsx).
+            { name: 'upNext', selectors: [STOCK_SELECTORS.upNext.selector] },
+          ]
         : overlayClass(route)
           ? []
           : [{ name: 'appBar', selectors: [SELECTORS.modernAppBar, SELECTORS.legacyHeader] }];

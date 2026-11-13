@@ -4,13 +4,14 @@ import {
   DASHBOARD_THEME_VARIABLE,
   ITEM_MENU_MARKERS,
   ITEM_MENU_METHODS,
+  MEDIA_SEGMENTS,
   QUICK_CONNECT,
   STOCK_SELECTORS,
   WEBPACK_CHUNK_GLOBAL,
 } from '../../client/src/compat/registry';
 import { STOCK_SELECTOR_META, type ProbePage } from '../../client/src/compat/registry.meta';
 import { WEB_PLUGIN_KEY, WEB_PLUGIN_NAME, type WebPluginSlot } from '../../client/src/compat/webPlugin';
-import { ADMIN, KID, loadState } from '../support/api';
+import { ADMIN, api, KID, loadState } from '../support/api';
 import { CANNOT_PLAY, cannotPlay } from '../support/browsers';
 import { login } from '../support/login';
 import { forgetPlayback } from '../support/playback';
@@ -83,6 +84,42 @@ test('stock selectors in the video player', async ({ page, browserName, isMobile
   // Lumen found jellyfin-web's PlaybackManager (its controls replace the stock ones).
   await expect(page.locator('#lmn-root .lmn-osd')).toBeVisible();
   await expectSelectorsOn(page, 'player');
+});
+
+test("jellyfin-web keeps its media segment settings where Lumen's player reads them", async ({ page }) => {
+  // The Playback settings page's "Media segment actions": a select per segment type, named for its setting, offering
+  // the three actions. Its value comes from localStorage (under the user's id) or jellyfin-web's default for the type.
+  const { admin, items } = loadState();
+  const stored = `${admin.userId}-${MEDIA_SEGMENTS.settingPrefix}Recap`;
+  // "Show next video info during playback", which Lumen's next-episode card follows: the same store, 'false' when off.
+  const nextInfo = `${admin.userId}-${MEDIA_SEGMENTS.nextVideoInfo}`;
+  await page.addInitScript(
+    ([segment, info]) => {
+      localStorage.setItem(segment, 'Skip');
+      localStorage.setItem(info, 'false');
+    },
+    [stored, nextInfo] as const,
+  );
+  await login(page, ADMIN);
+  await openFresh(page, `#/mypreferencesplayback?userId=${admin.userId}`);
+  const nextInfoBox = page.locator('input.chkEnableNextVideoOverlay');
+  await expect(nextInfoBox).toHaveCount(1);
+  await expect(nextInfoBox).not.toBeChecked();
+  // Whether jellyfin-web's own segment manager skips too is the media source's flag, which the server always sends.
+  const info = await api<{ MediaSources: Record<string, unknown>[] }>(`/Items/${items['Lumen Alpha']}/PlaybackInfo`, {
+    token: admin.token,
+    query: { userId: admin.userId },
+  });
+  expect(typeof info.MediaSources[0]![MEDIA_SEGMENTS.hasSegments], 'the media source says whether it has segments').toBe('boolean');
+
+  for (const type of MEDIA_SEGMENTS.types) {
+    const select = page.locator(`select[id="${MEDIA_SEGMENTS.settingPrefix}${type}"]`);
+    await expect(select, `the ${type} setting`).toHaveCount(1);
+    const offered = await select.locator('option').evaluateAll((options) => options.map((o) => (o as HTMLOptionElement).value));
+    expect(offered.sort(), `the ${type} setting's actions`).toEqual([...MEDIA_SEGMENTS.actions].sort());
+    const unset = (MEDIA_SEGMENTS.askByDefault as readonly string[]).includes(type) ? 'AskToSkip' : 'None';
+    await expect(select, `the ${type} setting's value`).toHaveValue(type === 'Recap' ? 'Skip' : unset);
+  }
 });
 
 test("jellyfin-web loads Lumen's web plugin, and Lumen's player takes jellyfin-web's playback manager from it", { tag: '@smoke' }, async ({

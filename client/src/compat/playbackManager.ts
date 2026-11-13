@@ -72,6 +72,12 @@ export interface PlaybackManager {
   stop?(player: Player): void;
   /** Makes a target the active player once it pairs (fires 'playerchange'); doesn't move what's playing. */
   trySetActivePlayer?(playerName: string, target: PlayTarget): void;
+  /**
+   * Set by jellyfin-web's SyncPlay while this client is in a group, as it joins and leaves (the group's player wrapper
+   * swaps the manager's play, seek and queue methods for requests to the group, and says so here). Unlike the SyncPlay
+   * manager's state, which Lumen polls (views/syncplay/syncPlayState.ts), it is never behind.
+   */
+  syncPlayEnabled?: boolean;
 }
 
 export type RepeatMode = 'RepeatNone' | 'RepeatOne' | 'RepeatAll';
@@ -147,6 +153,10 @@ export interface PlayerState {
     Container?: string;
     Bitrate?: number;
     MediaStreams?: MediaStreamInfo[];
+    /** Whether the server has media segments for it (registry.ts MEDIA_SEGMENTS.hasSegments). */
+    HasSegments?: boolean;
+    /** How a converted stream is sent: `hls` (which seeks in place) or `http` (one file, which starts again to seek). */
+    TranscodingSubProtocol?: string;
   };
 }
 

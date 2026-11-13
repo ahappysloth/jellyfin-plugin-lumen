@@ -12,6 +12,7 @@ import * as syncPlayState from '../syncplay/syncPlayState';
 import { NO_SYNCPLAY } from '../syncplay/syncPlayState';
 import { openWatchTogether } from '../syncplay/WatchTogether';
 import { playerStrings } from './playerStrings';
+import { loadSegments } from './lazySegments';
 
 const watchTogether = {
   ...NO_SYNCPLAY,
@@ -237,14 +238,14 @@ describe('PlayerView', () => {
     });
     afterEach(() => document.removeEventListener('keydown', stock));
 
-    const open = async (layout: 'tv' | 'desktop' = 'desktop') => {
+    const open = async (layout: 'tv' | 'desktop' = 'desktop', client = createFakeClient()) => {
       const pm = fakeManager();
       let at = 600_000;
       pm.currentTime.mockImplementation(() => at);
       pm.seek.mockImplementation((ticks: number) => void (at = ticks / 10_000));
       Object.assign(pm.player, { currentTime: () => at }); // a stream with no offset
       vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
-      render(<PlayerView ctx={makeContext(createFakeClient(), { layout })} />);
+      render(<PlayerView ctx={makeContext(client, { layout })} />);
       await act(async () => {
         await vi.advanceTimersByTimeAsync(300);
       });
@@ -339,6 +340,45 @@ describe('PlayerView', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Back 10 seconds' }));
       // From 10:00 again, the second would go to 9:50, and the third to 9:40.
       expect(seconds(pm)).toEqual([610, 600, 590]);
+    });
+
+    it("go on from where a segment's Skip button went, which seeks the same way", async () => {
+      await loadSegments();
+      // Playing already, inside an intro from 9:50 to 11:40.
+      const video = document.body.appendChild(document.createElement('video'));
+      video.className = 'htmlvideoplayer';
+      Object.defineProperty(video, 'paused', { value: false });
+      Object.defineProperty(video, 'readyState', { value: 4 });
+      const intro = { Type: 'Intro', StartTicks: 590 * 10_000_000, EndTicks: 700 * 10_000_000 };
+      const { pm } = await open(
+        'desktop',
+        createFakeClient((request) => (request.url.includes('MediaSegments/e1') ? { Items: [intro] } : {})),
+      );
+      pm.seek.mockImplementation(() => undefined); // a converted stream: jellyfin-web's position stays at 10:00
+
+      fireEvent.click(screen.getByRole('button', { name: 'Skip Intro' }));
+      expect(seconds(pm)).toEqual([700]);
+      expect(pm.seek).toHaveBeenCalledWith(700 * 10_000_000, pm.player);
+      expect(screen.queryByRole('button', { name: 'Skip Intro' })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Forward 10 seconds' }));
+      expect(seconds(pm)).toEqual([700, 710]);
+    });
+
+    it("go from the video in the next episode, not from where the last episode's skip went", async () => {
+      const { pm, setAt } = await open();
+      pm.seek.mockImplementation(() => undefined); // a skip near the end of the episode, still on its way as it ends
+      const forward = screen.getByRole('button', { name: 'Forward 10 seconds' });
+      fireEvent.click(forward);
+      expect(seconds(pm)).toEqual([610]);
+
+      const state = pm.getPlayerState();
+      pm.getPlayerState = () => ({ ...state, NowPlayingItem: { ...state.NowPlayingItem, Id: 'e2' } });
+      setAt(5_000);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      fireEvent.click(forward);
+      expect(seconds(pm)).toEqual([610, 15]);
     });
 
     it('add up three quick presses while the first is still on its way', async () => {

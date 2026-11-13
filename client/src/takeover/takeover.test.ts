@@ -177,10 +177,17 @@ describe('Takeover', () => {
       expect(options.report).toHaveBeenCalledWith({ ok: false, failed: ['selector.appBar'] });
 
       const ok = create({ probeMs: 100, config: { ...config, StyleVideoPlayer: true } });
-      document.body.innerHTML = '<div class="videoOsdBottom"></div>';
+      document.body.innerHTML = '<div class="videoOsdBottom"></div><div class="upNextContainer"></div>';
       ok.takeover.handle({ kind: 'player' });
       await vi.advanceTimersByTimeAsync(150);
       expect(ok.options.report).not.toHaveBeenCalled();
+
+      // The box of jellyfin-web's up-next card, which Lumen's next-episode card needs to be able to hide.
+      const renamed = create({ probeMs: 100, config: { ...config, StyleVideoPlayer: true } });
+      document.body.innerHTML = '<div class="videoOsdBottom"></div>';
+      renamed.takeover.handle({ kind: 'player' });
+      await vi.advanceTimersByTimeAsync(150);
+      expect(renamed.options.report).toHaveBeenCalledWith({ ok: false, failed: ['selector.upNext'] });
     } finally {
       vi.useRealTimers();
       document.body.innerHTML = '';

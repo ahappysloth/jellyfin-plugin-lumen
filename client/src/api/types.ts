@@ -230,6 +230,8 @@ export interface UserInfo {
   ServerName?: string;
   PrimaryImageTag?: string;
   HasPassword?: boolean;
+  /** The user's own settings; "Play next episode automatically" is the player's next-episode card's countdown. */
+  Configuration?: { EnableNextEpisodeAutoPlay?: boolean };
   Policy?: {
     IsAdministrator?: boolean;
     SyncPlayAccess?: 'CreateAndJoinGroups' | 'JoinGroups' | 'None';

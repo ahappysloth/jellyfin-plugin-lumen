@@ -4,7 +4,7 @@
  * (e2e/specs/stock-probe.spec.ts checks each selector matches on its page; stock-routes.spec.ts checks no route
  * Lumen links to is jellyfin-web's 404 page). When jellyfin-web changes, fix it here.
  *
- * The CSS (styles/base.css, player.css, stock-skin.css, toasts.css, dashboard.css, nav.css, stock-components.css) can't
+ * The CSS (styles/base.css, player.css, segments.css, stock-skin.css, toasts.css, dashboard.css, nav.css, stock-components.css) can't
  * import this module, so it repeats the selectors it needs. Which page the probe finds each selector on, and which stylesheet
  * repeats it, is in registry.meta.ts: only the tests read that, so it stays out of the bundle.
  * Evidence for each entry: docs/reference/jellyfin-web-12.1-notes.md.
@@ -41,7 +41,12 @@ export const STOCK_SELECTORS = {
   videoOsd: { selector: '.videoOsdBottom' },
   /** jellyfin-web's volume card (components/playback/volumeosd.js); Lumen's controls show the volume instead. */
   volumeOsd: { selector: '.volumeOsd' },
-  /** Prompts that stay clickable above Lumen's player (only shown with intro segments / near the end). */
+  /**
+   * jellyfin-web's own skip prompt (created in <body> the first time a segment asks) and the box in its video page that
+   * its up-next card fills. Unseen while Lumen draws its own (views/player/SegmentPrompts.tsx, styles/segments.css:
+   * hidden, not removed, since both put themselves away on a `transitionend`); otherwise they stay clickable above
+   * Lumen's player (player.css).
+   */
   skipIntro: { selector: '.skip-button-container' },
   upNext: { selector: '.upNextContainer' },
   /** The sign-in form (stock-skin.css restyles it). */
@@ -386,6 +391,30 @@ export const LOCALE_SETTINGS = { language: 'language', dateTimeLocale: 'datetime
 export const GLOBALIZE_METHODS = {
   language: 'getCurrentLocale',
   dateTimeLocale: 'getCurrentDateTimeLocale',
+} as const;
+
+/**
+ * jellyfin-web's media segments (apps/legacy/features/playback in 12.4: the segment manager in features/mediaSegments,
+ * the settings in utils/mediaSegmentSettings.ts), which Lumen's player draws its own Skip button and next-episode card
+ * for (views/player/segments.ts):
+ * - What to do with each type of segment is a user setting kept only in localStorage (userSettings.set(…, false) from
+ *   the Playback settings page), under `${userId}-segmentTypeAction__${type}`: one of `actions`. Unset, Intro and Outro
+ *   ask and the rest do nothing (utils/mediaSegmentSettings.ts). A value Lumen doesn't know leaves the prompts to
+ *   jellyfin-web.
+ * - `nextVideoInfo`: "Show next video info during playback" (userSettings.enableNextVideoInfoOverlay, 'false' when
+ *   off), also read from localStorage. Next-episode autoplay is the server's (the user's
+ *   Configuration.EnableNextEpisodeAutoPlay).
+ * - `hasSegments`: the playing MediaSource's flag jellyfin-web's own segment manager goes by. With it, that manager
+ *   makes the "Skip" seeks itself (it can't be switched off), and Lumen only says so; without it, Lumen seeks.
+ * The segments themselves are the server's: GET /MediaSegments/{itemId}, times in ticks.
+ */
+export const MEDIA_SEGMENTS = {
+  settingPrefix: 'segmentTypeAction__',
+  actions: ['None', 'AskToSkip', 'Skip'],
+  askByDefault: ['Intro', 'Outro'],
+  types: ['Intro', 'Recap', 'Outro', 'Preview', 'Commercial'],
+  nextVideoInfo: 'enableNextVideoInfoOverlay',
+  hasSegments: 'HasSegments',
 } as const;
 
 /**

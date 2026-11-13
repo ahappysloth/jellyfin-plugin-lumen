@@ -1,6 +1,7 @@
 // Fails when what every page loads (lumen.js, the chunks it loads at startup, lumen.css), or one of the chunks loaded
-// when they're needed (the player, the trailer preview, the restart banner, the catalog title page, the profile pages,
-// the item menu, the secondary views, Top charts, Quick Connect), or one of the stylesheets linked where they're used, exceeds its gzipped budget,
+// when they're needed (the player, its Skip button and next-episode card, the trailer preview, the restart banner, the
+// catalog title page, the profile pages, the item menu, the secondary views, Top charts, Quick Connect), or one of
+// the stylesheets linked where they're used, exceeds its gzipped budget,
 // or Lumen's fonts exceed theirs.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
@@ -21,8 +22,9 @@ const coreChunk = oneChunk('main');
 // Loaded when they're needed: views/player/lazyPlayer.tsx, views/home/lazyTrailer.tsx, takeover/restartWatch.ts,
 // views/catalog/lazyTitle.tsx, views/profile/lazyProfile.tsx, views/itemMenu/lazyItemMenu.ts,
 // views/secondary/lazySecondary.tsx, views/charts/lazyCharts.tsx, views/quickconnect/lazyQuickConnect.tsx,
-// views/push/lazyPush.tsx.
+// views/push/lazyPush.tsx, views/player/lazySegments.tsx.
 const playerChunk = oneChunk('PlayerView');
+const segmentsChunk = oneChunk('SegmentPrompts');
 const trailerChunk = oneChunk('TrailerPreview');
 const restartChunk = oneChunk('RestartBanner');
 const titleChunk = oneChunk('TitleView');
@@ -39,6 +41,7 @@ const others = chunks.filter(
     ![
       coreChunk,
       playerChunk,
+      segmentsChunk,
       trailerChunk,
       restartChunk,
       titleChunk,
@@ -71,6 +74,14 @@ console.log(`lumen bundle: ${kb(total)} gzipped (budget ${BUDGET / 1024} KB): ${
 const PLAYER_BUDGET = 13.5 * 1024;
 const player = gz(`dist/${playerChunk}`);
 console.log(`lumen player: ${kb(player)} gzipped (budget ${PLAYER_BUDGET / 1024} KB)`);
+// The player's Skip Intro button, "Skipped intro" notice and next-episode card, with their stylesheet
+// (views/player/lazySegments.tsx): fetched as the player opens, apart from it, so the player's budget stays where it was.
+// 4 KB at first, with 16 bytes to spare. 4.2 KB since the re-check fixes, about 130 bytes (the owner approved up to
+// 4.5 KB): jellyfin-web's unseen buttons out of the D-pad's reach, the TV focus kept on Watch credits and Undo, the
+// queue read again as the card is due, the watched mark's time limit, the group flag read from the playback manager.
+const SEGMENTS_BUDGET = 4.2 * 1024;
+const segments = gz(`dist/${segmentsChunk}`) + gz('dist/lumen-segments.css');
+console.log(`lumen player segments + styles: ${kb(segments)} gzipped (budget ${SEGMENTS_BUDGET / 1024} KB)`);
 // Loads as a title with a trailer preview shows (views/home/lazyTrailer.tsx).
 const TRAILER_BUDGET = 8 * 1024;
 const trailer = gz(`dist/${trailerChunk}`);
@@ -160,6 +171,7 @@ console.log(`lumen fonts: ${kb(fonts)} (budget ${FONTS_BUDGET / 1024} KB): ${fon
 if (
   total > BUDGET ||
   player > PLAYER_BUDGET ||
+  segments > SEGMENTS_BUDGET ||
   trailer > TRAILER_BUDGET ||
   restart > RESTART_BUDGET ||
   title > TITLE_BUDGET ||
