@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/ahappysloth/jellyfin-plugin-lumen/main/assets/lumen-plugin.png",
     "versions": [
       {
+        "version": "0.6.0.0",
+        "changelog": "\n### Added\n- Online trailers start in about a second: a title without a local trailer previews its trailer from IMDb, a plain\n  720p video the browser plays straight from IMDb's video servers (nothing stored on or streamed through your\n  server), before YouTube's, which take several seconds. They play like a local trailer, in the home banner and behind\n  title pages, TVs included (YouTube's still don't on TVs).\n- Seerr's title pages (titles you can request) play the title's trailer behind their header, with Pause and Mute, as\n  library title pages do.\n- A Health check that IMDb trailer lookups work while online trailers are on.\n\n### Changed\n- \"Use YouTube trailers when there's no local one\" is now \"Use online trailers when there's no local one (IMDb, then\n  YouTube)\". A server that had it on keeps it on, IMDb's trailers included. The viewer's browser then also contacts\n  IMDb's video servers.",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/ahappysloth/jellyfin-plugin-lumen/releases/download/v0.6.0/lumen_0.6.0.0.zip",
+        "checksum": "dea54e7b10dad5f6f8941d0411169b60",
+        "timestamp": "2026-11-13T16:40:09Z"
+      },
+      {
         "version": "0.5.2.0",
         "changelog": "\n### Fixed\n- Swiping the home banner on an iPhone no longer flickers: the leaving slide went black and the arriving one lost its\n  shading and text for a moment. The slide now glides frame by frame, as it does under your finger.",
         "targetAbi": "12.1.0.0",
