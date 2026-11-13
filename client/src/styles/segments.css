@@ -1,0 +1,159 @@
+/*
+ * The player's Skip button, its "Skipped intro" notice and the next-episode card (views/player/SegmentPrompts.tsx): a
+ * file of their own, linked with their code as the player opens. While Lumen draws them (html.lmn-segments),
+ * jellyfin-web's own skip prompt and up-next card are hidden, so there are never two; without the class, or this file,
+ * they stay as player.css leaves them, above Lumen's player.
+ * No flex `gap` here: Chromium 68 (webOS 5) has none for flexbox.
+ */
+html.lmn-segments .skip-button-container,
+html.lmn-segments .upNextContainer {
+  display: none !important;
+}
+
+/* Bottom right, above the controls; down in their place once they've gone. */
+.lmn-seg {
+  position: absolute;
+  z-index: 1;
+  right: 40px;
+  right: max(16px, min(3vw, 40px), env(safe-area-inset-right));
+  bottom: 132px;
+  bottom: calc(132px + env(safe-area-inset-bottom));
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  /* Only what's in it takes a press: the picture beside it still does what it does. */
+  pointer-events: none;
+  transition: transform 0.35s var(--lmn-ease);
+}
+.lmn-osd.is-idle .lmn-seg {
+  transform: translateY(100px);
+}
+.lmn-seg > * {
+  flex: none;
+  pointer-events: auto;
+  animation: lmn-seg-in 0.3s var(--lmn-ease) both;
+}
+/* A Skip button with the card up (a preview before the end): one above the other. */
+.lmn-seg > * + * {
+  margin-top: 12px;
+}
+/* Lumen's buttons (styles/buttons.css; the TV layout's focus ring is theirs), spaced with margins. */
+.lmn-seg .lmn-button {
+  gap: 0;
+}
+.lmn-seg .lmn-icon {
+  margin: 0 -4px 0 8px;
+}
+
+/* The notice and the card: Lumen's dark glass, as the volume pill. */
+.lmn-seg__skipped,
+.lmn-next {
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 12px;
+  border: 1px solid var(--lmn-line);
+  border-radius: 12px;
+  background: rgba(20, 20, 20, 0.84);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  color: #fff;
+}
+/* "Skipped intro  Undo": in the button's place for a few seconds. The box stays for screen readers (role="status"). */
+.lmn-seg__skipped {
+  padding: 6px 6px 6px 16px;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.lmn-seg__skipped:not(.is-shown) {
+  position: absolute;
+  visibility: hidden;
+}
+.lmn-seg__skipped .lmn-button {
+  height: 32px;
+  margin-left: 12px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+/* Next episode: its picture, "Playing in 10", its name, Play now and Watch credits. */
+.lmn-next__image {
+  flex: none;
+  width: 160px;
+  height: 90px;
+  margin-right: 16px;
+  border-radius: 8px;
+  background: var(--lmn-surface-2);
+  object-fit: cover;
+}
+.lmn-next__text {
+  min-width: 0;
+}
+.lmn-next__eyebrow {
+  margin: 0 0 4px;
+  color: var(--lmn-text-2);
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.lmn-next__title {
+  overflow: hidden;
+  max-width: 320px;
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lmn-next__actions {
+  display: flex;
+}
+.lmn-next .lmn-button {
+  height: 40px;
+  padding: 0 18px;
+}
+.lmn-next .lmn-button + .lmn-button {
+  margin-left: 10px;
+}
+@keyframes lmn-seg-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Phones, and short windows: the controls are lower, the card smaller. */
+@media (max-width: 640px), (max-height: 500px) {
+  .lmn-seg {
+    bottom: 116px;
+    bottom: calc(116px + env(safe-area-inset-bottom));
+  }
+  .lmn-osd.is-idle .lmn-seg {
+    transform: translateY(92px);
+  }
+  .lmn-next__image {
+    width: 112px;
+    height: 63px;
+    margin-right: 12px;
+  }
+  .lmn-next__title {
+    max-width: 240px;
+    margin-bottom: 8px;
+    font-size: 15px;
+  }
+}
+/* A phone held upright: the picture above its name, as wide as the screen allows. */
+@media (max-width: 480px) {
+  .lmn-next__image {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lmn-seg,
+  .lmn-seg * {
+    transition: none;
+    animation: none;
+  }
+}

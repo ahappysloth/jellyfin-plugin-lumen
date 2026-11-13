@@ -1,7 +1,7 @@
 /*
  * Lumen's video player controls (views/player), drawn over jellyfin-web's player while html.lmn-skin-player is set.
- * jellyfin-web's own OSD is hidden; its video, subtitles, skip-intro button and up-next card stay visible above or
- * below as appropriate.
+ * jellyfin-web's own OSD is hidden; its video and subtitles stay visible below, and its skip-intro button and up-next
+ * card above, unless Lumen draws its own (segments.css).
  */
 html.lmn-skin-player .videoOsdBottom,
 html.lmn-skin-player .skinHeader,
@@ -18,7 +18,8 @@ html.lmn-skin-player #lmn-root {
   font-family: var(--lmn-font);
   -webkit-font-smoothing: antialiased;
 }
-/* jellyfin-web prompts that must stay clickable above Lumen's layer. */
+/* jellyfin-web's prompts stay clickable above Lumen's layer wherever Lumen doesn't draw its own (segments.css hides
+   them while it does). */
 html.lmn-skin-player .skip-button-container,
 html.lmn-skin-player .upNextContainer {
   position: relative;

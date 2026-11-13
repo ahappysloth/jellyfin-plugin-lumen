@@ -11,6 +11,7 @@ Lumen gives Jellyfin's web interface a cinematic redesign:
 - **Top charts and Trakt rows (optional, with a Trakt key):** a **Top charts** page, opened from a Top 10 row's title, ranks Trakt's 100 most watched movies or shows of the week, month, year or all time, each with its true Trakt rank. Home sections add **Box Office** (this weekend's US top 10), **Most Anticipated** and **Trending** movies and shows, and **Trakt list** (any public list, by its address). Titles on the server open and play; with Seerr, the rest can be requested in place. The key stays on the server; Lumen only reads Trakt's public charts and lists.
 - **Player:** Lumen's controls over Jellyfin's own video player (quality, audio and subtitle tracks, speed, next episode, picture in picture, AirPlay). Playback itself stays Jellyfin's.
 - **Quick Connect with a QR code:** "Use Quick Connect" on the sign-in page shows the code large with a QR code beside it (made for a TV across the room; on a TV it's the sign-in page's main button). Scan it with a phone, or open Lumen → Quick Connect on any signed-in device and type the code, then tap Approve: the TV signs in by itself. The approve page names the account the device will be signed in as (administrators can pick another), warns to approve only a code shown on a screen in front of you, and never approves a code from a link without a tap. If your TVs reach the server by a LAN address your phones can't use, set **Public address for QR codes** in Lumen's settings (General).
+- **Skip Intro and next episode:** a **Skip Intro / Recap / Credits / Preview / Ad** button while one plays, or the segment skipped for you with an Undo, as you set it in Jellyfin's Playback settings; and a **next-episode card** as the credits start, with a countdown, Play now and Watch credits. Needs segment data on the server: see [Skip Intro and credits](#skip-intro-and-credits).
 - **Sign-in and settings:** Jellyfin's sign-in page and its user settings pages wear Lumen's look (the forms stay Jellyfin's; Quick Connect there is Lumen's own, above), and "Add to Home Screen" installs with Lumen's icon.
 
 It is a single, self-contained server plugin, with no other plugins required. Whenever anything goes wrong, Jellyfin's stock UI takes over automatically.
@@ -94,6 +95,16 @@ Links Lumen shares carry a couple of extra URL parameters that Jellyfin's own pa
 Lumen starts playback in Jellyfin's own player, so codecs and transcoding behave exactly as they do without it. For smooth playback:
 - enable hardware transcoding (Dashboard → Playback → Transcoding)
 - prefer clients that direct-play your files
+
+## Skip Intro and credits
+
+Lumen's player draws its own **Skip** button and **next-episode card** from Jellyfin's *media segments*: the parts of a file the server knows as an intro, a recap, credits (outro), a preview or a commercial.
+
+- **Most files carry no segment data on their own**, and Jellyfin doesn't find intros by itself. Install a segment provider plugin: **[Intro Skipper](https://github.com/intro-skipper/intro-skipper)** finds intros and credits by comparing a season's episodes (its README has the install steps; a large library takes a while to analyse). Any other provider works too: Lumen shows whatever segments the server has for a title.
+- **Chapter names help.** A file whose chapters are named "Intro" or "Opening" (and "Credits" or "Ending") tells a provider that reads chapter names where those parts are, with no analysis needed.
+- **What each segment does is your setting**, per user and per device, in Jellyfin's own **Settings → Playback → Media Segment Actions**: *Ask To Skip* shows the button, *Skip* skips it for you (Lumen says "Skipped intro" with an **Undo**), and *None* does nothing. Out of the box, intros and credits ask and the rest do nothing.
+- **The next-episode card** comes up as the credits start (or for the last 30 seconds when the server has no credits for the episode). With *Play next episode automatically* on (Settings → Playback) it counts down from 10 and starts the next episode in the credits' place; **Watch credits** puts it away. With that setting off it has no countdown, only the buttons. *Show next video info during playback* off hides it.
+- With no segments for a title there is no button, and if Lumen can't read the segments or your settings, Jellyfin's own skip prompt and up-next card show as before.
 
 ## Troubleshooting
 

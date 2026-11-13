@@ -23,12 +23,13 @@ import {
   useCastAvailable,
   usePlaybackProgress,
 } from './PlayerExtras';
-import { readPlayerState, readVolume, snapshotKey, type PlayerSnapshot } from './playerState';
+import { readPlayerState, readPosition, readVolume, snapshotKey, type PlayerSnapshot } from './playerState';
 import { PLAYER_ICONS } from './playerIcons';
 import { playerStrings } from './playerStrings';
 import { lockLandscape, unlockOrientation } from './orientation';
 import { isTouchLike, type LastTap, surfaceTap } from './touch';
 import { SKIP_KEYS, skipTarget } from './skip';
+import { LazySegments } from './lazySegments';
 import { throttle, volumeIcon } from './volume';
 
 /**
@@ -50,9 +51,10 @@ const REPEAT_MS = 250;
 type Panel = 'quality' | 'tracks' | 'settings' | null;
 
 /**
- * Lumen's controls over jellyfin-web's video player. Playback, subtitles rendering, keyboard shortcuts and the
- * skip-intro / up-next prompts stay jellyfin-web's; this draws the overlay and drives jellyfin-web's playback manager.
- * Without a playback manager or a local player it hands the page back (stock controls).
+ * Lumen's controls over jellyfin-web's video player. Playback, subtitles rendering and keyboard shortcuts stay
+ * jellyfin-web's; this draws the overlay and drives jellyfin-web's playback manager. The Skip Intro button and the
+ * next-episode card are Lumen's too, from a file of their own (lazySegments.tsx): jellyfin-web's prompts show only
+ * where that can't draw them. Without a playback manager or a local player it hands the page back (stock controls).
  */
 export function PlayerView({ ctx }: { ctx: ViewContext }) {
   const pm = useRef<PlaybackManager | null>(getPlaybackManager());
@@ -89,6 +91,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
       return;
     }
     let last: { player: Player; key: string } | null = null;
+    let itemId: string | undefined;
     const read = (): void => {
       if (document.hidden) return;
       const manager = pm.current;
@@ -100,9 +103,14 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
       }
       missing.current = 0;
       const next = readPlayerState(manager, player);
-      // The skip arrived: the next one goes on from the video, as it plays on (the seek bar lets go the same way).
-      if (lastSkip.current && Math.abs(next.positionMs - lastSkip.current.ms) < ARRIVED_MS)
+      // The skip arrived: the next one goes on from the video, as it plays on (the seek bar lets go the same way). Or
+      // the next episode began: where the last one's skip went says nothing about this one.
+      if (
+        lastSkip.current &&
+        (Math.abs(next.positionMs - lastSkip.current.ms) < ARRIVED_MS || itemId !== next.item?.Id)
+      )
         lastSkip.current = null;
+      itemId = next.item?.Id;
       // And "Ends at", which moves on with the clock while paused.
       const withPosition = positionShown.current || next.paused || Date.now() < seekingUntil.current;
       const key = `${snapshotKey(next, withPosition)}|${endsAt(next)}`;
@@ -472,18 +480,25 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
       // a player that doesn't support it: nothing to do
     }
   };
-  skipRef.current = (direction) => {
-    const live = readPlayerState(manager, player);
-    if (!live.canSeek) return 0;
+  /** Where the video is: where a seek still on its way went, else jellyfin-web's position (stale until it lands). */
+  const positionNow = (liveMs = readPosition(manager, player)): number => {
     const recent = lastSkip.current;
-    const from =
-      recent && Date.now() - recent.at < PENDING_MAX_MS && Math.abs(live.positionMs - recent.ms) > ARRIVED_MS
-        ? recent.ms
-        : live.positionMs;
-    const to = skipTarget(from, live.durationMs, direction);
+    return recent && Date.now() - recent.at < PENDING_MAX_MS && Math.abs(liveMs - recent.ms) > ARRIVED_MS
+      ? recent.ms
+      : liveMs;
+  };
+  /** A skip's seek (the 10 s ones, and a segment's): the next skip goes on from where this one lands. */
+  const seekTo = (to: number): void => {
     lastSkip.current = { ms: to, at: Date.now() };
     seekingUntil.current = Date.now() + PENDING_MAX_MS;
     act(() => manager.seek(Math.round(to * 10_000), player))();
+  };
+  skipRef.current = (direction) => {
+    const live = readPlayerState(manager, player);
+    if (!live.canSeek) return 0;
+    const from = positionNow(live.positionMs);
+    const to = skipTarget(from, live.durationMs, direction);
+    seekTo(to);
     return Math.round((to - from) / 1000);
   };
 
@@ -791,6 +806,16 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
           </div>
         </div>
       </footer>
+      <LazySegments
+        ctx={ctx}
+        manager={manager}
+        snap={snap}
+        started={progress.started}
+        position={() => positionNow()}
+        seek={seekTo}
+        busy={panel !== null || info}
+        icon={PLAYER_ICONS.skipNext}
+      />
     </div>
   );
 }

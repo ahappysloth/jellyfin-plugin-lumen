@@ -4,6 +4,7 @@ import {
   DASHBOARD_THEME_VARIABLE,
   ITEM_MENU_MARKERS,
   ITEM_MENU_METHODS,
+  MEDIA_SEGMENTS,
   QUICK_CONNECT,
   STOCK_SELECTORS,
   WEBPACK_CHUNK_GLOBAL,
@@ -83,6 +84,25 @@ test('stock selectors in the video player', async ({ page, browserName, isMobile
   // Lumen found jellyfin-web's PlaybackManager (its controls replace the stock ones).
   await expect(page.locator('#lmn-root .lmn-osd')).toBeVisible();
   await expectSelectorsOn(page, 'player');
+});
+
+test("jellyfin-web keeps its media segment settings where Lumen's player reads them", async ({ page }) => {
+  // The Playback settings page's "Media segment actions": a select per segment type, named for its setting, offering
+  // the three actions. Its value comes from localStorage (under the user's id) or jellyfin-web's default for the type.
+  const { admin } = loadState();
+  const stored = `${admin.userId}-${MEDIA_SEGMENTS.settingPrefix}Recap`;
+  await page.addInitScript((key) => localStorage.setItem(key, 'Skip'), stored);
+  await login(page, ADMIN);
+  await openFresh(page, `#/mypreferencesplayback?userId=${admin.userId}`);
+
+  for (const type of MEDIA_SEGMENTS.types) {
+    const select = page.locator(`select[id="${MEDIA_SEGMENTS.settingPrefix}${type}"]`);
+    await expect(select, `the ${type} setting`).toHaveCount(1);
+    const offered = await select.locator('option').evaluateAll((options) => options.map((o) => (o as HTMLOptionElement).value));
+    expect(offered.sort(), `the ${type} setting's actions`).toEqual([...MEDIA_SEGMENTS.actions].sort());
+    const unset = (MEDIA_SEGMENTS.askByDefault as readonly string[]).includes(type) ? 'AskToSkip' : 'None';
+    await expect(select, `the ${type} setting's value`).toHaveValue(type === 'Recap' ? 'Skip' : unset);
+  }
 });
 
 test("jellyfin-web loads Lumen's web plugin, and Lumen's player takes jellyfin-web's playback manager from it", { tag: '@smoke' }, async ({

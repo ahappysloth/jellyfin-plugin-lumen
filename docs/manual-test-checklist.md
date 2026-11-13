@@ -160,6 +160,34 @@ The automated tests can't reach a real push service or iOS, so this is the only 
 - [ ] In Edge on Windows, and in Firefox, the switch turns on (their push services, `*.notify.windows.com` and
       `updates.push.services.mozilla.com`, are among the hosts Lumen takes) and a test arrives.
 
+## Skip Intro and the next-episode card (a server with a segment provider, e.g. Intro Skipper)
+
+Automated tests answer the segments API themselves; only a real server shows a provider's segments, a converted
+stream, and real episode lengths.
+
+- [ ] An episode with an intro: **Skip Intro** comes up bottom right as the intro starts, stays when the controls hide
+      (lower, in their place), goes about 3 s before the intro ends, and a click lands on the intro's end. The 10 s
+      skip buttons go on from there. jellyfin-web's own skip button never shows beside it.
+- [ ] Settings → Playback → Media Segment Actions: with Intro on *Skip*, the intro is skipped once as playback reaches
+      it, with "Skipped intro" and **Undo**; Undo goes back into the intro, which then plays, with the Skip button.
+      Seeking back into a skipped intro doesn't skip it again. With *None* there is no button. Recap, Preview and
+      Commercial say "Skip Recap", "Skip Preview" and "Skip Ad" when set to ask.
+- [ ] The same with a stream that's being converted (pick a low Quality): one restart at the intro's end, not two.
+- [ ] An episode with credits and a next episode: the card comes up as the credits start, with the next episode's
+      picture, "S2 · E4 · Title" and "Playing in 10"; the next episode starts when the countdown is out, or at once on
+      **Play now**. Pausing holds the countdown. **Watch credits** puts the card away for the episode.
+- [ ] No credits segment: the card comes up for the last 30 s, counting down to the end. The last episode of a show has
+      no card (and its credits get **Skip Credits**); a movie has no card.
+- [ ] *Play next episode automatically* off: the card has no countdown, and Play now still plays the next episode.
+      *Show next video info during playback* off: no card.
+- [ ] iPhone, landscape and portrait: one tap on Skip Intro skips (with the controls hidden too); the card fits the
+      screen and clears the home indicator.
+- [ ] TV layout: Skip Intro has the remote's focus as it appears (not while a Quality or Audio & Subtitles menu is
+      open) and OK skips; when it goes, the arrows still move. On the card, focus is on Play now; Left/Right move
+      between it and Watch credits (after the first press, which brings the controls back).
+- [ ] A title without segments has no button. With the segment provider's plugin removed, nothing changes for titles
+      that never had segments.
+
 ## Home-screen app (iPhone Safari, Android Chrome)
 
 Automated tests check the page's tags, the manifest and the icons, and the layout with a simulated status bar; only a

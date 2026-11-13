@@ -47,6 +47,7 @@ const REQUIRED = [
   'lumen-quickconnect.css',
   'lumen-push.css',
   'lumen-push-sw.js',
+  'lumen-segments.css',
 ];
 for (const file of REQUIRED) {
   if (!existsSync(`dist/${file}`)) failures.push(`dist/${file} is missing: run \`npm run build\` first`);
@@ -55,6 +56,7 @@ for (const file of REQUIRED) {
 for (const chunk of [
   'main',
   'PlayerView',
+  'SegmentPrompts',
   'TrailerPreview',
   'SecondaryViews',
   'ChartsView',

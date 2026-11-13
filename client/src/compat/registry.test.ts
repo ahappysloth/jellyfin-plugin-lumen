@@ -3,6 +3,7 @@ import baseCss from '../styles/base.css?raw';
 import dashboardCss from '../styles/dashboard.css?raw';
 import navCss from '../styles/nav.css?raw';
 import playerCss from '../styles/player.css?raw';
+import segmentsCss from '../styles/segments.css?raw';
 import stockComponentsCss from '../styles/stock-components.css?raw';
 import stockSkinCss from '../styles/stock-skin.css?raw';
 import toastsCss from '../styles/toasts.css?raw';
@@ -12,6 +13,7 @@ import { STOCK_SELECTOR_META } from './registry.meta';
 const stylesheets: Record<string, string> = {
   'base.css': baseCss,
   'player.css': playerCss,
+  'segments.css': segmentsCss,
   'stock-skin.css': stockSkinCss,
   'toasts.css': toastsCss,
   'dashboard.css': dashboardCss,

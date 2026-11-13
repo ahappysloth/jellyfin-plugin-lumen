@@ -8,6 +8,8 @@ import { target } from './vite.target.ts';
  * - lumen-quickconnect.css: Quick Connect's approve page and sign-in screen (styles/quickconnect.css), linked with its
  *   file (views/quickconnect/lazyQuickConnect.tsx).
  * - lumen-push.css: the notifications toggle (styles/push.css), linked with its file (views/push/lazyPush.tsx).
+ * - lumen-segments.css: the player's Skip button and next-episode card (styles/segments.css), linked with their file
+ *   (views/player/lazySegments.tsx).
  * - lumen-stock.css: jellyfin-web's sign-in, settings and admin pages' controls, and its dialogs and menus on every
  *   page (styles/stock.css), while "Restyle Jellyfin's sign-in, settings and Dashboard pages" is on.
  * - lumen-dashboard.css: the admin pages' own look (styles/dashboard.css), on those pages only.
@@ -26,6 +28,7 @@ export default defineConfig({
         'lumen-charts': 'src/styles/charts.css',
         'lumen-quickconnect': 'src/styles/quickconnect.css',
         'lumen-push': 'src/styles/push.css',
+        'lumen-segments': 'src/styles/segments.css',
       },
       output: { assetFileNames: '[name][extname]' },
     },

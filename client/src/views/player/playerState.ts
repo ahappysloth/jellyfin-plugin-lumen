@@ -48,9 +48,13 @@ function attempt<T>(fn: () => T, fallback: T): T {
   }
 }
 
+/** jellyfin-web's playing position alone, in ms: for what looks at it often and needs nothing else. */
+export const readPosition = (pm: PlaybackManager, player: Player): number =>
+  attempt(() => pm.currentTime(player), 0);
+
 export function readPlayerState(pm: PlaybackManager, player: Player): PlayerSnapshot {
   const state = attempt(() => pm.getPlayerState(player), {} as PlayerState);
-  const positionMs = attempt(() => pm.currentTime(player), 0);
+  const positionMs = readPosition(pm, player);
   const durationMs = attempt(() => pm.duration(player), 0) / TICKS_PER_MS;
   const ranges = state.PlayState?.BufferedRanges ?? [];
   const positionTicks = positionMs * TICKS_PER_MS;
