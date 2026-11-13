@@ -43,8 +43,9 @@ export const STOCK_SELECTORS = {
   volumeOsd: { selector: '.volumeOsd' },
   /**
    * jellyfin-web's own skip prompt (created in <body> the first time a segment asks) and the box in its video page that
-   * its up-next card fills. Hidden while Lumen draws its own (views/player/SegmentPrompts.tsx, styles/segments.css); otherwise
-   * they stay clickable above Lumen's player (player.css).
+   * its up-next card fills. Unseen while Lumen draws its own (views/player/SegmentPrompts.tsx, styles/segments.css:
+   * hidden, not removed, since both put themselves away on a `transitionend`); otherwise they stay clickable above
+   * Lumen's player (player.css).
    */
   skipIntro: { selector: '.skip-button-container' },
   upNext: { selector: '.upNextContainer' },
@@ -393,11 +394,13 @@ export const GLOBALIZE_METHODS = {
 } as const;
 
 /**
- * jellyfin-web's media segments (apps/stable/features/playback/features/mediaSegments in 12.4), which Lumen's player
- * draws its own Skip button and next-episode card for (views/player/segments.ts):
+ * jellyfin-web's media segments (apps/legacy/features/playback in 12.4: the segment manager in features/mediaSegments,
+ * the settings in utils/mediaSegmentSettings.ts), which Lumen's player draws its own Skip button and next-episode card
+ * for (views/player/segments.ts):
  * - What to do with each type of segment is a user setting kept only in localStorage (userSettings.set(…, false) from
  *   the Playback settings page), under `${userId}-segmentTypeAction__${type}`: one of `actions`. Unset, Intro and Outro
- *   ask and the rest do nothing (mediaSegmentSettings.ts). A value Lumen doesn't know leaves the prompts to jellyfin-web.
+ *   ask and the rest do nothing (utils/mediaSegmentSettings.ts). A value Lumen doesn't know leaves the prompts to
+ *   jellyfin-web.
  * - `nextVideoInfo`: "Show next video info during playback" (userSettings.enableNextVideoInfoOverlay, 'false' when
  *   off), also read from localStorage. Next-episode autoplay is the server's (the user's
  *   Configuration.EnableNextEpisodeAutoPlay).

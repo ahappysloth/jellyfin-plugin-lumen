@@ -814,6 +814,8 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
         position={() => positionNow()}
         seek={seekTo}
         busy={panel !== null || info}
+        idle={!shown}
+        group={!!syncPlay.group}
         icon={PLAYER_ICONS.skipNext}
       />
     </div>

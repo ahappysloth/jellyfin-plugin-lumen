@@ -5,12 +5,22 @@
  * they stay as player.css leaves them, above Lumen's player.
  * No flex `gap` here: Chromium 68 (webOS 5) has none for flexbox.
  */
+/* Unseen, out of the pointer's way and of the remote's focus, but still drawn: both put themselves away at the end of
+   a transition, and a box that isn't drawn (`display: none`) never has one. jellyfin-web's video page would go on
+   taking its card for open, and both would be left in the way, unseen, where a later episode falls back to them. */
 html.lmn-segments .skip-button-container,
 html.lmn-segments .upNextContainer {
-  display: none !important;
+  visibility: hidden !important;
+}
+/* The card takes the first `transitionend` from anywhere inside it for the end of its own fade, and hides what that
+   came from. Its buttons transition everything, `visibility` too (which changes for them with the rule above): one of
+   them was hidden in the card's place, and the card stayed. So nothing inside it transitions. */
+html.lmn-skin-player .upNextContainer * {
+  transition: none !important;
 }
 
-/* Bottom right, above the controls; down in their place once they've gone. */
+/* Bottom right, above the controls, and there with the controls hidden too: a press brings them back, and what is
+   pressed mustn't move from under the finger before it lifts. */
 .lmn-seg {
   position: absolute;
   z-index: 1;
@@ -24,10 +34,6 @@ html.lmn-segments .upNextContainer {
   align-items: flex-end;
   /* Only what's in it takes a press: the picture beside it still does what it does. */
   pointer-events: none;
-  transition: transform 0.35s var(--lmn-ease);
-}
-.lmn-osd.is-idle .lmn-seg {
-  transform: translateY(100px);
 }
 .lmn-seg > * {
   flex: none;
@@ -130,9 +136,6 @@ html.lmn-segments .upNextContainer {
     bottom: 116px;
     bottom: calc(116px + env(safe-area-inset-bottom));
   }
-  .lmn-osd.is-idle .lmn-seg {
-    transform: translateY(92px);
-  }
   .lmn-next__image {
     width: 112px;
     height: 63px;
@@ -151,7 +154,6 @@ html.lmn-segments .upNextContainer {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .lmn-seg,
   .lmn-seg * {
     transition: none;
     animation: none;

@@ -83,6 +83,12 @@ const NEAR_MS = 1500;
  * position, not the clock: while a converted stream restarts at the segment's end, the position stands still.
  */
 export const BACKSTOP_MS = 1500;
+/**
+ * The same for a stream that seeks by starting again (a transcode that isn't HLS). jellyfin-web asks the server for the
+ * new stream first, and until that answers the old one plays on with nothing to show a seek is on its way (its
+ * "changing stream" flag is private, and set only after the answer). A second seek then would restart the stream twice.
+ */
+export const RESTART_BACKSTOP_MS = 8000;
 /** How long Lumen waits to see jellyfin-web's skip land (a stream restart can take a while). */
 const WAIT_MAX_MS = 15_000;
 
@@ -108,10 +114,10 @@ export interface SkipStep {
  * One look at the position (every poll) for the segments set to "Skip" that haven't been skipped yet (`skips`).
  *
  * jellyfin-web's own segment manager keeps running under Lumen's player and can't be switched off: where the media
- * source says it has segments (`stockSkips`), it seeks to the segment's end as the first `timeupdate` inside it
+ * source says it has segments, it seeks to the segment's end as the first `timeupdate` inside it
  * arrives, before Lumen's poll sees the position. So Lumen doesn't seek as well (two seeks restart a converted stream
  * twice): it watches for that skip to land and says "Skipped intro". It seeks itself where jellyfin-web won't (no
- * flag), or hasn't by the time playback is BACKSTOP_MS into the segment.
+ * flag: `backstopMs` 0), or hasn't by the time playback is `backstopMs` into the segment.
  *
  * As in jellyfin-web, a segment the user seeks back into isn't skipped again (it only asks), and one that playback
  * starts inside is.
@@ -121,7 +127,7 @@ export function autoSkip(
   posMs: number,
   now: number,
   skips: Segment[],
-  stockSkips: boolean,
+  backstopMs: number,
 ): SkipStep {
   const { prevMs } = state;
   const waiting = state.waiting && now - state.waiting.since < WAIT_MAX_MS ? state.waiting : null;
@@ -138,11 +144,11 @@ export function autoSkip(
   if (!segment) return { state: { prevMs: posMs, waiting } };
   let fromMs = posMs;
   if (waiting?.segment === segment) {
-    if (posMs - waiting.fromMs < BACKSTOP_MS) return { state: { prevMs: posMs, waiting } };
+    if (posMs - waiting.fromMs < backstopMs) return { state: { prevMs: posMs, waiting } };
     fromMs = waiting.fromMs;
   } else {
     if (prevMs > segment.startMs) return { state: settled, asks: segment };
-    if (stockSkips) return { state: { prevMs: posMs, waiting: { segment, fromMs: posMs, since: now } } };
+    if (backstopMs) return { state: { prevMs: posMs, waiting: { segment, fromMs: posMs, since: now } } };
   }
   return { state: settled, seekMs: segment.endMs, skipped: { segment, fromMs } };
 }

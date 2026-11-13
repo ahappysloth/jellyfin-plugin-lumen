@@ -132,8 +132,6 @@ export interface PlayerState {
     Name?: string;
     Type?: string;
     SeriesName?: string;
-    /** An episode's series: where the next-episode card looks for the episode after it. */
-    SeriesId?: string;
     ParentIndexNumber?: number;
     IndexNumber?: number;
     RunTimeTicks?: number;
@@ -151,6 +149,8 @@ export interface PlayerState {
     MediaStreams?: MediaStreamInfo[];
     /** Whether the server has media segments for it (registry.ts MEDIA_SEGMENTS.hasSegments). */
     HasSegments?: boolean;
+    /** How a converted stream is sent: `hls` (which seeks in place) or `http` (one file, which starts again to seek). */
+    TranscodingSubProtocol?: string;
   };
 }
 

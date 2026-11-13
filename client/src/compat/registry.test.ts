@@ -26,9 +26,13 @@ describe('registry', () => {
   it.each(Object.entries(STOCK_SELECTOR_META).filter(([, m]) => 'css' in m))(
     '%s is used where the registry says',
     (name, meta) => {
-      const css = 'css' in meta ? stylesheets[meta.css] : undefined;
-      expect(css).toBeDefined();
-      expect(css).toContain(STOCK_SELECTORS[name as keyof typeof STOCK_SELECTORS].selector);
+      const named = 'css' in meta ? [meta.css].flat() : [];
+      expect(named.length).toBeGreaterThan(0);
+      for (const file of named) {
+        const css = stylesheets[file];
+        expect(css, file).toBeDefined();
+        expect(css, file).toContain(STOCK_SELECTORS[name as keyof typeof STOCK_SELECTORS].selector);
+      }
     },
   );
 

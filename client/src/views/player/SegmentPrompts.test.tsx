@@ -5,6 +5,7 @@ import { makeContext } from '../../../test/viewContext';
 import type { PlaybackManager } from '../../compat/playbackManager';
 import type { IconPath } from '../../components/icons';
 import type { ViewContext } from '../context';
+import { clearUserData } from '../userDataStore';
 import type { PlayerSnapshot } from './playerState';
 import { SegmentPrompts, SEGMENTS_CLASS, SKIPPED_MS } from './SegmentPrompts';
 
@@ -24,14 +25,19 @@ interface Options {
   /** jellyfin-web's "Media segment actions", as it stores them. */
   settings?: Record<string, string>;
   autoplay?: boolean;
-  /** The play queue after this episode (jellyfin-web queues the following ones with autoplay on). */
+  /** The play queue after this episode (jellyfin-web queues the following ones, with autoplay or without). */
   queue?: object[];
-  /** What the server lists from this episode on. */
-  following?: object[];
   item?: Partial<NonNullable<PlayerSnapshot['item']>> & { Type: string };
   hasSegments?: boolean;
+  /** A stream the server converts: one file (`http`), which seeks by starting again, or HLS, which seeks in place. */
+  transcode?: 'http' | 'hls';
+  repeatMode?: PlayerSnapshot['repeatMode'];
   layout?: ViewContext['layout'];
   busy?: boolean;
+  /** The controls are hidden (as they are, playing, a few seconds after the last input). */
+  idle?: boolean;
+  /** In a Watch together group. */
+  group?: boolean;
   /** Return as soon as it's rendered, before the segments and the rest have loaded. */
   loading?: boolean;
 }
@@ -48,35 +54,45 @@ async function setUp(options: Options = {}) {
         options.segments instanceof Error
           ? Promise.reject(options.segments)
           : (options.segments ?? { Items: [INTRO] }),
+      // The next episode's own: none.
+      'MediaSegments/src3': { Items: [] },
       'Users/user1': { Id: 'user1', Configuration: { EnableNextEpisodeAutoPlay: options.autoplay ?? true } },
-      'Shows/s1/Episodes': { Items: [item, ...(options.following ?? [])] },
+      'UserPlayedItems/e2': {},
     }),
   );
   let positionMs = 0;
   let paused = false;
+  /** What plays: this episode, or (after `nextBegins`) the next in the queue. */
+  let playing = { item, index: 0, source: 'src1' };
+  let state = { busy: options.busy ?? false, idle: options.idle ?? false };
+  const queue = [item, ...(options.queue ?? [])];
   const manager = {
-    getPlaylist: () => Promise.resolve([item, ...(options.queue ?? [])]),
+    getPlaylist: () => Promise.resolve(queue),
     nextTrack: vi.fn(),
-    play: vi.fn(() => Promise.resolve()),
   };
   const seek = vi.fn((ms: number) => void (positionMs = ms));
   const snap = (): PlayerSnapshot =>
     ({
       player: {},
-      item,
-      mediaSourceId: 'src1',
+      item: playing.item,
+      mediaSourceId: playing.source,
       durationMs: HOUR,
       canSeek: true,
       paused,
-      playlistIndex: 0,
-      mediaSource: { HasSegments: options.hasSegments },
+      playlistIndex: playing.index,
+      repeatMode: options.repeatMode ?? 'RepeatNone',
+      playMethod: options.transcode ? 'Transcode' : 'DirectPlay',
+      mediaSource: { HasSegments: options.hasSegments, TranscodingSubProtocol: options.transcode },
     }) as unknown as PlayerSnapshot;
   const ctx = makeContext({ ...client, serverId: () => 'server1' }, { layout: options.layout ?? 'desktop' });
-  const element = (busy = options.busy ?? false) => (
+  const element = () => (
     <div class="lmn-osd">
-      <div class="lmn-player__controls">
-        <button type="button">Pause</button>
-      </div>
+      <footer class="lmn-player__bottom">
+        <input type="range" aria-label="Seek" />
+        <div class="lmn-player__controls">
+          <button type="button">Pause</button>
+        </div>
+      </footer>
       <SegmentPrompts
         ctx={ctx}
         manager={manager as unknown as PlaybackManager}
@@ -84,7 +100,9 @@ async function setUp(options: Options = {}) {
         started
         position={() => positionMs}
         seek={seek}
-        busy={busy}
+        busy={state.busy}
+        idle={state.idle}
+        group={options.group ?? false}
         icon={'M0 0' as IconPath}
       />
     </div>
@@ -119,7 +137,20 @@ async function setUp(options: Options = {}) {
       paused = on;
       view.rerender(element());
     },
-    setBusy: (busy: boolean) => view.rerender(element(busy)),
+    /** A menu or Playback info opens or closes, or the controls come up or go. */
+    set: (change: Partial<typeof state>) => {
+      state = { ...state, ...change };
+      view.rerender(element());
+    },
+    /** The next episode in the queue begins. */
+    nextBegins: async () => {
+      playing = { item: queue[1] as typeof item, index: 1, source: 'src3' };
+      positionMs = 0;
+      view.rerender(element());
+      await wait();
+    },
+    /** What Lumen asked the server to change. */
+    posts: () => client.requests.filter((r) => r.type === 'POST').map((r) => new URL(r.url).pathname),
     unmount: view.unmount,
   };
 }
@@ -135,7 +166,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   localStorage.clear();
-  document.querySelectorAll('.upNextContainer').forEach((el) => el.remove());
+  clearUserData();
+  document.querySelectorAll('.upNextContainer, .lmn-menu').forEach((el) => el.remove());
 });
 
 describe('the Skip button', () => {
@@ -240,12 +272,15 @@ describe('the Skip button', () => {
   });
 
   describe('in the TV layout', () => {
-    it('takes the remote’s focus as it comes up, and gives it back as it goes', async () => {
-      const player = await setUp({ layout: 'tv' });
+    it('takes the remote’s focus as it comes up with the controls hidden, and gives it back as it goes', async () => {
+      const player = await setUp({ layout: 'tv', idle: true });
       const pause = screen.getByRole('button', { name: 'Pause' });
       pause.focus();
 
       await player.at(70_000);
+      expect(skipButton()).toHaveFocus();
+      // The press that brings the controls back leaves it there.
+      player.set({ idle: false });
       expect(skipButton()).toHaveFocus();
 
       await player.at(148_000);
@@ -253,8 +288,30 @@ describe('the Skip button', () => {
       expect(pause).toHaveFocus();
     });
 
-    it('leaves the focus with an open menu, and takes it once the menu has closed', async () => {
-      const player = await setUp({ layout: 'tv', busy: true });
+    it('takes it with the controls up when nothing in the player has focus', async () => {
+      const player = await setUp({ layout: 'tv' });
+      await player.at(70_000);
+      expect(skipButton()).toHaveFocus();
+    });
+
+    it('leaves the focus on the seek bar or another control in use, and takes it once the controls have gone', async () => {
+      const player = await setUp({ layout: 'tv' });
+      const seekBar = screen.getByRole('slider', { name: 'Seek' });
+      seekBar.focus();
+
+      await player.at(70_000);
+      expect(skipButton()).toBeInTheDocument();
+      expect(seekBar).toHaveFocus();
+
+      player.set({ idle: true });
+      expect(skipButton()).toHaveFocus();
+      // And back to the seek bar as the button goes.
+      await player.at(148_000);
+      expect(seekBar).toHaveFocus();
+    });
+
+    it('leaves the focus with an open panel or Playback info, with the controls hidden too', async () => {
+      const player = await setUp({ layout: 'tv', busy: true, idle: true });
       const pause = screen.getByRole('button', { name: 'Pause' });
       pause.focus();
 
@@ -262,8 +319,33 @@ describe('the Skip button', () => {
       expect(skipButton()).toBeInTheDocument();
       expect(pause).toHaveFocus();
 
-      player.setBusy(false);
+      player.set({ busy: false });
       expect(skipButton()).toHaveFocus();
+    });
+
+    it.each([
+      [
+        'Lumen’s (Watch together, the cast picker)',
+        '<div class="lmn-menu" role="menu"><button>Chromecast</button></div>',
+      ],
+      ['a Lumen dialog', '<div class="lmn-dialog"><button>OK</button></div>'],
+      [
+        'jellyfin-web’s',
+        '<div class="dialogContainer"><div class="dialog opened"><button>OK</button></div></div>',
+      ],
+    ])('leaves the focus in an open menu or dialog: %s', async (_name, html) => {
+      const player = await setUp({ layout: 'tv', idle: true });
+      document.body.insertAdjacentHTML('beforeend', html);
+      const menu = document.body.lastElementChild!;
+      const entry = menu.querySelector('button')!;
+      entry.focus();
+      try {
+        await player.at(70_000);
+        expect(skipButton()).toBeInTheDocument();
+        expect(entry).toHaveFocus();
+      } finally {
+        menu.remove();
+      }
     });
 
     it('puts focus on Play when there was nothing to give it back to', async () => {
@@ -274,6 +356,20 @@ describe('the Skip button', () => {
       fireEvent.click(skipButton()!);
 
       expect(screen.getByRole('button', { name: 'Pause' })).toHaveFocus();
+    });
+
+    it('leaves the focus where the user moved it from the button', async () => {
+      const player = await setUp({ layout: 'tv', idle: true });
+      await player.at(70_000);
+      expect(skipButton()).toHaveFocus();
+      player.set({ idle: false });
+      const seekBar = screen.getByRole('slider', { name: 'Seek' });
+      seekBar.focus();
+
+      await player.at(148_000);
+
+      expect(skipButton()).toBeNull();
+      expect(seekBar).toHaveFocus();
     });
   });
 
@@ -338,6 +434,26 @@ describe('a segment set to skip itself', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Skipped intro');
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
     expect(player.seek).toHaveBeenCalledExactlyOnceWith(60_300);
+  });
+
+  it('gives jellyfin-web’s skip longer to land on a stream that restarts to seek, then makes it', async () => {
+    const player = await setUp({ settings, hasSegments: true, transcode: 'http' });
+    await player.at(59_800);
+    await player.at(60_050);
+    // The old stream plays on while jellyfin-web's request for the new one is out.
+    await player.playFor(4000);
+    expect(player.seek).not.toHaveBeenCalled();
+
+    await player.playFor(4500);
+    expect(player.seek).toHaveBeenCalledExactlyOnceWith(150_000);
+  });
+
+  it('waits no longer than usual on HLS, where a seek shows at once', async () => {
+    const player = await setUp({ settings, hasSegments: true, transcode: 'hls' });
+    await player.at(59_800);
+    await player.at(60_050);
+    await player.playFor(2000);
+    expect(player.seek).toHaveBeenCalledExactlyOnceWith(150_000);
   });
 
   it('says nothing after credits skipped to the end: there is nothing left to go back to', async () => {
@@ -437,8 +553,8 @@ describe('the next-episode card', () => {
   });
 
   describe('with next-episode autoplay off', () => {
-    // jellyfin-web then queues nothing after the episode: the next one is the server's.
-    const manual = { segments: { Items: [CREDITS] }, autoplay: false, following: [NEXT] };
+    // jellyfin-web queues the following episodes all the same (12.4); it only doesn't start them.
+    const manual = { ...withCredits, autoplay: false };
 
     it('has no countdown, only the buttons', async () => {
       const player = await setUp(manual);
@@ -449,32 +565,83 @@ describe('the next-episode card', () => {
       await player.playFor(15_000);
       expect(card()).toBeInTheDocument();
       expect(player.manager.nextTrack).not.toHaveBeenCalled();
-      expect(player.manager.play).not.toHaveBeenCalled();
     });
 
-    it('plays the next episode on Play now', async () => {
+    it('plays the queue’s next episode on Play now', async () => {
       const player = await setUp(manual);
       await player.at(3_510_000);
 
       fireEvent.click(screen.getByRole('button', { name: 'Play now' }));
 
-      expect(player.manager.play).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ ids: ['e3'] }));
-      expect(player.manager.nextTrack).not.toHaveBeenCalled();
-    });
-
-    it('looks the next episode up from this one on, into the next season', async () => {
-      const player = await setUp(manual);
-      await player.wait();
-      const request = player.client.requests.find((r) => r.url.includes('Shows/s1/Episodes'));
-      expect(new URL(request!.url).searchParams.get('startItemId')).toBe('e2');
+      expect(player.manager.nextTrack).toHaveBeenCalledTimes(1);
     });
   });
 
-  it('isn’t shown for the last episode: its credits get the Skip button', async () => {
+  describe('leaving for the next episode before Jellyfin would count this one as watched', () => {
+    it('marks it watched once the next has begun, after the countdown', async () => {
+      const player = await setUp(withCredits);
+      await player.at(3_510_000);
+      await player.playFor(10_500);
+      expect(player.manager.nextTrack).toHaveBeenCalledTimes(1);
+      // Not before jellyfin-web has reported where this one stopped.
+      expect(player.posts()).toEqual([]);
+
+      await player.nextBegins();
+
+      expect(player.posts()).toEqual(['/UserPlayedItems/e2']);
+    });
+
+    it('marks it watched after Play now', async () => {
+      const player = await setUp(withCredits);
+      await player.at(3_510_000);
+      fireEvent.click(screen.getByRole('button', { name: 'Play now' }));
+
+      await player.nextBegins();
+
+      expect(player.posts()).toEqual(['/UserPlayedItems/e2']);
+    });
+
+    it('leaves an episode that played out, or was left another way, to Jellyfin', async () => {
+      const player = await setUp(withCredits);
+      await player.at(3_510_000);
+      fireEvent.click(screen.getByRole('button', { name: 'Watch credits' }));
+      await player.at(3_599_000);
+
+      await player.nextBegins();
+
+      expect(player.posts()).toEqual([]);
+    });
+  });
+
+  it('shows no Skip Credits in its place once Play now has been pressed', async () => {
+    const player = await setUp(withCredits);
+    await player.at(3_510_000);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Play now' }));
+
+    expect(card()).toBeNull();
+    expect(skipButton('Skip Credits')).toBeNull();
+    // Nor while the next episode loads.
+    await player.playFor(1000);
+    expect(skipButton('Skip Credits')).toBeNull();
+  });
+
+  it('isn’t shown with Repeat set to this episode, which is what would play next', async () => {
+    const player = await setUp({ ...withCredits, repeatMode: 'RepeatOne' });
+    await player.at(3_520_000);
+    expect(card()).toBeNull();
+    expect(skipButton('Skip Credits')).toBeInTheDocument();
+    await player.playFor(11_000);
+    expect(player.manager.nextTrack).not.toHaveBeenCalled();
+  });
+
+  it('isn’t shown for the last episode in the queue: its credits get the Skip button', async () => {
     const player = await setUp({ segments: { Items: [CREDITS] } });
     await player.at(3_520_000);
     expect(card()).toBeNull();
     expect(skipButton('Skip Credits')).toBeInTheDocument();
+    // Only the queue is asked: Lumen never plays an episode that isn't in it.
+    expect(player.client.requests.some((r) => r.url.includes('/Shows/'))).toBe(false);
   });
 
   it('isn’t shown for a movie', async () => {
@@ -506,6 +673,76 @@ describe('the next-episode card', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Watch credits' }));
 
     expect(screen.getByRole('button', { name: 'Pause' })).toHaveFocus();
+  });
+});
+
+describe('watching together', () => {
+  const withCredits = { segments: { Items: [INTRO, CREDITS] }, queue: [NEXT], group: true };
+
+  it('has no countdown and never starts the next episode by itself: only Play now and Watch credits', async () => {
+    const player = await setUp(withCredits);
+    await player.at(3_510_000);
+
+    expect(card()).toHaveTextContent('S1 · E3 · The Long Night');
+    expect(card()).not.toHaveTextContent('Playing in');
+    expect(screen.getByRole('button', { name: 'Watch credits' })).toBeInTheDocument();
+    await player.playFor(15_000);
+    expect(player.manager.nextTrack).not.toHaveBeenCalled();
+    expect(card()).toBeInTheDocument();
+
+    // A press is the member's own doing, for the group.
+    fireEvent.click(screen.getByRole('button', { name: 'Play now' }));
+    expect(player.manager.nextTrack).toHaveBeenCalledTimes(1);
+  });
+
+  it('has no countdown to the end without credits either', async () => {
+    const player = await setUp({ queue: [NEXT], group: true });
+    await player.at(HOUR - 20_000);
+    expect(card()).toBeInTheDocument();
+    expect(card()).not.toHaveTextContent('Playing in');
+  });
+
+  it('doesn’t skip a segment set to skip itself: it gets the Skip button, for a member to press', async () => {
+    const player = await setUp({ settings: { segmentTypeAction__Intro: 'Skip' }, group: true });
+    await player.at(59_800);
+    await player.at(60_050);
+    await player.playFor(3000);
+
+    expect(player.seek).not.toHaveBeenCalled();
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+
+    fireEvent.click(skipButton()!);
+    expect(player.seek).toHaveBeenCalledExactlyOnceWith(150_000);
+  });
+
+  it('makes no seek of its own where jellyfin-web was to skip and didn’t', async () => {
+    const player = await setUp({
+      settings: { segmentTypeAction__Intro: 'Skip' },
+      hasSegments: true,
+      group: true,
+    });
+    await player.at(59_800);
+    await player.at(60_050);
+    await player.playFor(3000);
+
+    expect(player.seek).not.toHaveBeenCalled();
+    expect(skipButton()).toBeInTheDocument();
+  });
+
+  it('still says what jellyfin-web skipped, with an Undo to press', async () => {
+    const player = await setUp({
+      settings: { segmentTypeAction__Intro: 'Skip' },
+      hasSegments: true,
+      group: true,
+    });
+    await player.at(59_800);
+    await player.at(60_050);
+    await player.at(150_000);
+
+    expect(player.seek).not.toHaveBeenCalled();
+    expect(screen.getByRole('status')).toHaveTextContent('Skipped intro');
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(player.seek).toHaveBeenCalledExactlyOnceWith(60_300);
   });
 });
 

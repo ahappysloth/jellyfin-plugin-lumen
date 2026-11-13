@@ -11,6 +11,7 @@ import {
   PROMPT_END_MS,
   promptSegment,
   readActions,
+  RESTART_BACKSTOP_MS,
   secondsLeft,
   SKIP_START,
   skipTo,
@@ -146,7 +147,14 @@ describe('skipTo', () => {
 
 describe('autoSkip', () => {
   /** Looks at each position in turn, 250 ms apart, and collects what happened. */
-  const run = (positions: number[], stockSkips: boolean, start: SkipState = SKIP_START, skips = [intro]) => {
+  const run = (
+    positions: number[],
+    /** jellyfin-web skips too (how far Lumen lets playback run into the segment first), or doesn't. */
+    stock: boolean | number,
+    start: SkipState = SKIP_START,
+    skips = [intro],
+  ) => {
+    const backstopMs = stock === true ? BACKSTOP_MS : Number(stock);
     let state = start;
     const seeks: number[] = [];
     const skipped: { segment: Segment; fromMs: number }[] = [];
@@ -157,7 +165,7 @@ describe('autoSkip', () => {
         pos,
         i * 250,
         skips.filter((s) => !asks.includes(s) && !skipped.some((k) => k.segment === s)),
-        stockSkips,
+        backstopMs,
       );
       state = step.state;
       if (step.seekMs !== undefined) seeks.push(step.seekMs);
@@ -222,6 +230,19 @@ describe('autoSkip', () => {
       expect(run(before, true).seeks).toEqual([]);
     });
 
+    it('waits longer where a seek restarts the stream: the old one plays on while jellyfin-web’s is on its way', () => {
+      // jellyfin-web asked for the stream from the segment's end as playback entered it; 3 s on, it starts there.
+      const playedOn = Array.from({ length: 12 }, (_, i) => 60_050 + i * 250);
+      const result = run([59_800, ...playedOn, 150_000, 150_250], RESTART_BACKSTOP_MS);
+      expect(result.seeks).toEqual([]);
+      expect(result.skipped).toEqual([{ segment: intro, fromMs: 60_050 }]);
+      // The shorter wait would have seeked as well, and restarted the stream a second time.
+      expect(run([59_800, ...playedOn], true).seeks).toEqual([150_000]);
+      // jellyfin-web never skips it: Lumen still does.
+      const ignored = Array.from({ length: 34 }, (_, i) => 60_050 + i * 250);
+      expect(run([59_800, ...ignored], RESTART_BACKSTOP_MS).seeks).toEqual([150_000]);
+    });
+
     it('doesn’t take playing up to a segment’s end for a skip', () => {
       // A segment that asks isn’t among `skips`; one too short to be "inside" of, played through, is.
       const short: Segment = { type: 'Recap', startMs: 10_000, endMs: 10_800 };
@@ -230,11 +251,11 @@ describe('autoSkip', () => {
     });
 
     it('gives up waiting for a skip that never lands', () => {
-      let state = autoSkip(SKIP_START, 60_050, 0, [intro], true).state;
+      let state = autoSkip(SKIP_START, 60_050, 0, [intro], BACKSTOP_MS).state;
       expect(state.waiting?.segment).toBe(intro);
       // The user went elsewhere; much later the position passes the segment's end by chance.
-      state = autoSkip(state, 300_000, 1000, [intro], true).state;
-      const late = autoSkip(state, 150_100, 20_000, [intro], true);
+      state = autoSkip(state, 300_000, 1000, [intro], BACKSTOP_MS).state;
+      const late = autoSkip(state, 150_100, 20_000, [intro], BACKSTOP_MS);
       expect(late.skipped).toBeUndefined();
       expect(late.state.waiting).toBeNull();
     });

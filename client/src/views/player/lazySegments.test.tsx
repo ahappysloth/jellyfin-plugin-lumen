@@ -36,4 +36,26 @@ describe('LazySegments', () => {
     await expect(fresh.loadSegments()).resolves.toBeDefined();
     expect(loadStyles).toHaveBeenCalledWith('lumen-segments.css');
   });
+
+  it("draws nothing when the prompts' own file can't load, and asks again next time", async () => {
+    vi.resetModules();
+    let fails = true;
+    // A chunk that can't be fetched: the import rejects.
+    vi.doMock('./SegmentPrompts', () => {
+      if (fails) throw new Error('Failed to fetch dynamically imported module');
+      return { SegmentPrompts: () => <p>prompts</p> };
+    });
+    vi.doMock('../../util/loadStyles', () => ({ loadStyles: () => Promise.resolve() }));
+    const fresh = await import('./lazySegments');
+
+    const view = render(<fresh.LazySegments {...props} />);
+    await expect(fresh.loadSegments()).rejects.toThrow();
+    expect(view.container).toBeEmptyDOMElement();
+    view.unmount();
+
+    fails = false;
+    await expect(fresh.loadSegments()).resolves.toBeDefined();
+    const again = render(<fresh.LazySegments {...props} />);
+    await vi.waitFor(() => expect(again.container).toHaveTextContent('prompts'));
+  });
 });
