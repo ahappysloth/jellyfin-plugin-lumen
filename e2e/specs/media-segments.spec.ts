@@ -1,11 +1,12 @@
 import { devices, expect, test, type Page } from '@playwright/test';
 import { MEDIA_SEGMENTS, STOCK_SELECTORS } from '../../client/src/compat/registry';
+import { WEB_PLUGIN_KEY, type WebPluginSlot } from '../../client/src/compat/webPlugin';
 import { ADMIN, api, loadState } from '../support/api';
 import { CANNOT_PLAY, cannotPlay } from '../support/browsers';
 import { login } from '../support/login';
 import { accountButton, accountMenu } from '../support/nav';
 import { forgetPlayback } from '../support/playback';
-import { expectPresentButHidden } from '../support/stock';
+import { expectOutOfDpadReach, expectPresentButHidden } from '../support/stock';
 
 // Lumen's Skip button and next-episode card, from the server's media segments. Jellyfin has no API to add segments (a
 // segment provider plugin makes them), so the tests answer GET /MediaSegments/{itemId} themselves: the fixture episodes
@@ -161,6 +162,7 @@ test('Skip Intro shows through the intro, with the controls hidden too, and skip
   await expect(stockSkip).not.toHaveClass(/\bhide\b/);
   await expectPresentButHidden(page.locator(STOCK_SELECTORS.skipIntro.selector));
   await expectPresentButHidden(stockSkip);
+  await expectOutOfDpadReach(page.locator(STOCK_SELECTORS.skipIntro.selector));
   // It stays as the controls go.
   await page.mouse.move(640, 360);
   await expect(page.locator('.lmn-osd')).toHaveClass(/is-idle/, { timeout: 6000 });
@@ -171,6 +173,8 @@ test('Skip Intro shows through the intro, with the controls hidden too, and skip
 
   await expect.poll(() => time(page)).toBeGreaterThanOrEqual(13);
   await expect(skip).toBeHidden();
+  // jellyfin-web has put its own button away, which it does at the end of the button's fade: unseen as it is, it fades.
+  await expect(stockSkip).toHaveClass(/\bhide\b/);
 });
 
 test.describe('on a phone, by touch', () => {
@@ -200,6 +204,8 @@ test.describe('on a phone, by touch', () => {
 
     await expect.poll(() => time(page)).toBeGreaterThanOrEqual(13.5);
     await expect(skip).toBeHidden();
+    // jellyfin-web's own button, unseen, has faded and been put away (in WebKit too, which the smoke test can't play in).
+    await expect(page.locator(`${STOCK_SELECTORS.skipIntro.selector} button`)).toHaveClass(/\bhide\b/);
   });
 
   /**
@@ -259,6 +265,15 @@ test('TV layout: Skip Intro takes the D-pad focus, OK presses it, and focus goes
   const skip = page.getByRole('button', { name: 'Skip Intro' });
   await expect(skip).toBeFocused();
   expect(await time(page)).toBeLessThan(10);
+  // jellyfin-web's own button is up too, unseen, a little to the left of Lumen's: the remote's arrows pass it by. (It
+  // was the nearest above the controls' Next episode; focus can't land on what is unseen, and Up there did nothing.)
+  const stockSkip = page.locator(STOCK_SELECTORS.skipIntro.selector);
+  await expect(stockSkip.locator('button')).not.toHaveClass(/\bhide\b/);
+  await expectOutOfDpadReach(stockSkip);
+  await page.keyboard.press('Shift'); // a key that does nothing: the controls are up for the arrows
+  await page.locator('#lmn-root .lmn-player__next').focus();
+  await page.keyboard.press('ArrowUp');
+  await expect(skip).toBeFocused();
 
   await page.keyboard.press('Enter');
 
@@ -520,19 +535,60 @@ test.describe('the next-episode card', () => {
 
     const playNow = card(page).getByRole('button', { name: 'Play now' });
     await expect(playNow).toBeFocused({ timeout: 10_000 });
-    // As everywhere in the TV player, the first press only brings the hidden controls back; the next one moves.
+    // jellyfin-web's own card is open too, unseen, in its box in the page behind. (With it open, its video page leaves
+    // the arrows to the D-pad from the first press; otherwise it takes the first one to bring its hidden controls back.)
+    await expect(stockCard(page)).toHaveClass(/\bupNextDialog\b/);
+    await expect(stockCard(page)).not.toHaveClass(/\bhide\b/);
     await expect(page.locator('.lmn-osd')).toHaveClass(/is-idle/);
     await page.keyboard.press('ArrowRight');
     await expect(page.locator('.lmn-osd')).not.toHaveClass(/is-idle/);
-    await expect(playNow).toBeFocused();
-    await page.keyboard.press('ArrowRight');
     const watch = card(page).getByRole('button', { name: 'Watch credits' });
     await expect(watch).toBeFocused();
+
+    // The remote's arrows pass jellyfin-web's card by. (Its buttons were the nearest to Back, below and to the right,
+    // and to the controls from above; focus can't land on what is unseen, and those presses did nothing.)
+    await expectOutOfDpadReach(stockCard(page));
+    const focused = page.locator('#lmn-root').locator('button:focus, input:focus');
+    await page.keyboard.press('ArrowUp');
+    await expect(page.locator('.lmn-player__top button:focus')).toHaveCount(1);
+    const back = page.locator('#lmn-root').getByRole('button', { name: 'Back', exact: true });
+    await back.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator('.lmn-player__bottom button:focus')).toHaveCount(1);
+    await page.keyboard.press('ArrowUp');
+    await expect(back).toBeFocused();
+    await page.keyboard.press('ArrowRight');
+    await expect(focused).toHaveCount(1);
+    await expect(back).not.toBeFocused();
+    // With nothing focused, a press goes to the first control there is: one of Lumen's.
+    await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+    await page.keyboard.press('ArrowDown');
+    await expect(focused).toHaveCount(1);
+    await watch.focus();
 
     await page.keyboard.press('Enter');
 
     await expect(card(page)).toBeHidden();
     await expect(page.locator('.lmn-player__top button:focus, .lmn-player__bottom button:focus')).toHaveCount(1);
+  });
+
+  test('TV layout: Watch credits keeps the D-pad focus as the controls go, and OK there watches the credits', async ({ page }) => {
+    await setUp(page, { segments: [['Outro', 4, 16]], stock: true, tv: true });
+    await play(page);
+    await expect(card(page).getByRole('button', { name: 'Play now' })).toBeFocused({ timeout: 10_000 });
+    await expect(stockCard(page)).toHaveClass(/\bupNextDialog\b/);
+    await page.keyboard.press('ArrowRight');
+    const watch = card(page).getByRole('button', { name: 'Watch credits' });
+    await expect(watch).toBeFocused();
+
+    // Left alone, the controls go: the focus isn't taken back to Play now, where OK would start the next episode.
+    await expect(page.locator('.lmn-osd')).toHaveClass(/is-idle/, { timeout: 6000 });
+    await expect(watch).toBeFocused();
+    await page.keyboard.press('Enter');
+
+    await expect(card(page)).toBeHidden();
+    await expect.poll(() => time(page), { timeout: 10_000 }).toBeGreaterThan(11);
+    await expect(nowPlaying(page)).toContainText('S1:E1');
   });
 });
 
@@ -552,6 +608,13 @@ test.describe('watching together', () => {
       await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).first().click();
       await expect(page).toHaveURL(/#\/video/, { timeout: 20_000 });
       await expect(page.locator('.lmn-player__syncplay')).toBeVisible({ timeout: 15_000 });
+      // What the prompts go by until the player's own poll has found the group: jellyfin-web's playback manager says
+      // it is in one, from the moment it joins.
+      const joined = await page.evaluate((key) => {
+        const slot = (window as unknown as Record<string, WebPluginSlot | undefined>)[key];
+        return (slot?.deps?.playbackManager as { syncPlayEnabled?: unknown } | undefined)?.syncPlayEnabled;
+      }, WEB_PLUGIN_KEY);
+      expect(joined, "jellyfin-web's playbackManager.syncPlayEnabled, in a group").toBe(true);
       await check();
     } finally {
       // From the browser's own session: the group is its, not the tests' API sign-in's.

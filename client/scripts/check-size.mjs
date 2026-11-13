@@ -76,7 +76,10 @@ const player = gz(`dist/${playerChunk}`);
 console.log(`lumen player: ${kb(player)} gzipped (budget ${PLAYER_BUDGET / 1024} KB)`);
 // The player's Skip Intro button, "Skipped intro" notice and next-episode card, with their stylesheet
 // (views/player/lazySegments.tsx): fetched as the player opens, apart from it, so the player's budget stays where it was.
-const SEGMENTS_BUDGET = 4 * 1024;
+// 4 KB at first, with 16 bytes to spare. 4.2 KB since the re-check fixes, about 130 bytes (the owner approved up to
+// 4.5 KB): jellyfin-web's unseen buttons out of the D-pad's reach, the TV focus kept on Watch credits and Undo, the
+// queue read again as the card is due, the watched mark's time limit, the group flag read from the playback manager.
+const SEGMENTS_BUDGET = 4.2 * 1024;
 const segments = gz(`dist/${segmentsChunk}`) + gz('dist/lumen-segments.css');
 console.log(`lumen player segments + styles: ${kb(segments)} gzipped (budget ${SEGMENTS_BUDGET / 1024} KB)`);
 // Loads as a title with a trailer preview shows (views/home/lazyTrailer.tsx).

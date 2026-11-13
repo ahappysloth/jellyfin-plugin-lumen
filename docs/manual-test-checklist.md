@@ -194,7 +194,9 @@ stream, and real episode lengths.
 - [ ] TV layout: Skip Intro has the remote's focus as it appears with the controls hidden, and OK skips; when it goes,
       the arrows still move. It doesn't take the focus from an open menu (Quality, Audio & Subtitles, Watch together,
       the cast picker) or from the seek bar while the controls are up, and takes it once they've gone. On the card,
-      focus is on Play now; Left/Right move between it and Watch credits.
+      focus is on Play now; Left/Right move between it and Watch credits. Focus moved to Watch credits stays there when
+      the controls hide (OK then watches the credits; it doesn't start the next episode). With the card or Skip Intro
+      up, every arrow press from Back, the top buttons and the controls moves the focus somewhere visible.
 - [ ] A title without segments has no button. With the segment provider's plugin removed, nothing changes for titles
       that never had segments.
 

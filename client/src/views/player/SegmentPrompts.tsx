@@ -33,6 +33,8 @@ import { segmentStrings } from './segmentStrings';
 const POLL_MS = 250;
 /** How long "Skipped intro" and its Undo stay up. */
 export const SKIPPED_MS = 6000;
+/** The next episode begins within this of Play now (or the countdown's end), or it wasn't that press that began it. */
+export const WATCHED_MS = 30_000;
 /** Set on <html> while Lumen draws the prompts: styles/segments.css hides jellyfin-web's own. */
 export const SEGMENTS_CLASS = 'lmn-segments';
 /** The player's bars: focus on a control in them, while they're up, is the user's (the seek bar, a pill, a menu). */
@@ -165,7 +167,10 @@ export function SegmentPrompts(props: SegmentsProps) {
   // The episode after this one: the next in jellyfin-web's play queue, which holds the episodes that follow whether or
   // not they start by themselves (12.4). With nothing after it there (the queue's end, a season's last episode, a
   // shuffled queue's last), or with Repeat set to this episode, there is no card: Lumen plays only what is queued.
+  // The queue can change while the episode plays (something queued next, the rest removed): it is read as the episode
+  // starts, and again as the card is due.
   const [nextUp, setNextUp] = useState<NextUp | null>(null);
+  const [due, setDue] = useState(false);
   useEffect(() => {
     if (!itemId || item?.Type !== 'Episode' || snap.playlistIndex < 0) return;
     let cancelled = false;
@@ -173,13 +178,13 @@ export function SegmentPrompts(props: SegmentsProps) {
       .getPlaylist(snap.player)
       .then((list) => {
         const queued = list[snap.playlistIndex + 1] as BaseItem | undefined;
-        if (!cancelled && queued?.Id) setNextUp({ after: itemId, item: queued });
+        if (!cancelled) setNextUp(queued?.Id ? { after: itemId, item: queued } : null);
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [itemId, snap.playlistIndex]);
+  }, [itemId, snap.playlistIndex, due]);
   const next = nextUp && nextUp.after === itemId && snap.repeatMode !== 'RepeatOne' ? nextUp.item : null;
 
   const memo = useRef(newMemo(itemId));
@@ -198,16 +203,19 @@ export function SegmentPrompts(props: SegmentsProps) {
   // Jellyfin counts an episode as watched only when it stops past 90% of its length, and credits can start before
   // that. So an episode left for the next one from its card (the countdown, or Play now) is marked watched once the next
   // has begun: after jellyfin-web's "stopped" report, which would otherwise leave a resume point on a watched episode.
-  const watched = useRef<{ item: BaseItem; next: string } | null>(null);
+  // Only when it begins soon after: where the press started nothing (a group that ignored it, a queue that had changed),
+  // the next episode beginning later, from wherever this one was left, isn't the card's doing.
+  const watched = useRef<{ item: BaseItem; next: string; at: number } | null>(null);
   useEffect(() => {
     const was = watched.current;
     watched.current = null;
-    if (was && was.next === itemId) void setUserData(ctx, was.item, 'Played', true);
+    if (was && was.next === itemId && Date.now() - was.at < WATCHED_MS)
+      void setUserData(ctx, was.item, 'Played', true);
   }, [itemId]);
   const playNext = (): void => {
     if (!next || !item) return;
     memo.current.played = true;
-    watched.current = { item: item as BaseItem, next: next.Id };
+    watched.current = { item: item as BaseItem, next: next.Id, at: Date.now() };
     try {
       manager.nextTrack(snap.player);
     } catch {
@@ -219,7 +227,10 @@ export function SegmentPrompts(props: SegmentsProps) {
   const look = useRef<() => void>(() => undefined);
   look.current = () => {
     let show = NOTHING;
+    let cardDue = false;
     if (data && started && snap.canSeek) {
+      // In a group as jellyfin-web has it this moment: the player's own word (`group`) comes from a poll, and lags.
+      const together = group || !!manager.syncPlayEnabled;
       const m = memo.current;
       const now = Date.now();
       let pos = position();
@@ -243,7 +254,7 @@ export function SegmentPrompts(props: SegmentsProps) {
         m.asks.push(segment);
         // Watching together, a seek is everyone's: Lumen makes none by itself, and the segment gets the Skip button
         // (a press is a member's own doing, as any seek). jellyfin-web's own skip, where it makes one, is still told.
-        if (step.seekMs === undefined || !group) {
+        if (step.seekMs === undefined || !together) {
           if (step.seekMs !== undefined) {
             seek(skipTo(segment, durationMs));
             pos = position(); // where that went: the segment's button mustn't show on the way
@@ -255,16 +266,19 @@ export function SegmentPrompts(props: SegmentsProps) {
       }
       // jellyfin-web's own up-next card can only be hidden where Lumen knows its box: without it Lumen draws no card
       // of its own (the takeover reports the missing selector).
-      const plan =
-        next && data.nextInfo && document.querySelector(STOCK_SELECTORS.upNext.selector)
+      const when =
+        data.nextInfo && document.querySelector(STOCK_SELECTORS.upNext.selector)
           ? cardPlan(data.segments, action, durationMs)
           : null;
+      // Whatever is next in the queue by now (above).
+      cardDue = !!when && pos >= when.fromMs;
+      const plan = next ? when : null;
       const credits = plan && endCredits(data.segments, action, durationMs);
       // Gone once its episode is on its way (Play now, the countdown): no Skip Credits shows in its place meanwhile.
       const card = !!plan && !m.dismissed && !m.played && pos >= plan.fromMs;
       // With autoplay, the next episode starts in the credits' place once the countdown is out. Not for a group: one
       // member's countdown would start it for another who chose Watch credits.
-      const counts = card && autoplay && !group;
+      const counts = card && autoplay && !together;
       m.left = counts && plan.credits ? countDown(m.left, now - m.at, snap.paused) : null;
       m.at = now;
       if (m.left !== null && m.left <= 0) playNext();
@@ -278,6 +292,7 @@ export function SegmentPrompts(props: SegmentsProps) {
     setShown((was) =>
       was.prompt === show.prompt && was.card === show.card && was.seconds === show.seconds ? was : show,
     );
+    setDue(cardDue);
   };
   useEffect(() => {
     const timer = setInterval(() => look.current(), POLL_MS);
@@ -286,17 +301,23 @@ export function SegmentPrompts(props: SegmentsProps) {
   useLayoutEffect(() => look.current(), [data, next, started, autoplay]);
 
   // TV: the Skip button, or the card's Play now, takes the remote's focus as it comes up (OK presses it), but never
-  // from something in use: a menu or dialog, or the seek bar or another control while the controls are up. Then it
-  // takes it once they've gone. As it goes, focus returns to where it was (or to Play), so the remote isn't left on
-  // nothing.
+  // from something in use: a menu or dialog, the seek bar or another control while the controls are up, or another of
+  // the prompts' own buttons (Watch credits, Undo: OK there mustn't press Play now). Then it takes it once the
+  // controls have gone. As what has the focus here goes, focus returns to where it was (or to Play), so the remote
+  // isn't left on nothing.
   const root = useRef<HTMLDivElement>(null);
   const before = useRef<HTMLElement | null>(null);
   const held = useRef(false);
+  /** The remote's arrows brought the focus here: it's the prompts' to hand back too, with nowhere it was taken from. */
+  const entered = (): void => {
+    if (!held.current) before.current = null;
+    held.current = true;
+  };
   const focusOn = shown.prompt ?? shown.card;
   useLayoutEffect(() => {
     const target = root.current!.querySelector<HTMLElement>('.lmn-seg__primary');
     const active = document.activeElement as HTMLElement | null;
-    if (!tv || (target && active === target)) return;
+    if (!tv || root.current!.contains(active)) return;
     // Nothing has focus: the prompt that had it has just gone, or nothing ever did.
     const free = !active || active === document.body;
     if (target && !busy && (free || idle || !active.closest(CONTROLS)) && !document.querySelector(OPEN)) {
@@ -313,11 +334,11 @@ export function SegmentPrompts(props: SegmentsProps) {
           : root.current!.parentElement!.querySelector<HTMLElement>('.lmn-player__controls button')
         )?.focus();
     }
-  }, [tv, focusOn, busy, idle]);
+  }, [tv, focusOn, skipped, busy, idle]);
 
   const image = shown.card && next ? resolveImage(next, ['Primary', 'Thumb', 'Backdrop']) : null;
   return (
-    <div ref={root} class="lmn-seg">
+    <div ref={root} class="lmn-seg" onFocusIn={entered}>
       <div class={`lmn-seg__skipped${skipped ? ' is-shown' : ''}`}>
         {/* Always there, so a screen reader announces what lands in it. */}
         <span role="status">{skipped && segmentStrings.skipped(skipped.segment.type)}</span>

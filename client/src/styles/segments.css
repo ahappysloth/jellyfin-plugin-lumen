@@ -5,12 +5,24 @@
  * they stay as player.css leaves them, above Lumen's player.
  * No flex `gap` here: Chromium 68 (webOS 5) has none for flexbox.
  */
-/* Unseen, out of the pointer's way and of the remote's focus, but still drawn: both put themselves away at the end of
-   a transition, and a box that isn't drawn (`display: none`) never has one. jellyfin-web's video page would go on
-   taking its card for open, and both would be left in the way, unseen, where a later episode falls back to them. */
+/* Unseen and out of the pointer's way, but still drawn: both put themselves away at the end of a transition, and a box
+   that isn't drawn (`display: none`) never has one. jellyfin-web's video page would go on taking its card for open, and
+   both would be left in the way, unseen, where a later episode falls back to them. */
 html.lmn-segments .skip-button-container,
 html.lmn-segments .upNextContainer {
   visibility: hidden !important;
+}
+/* Unseen isn't out of the remote's way, though. jellyfin-web's D-pad (focusManager.js) moves to the nearest button that
+   has a box, seen or not, and with nothing focused to the first that has an offsetParent: on one of these the focus
+   doesn't land, and the press is lost (from Back, every Down and Right). So their buttons have neither. The card's
+   aren't drawn: it is the card that fades, not they. The skip prompt's button is what fades, so it stays drawn, with no
+   offsetParent (fixed, as its box is) and no box (scaled to nothing). */
+html.lmn-segments .upNextContainer button {
+  display: none !important;
+}
+html.lmn-segments .skip-button-container button {
+  position: fixed !important;
+  transform: scale(0) !important;
 }
 /* The card takes the first `transitionend` from anywhere inside it for the end of its own fade, and hides what that
    came from. Its buttons transition everything, `visibility` too (which changes for them with the rule above): one of

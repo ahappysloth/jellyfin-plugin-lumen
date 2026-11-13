@@ -47,7 +47,8 @@ jellyfin-web's own prompts are hidden while Lumen draws these, and show as befor
   hidden, or with nothing in the player focused. Never from an open menu or dialog (a panel, Playback info, Watch
   together, the cast picker, a jellyfin-web dialog), nor from the seek bar or another control while the controls are
   up; then it takes it once they have gone. OK presses it. As it goes, focus returns to where it was (or to
-  Play/Pause), so the remote is never left on nothing.
+  Play/Pause), so the remote is never left on nothing: also when the user moved to the button themselves, and from
+  Undo as its notice goes.
 - **Touch:** one tap, with the controls hidden too (the player's "a tap that wakes the controls does only that" rule
   covers the bars only). The press itself brings the controls back, so the button stays where it is with and without
   them: when it slid up to make room, it moved from under the finger before the finger lifted, and a real tap (60 ms
@@ -78,7 +79,9 @@ converted stream twice, so:
   start of), this time without Lumen's notice. Without `HasSegments` it plays, with the button.
 - **Watch together:** in a SyncPlay group Lumen makes no seek by itself, since a seek there is everyone's. A segment
   set to *Skip* gets the Skip button instead, for a member to press (a deliberate act for the group, like any seek).
-  Where jellyfin-web makes the skip itself, Lumen still says so, and Undo stays: also a press.
+  Where jellyfin-web makes the skip itself, Lumen still says so, and Undo stays: also a press. "In a group" is the
+  player's word for it (a poll of jellyfin-web's SyncPlay manager, up to 1.5 s behind) or jellyfin-web's own
+  `playbackManager.syncPlayEnabled`, which it sets as it joins: whichever says so first.
 - **Undo** seeks to where the skip began, at least 0.3 s into the segment: a position a hair before its start would
   have jellyfin-web skip it again as it plays in.
 - Credits set to *Skip* that run to the end go straight to the end (the next episode, with autoplay): no notice (there
@@ -92,7 +95,9 @@ The rules are `autoSkip` in `segments.ts`, a pure function of the last and curre
   that follow whether "Play next episode automatically" is on or off (the setting only decides whether the next one
   starts at the end). With nothing after the episode in the queue (its end, a season's last episode, the last of a
   shuffled queue) there is no card, and Lumen never plays an episode that isn't queued. With **Repeat** set to this
-  episode there is none either: the "next" one would be this one again. Episodes only; movies get none.
+  episode there is none either: the "next" one would be this one again. Episodes only; movies get none. The queue
+  is read as the episode starts and again as the card is due, since it can change in between (something queued next,
+  the rest removed).
 - **When:**
   - as the credits start, when an Outro segment (not set to *None*) runs to within 3 s of the end. It stands in for
     Skip Credits, which isn't shown;
@@ -107,15 +112,18 @@ The rules are `autoSkip` in `segments.ts`, a pure function of the last and curre
   resume point. So once the next episode has begun, Lumen marks the one it left as played (`POST /UserPlayedItems`,
   through the shared watched store, so the rest of Lumen knows too). After, not before: jellyfin-web's "stopped"
   report for it has gone by then, which would otherwise put a resume point on a watched episode. Only when Lumen's
-  card made the move; an episode left any other way is Jellyfin's to judge.
+  card made the move, and the next episode began within 30 s of it (a press that started nothing, in a group that
+  ignored it or with a queue that had changed, mustn't mark the episode when it is left some other way later); an
+  episode left any other way is Jellyfin's to judge.
 - **With autoplay off:** no countdown, "Next episode" and the two buttons. Play now plays the queue's next episode.
 - **Watch together:** no countdown and nothing starts by itself, with credits or without: one member's countdown would
   start the next episode for another who chose Watch credits (in a group, "next" is SyncPlay's, for everyone). The
   card has only Play now and Watch credits; Play now is a member's own press, for the group.
 - **Watch credits** puts the card away for the rest of the episode (and no Skip Credits takes its place).
-- **TV:** Play now takes the remote's focus; Left and Right move between the two buttons (`focuscontainer-x`), after
-  the first press, which jellyfin-web's video page takes to bring its (hidden) controls back, as everywhere in the TV
-  player.
+- **TV:** Play now takes the remote's focus; Left and Right move between the two buttons (`focuscontainer-x`). Where
+  jellyfin-web's own card isn't open underneath, that is after the first press, which its video page takes to bring
+  its (hidden) controls back, as everywhere in the TV player. Focus the user has moved to Watch credits stays there
+  as the controls go: OK there must never press Play now.
 - A Skip button and the card can be up together (a preview before the end): one above the other.
 
 ## 6. Never two, and falling back
@@ -128,6 +136,12 @@ The rules are `autoSkip` in `segments.ts`, a pure function of the last and curre
   and the skip button stayed in the page, unseen and in the way of clicks, for a later episode that fell back to
   jellyfin-web's prompts (Lumen's Back button was under one). `visibility` also keeps the remote's focus off them
   (jellyfin-web focuses its card's Start now on a TV), which moving them off screen or clipping them wouldn't.
+- Their buttons are out of the D-pad's reach as well, which `visibility` alone doesn't do. jellyfin-web's
+  `focusManager` moves to the nearest focusable that has a box (it skips only a rectangle with neither width nor
+  height), and with nothing focused to the first that has an `offsetParent`; neither looks at `visibility`, and focus
+  doesn't land on an unseen button, so the press was lost (with its card open, every Down and Right from Back). The
+  card's buttons are `display: none` (the card's box is what fades, not they); the skip prompt's button is what
+  fades, so it stays drawn, `position: fixed` (no `offsetParent`) and `transform: scale(0)` (no box).
 - Nothing inside jellyfin-web's card transitions while Lumen's player is up. The card takes the first `transitionend`
   that reaches it for the end of its own fade and hides *that event's target*; its buttons transition every
   property, `visibility` included, so when the class above came or went (as the next episode began) a button was
@@ -145,9 +159,10 @@ The rules are `autoSkip` in `segments.ts`, a pure function of the last and curre
 ## 7. Size
 
 The prompts are a file of their own, `lumen-chunk-SegmentPrompts-*.js` with `lumen-segments.css`, fetched as the
-player opens (`lazySegments.tsx`), with its own budget: **4 KB** gzipped for both (4.0 KB as built). The player's file
-keeps its 13.5 KB budget (13.3 KB: the loader, and the seek path the prompts share) and startup its 72 KB
-(70.3 KB: the registry's entries).
+player opens (`lazySegments.tsx`), with its own budget: **4.2 KB** gzipped for both (4.1 KB as built; 4 KB until the
+re-check fixes, which took about 130 bytes, raised with the owner's approval). The player's file keeps its 13.5 KB
+budget (13.3 KB: the loader, and the seek path the prompts share) and startup its 72 KB (70.3 KB: the registry's
+entries).
 
 ## 8. Tests
 
@@ -163,8 +178,9 @@ keeps its 13.5 KB budget (13.3 KB: the loader, and the seek path the prompts sha
   Lumen and with jellyfin-web making the seek (one seek either way, on the file as it is and on a stream the server
   converts: HLS in the test browsers, so the one-file kind and its longer wait are covered by the unit tests only), the card
   with Play now, the countdown, Watch credits, autoplay off and the queue's last episode, the episode left watched,
-  a group's card, the D-pad on the card, and both fallbacks to jellyfin-web's prompts. The credits in these end past
-  the fixtures' runtime, which is what makes jellyfin-web build its own card under Lumen's.
+  a group's card (and jellyfin-web's `syncPlayEnabled` flag there), the D-pad on the card and around jellyfin-web's
+  unseen prompts, and both fallbacks to jellyfin-web's prompts. The credits in these end past the fixtures' runtime,
+  which is what makes jellyfin-web build its own card under Lumen's.
 
 ## 9. Not done
 
