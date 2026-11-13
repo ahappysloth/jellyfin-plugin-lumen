@@ -16,18 +16,17 @@
 }
 .lmn-hero__controls {
   transition: opacity 0.2s;
+  /* A layer of its own for good: one made and dropped for each fade made iOS Safari repaint the track mid-glide. */
+  will-change: opacity;
 }
 .lmn-hero.is-dragging .lmn-hero__controls {
   opacity: 0;
 }
-/* Slides sit side by side on a track that follows the pointer 1:1 (Hero.tsx). */
+/* Slides sit side by side on a track that follows the pointer 1:1, and glides frame by frame (Hero.tsx). */
 .lmn-hero__track {
   position: absolute;
   inset: 0;
   will-change: transform;
-}
-.lmn-hero__track.is-animated {
-  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .lmn-hero__slide {
   position: absolute;

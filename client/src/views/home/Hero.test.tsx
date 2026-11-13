@@ -403,7 +403,24 @@ describe('Hero', () => {
     const track = container.querySelector<HTMLElement>('.lmn-hero__track')!;
     // 120px left of the slide. jsdom 31, like browsers, serializes `calc(0% + -120px)` as `calc(0% - 120px)`.
     expect(track.style.transform).toMatch(/^translateX\(calc\(0% (?:\+ -|- )120px\)\)$/);
-    expect(track.classList.contains('is-animated')).toBe(false);
+  });
+
+  // iOS Safari drops what's painted on the track while its compositor runs a CSS transition: the glide is drawn per frame.
+  it('glides to the next slide frame by frame once let go', () => {
+    const { container } = renderHero();
+    const hero = container.querySelector('.lmn-hero')!;
+    const track = container.querySelector<HTMLElement>('.lmn-hero__track')!;
+    const shift = (): number => Number(/calc\((-?[\d.e-]+)%/.exec(track.style.transform)?.[1]);
+
+    swipe(hero, -200);
+    advance(100);
+    expect(shift()).toBeLessThan(0);
+    expect(shift()).toBeGreaterThan(-100);
+    expect(screen.getByRole('img', { name: 'Alpha' })).toBeInTheDocument();
+
+    advance(SLIDE);
+    expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument();
+    expect(track.style.transform).toBe('translateX(calc(0% + 0px))');
   });
 
   it('ignores short drags and vertical scrolls, and does not click through after a swipe', () => {
