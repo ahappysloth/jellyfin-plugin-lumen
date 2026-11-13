@@ -69,7 +69,7 @@ The request features talk to Seerr. End-to-end tests never use a real one: Playw
 
 Lumen only stores a push subscription whose address is at a real push service (Google's, Apple's, Mozilla's or Microsoft's, by their exact hosts), because the server posts to whatever address a subscription names. The stub Seerr also stands in for one (`POST /push/<id>`, read back with `GET /__stub/push`; an id starting with `gone` answers 410, `refused` 403, `down` 503), and the test server accepts its addresses because it runs with `LUMEN_PUSH_TEST_ENDPOINT=<stub>/push/`, which the scripts and CI set. Never set it on a real server.
 
-Two more variables, also for the test server only, set the push job's timing (`ReadyPushTimings`):
+Two more variables, also for the test server only, set the push job's timing (`ReadyPushTimings`). A server started with any of the three says so once in its log, as a warning, when the push job starts:
 
 - `LUMEN_PUSH_TEST_PASS_SECONDS=3600`: the job's own pass, every 2 minutes on a real server, is an hour apart. No pass runs during a test, so a notification a test sees was caused by what the test did (Seerr's webhook, or an open page's check), not by a pass that happened to come first.
 - `LUMEN_PUSH_TEST_RETRY_SECONDS=2`: a send the push service didn't take is tried again after 2 s, then 4 s, instead of 2 and 4 minutes, so the test of a failing push service takes seconds.

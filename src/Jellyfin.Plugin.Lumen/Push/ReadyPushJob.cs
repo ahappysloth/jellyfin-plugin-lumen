@@ -21,12 +21,16 @@ namespace Jellyfin.Plugin.Lumen.Push;
 /// per user per pass at most, through Seerr's circuit breaker. A request is taken before it's sent
 /// (<see cref="IRequestProgressService.ClaimReadyAsync"/>), so it's announced once, and never by the pop-up as well.
 /// <para>
-/// Each device is owed the notification on its own: one that took it has it, and one whose push service failed (or
-/// refused) is sent it again, <see cref="MaxAttempts"/> times in all, each wait twice the last and none shorter than
-/// <see cref="ReadyPushTimings.RetryDelay"/>, however often the job is woken meanwhile. The request stays taken while
-/// that goes on, so an open page neither shows the pop-up nor wakes the job for it. Then the job gives up: if no device
-/// got it, the request is left to the pop-up (<see cref="IRequestProgressService.Release"/>), so its user hears of it
-/// the next time Lumen is open. What's still owed when Jellyfin stops is given back, to be sent after the restart.
+/// Each device is owed the notification on its own: one that took it has it, and one whose push service failed is
+/// sent it again, <see cref="MaxAttempts"/> times in all, each wait twice the last and none shorter than
+/// <see cref="ReadyPushTimings.RetryDelay"/>, however often the job is woken meanwhile, and never later than
+/// <see cref="GiveUpAfter"/> after the first. One whose push service refused the message isn't sent the same one
+/// again. A send that throws, rather than say how it went, is a failed attempt like any other. The request stays taken
+/// while that goes on, so an open page neither shows the pop-up nor wakes the job for it. Then the job gives up: if no
+/// device got it, the request is left to the pop-up (<see cref="IRequestProgressService.Release"/>), so its user hears
+/// of it the next time Lumen is open. What's still owed when Jellyfin stops is given back, to be sent after the
+/// restart; and if Jellyfin is killed instead, the announcement list does the same when it's next read
+/// (<see cref="ReadyAnnouncements"/>), as it's told when a device got a push (<see cref="IRequestProgressService.Delivered"/>).
 /// </para>
 /// </summary>
 public sealed class ReadyPushJob : BackgroundService
@@ -87,6 +91,31 @@ public sealed class ReadyPushJob : BackgroundService
     internal int Owed => _owed.Count;
 
     /// <summary>
+    /// The variables meant for the E2E tests' server that are in force here, each with what it does: empty on a real
+    /// server. <paramref name="testEndpoint"/> is <see cref="PushSubscription.TestEndpointVariable"/>'s value.
+    /// </summary>
+    internal static IReadOnlyList<string> TestOverrides(ReadyPushTimings timings, string? testEndpoint)
+    {
+        var overrides = new List<string>();
+        if (timings.Interval != ReadyPushTimings.Default.Interval)
+        {
+            overrides.Add(FormattableString.Invariant($"{ReadyPushTimings.TestPassVariable} (requests are checked every {timings.Interval.TotalSeconds:0.#} s)"));
+        }
+
+        if (timings.RetryDelay != ReadyPushTimings.Default.RetryDelay)
+        {
+            overrides.Add(FormattableString.Invariant($"{ReadyPushTimings.TestRetryVariable} (a failed send is tried again after {timings.RetryDelay.TotalSeconds:0.#} s)"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(testEndpoint))
+        {
+            overrides.Add(PushSubscription.TestEndpointVariable + " (push addresses under it are taken, over http too)");
+        }
+
+        return overrides;
+    }
+
+    /// <summary>
     /// One regular pass: what's owed and due again, then every user with notifications on and a request that may be
     /// ready any time, or every user with notifications on when <paramref name="discover"/>.
     /// </summary>
@@ -111,12 +140,22 @@ public sealed class ReadyPushJob : BackgroundService
         var now = _time.GetUtcNow();
         foreach (var delivery in _owed.Where(d => d.Next <= now).ToList())
         {
+            // Looked at before sending, not after: a pass that ran late, or a host back from sleep, sends nothing more.
+            if (now - delivery.First >= GiveUpAfter)
+            {
+                Close(delivery, true);
+                continue;
+            }
+
             try
             {
                 await AttemptAsync(delivery, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception e) when (e is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
+                // An attempt answers for what its sender throws, so this is a fault of the job's own. Dropped, not left
+                // owed and due: the job's loop would come straight back for it.
+                _owed.Remove(delivery);
                 _logger.LogError(e, "Lumen couldn't send a notification again");
             }
         }
@@ -155,24 +194,37 @@ public sealed class ReadyPushJob : BackgroundService
                 return;
             }
 
-            // A title Seerr couldn't name in time waits for the next pass rather than going out as "something is ready".
-            _progress.GiveBack(userId, endpoint, ready.Where(r => r.Item is null).SelectMany(r => r.RequestIds));
-            var named = ready.Where(r => r.Item is not null).ToList();
-            if (named.Count == 0)
+            // Taken, and not a notification's yet. Whatever ends this early (Jellyfin stopping after the first of three
+            // titles, say), what's left here is due again: taken and never sent, nobody would announce it.
+            var taken = ready.SelectMany(r => r.RequestIds).ToList();
+            try
             {
-                return;
-            }
+                // A title Seerr couldn't name in time waits for the next pass rather than going out as "something is
+                // ready" (given back below, with whatever else is left).
+                var named = ready.Where(r => r.Item is not null).ToList();
+                if (named.Count > PushMessage.MaxSeparate)
+                {
+                    var message = PushMessage.ReadyMany(named.Select(r => r.Item!).ToList());
+                    var all = named.SelectMany(r => r.RequestIds).ToList();
+                    taken.RemoveAll(all.Contains);
+                    await SendAsync(userId, endpoint, all, message, cancellationToken).ConfigureAwait(false);
+                    return;
+                }
 
-            var imageToken = CatalogImageToken.Create(userId, endpoint.ApiKey);
-            if (named.Count > PushMessage.MaxSeparate)
-            {
-                await SendAsync(userId, endpoint, named.SelectMany(r => r.RequestIds), PushMessage.ReadyMany(named.Select(r => r.Item!).ToList()), cancellationToken).ConfigureAwait(false);
-                return;
+                var imageToken = CatalogImageToken.Create(userId, endpoint.ApiKey);
+                foreach (var title in named)
+                {
+                    var message = PushMessage.Ready(title.Item!, imageToken);
+                    taken.RemoveAll(title.RequestIds.Contains);
+                    await SendAsync(userId, endpoint, title.RequestIds, message, cancellationToken).ConfigureAwait(false);
+                }
             }
-
-            foreach (var title in named)
+            finally
             {
-                await SendAsync(userId, endpoint, title.RequestIds, PushMessage.Ready(title.Item!, imageToken), cancellationToken).ConfigureAwait(false);
+                if (taken.Count > 0)
+                {
+                    _progress.GiveBack(userId, endpoint, taken);
+                }
             }
         }
         catch (SeerrException e)
@@ -193,6 +245,15 @@ public sealed class ReadyPushJob : BackgroundService
     {
         try
         {
+            // Said once, at startup: left set on a real server, they'd go unnoticed (a pass an hour, say) for ever.
+            var overrides = TestOverrides(_timings, Environment.GetEnvironmentVariable(PushSubscription.TestEndpointVariable));
+            if (overrides.Count > 0)
+            {
+                _logger.LogWarning(
+                    "Lumen's notifications run with settings that are for its own tests' server only: {Overrides}. Unset them on a real server.",
+                    string.Join("; ", overrides));
+            }
+
             _signal.Running = true;
             await Task.Delay(StartDelay, _time, stoppingToken).ConfigureAwait(false);
             var pass = 0;
@@ -272,38 +333,61 @@ public sealed class ReadyPushJob : BackgroundService
 
     /// <summary>
     /// One attempt: to every device (the first), or to those that still haven't got it. Then the notification is done
-    /// with, or owed for another attempt, or given up on.
+    /// with, or owed for another attempt, or given up on. Never throws but for cancellation.
     /// </summary>
     private async Task AttemptAsync(Delivery delivery, CancellationToken cancellationToken)
     {
         var now = _time.GetUtcNow();
-        PushSendResult result;
         try
         {
-            result = await _sender.SendAsync(delivery.UserId, delivery.Message, ReadyTimeToLive, cancellationToken, delivery.Devices).ConfigureAwait(false);
+            var result = await _sender.SendAsync(delivery.UserId, delivery.Message, ReadyTimeToLive, cancellationToken, delivery.Devices).ConfigureAwait(false);
+            delivery.Devices = result.Devices.Where(d => d.Owed).Select(d => d.DeviceId).ToList();
+            delivery.Refused |= result.Devices.Any(d => d.Refused);
+            if (result.Delivered && !delivery.Told)
+            {
+                // Written down now, not when the last device is done with: if Jellyfin is killed while another device is
+                // still being tried, the request isn't announced again to the one that has it.
+                delivery.Told = true;
+                _progress.Delivered(delivery.UserId, delivery.Endpoint, delivery.RequestIds);
+            }
+        }
+        catch (Exception e) when (e is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            // The sender couldn't say how it went (a push service that fails is an answer, not this: Jellyfin's device
+            // list or Lumen's own files, say). Nobody is known to have got it, so it's a failed attempt for every device
+            // it was for: given back instead, it would be taken and sent again at every pass, and at the rate an open
+            // page asks, for as long as it lasts, and never reach the pop-up.
+            if (!delivery.Faulted)
+            {
+                delivery.Faulted = true;
+                _logger.LogError(e, "Lumen couldn't send a notification. It tries a few more times, then leaves what's ready to the pop-up in the app.");
+            }
         }
         catch
         {
+            // Jellyfin is stopping: nobody was told, and nobody will try again.
             Close(delivery, false);
             throw;
         }
 
         delivery.Attempts++;
-        delivery.Told |= result.Delivered;
-        delivery.Devices = result.Devices.Where(d => d.Owed).Select(d => d.DeviceId).ToList();
-        if (delivery.Devices.Count == 0)
+        var wait = _timings.RetryDelay * (1 << (delivery.Attempts - 1));
+        if (delivery.Devices is { Count: 0 })
         {
-            // Every device has it or is gone. If none got it, it's due again: for the pop-up, with no device left.
-            Close(delivery, false);
+            // Nothing more to send: every device has it, is gone, or refused it. If none got it, it's due again: to
+            // whoever asks next when the user has no device left, but to the pop-up alone if one refused and is still
+            // there, or the next pass would take the request and send that device the same message again.
+            Close(delivery, delivery.Refused);
         }
-        else if (delivery.Attempts >= MaxAttempts || now - delivery.First >= GiveUpAfter)
+        else if (delivery.Attempts >= MaxAttempts || now + wait - delivery.First >= GiveUpAfter)
         {
-            // A push service that's been failing for minutes may for hours. PushSender has logged it, once.
+            // A push service that's been failing for minutes may for hours (PushSender has logged it, once), and a try
+            // that would come later than GiveUpAfter is never made, so there's nothing to wait for.
             Close(delivery, true);
         }
         else
         {
-            delivery.Next = now + (_timings.RetryDelay * (1 << (delivery.Attempts - 1)));
+            delivery.Next = now + wait;
             if (!_owed.Contains(delivery))
             {
                 _owed.Add(delivery);
@@ -353,6 +437,12 @@ public sealed class ReadyPushJob : BackgroundService
 
         /// <summary>Gets or sets a value indicating whether some device took it: its user has been told.</summary>
         public bool Told { get; set; }
+
+        /// <summary>Gets or sets a value indicating whether a device that's still subscribed had it refused by its push service.</summary>
+        public bool Refused { get; set; }
+
+        /// <summary>Gets or sets a value indicating whether an attempt threw: logged for the first, not for each.</summary>
+        public bool Faulted { get; set; }
 
         public int Attempts { get; set; }
 

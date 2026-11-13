@@ -21,10 +21,17 @@ public interface IRequestProgressService
     /// The user's titles that became ready and nobody has been told about, taken: the caller announces them (a push
     /// notification), and no pop-up shows for them. From the same cached Seerr answer as <see cref="GetAsync"/>.
     /// <paramref name="alsoWatch"/> are requests to announce even if Lumen never saw them in flight (Seerr's webhook
-    /// named them); only the user's own count. Give back what couldn't be announced with <see cref="GiveBack"/> or
-    /// <see cref="Release"/>. Throws <see cref="SeerrException"/> when Seerr can't say.
+    /// named them); only the user's own count. Say how it went for each: <see cref="Delivered"/>, or what couldn't be
+    /// announced with <see cref="GiveBack"/> or <see cref="Release"/>. Throws <see cref="SeerrException"/> when Seerr
+    /// can't say.
     /// </summary>
     Task<IReadOnlyList<ReadyTitle>> ClaimReadyAsync(Guid jellyfinUserId, User? user, SeerrEndpoint endpoint, int seerrUserId, IReadOnlyCollection<int>? alsoWatch, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// These requests, taken by <see cref="ClaimReadyAsync"/>, were announced: a device got the push. Until this (or
+    /// one of the two below) is said, a request counts as cut short if Jellyfin is killed, and is due again after.
+    /// </summary>
+    void Delivered(Guid jellyfinUserId, SeerrEndpoint endpoint, IEnumerable<int> requestIds);
 
     /// <summary>These requests, taken by <see cref="ClaimReadyAsync"/>, weren't announced after all: they're due again.</summary>
     void GiveBack(Guid jellyfinUserId, SeerrEndpoint endpoint, IEnumerable<int> requestIds);
@@ -212,6 +219,9 @@ public sealed class RequestProgressService : IRequestProgressService
                 lookups[i].IsCompletedSuccessfully ? lookups[i].Result : null))
             .ToList();
     }
+
+    public void Delivered(Guid jellyfinUserId, SeerrEndpoint endpoint, IEnumerable<int> requestIds) =>
+        _announcements.Delivered(jellyfinUserId, endpoint.BaseUrl.ToString(), requestIds);
 
     public void GiveBack(Guid jellyfinUserId, SeerrEndpoint endpoint, IEnumerable<int> requestIds) =>
         _announcements.GiveBack(jellyfinUserId, endpoint.BaseUrl.ToString(), requestIds);

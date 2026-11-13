@@ -132,6 +132,64 @@ public sealed class PushSenderTests : IDisposable
     }
 
     [Fact]
+    public async Task ADeviceWhoseSendThrows_HasFailed_AndTheOthersKeepTheirResults()
+    {
+        _store.Save(_alice, Subscription("phone", "https://web.push.apple.com/QGcapability"));
+        _store.Save(_alice, Subscription("laptop", "https://fcm.googleapis.com/fcm/send/b"));
+        _client.SendAsync(Arg.Is<PushSubscription>(s => s.DeviceId == "phone"), Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns<PushResult>(_ => throw new InvalidOperationException("no keys"));
+
+        var result = await Send();
+        await Send();
+
+        // The laptop took it, and the caller hears so: told nothing, it would send the laptop the message again.
+        Assert.True(result.Delivered);
+        Assert.Equal((1, 0, 0, 1, null), Counts(result));
+        Assert.Equal(["phone"], result.Devices.Where(d => d.Owed).Select(d => d.DeviceId));
+        Assert.Equal(2, _store.ForUser(_alice).Count);
+
+        // Logged with what was thrown, once for the streak, and never the address.
+        var warning = Assert.Single(_log.Entries, e => e.Level == LogLevel.Warning);
+        Assert.IsType<InvalidOperationException>(warning.Exception);
+        Assert.Contains("web.push.apple.com", warning.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("QGcapability", warning.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ASendCancelledBecauseJellyfinStops_IsntADevicesFailure()
+    {
+        _store.Save(_alice, Subscription("phone", "https://web.push.apple.com/a"));
+        using var stopping = new CancellationTokenSource();
+        _client.SendAsync(default!, default, default, default).ReturnsForAnyArgs<PushResult>(_ =>
+        {
+            stopping.Cancel();
+            throw new OperationCanceledException(stopping.Token);
+        });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _sender.SendAsync(_alice, PushMessage.Test(), TimeSpan.FromMinutes(1), stopping.Token));
+
+        Assert.Empty(_log.Entries);
+    }
+
+    [Fact]
+    public async Task ARefusedDevice_IsntOwedTheSameMessageAgain()
+    {
+        _store.Save(_alice, Subscription("phone", "https://web.push.apple.com/a"));
+        _store.Save(_alice, Subscription("laptop", "https://fcm.googleapis.com/fcm/send/b"));
+        AnswerFor("phone", PushOutcome.Rejected, 403);
+        AnswerFor("laptop", PushOutcome.Failed, 503);
+
+        var result = await Send();
+
+        // Sent again, the same message would be refused again, and three refusals running remove the subscription: so
+        // only the device whose push service was down is worth another try.
+        var phone = result.Devices.Single(d => d.DeviceId == "phone");
+        Assert.Equal((false, true, false), (phone.Owed, phone.Refused, phone.Removed));
+        var laptop = result.Devices.Single(d => d.DeviceId == "laptop");
+        Assert.Equal((true, false), (laptop.Owed, laptop.Refused));
+    }
+
+    [Fact]
     public async Task ADeviceThatCantBeReached_IsLoggedOncePerStreak_NotPerAttempt()
     {
         _store.Save(_alice, Subscription("phone", "https://web.push.apple.com/QGcapability"));
@@ -206,7 +264,7 @@ public sealed class PushSenderTests : IDisposable
 
         var last = await Send();
         Assert.False(_store.HasAny(_alice));
-        Assert.Equal((true, false), (last.Devices[0].Removed, last.Devices[0].Owed));
+        Assert.Equal((true, false, false), (last.Devices[0].Removed, last.Devices[0].Owed, last.Devices[0].Refused));
     }
 
     [Fact]

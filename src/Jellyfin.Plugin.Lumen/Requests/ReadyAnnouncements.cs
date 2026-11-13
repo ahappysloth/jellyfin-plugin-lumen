@@ -27,12 +27,17 @@ public interface IReadyAnnouncements
     /// announce even though Lumen never saw them in flight (Seerr's webhook said they became available), unless the
     /// user was told about them already. <paramref name="notYet"/> are requests that are ready but not to be announced
     /// yet (the rest of their title is still in flight): they stay watched. Requests left to the pop-up
-    /// (<see cref="Release"/>) aren't taken.
+    /// (<see cref="Release"/>) aren't taken. What's taken must be settled: <see cref="Delivered"/>,
+    /// <see cref="GiveBack"/> or <see cref="Release"/>. A request Jellyfin stopped over before that is due again
+    /// after the restart.
     /// </summary>
     IReadOnlySet<int> Claim(Guid userId, string scope, IEnumerable<int> inFlight, IEnumerable<int> ready, IEnumerable<int> waiting, IEnumerable<int>? named = null, IEnumerable<int>? notYet = null);
 
     /// <summary>Watches these requests for becoming ready: the user just filed them through Lumen.</summary>
     void Watch(Guid userId, string scope, IEnumerable<int> requestIds);
+
+    /// <summary>These requests, taken with <see cref="Claim"/>, were announced: a device of the user's got the push.</summary>
+    void Delivered(Guid userId, string scope, IEnumerable<int> requestIds);
 
     /// <summary>These requests, taken with <see cref="Claim"/>, weren't announced after all: they're due again, to whoever asks next.</summary>
     void GiveBack(Guid userId, string scope, IEnumerable<int> requestIds);
@@ -48,7 +53,8 @@ public interface IReadyAnnouncements
 
     /// <summary>
     /// Whether Lumen is watching a request of the user's that may become ready any time now (under any Seerr address):
-    /// worth asking Seerr about every couple of minutes. Not one that's only waiting.
+    /// worth asking Seerr about every couple of minutes. Not one that's only waiting, and not one that's ready and left
+    /// to the pop-up (<see cref="Release"/>): that one waits for its user to open Lumen, which may be days.
     /// </summary>
     bool ExpectsSoon(Guid userId);
 }
@@ -59,6 +65,12 @@ public interface IReadyAnnouncements
 /// flight are announced: a request that was ready before Lumen first looked (or before this feature) never pops up.
 /// The same list serves push notifications (Push/ReadyPushJob), which take a request with <see cref="Claim"/> before
 /// sending, so a request is announced by a push or by the pop-up, never both.
+/// <para>
+/// A request taken for a push is written down as told at once, and as <c>Claimed</c> until the push job says how it
+/// went. If Jellyfin is killed in between (out of memory, a power cut), nobody would ever announce it: so what's still
+/// claimed when the file is read is due again. A request is no longer claimed once one device got its push, so that
+/// device isn't told twice.
+/// </para>
 /// <para>
 /// A request is watched only while Seerr still lists it in flight or ready: one that was deleted there, or pushed out
 /// of the list by newer ones, would otherwise be asked about for ever.
@@ -104,7 +116,7 @@ public sealed class ReadyAnnouncements : IReadyAnnouncements
         lock (_lock)
         {
             _users ??= Load();
-            return _users.TryGetValue(Key(userId), out var entry) && entry.Watching.Any(id => !entry.Waiting.Contains(id));
+            return _users.TryGetValue(Key(userId), out var entry) && entry.Watching.Any(id => !entry.Waiting.Contains(id) && !entry.PopUp.Contains(id));
         }
     }
 
@@ -124,7 +136,7 @@ public sealed class ReadyAnnouncements : IReadyAnnouncements
             var changed = false;
             foreach (var id in requestIds)
             {
-                changed |= entry.Watching.Remove(id) | entry.Waiting.Remove(id) | entry.PopUp.Remove(id) | entry.Told.Add(id);
+                changed |= entry.Watching.Remove(id) | entry.Waiting.Remove(id) | entry.PopUp.Remove(id) | entry.Claimed.Remove(id) | entry.Told.Add(id);
             }
 
             if (changed)
@@ -143,6 +155,29 @@ public sealed class ReadyAnnouncements : IReadyAnnouncements
         }
     }
 
+    public void Delivered(Guid userId, string scope, IEnumerable<int> requestIds)
+    {
+        lock (_lock)
+        {
+            // Under another Seerr since (see PutBack): nothing of this list's.
+            if (Existing(userId, scope) is not { } entry)
+            {
+                return;
+            }
+
+            var changed = false;
+            foreach (var id in requestIds)
+            {
+                changed |= entry.Claimed.Remove(id);
+            }
+
+            if (changed)
+            {
+                Save();
+            }
+        }
+    }
+
     public void GiveBack(Guid userId, string scope, IEnumerable<int> requestIds) => PutBack(userId, scope, requestIds, false);
 
     public void Release(Guid userId, string scope, IEnumerable<int> requestIds) => PutBack(userId, scope, requestIds, true);
@@ -155,6 +190,23 @@ public sealed class ReadyAnnouncements : IReadyAnnouncements
         {
             entry.Told = entry.Told.OrderByDescending(id => id).Take(MaxPerUser).ToHashSet();
         }
+    }
+
+    /// <summary>
+    /// Taken for a push when Jellyfin last ran, and it never heard how that went: Jellyfin was killed before the push
+    /// job could send it, or while it was trying again. No device is known to have got it, so it's due again, to a
+    /// push or the pop-up, as what a job that stops in good order gives back. (Written out with the next change: until
+    /// then the file still says claimed, and reads the same way.)
+    /// </summary>
+    private static void Unclaim(UserEntry entry)
+    {
+        foreach (var id in entry.Claimed)
+        {
+            entry.Watching.Add(id);
+            entry.Told.Remove(id);
+        }
+
+        entry.Claimed.Clear();
     }
 
     /// <summary>
@@ -177,7 +229,7 @@ public sealed class ReadyAnnouncements : IReadyAnnouncements
         var changed = false;
         foreach (var id in requestIds)
         {
-            changed |= entry.Watching.Add(id) | entry.Told.Remove(id) | (popUpOnly && entry.PopUp.Add(id));
+            changed |= entry.Watching.Add(id) | entry.Told.Remove(id) | entry.Claimed.Remove(id) | (popUpOnly && entry.PopUp.Add(id));
         }
 
         if (changed)
@@ -234,6 +286,7 @@ public sealed class ReadyAnnouncements : IReadyAnnouncements
             {
                 entry.Watching.ExceptWith(announce);
                 entry.Told.UnionWith(announce);
+                entry.Claimed.UnionWith(announce);
                 TrimTold(entry);
                 changed = true;
             }
@@ -277,9 +330,15 @@ public sealed class ReadyAnnouncements : IReadyAnnouncements
                 if (file is not null)
                 {
                     // Users deleted since are dropped (written out with the next change).
-                    return file
+                    var users = file
                         .Where(u => Guid.TryParseExact(u.Key, "N", out var id) && _userExists(id))
                         .ToDictionary(u => u.Key, u => u.Value, StringComparer.Ordinal);
+                    foreach (var entry in users.Values)
+                    {
+                        Unclaim(entry);
+                    }
+
+                    return users;
                 }
             }
         }
@@ -343,5 +402,13 @@ public sealed class ReadyAnnouncements : IReadyAnnouncements
         /// </summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "JSON.")]
         public HashSet<int> PopUp { get; set; } = [];
+
+        /// <summary>
+        /// Gets or sets those of <see cref="Told"/> taken for a push that no device is known to have got yet: only
+        /// there while the push job is sending, so whatever a file read at startup lists was cut short. Absent from
+        /// files written before it.
+        /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "JSON.")]
+        public HashSet<int> Claimed { get; set; } = [];
     }
 }

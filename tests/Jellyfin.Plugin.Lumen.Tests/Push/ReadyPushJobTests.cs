@@ -42,6 +42,7 @@ public sealed class ReadyPushJobTests : IDisposable
     /// <summary>What the push service answers for one device, where that isn't <see cref="_outcome"/>.</summary>
     private readonly Dictionary<string, PushOutcome> _outcomes = [];
     private readonly ListLogger<PushSender> _senderLog = new();
+    private readonly ListLogger<ReadyPushJob> _jobLog = new();
     private readonly PushSender _sender;
     private readonly List<ReadyPushJob> _jobs = [];
     private readonly Guid _alice = Guid.NewGuid();
@@ -52,7 +53,7 @@ public sealed class ReadyPushJobTests : IDisposable
     {
         _config.Current.Returns(new PluginConfiguration { ConfigVersion = 3 });
         _subscriptions = new PushSubscriptionStore(Path.Combine(_dir, "push-subscriptions.json"), NullLogger<PushSubscriptionStore>.Instance);
-        _announcements = new ReadyAnnouncements(Path.Combine(_dir, "ready-announcements.json"), NullLogger<ReadyAnnouncements>.Instance);
+        _announcements = new ReadyAnnouncements(AnnouncementsPath, NullLogger<ReadyAnnouncements>.Instance);
         _signal = new ReadyPushSignal(_subscriptions) { Running = true };
         _progress = new RequestProgressService(_seerr, _config, new CatalogMapper(Substitute.For<ILibraryManager>()), _announcements, _signal, _time);
         _signedIn.IsSignedIn(default, default!).ReturnsForAnyArgs(true);
@@ -82,6 +83,8 @@ public sealed class ReadyPushJobTests : IDisposable
         _users.GetAccessAsync(_bob, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, true, true, 8, Endpoint));
         Requests(8);
     }
+
+    private string AnnouncementsPath => Path.Combine(_dir, "ready-announcements.json");
 
     public void Dispose()
     {
@@ -317,20 +320,42 @@ public sealed class ReadyPushJobTests : IDisposable
     }
 
     [Fact]
-    public async Task APassThatRunsLate_StillGivesUpTenMinutesAfterTheFirstTry()
+    public async Task APassThatRunsLate_SendsNothingMoreTenMinutesAfterTheFirstTry()
     {
         Subscribe(_alice, "phone");
         await SeenInFlightThenReady(7, id: 4);
         PushServiceAnswers(PushOutcome.Failed);
         await Pass();
 
+        // The host slept, or the pass was held up: the second try is ten minutes late, and so isn't made at all, even
+        // though the push service would take it now.
+        PushServiceAnswers(PushOutcome.Sent);
         _time.Advance(ReadyPushJob.GiveUpAfter);
         await Pass();
 
-        // The second attempt was the last: it's been ten minutes.
+        Assert.Single(_attempts);
+        Assert.Empty(_sent);
+        Assert.Equal(0, _job.Owed);
+        Assert.Equal([4], _announcements.PopUpOnly(_alice, Endpoint.BaseUrl.ToString()));
+        Assert.True(Assert.Single((await _progress.GetAsync(_alice, TestData.User(), Endpoint, 7, CancellationToken.None)).Requests).Announce);
+    }
+
+    [Fact]
+    public async Task ATryThatWouldComeAfterTenMinutes_IsntWaitedFor()
+    {
+        Subscribe(_alice, "phone");
+        await SeenInFlightThenReady(7, id: 4);
+        PushServiceAnswers(PushOutcome.Failed);
+        await Pass();
+
+        // The second try comes seven minutes late, but in time. The third would be four minutes after it, past the ten:
+        // the job gives up now rather than hold the pop-up back for a try it will never make.
+        _time.Advance(TimeSpan.FromMinutes(9));
+        await Pass();
+
         Assert.Equal(2, _attempts.Count);
         Assert.Equal(0, _job.Owed);
-        Assert.True(Assert.Single((await _progress.GetAsync(_alice, TestData.User(), Endpoint, 7, CancellationToken.None)).Requests).Announce);
+        Assert.Equal([4], _announcements.PopUpOnly(_alice, Endpoint.BaseUrl.ToString()));
     }
 
     [Fact]
@@ -393,22 +418,355 @@ public sealed class ReadyPushJobTests : IDisposable
     }
 
     [Fact]
-    public async Task ADeviceThePushServiceKeepsRefusing_IsRemovedAtItsThirdTry_AndThePopUpTakesOver()
+    public async Task ADeviceWhosePushServiceRefuses_IsntSentTheSameMessageAgain_AndKeepsItsSubscription()
     {
         Subscribe(_alice, "phone");
         await SeenInFlightThenReady(7, id: 4);
         PushServiceAnswers(PushOutcome.Rejected);
 
         await Pass();
+        Assert.Equal(0, _job.Owed);
         _time.Advance(TimeSpan.FromMinutes(2));
         await Pass();
-        Assert.True(_subscriptions.HasAny(_alice));
         _time.Advance(TimeSpan.FromMinutes(4));
         await Pass();
+        await Pass(discover: true);
+        await _job.RunAsync(new ReadyPushWork(_alice), CancellationToken.None);
 
-        Assert.Equal(3, _attempts.Count);
-        Assert.False(_subscriptions.HasAny(_alice));
+        // One refusal, not three: one message the push service won't have (or a clock that's wrong for a moment) doesn't
+        // cost the device its subscription. The request is the pop-up's alone, so no later pass takes it and sends the
+        // refused message again either.
+        Assert.Single(_attempts);
+        Assert.True(_subscriptions.HasAny(_alice));
+        Assert.Equal([4], _announcements.PopUpOnly(_alice, Endpoint.BaseUrl.ToString()));
         Assert.True(Assert.Single((await _progress.GetAsync(_alice, TestData.User(), Endpoint, 7, CancellationToken.None)).Requests).Announce);
+        Assert.False(_signal.Work.TryRead(out _));
+    }
+
+    [Fact]
+    public async Task ThreeNotificationsRefusedRunning_StillRemoveTheDevice()
+    {
+        Subscribe(_alice, "phone");
+        PushServiceAnswers(PushOutcome.Rejected);
+
+        for (var id = 1; id <= PushSender.MaxRejections; id++)
+        {
+            Assert.True(_subscriptions.HasAny(_alice));
+            await SeenInFlightThenReady(7, id);
+            NextAnswer();
+            await Pass();
+        }
+
+        Assert.Equal(PushSender.MaxRejections, _attempts.Count);
+        Assert.False(_subscriptions.HasAny(_alice));
+    }
+
+    [Fact]
+    public async Task WithOneDeviceRefusing_TheOtherIsStillTriedAgain_AndThenThePopUpTakesOver()
+    {
+        Subscribe(_alice, "phone");
+        Subscribe(_alice, "laptop");
+        await SeenInFlightThenReady(7, id: 4);
+        PushServiceAnswers("phone", PushOutcome.Rejected);
+        PushServiceAnswers("laptop", PushOutcome.Failed);
+
+        await Pass();
+        Assert.Equal(1, _job.Owed);
+
+        // The laptop's push service says it's gone at its second try. The phone is still subscribed, and refused: the
+        // request isn't given back for a pass to send the phone again, it's left to the pop-up.
+        PushServiceAnswers("laptop", PushOutcome.Gone);
+        _time.Advance(TimeSpan.FromMinutes(2));
+        await Pass();
+        NextAnswer();
+        await Pass(discover: true);
+
+        Assert.Equal(1, _attempts.Count(d => d == "phone"));
+        Assert.Equal(2, _attempts.Count(d => d == "laptop"));
+        Assert.Equal(0, _job.Owed);
+        Assert.Equal(["phone"], _subscriptions.ForUser(_alice).Select(d => d.DeviceId));
+        Assert.Equal([4], _announcements.PopUpOnly(_alice, Endpoint.BaseUrl.ToString()));
+    }
+
+    [Fact]
+    public async Task ASenderThatThrows_IsAFailedAttempt_TriedThreeTimesWithTheSameWaits_ThenTheRequestIsThePopUps()
+    {
+        Subscribe(_alice, "phone");
+        await SeenInFlightThenReady(7, id: 4);
+        var start = _time.GetUtcNow();
+        var thrownAt = new List<TimeSpan>();
+
+        // Not a push service that fails (the sender answers for that): the sender itself can't say how it went.
+        _signedIn.IsSignedIn(default, default!).ReturnsForAnyArgs(_ =>
+        {
+            thrownAt.Add(_time.GetUtcNow() - start);
+            throw new InvalidOperationException("Jellyfin's database is closed");
+        });
+
+        // A pass every two minutes for half an hour, the job woken between them, and an open page asking meanwhile.
+        for (var minute = 0; minute <= 30; minute += 2)
+        {
+            await Pass(discover: minute % 30 == 0);
+            await _job.RunAsync(new ReadyPushWork(_alice), CancellationToken.None);
+            if (minute < 6)
+            {
+                NextAnswer();
+                Assert.False(Assert.Single((await _progress.GetAsync(_alice, TestData.User(), Endpoint, 7, CancellationToken.None)).Requests).Announce);
+                Assert.False(_signal.Work.TryRead(out _));
+            }
+
+            _time.Advance(TimeSpan.FromMinutes(2) - (minute < 6 ? RequestProgressService.Ttl + TimeSpan.FromSeconds(1) : TimeSpan.Zero));
+        }
+
+        // As with a push service that's down: the first try, one a pass later, one two passes after that. Not one per
+        // pass and per wake for as long as it lasts.
+        Assert.Equal([TimeSpan.Zero, TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(6)], thrownAt);
+        Assert.Empty(_attempts);
+        Assert.Equal(0, _job.Owed);
+
+        // Then it's the pop-up's, so the user hears of it, and what went wrong was logged once, not per attempt.
+        Assert.Equal([4], _announcements.PopUpOnly(_alice, Endpoint.BaseUrl.ToString()));
+        Assert.True(Assert.Single((await _progress.GetAsync(_alice, TestData.User(), Endpoint, 7, CancellationToken.None)).Requests).Announce);
+        var error = Assert.Single(_jobLog.Entries, e => e.Level == Microsoft.Extensions.Logging.LogLevel.Error);
+        Assert.IsType<InvalidOperationException>(error.Exception);
+    }
+
+    [Fact]
+    public async Task ASendThatThrowsOnce_IsSentAgainAfterTheWait_ToEveryDevice()
+    {
+        Subscribe(_alice, "phone");
+        Subscribe(_alice, "laptop");
+        await SeenInFlightThenReady(7, id: 4);
+        var closed = true;
+        _signedIn.IsSignedIn(default, default!).ReturnsForAnyArgs(_ => closed ? throw new InvalidOperationException("Jellyfin's database is closed") : true);
+
+        await Pass();
+        Assert.Equal(1, _job.Owed);
+
+        closed = false;
+        await Pass();
+        Assert.Empty(_sent);
+        _time.Advance(TimeSpan.FromMinutes(2));
+        await Pass();
+
+        Assert.Equal(["laptop", "phone"], _sent.Select(d => d.Device).Order());
+        Assert.Equal(0, _job.Owed);
+    }
+
+    [Fact]
+    public async Task ASendThatThrowsForOneTitle_DoesntCostTheOthersTheirs()
+    {
+        Subscribe(_alice, "phone");
+        await SeenInFlightThenReady(7, 1, 2, 3);
+        var calls = 0;
+        _signedIn.IsSignedIn(default, default!).ReturnsForAnyArgs(_ => ++calls == 1 ? throw new InvalidOperationException("once") : true);
+
+        await Pass();
+
+        // The other two titles, taken in the same step, go out in the same pass; the first is owed, and sent after its wait.
+        Assert.Equal(2, _sent.Count);
+        Assert.Equal(1, _job.Owed);
+        _time.Advance(TimeSpan.FromMinutes(2));
+        await Pass();
+        Assert.Equal(["Title 601 is ready to watch", "Title 602 is ready to watch", "Title 603 is ready to watch"], _sent.Select(s => s.Message.GetProperty("title").GetString()).Order());
+
+        NextAnswer();
+        await Pass(discover: true);
+        Assert.Equal(3, _sent.Count);
+    }
+
+    [Fact]
+    public async Task WithTwoDevices_OneWhoseSendThrows_IsTriedAgainAlone_TheOtherIsntToldTwice()
+    {
+        Subscribe(_alice, "phone");
+        Subscribe(_alice, "laptop");
+        await SeenInFlightThenReady(7, id: 4);
+        var laptopWorks = false;
+        _pushService.SendAsync(Arg.Is<PushSubscription>(d => d.DeviceId == "laptop"), Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(_ => laptopWorks ? new PushResult(PushOutcome.Sent, 201) : throw new InvalidOperationException("no keys"));
+
+        await Pass();
+        Assert.Equal("phone", Assert.Single(_sent).Device);
+        Assert.Equal(1, _job.Owed);
+
+        // The phone has it and was told: it isn't sent again with the laptop's next try, or at any pass.
+        laptopWorks = true;
+        _time.Advance(TimeSpan.FromMinutes(2));
+        await Pass();
+        NextAnswer();
+        await Pass(discover: true);
+
+        Assert.Single(_attempts);
+        Assert.Equal(0, _job.Owed);
+        await _pushService.Received(2).SendAsync(Arg.Is<PushSubscription>(d => d.DeviceId == "laptop"), Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        Assert.False(Assert.Single((await _progress.GetAsync(_alice, TestData.User(), Endpoint, 7, CancellationToken.None)).Requests).Announce);
+    }
+
+    [Fact]
+    public async Task StoppedAfterTheFirstOfThreeTitles_TheOnesTakenButNotSent_AreGivenBack()
+    {
+        Subscribe(_alice, "phone");
+        await SeenInFlightThenReady(7, 1, 2, 3);
+        using var stopping = new CancellationTokenSource();
+        var calls = 0;
+        _signedIn.IsSignedIn(default, default!).ReturnsForAnyArgs(_ =>
+        {
+            // Jellyfin stops while the second title is being sent.
+            if (++calls == 2)
+            {
+                stopping.Cancel();
+                stopping.Token.ThrowIfCancellationRequested();
+            }
+
+            return true;
+        });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _job.RunPassAsync(false, stopping.Token));
+        Assert.Single(_sent);
+
+        // All three were taken in one step. The second and the third are due again: to the pop-up, or to the job after
+        // the restart, which sends each once and the first not again.
+        NextAnswer();
+        await Job(ReadyPushTimings.Default).RunPassAsync(false, CancellationToken.None);
+        Assert.Equal(["Title 601 is ready to watch", "Title 602 is ready to watch", "Title 603 is ready to watch"], _sent.Select(s => s.Message.GetProperty("title").GetString()).Order());
+    }
+
+    [Fact]
+    public async Task ARequestLeftToThePopUp_DoesntKeepItsUserAskedAboutEveryPass()
+    {
+        Subscribe(_alice, "phone");
+        Requests(7, Downloading(id: 4));
+        await Pass(discover: true);
+        await SeenInFlightThenReady(7, id: 4);
+        PushServiceAnswers(PushOutcome.Failed);
+        NextAnswer();
+        await Pass();
+        _time.Advance(TimeSpan.FromMinutes(2));
+        await Pass();
+        _time.Advance(TimeSpan.FromMinutes(4));
+        await Pass();
+        Assert.Equal([4], _announcements.PopUpOnly(_alice, Endpoint.BaseUrl.ToString()));
+        _seerr.ClearReceivedCalls();
+
+        // Its user may not open Lumen for a week. Nothing is expected of the request meanwhile: it's ready.
+        Assert.False(_announcements.ExpectsSoon(_alice));
+        for (var pass = 1; pass < ReadyPushJob.DiscoverEvery; pass++)
+        {
+            _time.Advance(TimeSpan.FromMinutes(2));
+            await Pass();
+        }
+
+        await _seerr.DidNotReceiveWithAnyArgs().GetUserRequestsAsync(default!, default, default);
+
+        // The half-hourly look still comes, as for everyone with notifications on.
+        await Pass(discover: true);
+        await AskedSeerr(7, times: 1);
+        Assert.Equal(3, _attempts.Count);
+    }
+
+    [Fact]
+    public async Task KilledWhileAPushIsStillOwed_TheRequestIsAnnouncedAfterTheRestart_Once()
+    {
+        Subscribe(_alice, "phone");
+        await SeenInFlightThenReady(7, id: 4);
+        PushServiceAnswers(PushOutcome.Failed);
+        await Pass();
+        Assert.Equal(1, _job.Owed);
+
+        // Out of memory, or a power cut: the job never gets to give back what it owes. Only the files are left.
+        var (job, progress) = Restarted();
+        PushServiceAnswers(PushOutcome.Sent);
+        await job.RunPassAsync(true, CancellationToken.None);
+
+        Assert.Equal("phone", Assert.Single(_sent).Device);
+        Assert.False(Assert.Single((await progress.GetAsync(_alice, TestData.User(), Endpoint, 7, CancellationToken.None)).Requests).Announce);
+
+        // Told now, and written down: a second kill changes nothing.
+        (job, progress) = Restarted();
+        await job.RunPassAsync(true, CancellationToken.None);
+        await job.RunAsync(new ReadyPushWork(null, 4), CancellationToken.None);
+        Assert.Single(_sent);
+        Assert.False(Assert.Single((await progress.GetAsync(_alice, TestData.User(), Endpoint, 7, CancellationToken.None)).Requests).Announce);
+    }
+
+    [Fact]
+    public async Task KilledWhileAPushIsStillOwed_AUserWhoTurnedNotificationsOffSince_GetsThePopUp()
+    {
+        Subscribe(_alice, "phone");
+        await SeenInFlightThenReady(7, id: 4);
+        PushServiceAnswers(PushOutcome.Failed);
+        await Pass();
+
+        _subscriptions.Remove(_alice, "phone");
+        var (_, progress) = Restarted();
+
+        Assert.True(Assert.Single((await progress.GetAsync(_alice, TestData.User(), Endpoint, 7, CancellationToken.None)).Requests).Announce);
+    }
+
+    [Fact]
+    public async Task KilledAfterOneDeviceGotIt_WhileAnotherWasStillOwedIt_NobodyIsToldAgain()
+    {
+        Subscribe(_alice, "phone");
+        Subscribe(_alice, "laptop");
+        await SeenInFlightThenReady(7, id: 4);
+        PushServiceAnswers("laptop", PushOutcome.Failed);
+        await Pass();
+        Assert.Equal("phone", Assert.Single(_sent).Device);
+        Assert.Equal(1, _job.Owed);
+
+        var (job, progress) = Restarted();
+        PushServiceAnswers("laptop", PushOutcome.Sent);
+        await job.RunPassAsync(true, CancellationToken.None);
+        await job.RunAsync(new ReadyPushWork(null, 4), CancellationToken.None);
+
+        // The phone's user was told, which was on the disk before Jellyfin died: no second push to it, and no pop-up.
+        Assert.Equal(2, _attempts.Count);
+        Assert.Single(_sent);
+        Assert.False(Assert.Single((await progress.GetAsync(_alice, TestData.User(), Endpoint, 7, CancellationToken.None)).Requests).Announce);
+    }
+
+    [Fact]
+    public async Task OnTheTestsServer_TheJobSaysSoOnceAtStartup()
+    {
+        var job = Job(new ReadyPushTimings(TimeSpan.FromHours(1), TimeSpan.FromSeconds(2)));
+        _signal.Running = false;
+
+        await job.StartAsync(CancellationToken.None);
+        await WaitFor(() => _signal.Running);
+        _time.Advance(TimeSpan.FromHours(3));
+        await job.StopAsync(CancellationToken.None);
+
+        var warning = Assert.Single(_jobLog.Entries, e => e.Level == Microsoft.Extensions.Logging.LogLevel.Warning);
+        Assert.Contains(ReadyPushTimings.TestPassVariable + " (requests are checked every 3600 s)", warning.Message, StringComparison.Ordinal);
+        Assert.Contains(ReadyPushTimings.TestRetryVariable + " (a failed send is tried again after 2 s)", warning.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(PushSubscription.TestEndpointVariable, warning.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task OnARealServer_TheJobStartsWithoutAWarning()
+    {
+        _signal.Running = false;
+
+        await _job.StartAsync(CancellationToken.None);
+        await WaitFor(() => _signal.Running);
+        await _job.StopAsync(CancellationToken.None);
+
+        Assert.DoesNotContain(_jobLog.Entries, e => e.Level >= Microsoft.Extensions.Logging.LogLevel.Warning);
+    }
+
+    [Fact]
+    public void TestOverrides_NameEachOfTheTestsVariablesInForce()
+    {
+        Assert.Empty(ReadyPushJob.TestOverrides(ReadyPushTimings.Default, null));
+        Assert.Empty(ReadyPushJob.TestOverrides(ReadyPushTimings.Default, " "));
+
+        var onlyRetry = Assert.Single(ReadyPushJob.TestOverrides(ReadyPushTimings.Default with { RetryDelay = TimeSpan.FromSeconds(0.5) }, null));
+        Assert.StartsWith(ReadyPushTimings.TestRetryVariable + " (a failed send is tried again after 0.5 s)", onlyRetry, StringComparison.Ordinal);
+
+        // The one that lets a subscription name an address that isn't a push service's.
+        var all = ReadyPushJob.TestOverrides(new ReadyPushTimings(TimeSpan.FromHours(1), TimeSpan.FromSeconds(2)), "http://host.docker.internal:5055/push/");
+        Assert.Equal(3, all.Count);
+        Assert.StartsWith(PushSubscription.TestEndpointVariable, all[2], StringComparison.Ordinal);
     }
 
     [Fact]
@@ -905,9 +1263,23 @@ public sealed class ReadyPushJobTests : IDisposable
     private void Subscribe(Guid user, string device) =>
         _subscriptions.Save(user, Subscription(device, "https://web.push.apple.com/" + device));
 
+    /// <summary>
+    /// Jellyfin after a hard stop: the announcement list as its file says, and a request list and a job that remember
+    /// nothing. (The job that was running is simply never heard of again.)
+    /// </summary>
+    private (ReadyPushJob Job, RequestProgressService Progress) Restarted()
+    {
+        var announcements = new ReadyAnnouncements(AnnouncementsPath, NullLogger<ReadyAnnouncements>.Instance);
+        var signal = new ReadyPushSignal(_subscriptions) { Running = true };
+        var progress = new RequestProgressService(_seerr, _config, new CatalogMapper(Substitute.For<ILibraryManager>()), announcements, signal, _time);
+        var job = new ReadyPushJob(signal, _subscriptions, announcements, _users, progress, _sender, Substitute.For<IUserManager>(), _time, ReadyPushTimings.Default, _jobLog);
+        _jobs.Add(job);
+        return (job, progress);
+    }
+
     private ReadyPushJob Job(ReadyPushTimings timings)
     {
-        var job = new ReadyPushJob(_signal, _subscriptions, _announcements, _users, _progress, _sender, Substitute.For<IUserManager>(), _time, timings, NullLogger<ReadyPushJob>.Instance);
+        var job = new ReadyPushJob(_signal, _subscriptions, _announcements, _users, _progress, _sender, Substitute.For<IUserManager>(), _time, timings, _jobLog);
         _jobs.Add(job);
         return job;
     }

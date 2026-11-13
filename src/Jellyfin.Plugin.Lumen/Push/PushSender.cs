@@ -19,8 +19,15 @@ public interface IPushSender
 /// <summary>How one notification went for one device. <c>Removed</c>: its subscription was dropped because of it.</summary>
 public sealed record PushDeviceResult(string DeviceId, PushOutcome Outcome, int? Status, bool Removed)
 {
-    /// <summary>Gets a value indicating whether the device is still subscribed and didn't get the message: worth another try.</summary>
-    public bool Owed => !Removed && Outcome is PushOutcome.Failed or PushOutcome.Rejected;
+    /// <summary>
+    /// Gets a value indicating whether the device is still subscribed and its push service couldn't take the message
+    /// this time: worth another try. Not when the push service refused it: the same message would be refused again,
+    /// and each refusal counts towards removing the subscription (<see cref="PushSender.MaxRejections"/>).
+    /// </summary>
+    public bool Owed => !Removed && Outcome is PushOutcome.Failed;
+
+    /// <summary>Gets a value indicating whether the device is still subscribed, but its push service refused the message.</summary>
+    public bool Refused => !Removed && Outcome is PushOutcome.Rejected;
 }
 
 /// <summary>How one notification went, over the user's devices: the counts, and each device's own result.</summary>
@@ -39,12 +46,19 @@ public sealed record PushSendReport(DateTimeOffset At, string Kind, int Sent, in
 /// <summary>
 /// Default <see cref="IPushSender"/>. A subscription the push service says is gone (404, 410) is removed at once; one it
 /// refuses <see cref="MaxRejections"/> times in a row (403 after Web Push's keys were lost, say) is removed too, so a
-/// device that can never be reached doesn't keep its user from getting the in-app pop-up instead. The device subscribes
-/// again by itself the next time it opens Lumen (client/src/views/push/push.ts). A device the user has signed out of
-/// is removed before anything is sent to it (<see cref="ISignedInDevices"/>).
+/// device that can never be reached doesn't keep its user from getting the in-app pop-up instead. Those are three
+/// messages, not one sent three times: a refused message isn't sent to that device again (see
+/// <see cref="PushDeviceResult.Owed"/>), or one message the push service won't have (or a clock that's wrong for a
+/// few minutes, which spoils the signature for every device) would remove the subscription by itself. The device
+/// subscribes again by itself the next time it opens Lumen (client/src/views/push/push.ts). A device the user has
+/// signed out of is removed before anything is sent to it (<see cref="ISignedInDevices"/>).
 /// <para>
 /// A device that can't be reached is logged once, when its trouble starts, not at every attempt: the caller retries
 /// (Push/ReadyPushJob), and a push service may be down for hours.
+/// </para>
+/// <para>
+/// Each device's send stands alone: one that throws is that device's failure, like a push service that's down, and
+/// the others' results are kept. Lost with it, a device that took the message would get it again at the next try.
 /// </para>
 /// </summary>
 public sealed class PushSender : IPushSender
@@ -103,11 +117,12 @@ public sealed class PushSender : IPushSender
         }
 
         var payload = message.ToPayload();
-        var results = await Task.WhenAll(devices.Select(device => _client.SendAsync(device, payload, timeToLive, cancellationToken))).ConfigureAwait(false);
+        var sent = await Task.WhenAll(devices.Select(device => SendOneAsync(device, payload, timeToLive, cancellationToken))).ConfigureAwait(false);
+        var results = sent.Select(s => s.Result).ToList();
         var perDevice = new List<PushDeviceResult>(devices.Count);
         for (var i = 0; i < devices.Count; i++)
         {
-            perDevice.Add(new PushDeviceResult(devices[i].DeviceId, results[i].Outcome, results[i].Status, Settle(userId, devices[i].Endpoint, results[i])));
+            perDevice.Add(new PushDeviceResult(devices[i].DeviceId, results[i].Outcome, results[i].Status, Settle(userId, devices[i].Endpoint, results[i], sent[i].Error)));
         }
 
         int Count(PushOutcome outcome) => results.Count(r => r.Outcome == outcome);
@@ -125,10 +140,26 @@ public sealed class PushSender : IPushSender
     }
 
     /// <summary>
+    /// One device's send. Whatever it throws but a cancellation is that device's failure (<see cref="PushOutcome.Failed"/>,
+    /// with what was thrown for the log), so it never costs the other devices their results.
+    /// </summary>
+    private async Task<(PushResult Result, Exception? Error)> SendOneAsync(PushSubscription device, ReadOnlyMemory<byte> payload, TimeSpan timeToLive, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return (await _client.SendAsync(device, payload, timeToLive, cancellationToken).ConfigureAwait(false), null);
+        }
+        catch (Exception e) when (e is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            return (new PushResult(PushOutcome.Failed), e);
+        }
+    }
+
+    /// <summary>
     /// What one device's result means for its subscription, and for the log. Never an address or a key there: the push
     /// service's host and its status say enough. Returns whether the subscription was removed.
     /// </summary>
-    private bool Settle(Guid userId, string endpoint, PushResult result)
+    private bool Settle(Guid userId, string endpoint, PushResult result, Exception? error)
     {
         var remove = false;
         switch (result.Outcome)
@@ -160,12 +191,25 @@ public sealed class PushSender : IPushSender
             case PushOutcome.Failed:
                 // Once per device for as long as it lasts: every retry, and every request that's ready meanwhile, would
                 // say the same.
-                if (_failing.TryAdd(endpoint, true))
+                if (!_failing.TryAdd(endpoint, true))
+                {
+                    break;
+                }
+
+                if (error is null)
                 {
                     _logger.LogWarning(
                         "Lumen couldn't send a notification to a device through {Host} (status {Status}). It tries a few more times, then leaves what's ready to the pop-up in the app. Not logged again until that device can be reached.",
                         PushSubscription.EndpointHost(endpoint),
                         result.Status);
+                }
+                else
+                {
+                    // Not the push service's answer: something of Lumen's own threw, and what it was is worth having.
+                    _logger.LogWarning(
+                        error,
+                        "Lumen couldn't send a notification to a device through {Host}: sending failed before the push service answered. It tries a few more times, then leaves what's ready to the pop-up in the app. Not logged again until that device can be reached.",
+                        PushSubscription.EndpointHost(endpoint));
                 }
 
                 break;

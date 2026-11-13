@@ -91,8 +91,9 @@ Off by default. Nothing is registered, asked for or downloaded on a device until
   one subscription per device (Jellyfin's device id for the sign-in), at most 10 devices per user. A push address
   belongs to one user: subscribing from a browser another user subscribed from moves it.
 - Removed when: the user turns it off; the push service answers 404 or 410; it refuses three times running (a
-  subscription made for other keys, say); the user signs out of the device (checked against Jellyfin's device list
-  before each send); the user is deleted; the keys are reset. Whatever was counted against a push address (its
+  subscription made for other keys, say: three notifications, as a refused one isn't sent to that device again);
+  the user signs out of the device (checked against Jellyfin's device list before each send; a list that can't
+  answer for a moment removes nobody); the user is deleted; the keys are reset. Whatever was counted against a push address (its
   refusals, its failing streak) is forgotten with it, so turning notifications off and on starts clean.
 - Nothing but the push address, the browser's two keys, the device's id and name and the date is stored. (A
   `Locale` was, for a number's digit grouping that could never show: the request list covers 50 requests.)
@@ -147,9 +148,19 @@ everything else when Seerr is down.
   job instead. **Push first; the pop-up never shows for the same request.** A user without notifications gets the
   pop-up exactly as before.
 - **Each device is owed the notification on its own.** One whose push service took it has it. One whose push service
-  failed (a network error, a timeout, 429, 5xx) or refused is sent it again: three attempts in all, the second no
-  sooner than a pass (2 minutes) after the first and the third 4 minutes after that, however often the job is woken
-  meanwhile, and nothing later than 10 minutes after the first. A device that got it is never sent it twice.
+  failed (a network error, a timeout, 429, 5xx) is sent it again: three attempts in all, the second no sooner than a
+  pass (2 minutes) after the first and the third 4 minutes after that, however often the job is woken meanwhile.
+  Nothing is sent later than 10 minutes after the first: that's looked at before a try is made (a pass that ran
+  late, a host back from sleep), and a try that would fall past it isn't waited for. A device that got it is never
+  sent it twice.
+- A device whose push service **refused** the message (another 4xx) isn't sent the same one again: it would be
+  refused again, and three refusals running remove the subscription, so one message a push service won't have (or
+  a clock that's wrong for a few minutes, which spoils the signature for every device) would remove it by itself.
+  If nobody else got it, the request is left to the pop-up.
+- A send that **throws**, rather than say how it went, is a failed attempt for every device it was for: the same
+  waits, then the pop-up. (Given back instead, the request would be taken and sent again at every pass and at an
+  open page's polling rate, and never reach the pop-up.) One device's send throwing is that device's failure: the
+  others keep their results.
 - The request stays taken while that goes on: an open page shows no pop-up for it and doesn't wake the job (it used
   to, at the page's polling rate).
 - Then the job **gives up**. If some device got the notification, the user was told, and that's all. If none did,
@@ -159,7 +170,15 @@ everything else when Seerr is down.
   the pop-up, or for a push to a device turned on later.
 - A device that can't be reached is logged once, when its trouble starts, and once when it's reachable again: not
   per attempt, and not per request.
-- What's still owed when Jellyfin stops is given back, and sent after the restart.
+- What's still owed when Jellyfin stops is given back, and sent after the restart. Titles taken in the same step
+  and not sent yet are given back too.
+- If Jellyfin is **killed** instead (out of memory, a power cut), nothing gets to give anything back. So a taken
+  request is also written down as claimed (`Claimed` in `ready-announcements.json`) until the job says a device got
+  it (`Delivered`), gives it back or leaves it to the pop-up; what the file still lists as claimed when it's next
+  read is due again, to a push or the pop-up. A request stops being claimed with the first device that gets it, so
+  that device isn't told twice (the others lose their retries to the kill).
+- A request left to the pop-up doesn't count as "expected soon": its user isn't asked about every pass until they
+  open Lumen, only at the half-hourly look.
 - The pop-up stays for everyone while the job isn't running.
 - A title is announced when all of it that was in flight is ready, as with the pop-up: a show with another season
   still downloading waits for that one, and gets one notification.
@@ -279,10 +298,11 @@ new keys and secret, every subscription dropped. Devices subscribe again by them
   real worker registered (only `pushManager.subscribe` is stood in for, as no push service is behind a test
   browser), a test notification decrypted by the test as the browser would and shown by the worker, a tap taking
   the open app to the title, a request turning ready pushed once (by the webhook with no page open, and by an
-  open page's check) with no pop-up, a push service answering 503 (three attempts, then the pop-up), two devices
-  at 201 and 503, a session naming another device through Jellyfin's real sign-in, re-subscribing after a key
-  reset and after a 410 with the key unchanged, the permission prompt coming only from the tap, 410 cleanup, the
-  rate limit, the admin block and its reset. The tests' server runs the job's pass an hour apart
+  open page's check) with no pop-up, a push service answering 503 (three attempts, then the pop-up), one
+  answering 403 (one attempt, the subscription kept, then the pop-up), two devices at 201 and 503, a session
+  naming another device through Jellyfin's real sign-in, re-subscribing after a key reset and after a 410 with
+  the key unchanged, the permission prompt coming only from the tap, 410 cleanup, the rate limit, the admin
+  block and its reset. The tests' server runs the job's pass an hour apart
   (`LUMEN_PUSH_TEST_PASS_SECONDS`), so a pass can't be what sent a notification a test waits for, and retries
   after seconds (`LUMEN_PUSH_TEST_RETRY_SECONDS`).
 

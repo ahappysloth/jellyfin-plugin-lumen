@@ -18,6 +18,7 @@ public class SignedInDevicesTests
     private readonly Guid _bob = Guid.NewGuid();
     private readonly List<Device> _issued = [];
     private bool _apiChanged;
+    private bool _busy;
 
     public SignedInDevicesTests()
     {
@@ -30,6 +31,12 @@ public class SignedInDevicesTests
             {
                 // What a call into a Jellyfin whose method has another signature throws.
                 throw new MissingMethodException("GetDevices");
+            }
+
+            if (_busy)
+            {
+                // What Jellyfin's database throws while it's busy, or closing: nothing to do with its API.
+                throw new InvalidOperationException("A second operation was started on this context instance");
             }
 
             var query = call.Arg<DeviceQuery>();
@@ -92,6 +99,31 @@ public class SignedInDevicesTests
 
         Assert.Single(_log.Entries, e => e.Level == LogLevel.Warning);
         _manager.ReceivedWithAnyArgs(1).GetDevices(default!);
+    }
+
+    [Fact]
+    public void AnErrorThatPasses_DoesntSwitchToTheClaimedDeviceForGood()
+    {
+        var phone = Issue(_alice, "phone", "Safari iOS");
+        var claimed = new SessionDevice("laptop", "Chrome");
+        _busy = true;
+
+        // While it lasts: no device is taken on the request's word, and none loses its subscription over it.
+        Assert.Throws<InvalidOperationException>(() => _devices.ForToken(_alice, phone, claimed));
+        Assert.True(_devices.IsSignedIn(_alice, "phone"));
+        Assert.True(_devices.IsSignedIn(_alice, "signed-out-long-ago"));
+        Assert.Single(_log.Entries, e => e.Level == LogLevel.Warning);
+
+        // Over: the device list is asked again, and answers as ever.
+        _busy = false;
+        Assert.Equal(new SessionDevice("phone", "Safari iOS"), _devices.ForToken(_alice, phone, claimed));
+        Assert.True(_devices.IsSignedIn(_alice, "phone"));
+        Assert.False(_devices.IsSignedIn(_alice, "signed-out-long-ago"));
+
+        // And a later bout of it is logged again.
+        _busy = true;
+        Assert.True(_devices.IsSignedIn(_alice, "signed-out-long-ago"));
+        Assert.Equal(2, _log.Entries.Count(e => e.Level == LogLevel.Warning));
     }
 
     [Fact]

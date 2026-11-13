@@ -389,6 +389,10 @@ public class RequestProgressServiceTests
         // Or, when no device could be reached, left to the pop-up.
         _service.Release(_alice, Endpoint, title.RequestIds);
         _announcements.Received(1).Release(_alice, "http://seerr:5055/", Arg.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new List<int> { 4 })));
+
+        // Or a device got its push, which the list is told too (what's taken and never settled is due after a restart).
+        _service.Delivered(_alice, Endpoint, title.RequestIds);
+        _announcements.Received(1).Delivered(_alice, "http://seerr:5055/", Arg.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new List<int> { 4 })));
     }
 
     [Fact]

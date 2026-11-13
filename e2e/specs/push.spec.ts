@@ -268,6 +268,44 @@ test("a push service that keeps failing is tried three times, then the app's pop
   await expect(page.getByRole('alert')).toBeEmpty();
 });
 
+test("a device whose push service refuses a notification isn't sent it again and stays subscribed, and the app's pop-up says it", async ({ page }) => {
+  test.setTimeout(120_000);
+  // The stub push service answers 403 for this device, every time.
+  const refused = newSubscription(`refused-${Date.now()}`);
+  await subscribe(refused);
+  await requestDownloading(605);
+  const checked = page.waitForResponse(/\/Lumen\/Requests\/Mine\b/);
+  await login(page, ADMIN);
+  expect((await (await checked).json()).Requests[0].Status).toBe('Downloading');
+
+  await makeAvailable(605, 'Lumen Beta');
+  await page.waitForTimeout(SERVER_CACHE_MS); // until Lumen asks Seerr again
+  const again = page.waitForResponse(/\/Lumen\/Requests\/Mine\b/);
+  await page.reload();
+  expect((await (await again).json()).Requests[0]).toMatchObject({ Status: 'Ready', Announce: false });
+
+  // One attempt, not three: the same message would be refused again, and three refusals running remove a
+  // subscription (one message the push service won't have mustn't do that by itself).
+  await expect.poll(async () => (await pushed(refused)).length, { timeout: 30_000 }).toBe(1);
+  await page.waitForTimeout(7_000); // longer than both waits between a failing device's attempts
+  expect(await pushed(refused)).toHaveLength(1);
+  expect(await adminStatus()).toMatchObject({ Devices: 1, LastSend: { Kind: 'ready', Sent: 0, Failed: 0, Status: 403 } });
+
+  // Nobody was told, so the request is the pop-up's, though the device still has notifications on.
+  const told = page.waitForResponse(/\/Lumen\/Requests\/Mine\b/);
+  await page.reload();
+  expect((await (await told).json()).Requests[0]).toMatchObject({ Status: 'Ready', Announce: true });
+  await expect(page.getByRole('alert')).toContainText('Lumen Future is ready to watch', { timeout: 15_000 });
+
+  // And no later check has the job take the request back and send the refused message again.
+  const next = page.waitForResponse(/\/Lumen\/Requests\/Mine\b/);
+  await page.reload();
+  expect((await (await next).json()).Requests[0]).toMatchObject({ Status: 'Ready', Announce: false });
+  await page.waitForTimeout(3_000);
+  expect(await pushed(refused)).toHaveLength(1);
+  expect((await adminStatus()).Devices).toBe(1);
+});
+
 test('with two devices, the one whose push service fails is tried again on its own, and nobody is told twice', async ({ page }) => {
   test.setTimeout(120_000);
   const second = await secondDevice();

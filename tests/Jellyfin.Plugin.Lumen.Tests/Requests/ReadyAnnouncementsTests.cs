@@ -44,7 +44,75 @@ public sealed class ReadyAnnouncementsTests : IDisposable
         Assert.Equal([1], store.Claim(_alice, Scope, [2], [1], []));
         Assert.Empty(store.Update(_alice, Scope, [2], [1], []));
         Assert.Empty(store.Claim(_alice, Scope, [2], [1], []));
-        Assert.Empty(Create().Update(_alice, Scope, [], [1], [])); // also after a restart
+
+        // Its push reached a device: also after a restart.
+        store.Delivered(_alice, Scope, [1]);
+        Assert.Empty(Create().Update(_alice, Scope, [], [1], []));
+        Assert.Empty(Create().Claim(_alice, Scope, [], [1], [], [1]));
+    }
+
+    [Fact]
+    public void AClaimNobodySettled_IsDueAgainAfterARestart()
+    {
+        var store = Create();
+        store.Update(_alice, Scope, [1, 2, 3, 4], [], []);
+        Assert.Equal([1, 2, 3, 4], store.Claim(_alice, Scope, [], [1, 2, 3, 4], []).Order());
+
+        // One was pushed, one given back, one left to the pop-up. The fourth was still being sent (or sent again) when
+        // Jellyfin was killed: told on the disk, and nobody was.
+        store.Delivered(_alice, Scope, [1]);
+        store.GiveBack(_alice, Scope, [2]);
+        store.Release(_alice, Scope, [3]);
+
+        // After the restart it's due again, like what a job that stops in good order gives back: to a push or the
+        // pop-up, whoever asks first. What was settled is as it was left.
+        var restarted = Create();
+        Assert.True(restarted.ExpectsSoon(_alice));
+        Assert.Equal([3], restarted.PopUpOnly(_alice, Scope));
+        Assert.Equal([2, 3, 4], restarted.Update(_alice, Scope, [], [1, 2, 3, 4], []).Order());
+        Assert.Equal([2, 4], restarted.Claim(_alice, Scope, [], [1, 2, 3, 4], []).Order());
+
+        // Pushed this time, and said so: the next restart announces nothing.
+        restarted.Delivered(_alice, Scope, [2, 4]);
+        Assert.Equal([3], Create().Update(_alice, Scope, [], [1, 2, 3, 4], []));
+    }
+
+    [Fact]
+    public void AClaimNobodySettled_SurvivesARestartThatWroteNothing()
+    {
+        var store = Create();
+        store.Update(_alice, Scope, [1], [], []);
+        store.Claim(_alice, Scope, [], [1], []);
+
+        // Killed again before anything was written: the file still says claimed, and reads the same way.
+        Assert.True(Create().ExpectsSoon(_alice));
+        Assert.Equal([1], Create().Claim(_alice, Scope, [], [1], []));
+    }
+
+    [Fact]
+    public void Delivered_UnderAnotherSeerr_OrForWhatWasntClaimed_ChangesNothing()
+    {
+        var store = Create();
+        store.Update(_alice, Scope, [1, 2], [], []);
+        store.Claim(_alice, Scope, [2], [1], []);
+
+        store.Delivered(_alice, "http://other:5055/", [1]);
+        store.Delivered(_bob, Scope, [1]);
+        store.Delivered(_alice, Scope, [2]);
+
+        Assert.Equal([1], Create().Claim(_alice, Scope, [2], [1], []));
+    }
+
+    [Fact]
+    public void APopUpShownForAClaimedRequest_SettlesIt()
+    {
+        var store = Create();
+        store.Update(_alice, Scope, [1], [], []);
+        store.Claim(_alice, Scope, [], [1], []);
+
+        store.MarkAnnounced(_alice, Scope, [1]);
+
+        Assert.Empty(Create().Update(_alice, Scope, [], [1], []));
     }
 
     [Fact]
@@ -146,6 +214,7 @@ public sealed class ReadyAnnouncementsTests : IDisposable
 
         // Named again (and after a restart): the user was told.
         Assert.Empty(store.Claim(_alice, Scope, [], [7], [], [7]));
+        store.Delivered(_alice, Scope, [7]);
         Assert.Empty(Create().Claim(_alice, Scope, [], [7], [], [7]));
         Assert.Empty(store.Update(_alice, Scope, [], [7], []));
     }
@@ -206,6 +275,31 @@ public sealed class ReadyAnnouncementsTests : IDisposable
         // Waiting or not, it's announced when it's ready.
         store.Update(_alice, Scope, [1], [], [1]);
         Assert.Equal([1], store.Claim(_alice, Scope, [], [1], []));
+    }
+
+    [Fact]
+    public void ExpectsSoon_NotForARequestLeftToThePopUp()
+    {
+        var store = Create();
+        store.Update(_alice, Scope, [1], [], []);
+        store.Claim(_alice, Scope, [], [1], []);
+
+        // No device could be reached: it's ready, and waits for its user to open Lumen, which may be a week. Asking
+        // Seerr about it every pass until then would tell nobody anything.
+        store.Release(_alice, Scope, [1]);
+        Assert.False(store.ExpectsSoon(_alice));
+        Assert.False(Create().ExpectsSoon(_alice)); // also after a restart
+        Assert.Equal([1], store.Update(_alice, Scope, [], [1], [])); // still the pop-up's
+
+        // Another request downloading meanwhile is asked about as ever.
+        store.Update(_alice, Scope, [2], [1], []);
+        Assert.True(store.ExpectsSoon(_alice));
+        store.Update(_alice, Scope, [], [1], []);
+        Assert.False(store.ExpectsSoon(_alice));
+
+        // And the released one is, once it's back in flight (another season was requested).
+        store.Update(_alice, Scope, [1], [], []);
+        Assert.True(store.ExpectsSoon(_alice));
     }
 
     [Fact]
