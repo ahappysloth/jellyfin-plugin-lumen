@@ -16,8 +16,9 @@ namespace Jellyfin.Plugin.Lumen.Requests;
 /// configured address; a redirect is reported as an error.
 /// <para>
 /// User-facing calls (and the user lookup behind them) go through a <see cref="SeerrCircuitBreaker"/>, one per endpoint.
-/// The admin calls (<see cref="GetStatusAsync"/>, <see cref="GetJellyfinServerAsync"/>,
-/// <see cref="GetUserByJellyfinIdForAdminAsync"/>) bypass it, so the dashboard's Test connection always really tries.
+/// The admin calls (<see cref="GetStatusAsync"/>, <see cref="GetJellyfinServerAsync"/>, <see cref="GetServicesAsync"/>, <see cref="GetWebhookAsync"/>,
+/// <see cref="GetUserByJellyfinIdForAdminAsync"/>) bypass it, so the dashboard's Test connection and Health tab always
+/// really try.
 /// </para>
 /// <para>
 /// Discover lists and title summaries are cached in a <see cref="SeerrResponseCache"/>. Seerr answers them in the acting
@@ -64,6 +65,32 @@ public sealed class SeerrClient : ISeerrClient
     {
         var settings = await SendAsync<JellyfinSettingsBody>(endpoint, HttpMethod.Get, "api/v1/settings/jellyfin", null, null, false, cancellationToken).ConfigureAwait(false);
         return string.IsNullOrEmpty(settings?.ServerId) ? null : new SeerrJellyfinServer(settings.Name ?? "Jellyfin", settings.ServerId);
+    }
+
+    public async Task<SeerrServices> GetServicesAsync(SeerrEndpoint endpoint, CancellationToken cancellationToken)
+    {
+        // Each list's entries carry the Radarr or Sonarr API key: only the count is read, and nothing is kept.
+        var radarr = SendAsync<JsonArray>(endpoint, HttpMethod.Get, "api/v1/settings/radarr", null, null, false, cancellationToken);
+        var sonarr = SendAsync<JsonArray>(endpoint, HttpMethod.Get, "api/v1/settings/sonarr", null, null, false, cancellationToken);
+        await Task.WhenAll(radarr, sonarr).ConfigureAwait(false);
+        return new SeerrServices((await radarr.ConfigureAwait(false))?.Count ?? 0, (await sonarr.ConfigureAwait(false))?.Count ?? 0);
+    }
+
+    public async Task<SeerrWebhook> GetWebhookAsync(SeerrEndpoint endpoint, CancellationToken cancellationToken)
+    {
+        var body = await SendAsync<JsonObject>(endpoint, HttpMethod.Get, "api/v1/settings/notifications/webhook", null, null, false, cancellationToken).ConfigureAwait(false);
+        var options = body?["options"] as JsonObject;
+        static string? Text(JsonNode? node) => node is JsonValue value && value.TryGetValue<string>(out var text) && text.Length > 0 ? text : null;
+
+        // Seerr sends its Authorization Header, or else a custom header of that name.
+        var authorization = Text(options?["authHeader"])
+            ?? (options?["customHeaders"] as JsonArray)?.OfType<JsonObject>()
+                .Where(h => string.Equals(Text(h["key"]), "Authorization", StringComparison.OrdinalIgnoreCase))
+                .Select(h => Text(h["value"]))
+                .FirstOrDefault();
+        var enabled = body?["enabled"] is JsonValue e && e.TryGetValue<bool>(out var on) && on;
+        var types = body?["types"] is JsonValue t && t.TryGetValue<int>(out var flags) ? flags : 0;
+        return new SeerrWebhook(enabled, types, Text(options?["webhookUrl"]), authorization);
     }
 
     public Task<SeerrUser?> GetUserByJellyfinIdAsync(SeerrEndpoint endpoint, Guid jellyfinUserId, CancellationToken cancellationToken) =>

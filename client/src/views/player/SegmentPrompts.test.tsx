@@ -147,6 +147,19 @@ async function setUp(options: Options = {}) {
       state = { ...state, ...change };
       view.rerender(element());
     },
+    /**
+     * Between one episode and the next: jellyfin-web's player state has no item for a moment (the first has stopped, the
+     * next hasn't started).
+     */
+    between: async () => {
+      playing = {
+        item: undefined as unknown as typeof item,
+        index: -1,
+        source: undefined as unknown as string,
+      };
+      view.rerender(element());
+      await wait();
+    },
     /** The next episode in the queue begins. */
     nextBegins: async () => {
       playing = { item: queue[1] as typeof item, index: 1, source: 'src3' };
@@ -631,6 +644,18 @@ describe('the next-episode card', () => {
       await player.at(3_510_000);
       fireEvent.click(screen.getByRole('button', { name: 'Play now' }));
 
+      await player.nextBegins();
+
+      expect(player.posts()).toEqual(['/UserPlayedItems/e2']);
+    });
+
+    it('marks it watched after Play now when the player has no item for a moment in between', async () => {
+      const player = await setUp(withCredits);
+      await player.at(3_510_000);
+      fireEvent.click(screen.getByRole('button', { name: 'Play now' }));
+
+      await player.between();
+      expect(player.posts()).toEqual([]);
       await player.nextBegins();
 
       expect(player.posts()).toEqual(['/UserPlayedItems/e2']);

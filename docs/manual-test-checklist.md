@@ -236,7 +236,34 @@ real phone shows what the installer and the launch do.
 - [ ] Reorder, add, and remove sections; save; the result is reflected on home.
 - [ ] An invalid setting (collection hero source with no collection) shows an error and saves nothing.
 - [ ] The save bar slides up with the first change and stays at the bottom of the window wherever you scroll, on a phone too (clear of the home indicator); after Save it says "Settings saved." and slides away. A failed save keeps it up.
-- [ ] The Diagnostics section lists any reported compatibility failures.
+- [ ] Health tab (next to Settings and Storage): every group shows, each row with its status in words; the tab is kept
+      across a reload in the same browser tab, and shows a red count while a row is a Problem.
+- [ ] Health: set Dashboard → Branding → Custom CSS, then Run checks again: "Branding custom CSS" is a Warning with
+      Open Branding (and counts any `@import` from another site). Clear it: OK.
+- [ ] Health behind Nginx Proxy Manager with **Cache Assets** on for Jellyfin's host: "Caching of Lumen's files" is a
+      Problem naming the lifetime it received (about 30 days). Turn Cache Assets off (or open Jellyfin directly): OK.
+- [ ] Health over HTTPS: the HTTPS row is OK; over http://localhost, a LAN address or a Tailscale address (100.x or
+      *.ts.net), Not applicable with a note.
+- [ ] Health: with a wrong Seerr key, fix it from the row's Open Requests settings and Save: back on the Health tab the
+      row is OK and the count has gone down, without Run checks again.
+- [ ] Health with Seerr: OK when it answers; with a wrong key, a Problem; with Seerr stopped, a Problem that names no
+      address. Seerr without Sonarr (Settings → Services): "Radarr and Sonarr" warns.
+- [ ] Health → Notifications with Seerr set up: the job is running; over HTTPS the address row is OK (and mentions the
+      Home Screen app), over a LAN address Not applicable; the devices row counts the devices with notifications on;
+      after "Send a test notification" the last-notification row says it reached the device.
+- [ ] Health → Notifications, Seerr's webhook: off, Not applicable; pointed at Lumen with the secret from Requests →
+      Notifications and Request Available ticked, OK; with an old secret, a Problem naming neither; without Request
+      Available, a Warning. Copy report: no secret in it.
+- [ ] Health with Intro Skipper installed: the plugin row is OK; untick it under a TV library's Media segment providers
+      and the libraries row names that library; the episodes row counts episodes with intros.
+- [ ] Health's Open … buttons: a Dashboard one opens that page; a Settings one opens the Settings tab at its card with
+      focus in it.
+- [ ] Health → Devices: after a failed compatibility check on another device (or a TV), it names the device and browser,
+      what broke, what Lumen did, whether an update would help; Technical details shows the raw ids.
+- [ ] Health → Copy report, pasted somewhere: versions, every check and device, and no API key, token or address
+      (Seerr's, the public address for QR codes, the server's own).
+- [ ] Health in the TV layout: Down from the tabs reaches Run checks again, Down goes from fix to fix (never into the
+      Dashboard's drawer) and to each Technical details, and Up from the top buttons goes back to the tabs.
 - [ ] Install a plugin from Dashboard → Plugins → Catalog: a banner slides down under the app bar ("Restart Jellyfin to
       finish installing …") and stays at the top while scrolling, on a phone too. Restart Jellyfin → Restart now
       restarts the server and reloads the page, which then shows no banner. With "Restyle Jellyfin's sign-in, settings

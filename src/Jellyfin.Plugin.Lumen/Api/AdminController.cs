@@ -87,20 +87,10 @@ public sealed class AdminController : ControllerBase
         }
 
         var endpoint = new SeerrEndpoint(new Uri(body.Url!.TrimEnd('/') + "/"), key);
-        try
-        {
-            var status = await _seerr.GetStatusAsync(endpoint, cancellationToken).ConfigureAwait(false);
-
-            // /status answers without a key, so prove the key works with a call that needs it. Admin lookups bypass the
-            // circuit breaker, so this really tries even right after an outage, and a failure here pauses nothing.
-            await _seerr.GetUserByJellyfinIdForAdminAsync(endpoint, Guid.Empty, cancellationToken).ConfigureAwait(false);
-            var server = await TryGetJellyfinServerAsync(endpoint, cancellationToken).ConfigureAwait(false);
-            return new SeerrTestResultDto(true, status.Version, null, server?.Name, server?.Is(_host.SystemId));
-        }
-        catch (SeerrException e)
-        {
-            return new SeerrTestResultDto(false, null, e.Message);
-        }
+        var result = await SeerrConnectionTest.RunAsync(_seerr, endpoint, cancellationToken).ConfigureAwait(false);
+        return result.Ok
+            ? new SeerrTestResultDto(true, result.Version, null, result.Server?.Name, result.Server?.Is(_host.SystemId))
+            : new SeerrTestResultDto(false, null, result.Error);
     }
 
     /// <summary>
@@ -118,7 +108,7 @@ public sealed class AdminController : ControllerBase
 
         var users = _users.GetUsers().ToList();
         var mapped = new bool[users.Count];
-        var server = TryGetJellyfinServerAsync(endpoint, cancellationToken);
+        var server = SeerrConnectionTest.TryGetJellyfinServerAsync(_seerr, endpoint, cancellationToken);
         try
         {
             await Parallel.ForEachAsync(
@@ -140,17 +130,4 @@ public sealed class AdminController : ControllerBase
 
     [HttpGet("Diagnostics")]
     public ActionResult<IReadOnlyList<DiagnosticEntry>> GetDiagnostics() => Ok(_diagnostics.GetAll());
-
-    /// <summary>Seerr's linked Jellyfin server; null if Seerr uses Plex/Emby, or the settings can't be read.</summary>
-    private async Task<SeerrJellyfinServer?> TryGetJellyfinServerAsync(SeerrEndpoint endpoint, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await _seerr.GetJellyfinServerAsync(endpoint, cancellationToken).ConfigureAwait(false);
-        }
-        catch (SeerrException)
-        {
-            return null;
-        }
-    }
 }

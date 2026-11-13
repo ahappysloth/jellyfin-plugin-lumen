@@ -34,6 +34,19 @@ public class AuthorizationAttributeTests
     }
 
     [Fact]
+    public void HealthController_RequiresElevation()
+    {
+        var attribute = Assert.Single(typeof(HealthController).GetCustomAttributes<AuthorizeAttribute>());
+        Assert.Equal(Policies.RequiresElevation, attribute.Policy);
+    }
+
+    [Fact]
+    public void CacheProbe_IsAnonymous()
+    {
+        Assert.NotNull(typeof(LumenController).GetMethod(nameof(LumenController.GetCacheProbe))!.GetCustomAttribute<AllowAnonymousAttribute>());
+    }
+
+    [Fact]
     public void TraktAdminController_RequiresElevation()
     {
         var attribute = Assert.Single(typeof(TraktAdminController).GetCustomAttributes<AuthorizeAttribute>());

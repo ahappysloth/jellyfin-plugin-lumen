@@ -134,12 +134,14 @@ export function startLumen(options: BootstrapOptions): () => void {
       },
       retry: () => void sync(),
       retryMs: options.compatRetryMs,
-      // Shown on Lumen's Diagnostics page; the version says whether Lumen was tested on it (compat/testedVersions.ts).
+      // Shown on the settings page's Health tab; the version says whether Lumen was tested on it
+      // (compat/testedVersions.ts). The whole user agent (the server keeps 300 characters): the tab reads the device and
+      // browser from it, and the browser's version comes late in it.
       report: (report) => {
         void getServerVersion(client)
           .then((version) =>
             api.postDiagnostics({
-              Client: `${getLayout(doc)} ${win.navigator.userAgent}`.slice(0, 100),
+              Client: `${getLayout(doc)} ${win.navigator.userAgent}`.slice(0, 300),
               ServerVersion: describeServerVersion(version),
               FailedChecks: report.failed,
             }),

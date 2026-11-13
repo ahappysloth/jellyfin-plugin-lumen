@@ -15,7 +15,7 @@ export function GeneralSettings({
   // address copied with jellyfin-web's /web/ on the end loses it, and this shows that it did.
   const qrLink = addressOk && address.trim() ? `${normalizePublicAddress(address)}/web/#/quickconnect` : null;
   return (
-    <Card title="General">
+    <Card title="General" anchor="general">
       <Switch
         label="Enable Lumen"
         hint="Off shows Jellyfin's own pages everywhere."

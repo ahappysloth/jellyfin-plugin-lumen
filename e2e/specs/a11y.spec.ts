@@ -135,6 +135,11 @@ test.describe('Top charts, My requests and Lumen’s settings', () => {
     await root.getByRole('tab', { name: 'Storage' }).click();
     await expect(root.getByRole('img', { name: /^Movies by codec: / })).toBeVisible({ timeout: 30_000 });
     await expectNoViolations(page, 'Lumen settings, Storage', [contrast], '#lmn-admin-root');
+
+    // The Health tab, with Seerr set up, so every group has rows, and a device report opened.
+    await root.getByRole('tab', { name: /^Health/ }).click();
+    await expect(root.locator('[data-check="requests.seerr"]')).toContainText('answers');
+    await expectNoViolations(page, 'Lumen settings, Health', [contrast], '#lmn-admin-root');
   });
 });
 

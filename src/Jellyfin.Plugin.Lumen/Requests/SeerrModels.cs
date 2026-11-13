@@ -15,6 +15,29 @@ public sealed record SeerrJellyfinServer(string Name, string ServerId)
     private static string Normalize(string id) => id.Replace("-", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
 }
 
+/// <summary>How many Radarr and Sonarr servers Seerr has (only the counts: their settings hold those apps' API keys).</summary>
+public sealed record SeerrServices(int Radarr, int Sonarr);
+
+/// <summary>
+/// Seerr's webhook agent, as far as Lumen's Health tab needs it. <paramref name="Authorization"/> is the header Seerr
+/// sends (its Authorization Header, or a custom header of that name): compared with Lumen's secret, never kept or shown.
+/// </summary>
+/// <param name="Enabled">The agent is on.</param>
+/// <param name="Types">Seerr's notification types it sends, as Seerr's bit flags (<see cref="MediaAvailable"/>, …).</param>
+/// <param name="Url">Where it posts.</param>
+/// <param name="Authorization">The Authorization header it sends; null when none.</param>
+public sealed record SeerrWebhook(bool Enabled, int Types, string? Url, string? Authorization)
+{
+    /// <summary>Seerr's Notification.MEDIA_AVAILABLE ("Request Available"), the one Lumen acts on.</summary>
+    public const int MediaAvailable = 8;
+
+    /// <summary>Gets a value indicating whether it sends "Request Available".</summary>
+    public bool SendsAvailable => (Types & MediaAvailable) != 0;
+
+    /// <summary>Never prints the header.</summary>
+    public override string ToString() => $"SeerrWebhook {{ Enabled = {Enabled}, Types = {Types} }}";
+}
+
 /// <summary>
 /// The only parts of a Seerr user Lumen keeps. Seerr's user object (fetched with the admin key) also carries the user's
 /// Jellyfin and Plex tokens, so it is never stored or passed on whole.

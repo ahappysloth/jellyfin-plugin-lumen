@@ -17,6 +17,12 @@ namespace Jellyfin.Plugin.Lumen.Api;
 [Route("Lumen")]
 public sealed class LumenController : ControllerBase
 {
+    /// <summary>What <see cref="GetCacheProbe"/> sends, and an unversioned Lumen file too (client/src/admin/health/probes.ts).</summary>
+    public const string ProbeCacheControl = "no-cache";
+
+    /// <summary>The probe's body, which tells the page it reached Lumen and not a proxy's error page.</summary>
+    public const string ProbeBody = "/* lumen-cache-probe */";
+
     private readonly AssetCatalog _assets;
     private readonly ILumenConfigReader _config;
     private readonly DiagnosticsStore _diagnostics;
@@ -34,6 +40,19 @@ public sealed class LumenController : ControllerBase
         _logger = logger;
     }
 
+    /// <summary>
+    /// The Health tab's proxy check: a tiny script beside Lumen's own files, sent with the headers an unversioned Lumen file
+    /// gets (<see cref="ProbeCacheControl"/>, no Expires). A proxy that caches "assets" by extension (Nginx Proxy Manager's
+    /// Cache Assets) rewrites these as it does Lumen's, and the page compares what it receives with what was sent.
+    /// </summary>
+    [HttpGet("Assets/cache-probe.js")]
+    [AllowAnonymous]
+    public IActionResult GetCacheProbe()
+    {
+        Response.Headers.CacheControl = ProbeCacheControl;
+        return Content(ProbeBody, "text/javascript");
+    }
+
     [HttpGet("Assets/{name}")]
     [AllowAnonymous]
     public IActionResult GetAsset([FromRoute] string name, [FromQuery] string? v)
@@ -46,7 +65,7 @@ public sealed class LumenController : ControllerBase
         // A content-named chunk or font can't change under its name, so it's cached for good without a version.
         Response.Headers.CacheControl = string.Equals(v, _assets.BuildHash, StringComparison.Ordinal) || AssetCatalog.IsContentNamed(name)
             ? "public, max-age=31536000, immutable"
-            : "no-cache";
+            : ProbeCacheControl;
 
         // Lumen's own files are static and hold no secret, so they're served precompressed over HTTPS too.
         var representation = asset.Select(Request.Headers.AcceptEncoding, _logger);

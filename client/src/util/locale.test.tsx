@@ -1,7 +1,9 @@
 import { render, screen } from '@testing-library/preact';
 import { afterEach, describe, expect, it } from 'vitest';
 import { setJellyfinLocale } from '../../test/locale';
-import { DiagnosticsSettings } from '../admin/DiagnosticsSettings';
+import type { LumenConfig } from '../admin/adminApi';
+import { describeDevice } from '../admin/health/devices';
+import { HealthTab } from '../admin/health/HealthTab';
 import { strings } from '../strings';
 import { groupByAirDay } from '../views/browse/SuggestionsTabs';
 import { Segmented } from '../views/browse/Toolbar';
@@ -176,7 +178,7 @@ describe("Lumen's dates and numbers", () => {
     expect(upcoming.map((g) => g.label)).toEqual(['Fr., 13. Nov.']);
   });
 
-  it('in the library chips and the diagnostics table', () => {
+  it('in the library chips and the Health tab', () => {
     restore = setJellyfinLocale('de-de');
     render(
       <Segmented
@@ -188,13 +190,36 @@ describe("Lumen's dates and numbers", () => {
     );
     expect(screen.getByText('1.234')).toBeInTheDocument();
     const lastSeen = new Date(2026, 10, 9, 14, 5);
+    const device = {
+      Client: 'c',
+      ServerVersion: '12.4.0',
+      FailedChecks: ['x'],
+      LastSeen: lastSeen.toISOString(),
+    };
     render(
-      <DiagnosticsSettings
-        diagnostics={[
-          { Client: 'c', ServerVersion: '12.4', FailedChecks: ['x'], LastSeen: lastSeen.toISOString() },
-        ]}
+      <HealthTab
+        health={{
+          running: false,
+          failed: null,
+          problems: 1,
+          groups: [],
+          devices: [describeDevice(device)],
+          rerun: () => {},
+          refresh: () => {},
+          report: {
+            CheckedAt: lastSeen.toISOString(),
+            LumenVersion: '0.5.0',
+            JellyfinVersion: '12.4.0',
+            Checks: [],
+            Devices: [device],
+            QuickConnectAddress: '',
+          },
+        }}
+        config={{} as LumenConfig}
+        onOpenSetting={() => {}}
       />,
     );
-    expect(screen.getByText('9.11.2026, 14:05:00')).toBeInTheDocument();
+    expect(screen.getByText('Jellyfin 12.4.0, last seen 9.11.2026, 14:05:00')).toBeInTheDocument();
+    expect(screen.getByText(/Checked 9\.11\.2026, 14:05:00\./)).toBeInTheDocument();
   });
 });

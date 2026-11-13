@@ -2,6 +2,8 @@ using System.Net.Http.Headers;
 using Jellyfin.Plugin.Lumen.Assets;
 using Jellyfin.Plugin.Lumen.Configuration;
 using Jellyfin.Plugin.Lumen.Diagnostics;
+using Jellyfin.Plugin.Lumen.Health;
+using Jellyfin.Plugin.Lumen.Health.Checks;
 using Jellyfin.Plugin.Lumen.Home;
 using Jellyfin.Plugin.Lumen.Home.Providers;
 using Jellyfin.Plugin.Lumen.Injection;
@@ -88,6 +90,25 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ITraktLists, TraktLists>();
         serviceCollection.AddSingleton<TraktCards>();
         serviceCollection.AddSingleton<ChartService>();
+
+        // The Health tab's checks, in the order the page lists them within each group. A new check is one line here.
+        serviceCollection.AddSingleton<IJellyfinFacts, JellyfinFacts>();
+        serviceCollection.AddSingleton<HealthService>();
+        serviceCollection.AddSingleton<IHealthCheck, LumenUpdateCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, CustomCssCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, SeerrConnectionCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, SeerrServicesCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, PushServiceCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, PushDevicesCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, PushDeliveryCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, SeerrWebhookCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, TraktKeyCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, TraktListsCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, SegmentPluginsCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, SegmentLibrariesCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, SegmentCoverageCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, QuickConnectCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, QuickConnectAddressCheck>();
 
         serviceCollection.AddSingleton<IHomeSectionProvider, ContinueWatchingProvider>();
         serviceCollection.AddSingleton<IHomeSectionProvider, NextUpProvider>();

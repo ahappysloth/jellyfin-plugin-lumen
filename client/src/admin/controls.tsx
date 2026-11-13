@@ -13,14 +13,17 @@ export const inputValue = (event: Event): string =>
 export function Card({
   title,
   intro,
+  anchor,
   children,
 }: {
   title: string;
   intro?: string;
+  /** A key the Health tab's fixes open the card by (admin/health/fixes.ts). */
+  anchor?: string;
   children: ComponentChildren;
 }) {
   return (
-    <fieldset class="lmna-card">
+    <fieldset class="lmna-card" data-card={anchor}>
       <legend>{title}</legend>
       {intro && <p class="lmna-card__intro">{intro}</p>}
       {!intro && <div style={{ height: '12px' }} />}

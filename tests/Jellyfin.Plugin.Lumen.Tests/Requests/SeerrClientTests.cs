@@ -48,6 +48,38 @@ public sealed class SeerrClientTests : IDisposable
     }
 
     [Fact]
+    public async Task Services_CountsRadarrAndSonarrServers_KeepingNothingElse()
+    {
+        _http.Respond = request => request.RequestUri!.AbsolutePath.EndsWith("/radarr", StringComparison.Ordinal)
+            ? FakeHttp.Json("""[{"id":0,"name":"Radarr","apiKey":"secret"},{"id":1,"name":"Radarr 4K","apiKey":"secret"}]""")
+            : FakeHttp.Json("[]");
+
+        var services = await Client().GetServicesAsync(Endpoint, CancellationToken.None);
+
+        Assert.Equal(new SeerrServices(2, 0), services);
+        Assert.Equal(
+            ["/base/api/v1/settings/radarr", "/base/api/v1/settings/sonarr"],
+            _http.Requests.Select(r => r.RequestUri!.AbsolutePath).Order(StringComparer.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("""{"enabled":true,"types":10,"options":{"webhookUrl":"http://jf:8096/Lumen/Push/Seerr","authHeader":"s3cret","jsonPayload":{}}}""", true, 10, "s3cret")]
+    [InlineData("""{"enabled":true,"types":8,"options":{"webhookUrl":"http://jf/Lumen/Push/Seerr","authHeader":"","customHeaders":[{"key":"authorization","value":"Bearer s3cret"}]}}""", true, 8, "Bearer s3cret")]
+    [InlineData("""{"enabled":false,"types":0,"options":{"webhookUrl":""}}""", false, 0, null)]
+    public async Task Webhook_ReadsWhetherItsOn_ItsTypes_AddressAndAuthorization(string json, bool enabled, int types, string? authorization)
+    {
+        _http.Respond = _ => FakeHttp.Json(json);
+
+        var webhook = await Client().GetWebhookAsync(Endpoint, CancellationToken.None);
+
+        Assert.Equal(enabled, webhook.Enabled);
+        Assert.Equal(types, webhook.Types);
+        Assert.Equal(authorization, webhook.Authorization);
+        Assert.DoesNotContain("s3cret", webhook.ToString(), StringComparison.Ordinal);
+        Assert.EndsWith("/base/api/v1/settings/notifications/webhook", _http.Requests[0].RequestUri!.AbsolutePath, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task UserLookup_404MeansNoAccount()
     {
         _http.Respond = _ => FakeHttp.Json("""{"message":"not found"}""", HttpStatusCode.NotFound);

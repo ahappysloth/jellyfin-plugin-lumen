@@ -10,6 +10,9 @@ public sealed class DiagnosticsStore
 {
     public const int Capacity = 50;
     private const int MaxText = 100;
+
+    /// <summary>The client: its layout and whole user agent, which the Health tab reads the device and browser from.</summary>
+    private const int MaxClient = 300;
     private const int MaxChecks = 20;
 
     private readonly Lock _gate = new();
@@ -18,9 +21,9 @@ public sealed class DiagnosticsStore
     public void Record(CompatReportDto report, DateTimeOffset at)
     {
         var entry = new DiagnosticEntry(
-            Truncate(report.Client),
+            Truncate(report.Client, MaxClient),
             Truncate(report.ServerVersion),
-            report.FailedChecks.Take(MaxChecks).Select(Truncate).ToList(),
+            report.FailedChecks.Take(MaxChecks).Select(c => Truncate(c)).ToList(),
             at);
 
         lock (_gate)
@@ -48,5 +51,7 @@ public sealed class DiagnosticsStore
         }
     }
 
-    private static string Truncate(string? value) => value is null ? string.Empty : value.Length <= MaxText ? value : value[..MaxText];
+    private static string Truncate(string? value) => Truncate(value, MaxText);
+
+    private static string Truncate(string? value, int max) => value is null ? string.Empty : value.Length <= max ? value : value[..max];
 }

@@ -21,12 +21,15 @@ export function UpdatesSettings({
   autoCheck = false,
   confirm,
   reload = () => window.location.reload(),
+  onInstalled,
 }: {
   api: AdminApi;
   autoCheck?: boolean;
   confirm: (message: string) => boolean;
   /** Reloads the page once Jellyfin is back (so it runs the new version). */
   reload?: () => void;
+  /** An update was installed (the Health tab's "update available" is out of date). */
+  onInstalled?: () => void;
 }) {
   const [step, setStep] = useState<Step>({ kind: 'idle' });
 
@@ -42,6 +45,7 @@ export function UpdatesSettings({
     setStep({ kind: 'installing', status });
     try {
       setStep({ kind: 'checked', status: await api.installUpdate(status.Latest!) });
+      onInstalled?.();
     } catch {
       setStep({
         kind: 'failed',
@@ -84,6 +88,7 @@ export function UpdatesSettings({
   return (
     <Card
       title="Updates"
+      anchor="updates"
       intro="Checks Lumen's releases on GitHub and asks Jellyfin to read its plugin repositories again."
     >
       <div class="lmn-admin__updates" aria-live="polite">

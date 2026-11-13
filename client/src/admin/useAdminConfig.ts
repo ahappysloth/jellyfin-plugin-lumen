@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import type { AdminApi, DiagnosticEntry, LumenConfig, Option, SectionTypeDef } from './adminApi';
+import type { AdminApi, LumenConfig, Option, SectionTypeDef } from './adminApi';
 import { normalizeConfig, sameConfig } from './configModel';
 
 export type PickerKind = 'Library' | 'Collection' | 'Playlist';
@@ -46,8 +46,6 @@ export interface AdminConfigState {
   savedUrl: string | null | undefined;
   types: SectionTypeDef[];
   lookups: Lookups;
-  /** Null when the diagnostics couldn't be loaded (not the same as "none reported"). */
-  diagnostics: DiagnosticEntry[] | null;
   /** Problems that stop a save or reset: server validation errors or a failed request. */
   errors: string[];
   /** Non-blocking problems: a picker list that didn't load, or a save that worked but couldn't be reloaded. */
@@ -60,11 +58,13 @@ export interface AdminConfigState {
   saved: LumenConfig | null;
   /** Goes up on every Discard, so the form's sections remount and drop local state (a test result, a pending choice). */
   revision: number;
+  /** Goes up on every save or reset that went through: what was checked against the settings may have changed. */
+  saves: number;
 }
 
 /**
  * Loads, edits, saves and resets the plugin configuration. Only the configuration and the section types are needed
- * to show the form; the picker lists and diagnostics are optional, so one failing lookup leaves the rest usable.
+ * to show the form; the picker lists are optional, so one failing lookup leaves the rest usable.
  */
 export function useAdminConfig(api: AdminApi) {
   const [state, setState] = useState<AdminConfigState>({
@@ -72,7 +72,6 @@ export function useAdminConfig(api: AdminApi) {
     savedUrl: null,
     types: [],
     lookups: { Library: [], Collection: [], Playlist: [] },
-    diagnostics: [],
     errors: [],
     warnings: [],
     status: 'loading',
@@ -80,18 +79,18 @@ export function useAdminConfig(api: AdminApi) {
     dirty: false,
     saved: null,
     revision: 0,
+    saves: 0,
   });
   const patch = (next: Partial<AdminConfigState>): void => setState((s) => ({ ...s, ...next }));
 
   /** Resolves false (and shows the failure page with `failure`) when the essentials couldn't be loaded. */
   const load = async (failure = LOAD_FAILED): Promise<boolean> => {
-    const [config, types, libraries, collections, playlists, diagnostics] = await Promise.all([
+    const [config, types, libraries, collections, playlists] = await Promise.all([
       settle(api.getConfig()),
       settle(api.getSectionTypes()),
       settle(api.getLibraries()),
       settle(api.getCollections()),
       settle(api.getPlaylists()),
-      settle(api.getDiagnostics()),
     ]);
     if (config.status === 'rejected' || types.status === 'rejected') {
       patch({ status: 'failed', failure });
@@ -114,7 +113,6 @@ export function useAdminConfig(api: AdminApi) {
         Collection: valueOr(lists.Collection, []),
         Playlist: valueOr(lists.Playlist, []),
       },
-      diagnostics: valueOr(diagnostics, null),
       warnings:
         missing.length > 0
           ? [
@@ -166,6 +164,7 @@ export function useAdminConfig(api: AdminApi) {
       patch({ errors: result.errors, status: 'ready' });
       return;
     }
+    setState((s) => ({ ...s, saves: s.saves + 1 }));
     try {
       const fresh = normalizeConfig(await api.getConfig());
       patch({
@@ -231,7 +230,7 @@ export function useAdminConfig(api: AdminApi) {
       patch({ errors: [RESET_FAILED], status: before });
       return;
     }
-    patch({ errors: [] });
+    setState((s) => ({ ...s, errors: [], saves: s.saves + 1 }));
     await load(RELOAD_AFTER_RESET_FAILED);
   };
 

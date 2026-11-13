@@ -8,6 +8,18 @@ public interface ISeerrClient
     /// <summary>The Jellyfin server Seerr is linked to, or null if it isn't set up for Jellyfin.</summary>
     Task<SeerrJellyfinServer?> GetJellyfinServerAsync(SeerrEndpoint endpoint, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// How many Radarr and Sonarr servers Seerr sends approved requests to (its Settings → Services), for the Health tab.
+    /// An admin call: needs the admin key, and bypasses the circuit breaker.
+    /// </summary>
+    Task<SeerrServices> GetServicesAsync(SeerrEndpoint endpoint, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Seerr's webhook notification settings (Settings → Notifications → Webhook), for the Health tab's check that it
+    /// calls Lumen. An admin call, like <see cref="GetServicesAsync"/>.
+    /// </summary>
+    Task<SeerrWebhook> GetWebhookAsync(SeerrEndpoint endpoint, CancellationToken cancellationToken);
+
     /// <summary>The Seerr account linked to a Jellyfin user, or null if there is none. Goes through the circuit breaker.</summary>
     Task<SeerrUser?> GetUserByJellyfinIdAsync(SeerrEndpoint endpoint, Guid jellyfinUserId, CancellationToken cancellationToken);
 
