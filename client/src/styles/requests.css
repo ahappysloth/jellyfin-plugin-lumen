@@ -99,7 +99,10 @@
   color: inherit;
   text-decoration: none;
 }
-.lmn-request:hover,
+/* Two rules: Chromium 68 has no :focus-visible and would drop :hover with it. */
+.lmn-request:hover {
+  background: var(--lmn-fill-3);
+}
 .lmn-request:focus-visible {
   background: var(--lmn-fill-3);
   outline: none;
@@ -219,9 +222,10 @@
     flex: none;
   }
 }
-/* Phones: in a row, the status goes under the words (the bar as wide as they are), beside a smaller poster, and the
-   chevron goes (the whole row is the link). */
-@media (max-width: 600px) {
+/* Phones and small tablets (below this the status column leaves the title too little room): in a row, the status goes
+   under the words (the bar as wide as they are), beside a smaller poster, and the chevron goes (the whole row is the
+   link). */
+@media (max-width: 720px) {
   .lmn-request {
     grid-template-columns: 48px minmax(0, 1fr);
     gap: 0 14px;
@@ -245,6 +249,8 @@
   .lmn-request__go {
     display: none;
   }
+}
+@media (max-width: 600px) {
   /* iOS zooms into a field whose text is under 16px. */
   .lmn-requests-search__input {
     font-size: 16px;
