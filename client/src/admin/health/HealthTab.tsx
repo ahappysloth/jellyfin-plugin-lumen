@@ -228,7 +228,7 @@ export function HealthTab({
         </div>
         <p class="lmna-health__copied" role="status">
           {copied === 'copied'
-            ? 'Report copied. It has no keys or addresses, so it can go in a bug report as it is.'
+            ? 'Report copied. It has no keys or addresses (only the names of libraries a check mentions), so it can go in a bug report as it is.'
             : copied === 'failed'
               ? "Couldn't copy here. Select the report below and copy it."
               : ''}

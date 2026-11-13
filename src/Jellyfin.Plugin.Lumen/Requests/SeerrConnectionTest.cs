@@ -20,6 +20,12 @@ public sealed record SeerrConnectionResult(string? Version, string? Error, HttpS
 /// </summary>
 public static class SeerrConnectionTest
 {
+    /// <summary>
+    /// The longest a test takes: two rounds of calls, each cut off at <see cref="SeerrClient.Timeout"/>, and a moment over,
+    /// so a slow Seerr still fails with its own message.
+    /// </summary>
+    public static readonly TimeSpan TimeLimit = (SeerrClient.Timeout * 2) + TimeSpan.FromSeconds(1);
+
     public static async Task<SeerrConnectionResult> RunAsync(ISeerrClient seerr, SeerrEndpoint endpoint, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(seerr);
@@ -28,10 +34,13 @@ public static class SeerrConnectionTest
             var status = await seerr.GetStatusAsync(endpoint, cancellationToken).ConfigureAwait(false);
 
             // /status answers without a key, so prove the key works with a call that needs it. Admin lookups bypass the
-            // circuit breaker, so this really tries even right after an outage, and a failure here pauses nothing.
-            await seerr.GetUserByJellyfinIdForAdminAsync(endpoint, Guid.Empty, cancellationToken).ConfigureAwait(false);
-            var server = await TryGetJellyfinServerAsync(seerr, endpoint, cancellationToken).ConfigureAwait(false);
-            return new SeerrConnectionResult(status.Version, null, null, server);
+            // circuit breaker, so this really tries even right after an outage, and a failure here pauses nothing. The
+            // linked server is asked at the same time (it needs the key too, and fails quietly without it), so a slow
+            // Seerr costs two of its timeouts at most, not three.
+            var key = seerr.GetUserByJellyfinIdForAdminAsync(endpoint, Guid.Empty, cancellationToken);
+            var server = TryGetJellyfinServerAsync(seerr, endpoint, cancellationToken);
+            await Task.WhenAll(key, server).ConfigureAwait(false);
+            return new SeerrConnectionResult(status.Version, null, null, await server.ConfigureAwait(false));
         }
         catch (SeerrException e)
         {

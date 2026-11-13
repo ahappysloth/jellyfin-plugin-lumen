@@ -8,8 +8,9 @@ public static partial class HealthText
 {
     /// <summary>
     /// Takes addresses out of an error message before it's shown (and copied into a bug report): .NET's connection errors
-    /// name the host ("Connection refused (seerr.example.com:5055)"). Any URL goes, and so does the given address's host,
-    /// each replaced by <paramref name="label"/> ("Seerr's address").
+    /// name the host ("Connection refused (seerr.example.com:5055)"). Any URL goes, and so does the given address's host
+    /// (with its port), each replaced by <paramref name="label"/> ("Seerr's address"). The host goes only where it stands
+    /// as a host, not inside a word: a server named "seerr" leaves "Seerr's settings" alone.
     /// </summary>
     public static string Scrub(string message, Uri? address = null, string label = "its address")
     {
@@ -17,8 +18,13 @@ public static partial class HealthText
         var text = UrlPattern().Replace(message, label);
         if (address is not null && !string.IsNullOrEmpty(address.Host))
         {
-            text = text.Replace(address.Authority, label, StringComparison.OrdinalIgnoreCase)
-                .Replace(address.Host, label, StringComparison.OrdinalIgnoreCase);
+            // Not after a letter, digit, dot or hyphen (a longer name), and not before one, except a dot that ends a
+            // sentence. Case as given: hosts are written in lower case, and a capitalised word is prose.
+            var host = new Regex(
+                @"(?<![\w.-])" + Regex.Escape(address.Host) + @"(?::\d+)?(?![\w-]|\.\w)",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1));
+            text = host.Replace(text, label.Replace("$", "$$", StringComparison.Ordinal));
         }
 
         return text;

@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.Lumen.Health;
 using Jellyfin.Plugin.Lumen.Updates;
 using MediaBrowser.Common.Api;
 using Microsoft.AspNetCore.Authorization;
@@ -12,10 +13,12 @@ namespace Jellyfin.Plugin.Lumen.Api;
 public sealed class UpdatesController : ControllerBase
 {
     private readonly UpdateChecker _checker;
+    private readonly HealthService _health;
 
-    public UpdatesController(UpdateChecker checker)
+    public UpdatesController(UpdateChecker checker, HealthService health)
     {
         _checker = checker;
+        _health = health;
     }
 
     [HttpGet]
@@ -26,6 +29,12 @@ public sealed class UpdatesController : ControllerBase
     public async Task<ActionResult<UpdateStatusDto>> Install([FromBody] InstallUpdateDto body, CancellationToken cancellationToken)
     {
         var status = await _checker.InstallAsync(body.Version, cancellationToken).ConfigureAwait(false);
+        if (status is not null)
+        {
+            // The Health tab's kept report still says an update is available.
+            _health.Invalidate();
+        }
+
         return status is null ? NotFound(new ValidationErrorsDto([$"Lumen {body.Version} isn't available to install."])) : status;
     }
 }

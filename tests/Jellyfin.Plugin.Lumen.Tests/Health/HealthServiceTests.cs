@@ -55,6 +55,62 @@ public class HealthServiceTests
     }
 
     [Fact]
+    public async Task Report_IsNotKept_PastASave_OrAnInvalidate()
+    {
+        var check = new FakeCheck("a");
+        var service = Service(check);
+
+        await service.GetReportAsync(false, default);
+        _config.Current.Returns(new PluginConfiguration { ConfigVersion = 1 });
+        await service.GetReportAsync(false, default);
+        Assert.Equal(2, check.Runs);
+        Assert.False(check.LastFresh);
+
+        await service.GetReportAsync(false, default);
+        Assert.Equal(2, check.Runs);
+        service.Invalidate();
+        await service.GetReportAsync(false, default);
+        Assert.Equal(3, check.Runs);
+    }
+
+    [Fact]
+    public async Task ASupersededRun_FinishingLast_DoesntReplaceTheNewerReport()
+    {
+        var check = new GatedCheck();
+        var service = Service(check);
+
+        // A cached-allowed run starts, then "Run checks again" starts a fresh one beside it; the fresh one ends first.
+        var older = service.GetReportAsync(false, default);
+        var newer = service.GetReportAsync(true, default);
+        check.Fresh.SetResult();
+        Assert.Equal("fresh", (await newer).Checks[0].Message);
+        check.Stale.SetResult();
+        Assert.Equal("stale", (await older).Checks[0].Message);
+
+        var kept = await service.GetReportAsync(false, default);
+        Assert.Equal("fresh", kept.Checks[0].Message);
+        Assert.Equal(2, check.Runs);
+    }
+
+    [Fact]
+    public async Task ACheck_GetsItsOwnTimeLimit()
+    {
+        var service = new HealthService(
+            [new FakeCheck("short") { Hang = true, TimeLimit = TimeSpan.FromSeconds(2) }],
+            _diagnostics,
+            _config,
+            _host,
+            TimeProvider.System,
+            NullLogger<HealthService>.Instance);
+
+        var started = DateTime.UtcNow;
+        var row = Assert.Single((await service.GetReportAsync(false, default)).Checks);
+
+        Assert.InRange(DateTime.UtcNow - started, TimeSpan.Zero, HealthService.CheckTimeout - TimeSpan.FromSeconds(1));
+        Assert.Contains("didn't finish within 2 seconds", row.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ACheckThatHangs_IsCutOff_AndTheOthersStillReport()
     {
         // Real time here: the limit is the service's own (6 s), and a hang must not hold the others up.
@@ -95,6 +151,8 @@ public class HealthServiceTests
 
         public bool Throw { get; init; }
 
+        public TimeSpan TimeLimit { get; init; } = HealthService.CheckTimeout;
+
         public int Runs { get; private set; }
 
         public bool LastFresh { get; private set; }
@@ -115,6 +173,31 @@ public class HealthServiceTests
             }
 
             return this.Result(HealthStatus.Ok, "fine");
+        }
+    }
+
+    /// <summary>A check that waits to be let go: a cached-allowed run on <see cref="Stale"/>, a fresh one on <see cref="Fresh"/>.</summary>
+    private sealed class GatedCheck : IHealthCheck
+    {
+        private int _runs;
+
+        public string Id => "gated";
+
+        public string Group => HealthGroup.Server;
+
+        public string Title => "Gated";
+
+        public TaskCompletionSource Stale { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Fresh { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int Runs => Volatile.Read(ref _runs);
+
+        public async Task<HealthCheckResult> RunAsync(bool fresh, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _runs);
+            await (fresh ? Fresh : Stale).Task.ConfigureAwait(false);
+            return this.Result(HealthStatus.Ok, fresh ? "fresh" : "stale");
         }
     }
 }

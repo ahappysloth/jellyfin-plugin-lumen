@@ -115,6 +115,60 @@ describe('the copied report', () => {
     expect(text).toContain('[redacted]');
   });
 
+  it("leaves the report's own words alone, whatever the hosts are called", () => {
+    const text = buildReport({
+      checkedAt: new Date('2026-11-12T14:03:00Z'),
+      lumenVersion: '0.5.0',
+      jellyfinVersion: '12.4.0',
+      groups: [
+        {
+          label: 'Requests (Seerr)',
+          checks: [
+            check({ Id: 'requests.seerr', Title: 'Seerr connection', Message: "Seerr's key works." }),
+            check({
+              Id: 'proxy.https',
+              Title: 'HTTPS',
+              Message: "This page is open on this computer's own address (localhost).",
+            }),
+            check({
+              Id: 'server.x',
+              Title: 'Jellyfin',
+              Message: 'Lumen failed: Connection refused (seerr:5055).',
+            }),
+          ],
+        },
+      ],
+      devices: [],
+      settings: {
+        requestsEnabled: true,
+        seerrAddressSet: true,
+        seerrKeySet: true,
+        traktKeySet: false,
+        quickConnectAddressSet: false,
+      },
+      secrets: [
+        'http://seerr:5055',
+        'http://jellyfin:8096',
+        'jellyfin:8096',
+        'http://localhost:8096',
+        'localhost:8096',
+      ],
+    });
+
+    expect(text).toContain('Lumen 0.5.0, Jellyfin 12.4.0');
+    expect(text).toContain("- OK: Seerr connection [requests.seerr]: Seerr's key works.");
+    expect(text).toContain('own address (localhost).');
+    expect(text).toContain('- OK: Jellyfin [server.x]: Lumen failed: Connection refused ([redacted]).');
+    expect(text).toContain('Requests (Seerr)');
+  });
+
+  it('redact takes a host out only where it stands whole', () => {
+    expect(redact('at nas.home.example, not mynas.home.example.org.', ['http://nas.home.example'])).toBe(
+      'at [redacted], not mynas.home.example.org.',
+    );
+    expect(redact('Reached NAS.HOME.EXAMPLE.', ['nas.home.example'])).toBe('Reached [redacted].');
+  });
+
   it('redact leaves ordinary words, versions and ids alone', () => {
     const text =
       'Lumen 0.5.0 on Jellyfin 12.4.0: playbackManager.enableAutomaticBitrateDetection, Chromium 68.';

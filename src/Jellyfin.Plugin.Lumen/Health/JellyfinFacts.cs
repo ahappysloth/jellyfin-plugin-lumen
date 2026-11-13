@@ -34,7 +34,7 @@ public sealed class JellyfinFacts : IJellyfinFacts
     public bool QuickConnectEnabled => _configuration.Configuration.QuickConnectAvailable;
 
     public IReadOnlyList<InstalledPlugin> GetPlugins() =>
-        _plugins.Plugins.Select(p => new InstalledPlugin(p.Name, p.Manifest.Status.ToString())).ToList();
+        _plugins.Plugins.Select(p => new InstalledPlugin(p.Id, p.Name, p.Version, p.Manifest.Status.ToString())).ToList();
 
     /// <summary>
     /// The providers Jellyfin's segment manager runs: every <see cref="IMediaSegmentProvider"/> plugins register. Read

@@ -36,7 +36,8 @@ public sealed record HealthFix(string Label, string Kind, string Target);
 
 /// <summary>
 /// One check's result. <paramref name="Message"/> is plain words for the admin, and also goes into the page's Copy report,
-/// so it must never hold a secret, an address or a hostname.
+/// so it must never hold a secret, an address or a hostname. Library names may appear (the Skip Intro rows name the
+/// libraries to fix), and the page says so when it copies the report.
 /// </summary>
 public sealed record HealthCheckResult(string Id, string Group, string Status, string Title, string Message, HealthFix? Fix = null);
 

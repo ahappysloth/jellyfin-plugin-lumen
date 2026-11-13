@@ -205,6 +205,7 @@ describe("Lumen's dates and numbers", () => {
           groups: [],
           devices: [describeDevice(device)],
           rerun: () => {},
+          refresh: () => {},
           report: {
             CheckedAt: lastSeen.toISOString(),
             LumenVersion: '0.5.0',

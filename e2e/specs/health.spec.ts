@@ -123,6 +123,55 @@ test('Seerr: answering, with Radarr and Sonarr; without them; and down, a proble
   }
 });
 
+test('a fix saved on the Settings tab shows on the Health tab at once, without running the checks again', async ({ page }) => {
+  await login(page, ADMIN);
+  try {
+    await lumenConfig({ RequestsEnabled: true, SeerrUrl: SEERR_URL, SeerrApiKey: 'wrong-key' });
+    const root = await openHealth(page);
+    await rerun(root);
+    const seerr = row(root, 'requests.seerr');
+    await expect(seerr).toContainText('Seerr refused the saved API key.');
+    // The badge's count (devices other specs reported count too, until Jellyfin restarts).
+    const problems = async (): Promise<number> =>
+      Number(/(\d+) problems?$/.exec((await root.getByRole('tab', { name: /^Health/ }).textContent()) ?? '')?.[1] ?? 0);
+    const before = await problems();
+    expect(before).toBeGreaterThan(0);
+
+    // The row's fix, the right key, Save: the server dropped the report it kept, and the page asked again.
+    await seerr.getByRole('button', { name: 'Open Requests settings' }).click();
+    await root.getByLabel('Seerr API key').fill('stub-key');
+    await root.getByRole('button', { name: 'Save' }).click();
+    await expect(root.locator('.lmna-savebar').getByText('Settings saved.')).toBeVisible();
+    await root.getByRole('tab', { name: /^Health/ }).click();
+    await expect(seerr).toContainText('Seerr 3.5.1-stub answers and the API key works.');
+    await expect.poll(problems).toBe(before - 1);
+  } finally {
+    await resetLumen();
+  }
+});
+
+test('the Health report is for admins only: a user (kid) and a visitor get nothing from it', async () => {
+  const { kid } = loadState();
+  const call = (token?: string) =>
+    fetch(new URL('Lumen/Admin/Health?refresh=true', `${BASE_URL.replace(/\/$/, '')}/`), {
+      headers: {
+        Authorization: `MediaBrowser Client="Lumen E2E", Device="Playwright", DeviceId="lumen-e2e-kid", Version="1.0.0"${token ? `, Token="${token}"` : ''}`,
+      },
+    });
+
+  // The kid's token works, so a 403 below is the endpoint refusing a signed-in user, not an expired session.
+  expect((await api('/Users/Me', { token: kid.token })) as unknown).toBeTruthy();
+  for (const [who, token, status] of [
+    ['kid', kid.token, 403],
+    ['nobody', undefined, 401],
+  ] as const) {
+    const response = await call(token);
+    expect(response.status, who).toBe(status);
+    // No check, setting or device in an error body.
+    expect(await response.text()).not.toMatch(/Checks|QuickConnectAddress|Devices|requests\.seerr/);
+  }
+});
+
 test('Quick Connect on, with the public address answering as this server; and off', async ({ page }) => {
   await login(page, ADMIN);
   try {

@@ -242,7 +242,10 @@ real phone shows what the installer and the launch do.
       Open Branding (and counts any `@import` from another site). Clear it: OK.
 - [ ] Health behind Nginx Proxy Manager with **Cache Assets** on for Jellyfin's host: "Caching of Lumen's files" is a
       Problem naming the lifetime it received (about 30 days). Turn Cache Assets off (or open Jellyfin directly): OK.
-- [ ] Health over HTTPS: the HTTPS row is OK; over http://localhost or a LAN address, Not applicable with a note.
+- [ ] Health over HTTPS: the HTTPS row is OK; over http://localhost, a LAN address or a Tailscale address (100.x or
+      *.ts.net), Not applicable with a note.
+- [ ] Health: with a wrong Seerr key, fix it from the row's Open Requests settings and Save: back on the Health tab the
+      row is OK and the count has gone down, without Run checks again.
 - [ ] Health with Seerr: OK when it answers; with a wrong key, a Problem; with Seerr stopped, a Problem that names no
       address. Seerr without Sonarr (Settings → Services): "Radarr and Sonarr" warns.
 - [ ] Health with Intro Skipper installed: the plugin row is OK; untick it under a TV library's Media segment providers

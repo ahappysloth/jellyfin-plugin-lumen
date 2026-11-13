@@ -97,6 +97,11 @@ describe('checkHttps', () => {
     ['http:', 'nas.local', 'NotApplicable'],
     ['http:', 'jellyfin', 'NotApplicable'],
     ['http:', 'media.example.org', 'Problem'],
+    // Tailscale: its addresses (100.64.0.0/10) and MagicDNS names reach only the tailnet over plain HTTP.
+    ['http:', '100.101.102.103', 'NotApplicable'],
+    ['http:', 'nas.tail1234.ts.net', 'NotApplicable'],
+    ['http:', '100.128.0.1', 'Problem'],
+    ['http:', '2001:db8::1', 'Problem'],
   ])('%s//%s is %s', (protocol, hostname, status) => {
     expect(checkHttps({ protocol, hostname, origin: `${protocol}//${hostname}` }).Status).toBe(status);
   });
@@ -111,6 +116,19 @@ describe('checkHttps', () => {
     expect(addressKind('172.20.1.1')).toBe('local');
     expect(addressKind('172.32.1.1')).toBe('public');
     expect(addressKind('[::1]')).toBe('loopback');
+    expect(addressKind('[fd7a:115c:a1e0::1]')).toBe('local');
+    expect(addressKind('[2001:db8::1]')).toBe('public');
+    expect(addressKind('100.64.0.1')).toBe('private');
+    expect(addressKind('100.127.255.254')).toBe('private');
+    expect(addressKind('100.63.0.1')).toBe('public');
+    expect(addressKind('jellyfin.tail1234.ts.net')).toBe('private');
+    expect(addressKind('ts.net.example.org')).toBe('public');
+  });
+
+  it('says a Tailscale address is a private network, not the open internet', () => {
+    const result = checkHttps({ protocol: 'http:', hostname: '100.101.102.103', origin: '' });
+    expect(result.Message).toContain('private network');
+    expect(result.Message).not.toContain('internet');
   });
 });
 
@@ -140,6 +158,19 @@ describe('checkQuickConnectAddress', () => {
       (await checkQuickConnectAddress(e, { QuickConnectAddress: 'https://tv.example.org', Checks: [...on] }))
         .Status,
     ).toBe('Warning');
+  });
+
+  it("doesn't claim it's this server when this server's own id didn't load", async () => {
+    const e = env((url) =>
+      url.startsWith('https://tv.example.org') ? info('abc') : new Response('', { status: 500 }),
+    );
+    const result = await checkQuickConnectAddress(e, {
+      QuickConnectAddress: 'https://tv.example.org',
+      Checks: [...on],
+    });
+    expect(result.Status).toBe('Ok');
+    expect(result.Message).toContain("Whether it's this one couldn't be checked");
+    expect(result.Message).not.toContain("it's this server");
   });
 
   it("can't check another address it can't read; its own not answering is a problem", async () => {

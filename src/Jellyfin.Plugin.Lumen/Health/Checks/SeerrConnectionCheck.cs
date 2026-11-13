@@ -26,6 +26,9 @@ public sealed class SeerrConnectionCheck : IHealthCheck
 
     public string Title => "Seerr connection";
 
+    /// <summary>Gets Test connection's own limit: it asks Seerr twice in a row, each call with its own 5 s timeout.</summary>
+    public TimeSpan TimeLimit => SeerrConnectionTest.TimeLimit;
+
     public async Task<HealthCheckResult> RunAsync(bool fresh, CancellationToken cancellationToken)
     {
         var config = _config.Current;

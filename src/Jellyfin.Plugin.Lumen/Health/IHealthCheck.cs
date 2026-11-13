@@ -17,6 +17,12 @@ public interface IHealthCheck
     /// <summary>Gets the row's short title, also used when the check can't run.</summary>
     string Title { get; }
 
+    /// <summary>
+    /// Gets how long the check may take before the page shows "didn't finish" in its place. Long enough for what it
+    /// asks to time out with its own message (a check that makes several calls in a row needs more than one call's).
+    /// </summary>
+    TimeSpan TimeLimit => HealthService.CheckTimeout;
+
     /// <summary>Runs the check.</summary>
     /// <param name="fresh">True for "Run checks again": nothing cached may be reused.</param>
     /// <param name="cancellationToken">Cancelled when the check's time is up.</param>

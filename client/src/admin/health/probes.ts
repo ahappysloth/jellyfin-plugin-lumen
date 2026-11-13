@@ -134,9 +134,16 @@ export async function checkProxyCache(env: ProbeEnv): Promise<BrowserCheck> {
   };
 }
 
-/** A hostname only this machine or this network reaches: localhost, a private IP, or a name with no dots (or .local). */
-export function addressKind(hostname: string): 'loopback' | 'local' | 'public' {
-  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+/**
+ * Who reaches a hostname: only this machine (localhost), this home network (a private IP, a name with no dots, .local),
+ * a private network across the internet (Tailscale: its 100.64.0.0/10 addresses, which are also carriers' shared NAT
+ * range, and its *.ts.net names, which plain HTTP reaches only inside the tailnet), or anyone.
+ */
+export function addressKind(hostname: string): 'loopback' | 'local' | 'private' | 'public' {
+  const host = hostname
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '')
+    .toLowerCase();
   if (host === 'localhost' || host.endsWith('.localhost') || /^127\./.test(host) || host === '::1')
     return 'loopback';
   if (
@@ -147,9 +154,11 @@ export function addressKind(hostname: string): 'loopback' | 'local' | 'public' {
     /^(fc|fd)[0-9a-f]{2}:/.test(host) ||
     /^fe80:/.test(host) ||
     /\.(local|lan|home|internal|home\.arpa)$/.test(host) ||
-    !host.includes('.')
+    // A one-word name (an IPv6 address has colons instead of dots).
+    (!host.includes('.') && !host.includes(':'))
   )
     return 'local';
+  if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host) || /\.ts\.net$/.test(host)) return 'private';
   return 'public';
 }
 
@@ -169,6 +178,13 @@ export function checkHttps(location: ProbeEnv['location']): BrowserCheck {
       Status: 'NotApplicable',
       Message:
         "This page is open on this computer's own address (localhost), where browsers don't need HTTPS. Other devices need an HTTPS address to install Lumen as an app.",
+    };
+  if (kind === 'private')
+    return {
+      ...base,
+      Status: 'NotApplicable',
+      Message:
+        'This page came over plain HTTP from a private network address (such as Tailscale), which only devices on that network reach. Installing Lumen as an app on a phone or computer needs an HTTPS address (Tailscale can give one).',
     };
   if (kind === 'local')
     return {
@@ -247,7 +263,16 @@ export async function checkQuickConnectAddress(
             "Can't check from here: the public address isn't this page's, and the browser won't let this page read its answer. Open it on a phone to check it.",
           Detail: `Tried ${address}.`,
         };
-  if (ours && theirs.replace(/-/g, '').toLowerCase() !== ours.replace(/-/g, '').toLowerCase())
+  // This server's own id didn't load: the address answers, but whether it's this server can't be told.
+  if (!ours)
+    return {
+      ...base,
+      Status: 'Ok',
+      Message:
+        "The public address answers like a Jellyfin server. Whether it's this one couldn't be checked: this server's own details didn't load. Run the checks again to compare.",
+      Detail: `Checked ${address}.`,
+    };
+  if (theirs.replace(/-/g, '').toLowerCase() !== ours.replace(/-/g, '').toLowerCase())
     return {
       ...base,
       Status: 'Warning',

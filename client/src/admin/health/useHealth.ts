@@ -15,12 +15,19 @@ export interface HealthState {
   problems: number;
   /** Set when the server's checks couldn't be loaded. */
   failed: string | null;
+  /** "Run checks again": nothing kept on the server is reused. */
   rerun: () => void;
+  /**
+   * Runs the checks again after a save, reset or update: the server has already dropped what it kept from before
+   * (HealthService), so its other kept results (Trakt's lists, GitHub's answer) are reused.
+   */
+  refresh: () => void;
 }
 
 /**
  * The Health tab's data: the server's checks, then the browser's. Loaded once when the settings page opens (so the tab
- * can show a badge), and again on "Run checks again", which asks the server not to reuse anything.
+ * can show a badge), again after the settings are saved or reset or an update is installed (so a fix shows at once), and
+ * on "Run checks again", which asks the server not to reuse anything.
  */
 export function useHealth(api: AdminApi, env: () => ProbeEnv): HealthState {
   const [running, setRunning] = useState(true);
@@ -63,5 +70,6 @@ export function useHealth(api: AdminApi, env: () => ProbeEnv): HealthState {
       devices.filter((d) => d.status === 'Problem').length,
     failed,
     rerun: () => void load(true),
+    refresh: () => void load(false),
   };
 }

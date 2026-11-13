@@ -23,10 +23,15 @@ public interface IJellyfinFacts
     Task<IntroCoverage?> GetIntroCoverageAsync(CancellationToken cancellationToken);
 }
 
-/// <summary>An installed plugin, as Jellyfin's plugin manager lists it.</summary>
+/// <summary>
+/// An installed plugin, as Jellyfin's plugin manager lists it: one per copy, so an update leaves the old version beside the
+/// new one (Superseded) until it's cleaned up.
+/// </summary>
+/// <param name="Id">Its plugin id (the manifest's guid).</param>
 /// <param name="Name">Its name (Intro Skipper).</param>
+/// <param name="Version">This copy's version.</param>
 /// <param name="Status">Jellyfin's PluginStatus by name: Active, Restart, Disabled, NotSupported, Malfunctioned, Superseded, Deleted.</param>
-public sealed record InstalledPlugin(string Name, string Status);
+public sealed record InstalledPlugin(Guid Id, string Name, Version Version, string Status);
 
 /// <summary>A library and the media segment providers switched off for it (its library options).</summary>
 /// <param name="Name">The library's name.</param>

@@ -54,7 +54,7 @@ public class ServerChecksTests
     public async Task Update_IsKeptForAnHour_UnlessAskedFresh()
     {
         var calls = 0;
-        var check = new LumenUpdateCheck(_ => Task.FromResult(Status("0.5.0", $"0.5.{++calls}", available: true)), _time);
+        var check = new LumenUpdateCheck(_ => Task.FromResult(Status("0.5.0", $"0.5.{++calls}", available: true)), () => 0, _time);
 
         await check.RunAsync(false, default);
         _time.Advance(TimeSpan.FromMinutes(59));
@@ -62,6 +62,33 @@ public class ServerChecksTests
         Assert.Contains("0.5.2", (await check.RunAsync(true, default)).Message, StringComparison.Ordinal);
         _time.Advance(TimeSpan.FromHours(1));
         Assert.Contains("0.5.3", (await check.RunAsync(false, default)).Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Update_GitHubNotAnswering_IsAskedAgainAfterAFewMinutes_NotAnHour()
+    {
+        var reachable = false;
+        var check = new LumenUpdateCheck(_ => Task.FromResult(Status("0.5.0", reachable ? "0.5.0" : null, reachable: reachable)), () => 0, _time);
+
+        Assert.Equal(HealthStatus.NotApplicable, (await check.RunAsync(false, default)).Status);
+        reachable = true;
+        _time.Advance(LumenUpdateCheck.KeepFailureFor - TimeSpan.FromSeconds(1));
+        Assert.Equal(HealthStatus.NotApplicable, (await check.RunAsync(false, default)).Status);
+        _time.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(HealthStatus.Ok, (await check.RunAsync(false, default)).Status);
+    }
+
+    [Fact]
+    public async Task Update_InstalledFromTheUpdatesCard_IsCheckedAgain()
+    {
+        var installs = 0;
+        var pending = false;
+        var check = new LumenUpdateCheck(_ => Task.FromResult(Status("0.5.0", "0.5.1", available: !pending, pending: pending)), () => installs, _time);
+
+        Assert.Contains("is available", (await check.RunAsync(false, default)).Message, StringComparison.Ordinal);
+        pending = true;
+        installs++;
+        Assert.Contains("starts when Jellyfin restarts", (await check.RunAsync(false, default)).Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -108,5 +135,5 @@ public class ServerChecksTests
     private static UpdateStatusDto Status(string installed, string? latest, bool available = false, bool pending = false, bool reachable = true) =>
         new(installed, latest, null, available, reachable, false, pending);
 
-    private LumenUpdateCheck Update(UpdateStatusDto status) => new(_ => Task.FromResult(status), _time);
+    private LumenUpdateCheck Update(UpdateStatusDto status) => new(_ => Task.FromResult(status), () => 0, _time);
 }

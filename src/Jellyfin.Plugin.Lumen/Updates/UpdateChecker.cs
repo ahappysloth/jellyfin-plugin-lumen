@@ -33,6 +33,7 @@ public sealed class UpdateChecker
     private readonly IInstallationManager _installs;
     private readonly TimeProvider _time;
     private readonly Version _installed;
+    private int _installCount;
 
     public UpdateChecker(IInstallationManager installs, TimeProvider time)
         : this(installs, time, typeof(LumenPlugin).Assembly.GetName().Version ?? new Version(0, 0, 0, 0))
@@ -45,6 +46,9 @@ public sealed class UpdateChecker
         _time = time;
         _installed = installed;
     }
+
+    /// <summary>Gets how many updates have been installed since Jellyfin started: a kept check from before one is out of date.</summary>
+    public int Installs => Volatile.Read(ref _installCount);
 
     public async Task<UpdateStatusDto> CheckAsync(CancellationToken cancellationToken)
     {
@@ -83,6 +87,7 @@ public sealed class UpdateChecker
 
         // Jellyfin downloads the zip, checks it against the manifest's checksum and swaps it in on the next restart.
         await _installs.InstallPackage(package, cancellationToken).ConfigureAwait(false);
+        Interlocked.Increment(ref _installCount);
         return await CheckAsync(cancellationToken).ConfigureAwait(false);
     }
 

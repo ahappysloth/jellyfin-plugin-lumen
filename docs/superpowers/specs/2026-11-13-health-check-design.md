@@ -73,10 +73,12 @@ Notes on the less obvious ones:
 
 `GET /Lumen/Admin/Health[?refresh=true]` (admins only) returns the server's rows, the device reports, the versions and
 the saved Quick Connect address. Each check is an `IHealthCheck` (id, group, title, `RunAsync(fresh, ct)`), registered
-in `ServiceRegistrator` in page order. `HealthService` runs them all at once, each with 6 s at most (past Seerr's 5 s,
-so a slow Seerr gets its own message), cut off even if it ignores its token; one that throws or times out becomes a
-Warning row, never a failed page. The report is kept for a minute, since the settings page asks on every open (for the
-badge); "Run checks again" asks for a fresh one, and requests during a run share it. The checks read Jellyfin through
+in `ServiceRegistrator` in page order. `HealthService` runs them all at once, each with 6 s at most (or its own
+`TimeLimit`: the Seerr row's is 11 s, two rounds of Seerr's 5 s calls, so a slow Seerr gets its own message), cut off
+even if it ignores its token; one that throws or times out becomes a Warning row, never a failed page. The report is
+kept for a minute, since the settings page asks on every open (for the badge), but not past a save (it's keyed on
+ConfigVersion) or an installed update; the page asks again after either. "Run checks again" asks for a fresh one, and
+requests during a run share it; a superseded run that finishes last doesn't replace a newer report. The checks read Jellyfin through
 `IJellyfinFacts` (branding, Quick Connect, plugins, segment providers, library options, intro coverage), so each is
 unit-tested with stubs; Seerr and Trakt through their existing clients. Test connection's logic moved into
 `SeerrConnectionTest`, which the Requests card and the health row share. `TraktLists` records its last fetch.

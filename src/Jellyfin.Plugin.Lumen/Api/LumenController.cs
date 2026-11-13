@@ -65,7 +65,7 @@ public sealed class LumenController : ControllerBase
         // A content-named chunk or font can't change under its name, so it's cached for good without a version.
         Response.Headers.CacheControl = string.Equals(v, _assets.BuildHash, StringComparison.Ordinal) || AssetCatalog.IsContentNamed(name)
             ? "public, max-age=31536000, immutable"
-            : "no-cache";
+            : ProbeCacheControl;
 
         // Lumen's own files are static and hold no secret, so they're served precompressed over HTTPS too.
         var representation = asset.Select(Request.Headers.AcceptEncoding, _logger);

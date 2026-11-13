@@ -61,6 +61,10 @@ export function AdminApp({
     now: Date.now,
   }));
   const { config, status, errors, warnings, dirty, update } = admin;
+  // A save or reset can fix (or cause) what a check found: the badge and rows follow without "Run checks again".
+  useEffect(() => {
+    if (admin.saves > 0) health.refresh();
+  }, [admin.saves]);
   const busy = isBusy(status);
   const formRef = useRef<HTMLFormElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -310,7 +314,13 @@ export function AdminApp({
           </div>
         ))}
 
-        <UpdatesSettings api={api} autoCheck={wantsCheck(hash)} confirm={confirm} reload={reload} />
+        <UpdatesSettings
+          api={api}
+          autoCheck={wantsCheck(hash)}
+          confirm={confirm}
+          reload={reload}
+          onInstalled={health.refresh}
+        />
         <GeneralSettings key={`general-${revision}`} config={config} update={update} />
         <HeroSettings key={`hero-${revision}`} config={config} lookups={admin.lookups} update={update} />
         <HomeSectionsSettings

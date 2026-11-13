@@ -10,11 +10,18 @@ public sealed class SegmentPluginsCheck : IHealthCheck
 
     private static readonly HealthFix OpenPlugins = new("Open Plugins", "dashboard", "plugins");
 
-    private static readonly (string Name, string[] Matches)[] Known =
+    /// <summary>
+    /// The plugins, by id (from their manifests: intro-skipper.org/manifest.json lists both), with names as a fallback for a
+    /// fork or a build under another id.
+    /// </summary>
+    private static readonly (string Name, Guid Id, string[] Matches)[] Known =
     [
-        ("Intro Skipper", ["intro skipper", "introskipper"]),
-        ("SkipMe.db", ["skipme"]),
+        ("Intro Skipper", Guid.Parse("c83d86bb-a1e0-4c35-a113-e2101cf4ee6b"), ["intro skipper", "introskipper"]),
+        ("SkipMe.db", Guid.Parse("b2a63e62-0ac5-4575-9ad2-2c7534ccb83d"), ["skipme"]),
     ];
+
+    /// <summary>Of several copies of a plugin, the one that counts: a running one before a broken one, and an old one last.</summary>
+    private static readonly string[] StatusOrder = ["Active", "Restart", "Disabled", "NotSupported", "Malfunctioned", "Superseded", "Deleted"];
 
     private readonly IJellyfinFacts _jellyfin;
 
@@ -33,7 +40,7 @@ public sealed class SegmentPluginsCheck : IHealthCheck
     {
         var plugins = _jellyfin.GetPlugins();
         var found = Known
-            .Select(k => (k.Name, Plugin: plugins.FirstOrDefault(p => k.Matches.Any(m => p.Name.Contains(m, StringComparison.OrdinalIgnoreCase)))))
+            .Select(k => (k.Name, Plugin: Find(plugins, k.Id, k.Matches)))
             .Where(k => k.Plugin is not null)
             .ToList();
 
@@ -74,5 +81,23 @@ public sealed class SegmentPluginsCheck : IHealthCheck
             HealthStatus.Ok,
             $"{HealthText.List(names)} {(names.Count == 1 ? "is" : "are")} installed." + (missing.Count > 0 ? $" {missing[0]} is optional: it adds to what {names[0]} finds." : string.Empty),
             SetupGuide));
+    }
+
+    /// <summary>
+    /// The copy of a plugin that says how it stands: an update leaves the old version beside the new one (Superseded), and
+    /// a removed one stays listed (Deleted) until Jellyfin restarts. Matched by id; by name only when no copy has the id.
+    /// A plugin whose only copies are being removed counts as not installed.
+    /// </summary>
+    private static InstalledPlugin? Find(IReadOnlyList<InstalledPlugin> plugins, Guid id, string[] matches)
+    {
+        var copies = plugins.Where(p => p.Id == id).ToList();
+        if (copies.Count == 0)
+        {
+            copies = plugins.Where(p => matches.Any(m => p.Name.Contains(m, StringComparison.OrdinalIgnoreCase))).ToList();
+        }
+
+        static int Rank(string status) => Array.IndexOf(StatusOrder, status) is var at and >= 0 ? at : StatusOrder.Length;
+        var best = copies.OrderBy(p => Rank(p.Status)).ThenByDescending(p => p.Version).FirstOrDefault();
+        return best?.Status == "Deleted" ? null : best;
     }
 }

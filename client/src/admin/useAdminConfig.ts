@@ -58,6 +58,8 @@ export interface AdminConfigState {
   saved: LumenConfig | null;
   /** Goes up on every Discard, so the form's sections remount and drop local state (a test result, a pending choice). */
   revision: number;
+  /** Goes up on every save or reset that went through: what was checked against the settings may have changed. */
+  saves: number;
 }
 
 /**
@@ -77,6 +79,7 @@ export function useAdminConfig(api: AdminApi) {
     dirty: false,
     saved: null,
     revision: 0,
+    saves: 0,
   });
   const patch = (next: Partial<AdminConfigState>): void => setState((s) => ({ ...s, ...next }));
 
@@ -161,6 +164,7 @@ export function useAdminConfig(api: AdminApi) {
       patch({ errors: result.errors, status: 'ready' });
       return;
     }
+    setState((s) => ({ ...s, saves: s.saves + 1 }));
     try {
       const fresh = normalizeConfig(await api.getConfig());
       patch({
@@ -226,7 +230,7 @@ export function useAdminConfig(api: AdminApi) {
       patch({ errors: [RESET_FAILED], status: before });
       return;
     }
-    patch({ errors: [] });
+    setState((s) => ({ ...s, errors: [], saves: s.saves + 1 }));
     await load(RELOAD_AFTER_RESET_FAILED);
   };
 

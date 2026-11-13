@@ -84,6 +84,24 @@ public class RequestsChecksTests
         Assert.EndsWith("Connection refused (Seerr's address)", result.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("Couldn't reach Seerr: Connection refused (seerr:5055).", "Couldn't reach Seerr: Connection refused (Seerr's address).")]
+    [InlineData("Seerr's settings at seerr say no.", "Seerr's settings at Seerr's address say no.")]
+    [InlineData("seerrbox and my-seerr and seerr.example.org stay; seerr goes.", "seerrbox and my-seerr and seerr.example.org stay; Seerr's address goes.")]
+    public void Scrub_TakesTheHostOnlyWhereItStandsAsAHost(string message, string expected)
+    {
+        Assert.Equal(expected, HealthText.Scrub(message, new Uri("http://seerr:5055"), "Seerr's address"));
+    }
+
+    [Fact]
+    public void Seerr_HasTimeForTwoOfItsTimeouts_SoASlowSeerrSaysWhy()
+    {
+        IHealthCheck connection = Connection();
+
+        Assert.True(connection.TimeLimit > SeerrClient.Timeout * 2);
+        Assert.Equal(HealthService.CheckTimeout, ((IHealthCheck)new SeerrServicesCheck(_config, _seerr)).TimeLimit);
+    }
+
     [Fact]
     public async Task Seerr_LinkedToAnotherJellyfin_Warns()
     {
