@@ -32,9 +32,22 @@ Run against the release build on the latest stable Jellyfin.
 - [ ] Switch seasons on a series page: the ⋯ beside the picker always opens the season shown (its title is in the menu).
 - [ ] Unticking "Replace the home screen" in the dashboard restores the stock home after a reload.
 
-## YouTube trailers ("Use YouTube trailers when there's no local one")
+## Online trailers ("Use online trailers when there's no local one (IMDb, then YouTube)")
 
-- [ ] Off (the default): nothing loads from youtube-nocookie.com on home or a details page (the Network tab).
+- [ ] Off (the default): nothing loads from imdb-video.media-imdb.com or youtube-nocookie.com on home, a details page
+      or a Seerr title page (the Network tab).
+- [ ] An existing server that had "Use YouTube trailers" on shows the new setting on after the update.
+- [ ] On, a title without a local trailer that IMDb has a trailer for (most movies and shows with an IMDb id): on its
+      hero slide, behind its details page and behind a Seerr title page (a title not in the library), the backdrop
+      first, then the trailer fades in about a second after "Seconds before the trailer starts" (1.5 s on title pages),
+      with Pause, and Mute on title pages. The Network tab shows ranges of a 720p MP4 from imdb-video.media-imdb.com,
+      not the whole file, and nothing for slides passed by. Also on an iPhone (Safari and the Home Screen app), and on
+      a TV (webOS): IMDb's trailers play there, YouTube's don't.
+- [ ] The Health tab's Trailers row says IMDb answers. Blocking api.graphql.imdb.com on the server (a DNS filter)
+      turns it into a problem, and titles fall back to YouTube's trailers within 5 minutes.
+
+## YouTube trailers (online trailers, for a title IMDb has none for)
+
 - [ ] On, a title without a local trailer: the backdrop first, then its trailer fades in on its hero slide and behind
       its details page, with no YouTube title, logo, pause button or captions at any point, also on a phone. Pause
       brings the backdrop back and Play resumes about where it was; a swipe or a tab in the background removes it.

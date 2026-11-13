@@ -21,10 +21,10 @@ public interface IHeroService
 }
 
 /// <summary>
-/// A hero slide: the item and its local trailer, if any; without one, its trailer's YouTube video id, if "Use YouTube
-/// trailers" is on and one is known (<see cref="IYouTubeTrailers"/>).
+/// A hero slide: the item and its local trailer, if any; without one, its trailer online, if "Use online trailers" is on
+/// and one is known (<see cref="IOnlineTrailers"/>): an MP4 on IMDb's CDN, else a YouTube video id.
 /// </summary>
-public sealed record HeroItem(BaseItem Item, Guid? TrailerItemId, string? TrailerYouTubeId = null);
+public sealed record HeroItem(BaseItem Item, Guid? TrailerItemId, string? TrailerYouTubeId = null, string? TrailerImdbUrl = null);
 
 /// <summary>
 /// Runs the enabled section providers in parallel, each with its own timeout and exception boundary, and assembles the
@@ -130,7 +130,7 @@ public sealed class HomeService : IHomeService
 
         var rows = sections.SelectMany(r => r).Where(r => r.HasContent).ToList();
         var rowDtos = rows.Select(r => new HomeRowDto(r.Id, r.Type, r.Title, MapRow(r, user)) { Entries = MapEntries(r, user), Source = r.Source }).ToList();
-        var heroDtos = hero.Select(h => new HeroItemDto(_mapper.MapHero(h.Item, user), h.TrailerItemId, h.TrailerYouTubeId)).ToList();
+        var heroDtos = hero.Select(h => new HeroItemDto(_mapper.MapHero(h.Item, user), h.TrailerItemId, h.TrailerYouTubeId, h.TrailerImdbUrl)).ToList();
 
         // Genre tiles are not titles, so they never get a badge.
         var badged = hero.Select(h => h.Item)

@@ -70,7 +70,7 @@ jobs:
           # push service, is reached via host.docker.internal. The push job's own pass is an hour apart here, so only
           # what a test does sends a notification, and a failed send is tried again after 2 s (ReadyPushTimings). The
           # stub stands in for YouTube's embedded player too, which the browser loads: that address is the browser's,
-          # so localhost.
+          # so localhost. So does IMDb's: its API, which the server asks, and its videos, which the browser loads.
           docker run -d --name jellyfin -p 8096:8096 \
             --add-host=host.docker.internal:host-gateway \
             -e LUMEN_TMDB_IMAGE_BASE=http://host.docker.internal:5055/t/p \
@@ -79,6 +79,8 @@ jobs:
             -e LUMEN_PUSH_TEST_PASS_SECONDS=3600 \
             -e LUMEN_PUSH_TEST_RETRY_SECONDS=2 \
             -e LUMEN_YOUTUBE_EMBED_BASE=http://localhost:5055 \
+            -e LUMEN_IMDB_API_BASE=http://host.docker.internal:5055/imdb/graphql \
+            -e LUMEN_IMDB_VIDEO_BASE=http://localhost:5055 \
             -v "$PWD/config:/config" -v "$PWD/cache:/cache" -v "$PWD/media:/media:ro" \
             "${{ inputs.jellyfin-image }}"
       - uses: actions/setup-node@v7
@@ -111,6 +113,8 @@ jobs:
           LUMEN_E2E_MEDIA_PATH: /media
           LUMEN_E2E_SEERR_URL: http://host.docker.internal:5055
           LUMEN_E2E_PART: ${{ matrix.part }}
+          # The stub's stand-in IMDb videos (scripts/gen-test-media.sh), on this runner.
+          LUMEN_STUB_IMDB_MEDIA: ${{ github.workspace }}/media/imdb
       # The whole suite runs on chromium, half in each part; the other browsers may run only the smoke specs. Part 1
       # records the version, so its note stands only when the whole run passed.
       - name: Record the Jellyfin version the suite passed on

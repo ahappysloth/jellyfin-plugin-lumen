@@ -32,6 +32,7 @@ public sealed class RequestsController : ControllerBase
     private readonly CatalogMapper _mapper;
     private readonly IRequestProgressService _progress;
     private readonly IReadyAnnouncements _announcements;
+    private readonly IOnlineTrailers _trailers;
     private readonly ILogger<RequestsController> _logger;
 
     public RequestsController(
@@ -43,6 +44,7 @@ public sealed class RequestsController : ControllerBase
         CatalogMapper mapper,
         IRequestProgressService progress,
         IReadyAnnouncements announcements,
+        IOnlineTrailers trailers,
         ILogger<RequestsController> logger)
     {
         _users = users;
@@ -53,6 +55,7 @@ public sealed class RequestsController : ControllerBase
         _mapper = mapper;
         _progress = progress;
         _announcements = announcements;
+        _trailers = trailers;
         _logger = logger;
     }
 
@@ -206,6 +209,42 @@ public sealed class RequestsController : ControllerBase
         {
             return SeerrUnavailable(e, "title details");
         }
+    }
+
+    /// <summary>
+    /// The title page's trailer online, behind its header, while "Use online trailers" is on: IMDb's, by the IMDb id Seerr
+    /// has for it, else Seerr's YouTube trailer. Both null when there's none, or the setting is off. Its own call, so the
+    /// page doesn't wait for IMDb; the title comes from Seerr's shared title cache.
+    /// </summary>
+    [HttpGet("Title/{mediaType}/{tmdbId}/Trailer")]
+    public async Task<ActionResult<OnlineTrailerDto>> GetTitleTrailer([FromRoute] string mediaType, [FromRoute] int tmdbId, CancellationToken cancellationToken)
+    {
+        if (!CatalogMediaType.IsValid(mediaType) || tmdbId <= 0)
+        {
+            return BadRequest(new ErrorDto("Invalid title."));
+        }
+
+        var caller = await GetCallerAsync(cancellationToken).ConfigureAwait(false);
+        if (caller.Failure is { } failure)
+        {
+            return failure;
+        }
+
+        SeerrTitle title;
+        try
+        {
+            title = await _seerr.GetTitleSummaryAsync(caller.Endpoint!, caller.SeerrUserId, mediaType, tmdbId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (SeerrException e) when (e.Status == HttpStatusCode.NotFound)
+        {
+            return NotFound(new ErrorDto("Title not found."));
+        }
+        catch (SeerrException e)
+        {
+            return SeerrUnavailable(e, "a title's trailer");
+        }
+
+        return OnlineTrailerDto.From(await _trailers.GetAsync(title, cancellationToken).ConfigureAwait(false));
     }
 
     /// <summary>Files a request in Seerr as the signed-in user; Seerr applies their permissions, quota and auto-approval.</summary>

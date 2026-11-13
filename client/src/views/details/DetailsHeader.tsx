@@ -1,6 +1,5 @@
 import type { ComponentChildren } from 'preact';
-import { useState } from 'preact/hooks';
-import type { BaseItem, ClientConfig } from '../../api/types';
+import type { BaseItem, ClientConfig, OnlineTrailer } from '../../api/types';
 import type { JellyfinApiClient } from '../../compat/jellyfin';
 import { Icon } from '../../components/icons';
 import { backdropUrl, type ImageRef, imageUrl, resolveImage, TITLE_LOGO } from '../../components/images';
@@ -11,12 +10,12 @@ import { formatDate } from '../../util/locale';
 import type { PreparedMenu } from '../itemMenu/itemMenu';
 import { useMoreButton } from '../itemMenu/lazyItemMenu';
 import { BackHome } from '../BackHome';
-import { LazyTrailer } from '../home/lazyTrailer';
+import { LazyTrailer, LazyTrailerControls, useTrailerControls } from '../home/lazyTrailer';
 import { formatRuntime } from './badges';
 import { type DownloadLink, nativeDownload } from './download';
 
-/** The details trailer starts sooner than the home hero's: the user chose this title. */
-const DETAILS_TRAILER_DELAY_SECONDS = 1.5;
+/** The details trailer starts sooner than the home hero's: the user chose this title. The catalog title page's too. */
+export const DETAILS_TRAILER_DELAY_SECONDS = 1.5;
 
 export interface PrimaryAction {
   label: string;
@@ -35,8 +34,11 @@ interface Props {
   primary: PrimaryAction | null;
   /** Local trailer: plays muted behind the header and backs the Trailer button. */
   trailerId: string | null;
-  /** Without a local trailer: its trailer on YouTube, for the muted preview only (useYouTubeTrailer). */
-  youTubeId?: string | null;
+  /**
+   * Without a local trailer (the item has none): asks for its trailer online, IMDb's or YouTube's, for the muted preview
+   * only ("Use online trailers").
+   */
+  onlineTrailer?: () => Promise<OnlineTrailer>;
   onTrailer?: () => void;
   /** The item's file, where the user may download it (download.ts). */
   download?: DownloadLink | null;
@@ -74,9 +76,7 @@ export function airDate(iso: string | undefined): string | undefined {
 
 export function DetailsHeader(props: Props) {
   const { item, client, primary } = props;
-  const [muted, setMuted] = useState(true);
-  const [paused, setPaused] = useState(false);
-  const [trailerPlaying, setTrailerPlaying] = useState(false);
+  const trailer = useTrailerControls();
   const reducedMotion = usePrefersReducedMotion();
   const moreButton = useMoreButton(props.more ?? null);
   const backdrop =
@@ -87,7 +87,10 @@ export function DetailsHeader(props: Props) {
   const logo = item.Type === 'Episode' ? null : resolveImage(item, ['Logo']);
   const previews = props.config.TrailerPreview && !reducedMotion;
   const localId = (previews && props.trailerId) || null;
-  const preview = localId || (previews && props.youTubeId) || null;
+  // Without a local trailer, the trailer online is looked up once the trailer's code is in (OnlineTrailerPreview).
+  const lookup =
+    (previews && !item.LocalTrailerCount && props.config.YouTubeTrailers && props.onlineTrailer) || null;
+  const preview = localId || (lookup && `online-${item.Id}`);
   const meta = [
     item.CommunityRating ? item.CommunityRating.toFixed(1) : undefined,
     item.Type === 'Episode' ? airDate(item.PremiereDate) : item.ProductionYear?.toString(),
@@ -102,46 +105,27 @@ export function DetailsHeader(props: Props) {
   const watched = props.played ? strings.watched : strings.markWatchedShort;
 
   return (
-    <header class={`lmn-details__header${trailerPlaying ? ' is-playing' : ''}`}>
+    <header class={`lmn-details__header${trailer.playing ? ' is-playing' : ''}`}>
       {backdrop && <img class="lmn-details__backdrop" src={backdropUrl(client, backdrop)} alt="" />}
       {preview && (
         <LazyTrailer
           key={preview}
           trailerId={localId}
-          youTubeId={props.youTubeId}
+          lookup={lookup}
           embedBase={props.config.YouTubeEmbedBase}
           delaySeconds={DETAILS_TRAILER_DELAY_SECONDS}
           client={client}
-          muted={muted}
-          paused={paused}
+          muted={trailer.muted}
+          paused={trailer.paused}
           class="lmn-details__trailer"
-          onPlayingChange={setTrailerPlaying}
+          onPlayingChange={trailer.setPlaying}
           allowTranscode
         />
       )}
       <div class="lmn-details__scrim" />
       <div class="lmn-details__topbar focuscontainer-x">
         <BackHome onBack={props.onBack} />
-        {trailerPlaying && (
-          <div class="lmn-details__trailer-controls">
-            <button
-              type="button"
-              class="lmn-icon-button lmn-icon-button--lg"
-              aria-label={paused ? strings.playTrailer : strings.pauseTrailer}
-              onClick={() => setPaused((p) => !p)}
-            >
-              <Icon name={paused ? 'play' : 'pause'} size={20} />
-            </button>
-            <button
-              type="button"
-              class="lmn-icon-button lmn-icon-button--lg"
-              aria-label={muted ? strings.unmute : strings.mute}
-              onClick={() => setMuted((m) => !m)}
-            >
-              <Icon name={muted ? 'volumeOff' : 'volumeHigh'} size={20} />
-            </button>
-          </div>
-        )}
+        <LazyTrailerControls state={trailer} />
       </div>
       <div class="lmn-details__info">
         {props.eyebrow && <p class="lmn-details__eyebrow">{props.eyebrow}</p>}

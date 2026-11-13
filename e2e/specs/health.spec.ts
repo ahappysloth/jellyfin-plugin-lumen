@@ -49,7 +49,7 @@ test('the Health tab lists the checks by group, each with its status in words, a
   // Fresh: the server keeps a report a minute, and an earlier spec may have had Seerr on.
   await rerun(root);
 
-  for (const group of ['Health check', 'Server', 'Proxy and network', 'Requests (Seerr)', 'Notifications', 'Trakt', 'Skip Intro', 'Quick Connect', 'Devices'])
+  for (const group of ['Health check', 'Server', 'Proxy and network', 'Requests (Seerr)', 'Notifications', 'Trakt', 'Trailers', 'Skip Intro', 'Quick Connect', 'Devices'])
     await expect(root.getByRole('group', { name: group, exact: true })).toBeVisible();
   await expect(row(root, 'server.jellyfin')).toContainText('OK');
   await expect(row(root, 'server.jellyfin')).toContainText(/Lumen has been tested with Jellyfin 12\.\d+\./);

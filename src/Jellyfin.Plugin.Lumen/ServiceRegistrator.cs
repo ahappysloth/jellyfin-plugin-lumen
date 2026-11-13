@@ -50,6 +50,8 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ILinkedItemsReader, LinkedItemsReader>();
         serviceCollection.AddSingleton<ITrailerLookup, TrailerLookup>();
         serviceCollection.AddSingleton<IYouTubeTrailers, YouTubeTrailers>();
+        serviceCollection.AddSingleton<IImdbTrailers, ImdbTrailers>();
+        serviceCollection.AddSingleton<IOnlineTrailers, OnlineTrailers>();
         serviceCollection.AddSingleton<IHeroService, HeroService>();
         serviceCollection.AddSingleton<IHomeDtoMapper, HomeDtoMapper>();
         serviceCollection.AddSingleton<IBadgeService, BadgeService>();
@@ -84,6 +86,10 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton(ReadyPushTimings.FromEnvironment());
         serviceCollection.AddHostedService<ReadyPushJob>();
 
+        // IMDb's lookups carry nothing secret, but go only where they're sent: a redirect is reported as an error.
+        serviceCollection.AddHttpClient(ImdbTrailers.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false });
+
         // Trakt's key is a custom header too, so the same rule: no redirects (TraktClient reports one as an error).
         serviceCollection.AddHttpClient(TraktClient.HttpClientName, client => client.DefaultRequestHeaders.UserAgent.Add(UserAgent))
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false });
@@ -105,6 +111,7 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IHealthCheck, SeerrWebhookCheck>();
         serviceCollection.AddSingleton<IHealthCheck, TraktKeyCheck>();
         serviceCollection.AddSingleton<IHealthCheck, TraktListsCheck>();
+        serviceCollection.AddSingleton<IHealthCheck, ImdbTrailersCheck>();
         serviceCollection.AddSingleton<IHealthCheck, SegmentPluginsCheck>();
         serviceCollection.AddSingleton<IHealthCheck, SegmentLibrariesCheck>();
         serviceCollection.AddSingleton<IHealthCheck, SegmentCoverageCheck>();

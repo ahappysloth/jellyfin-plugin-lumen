@@ -16,8 +16,9 @@
 //        → { pageInfo, results: [{ id, status, createdAt, type, media: { tmdbId, mediaType, status, status4k,
 //          jellyfinMediaId } }] }: the requests this user filed via POST /request, newest first (media status: see
 //          mediaStatus below); 403 unless X-Api-User is that user
-//   GET  /api/v1/movie/:id   (603, 604, 605)    → movie details (credits, YouTube trailer, mediaInfo)
-//   GET  /api/v1/tv/:id      (1399)             → show details (seasons 0–3, season availability, a request for S2)
+//   GET  /api/v1/movie/:id   (603, 604, 605)    → movie details (credits, YouTube trailer, mediaInfo; 603 has an IMDb id)
+//   GET  /api/v1/tv/:id      (1399)             → show details (seasons 0–3, season availability, a request for S2,
+//                                                  its IMDb id in externalIds)
 //   Titles everywhere (details, search, discover) carry their media status as Seerr would have it: 5 if made
 //   available below, else the progress scenario's mediaStatus, else 3 (PROCESSING) once a request filed for it is
 //   approved or 2 (PENDING) while one waits, else the fixture's. status4k is the scenario's mediaStatus4k, else 1.
@@ -40,6 +41,18 @@
 //        sends onStateChange once asked to (addEventListener). A 30 s "video" by default, by id: stubShort10 runs 10 s,
 //        stubErr0150 can't be embedded (onError 150), stubErr0100 was removed (onError 100). The page shows its state
 //        (and has it on <body data-state data-time data-muted>) for the tests to read.
+//   IMDb (the server's LUMEN_IMDB_API_BASE points at /imdb/graphql, and LUMEN_IMDB_VIDEO_BASE tells it the videos'
+//   address, which is the browser's, so localhost): as IMDb's GraphQL API answers its site, only to a browser's
+//   User-Agent with `x-imdb-client-name: imdb-web-next` and `origin: https://www.imdb.com` (else 403, as IMDb does).
+//   POST /imdb/graphql { query, variables: { id } } → the title's primaryVideos, as IMDb gives them: for tt9000010,
+//        tt9000001, tt0133093 (The Matrix, movie 603), tt9001399 (Lumen Saga, tv 1399) and tt4154796 (the Health
+//        check's), a Clip, a 30 s Trailer with
+//        720p, and a 126 s Trailer in 1080p, 720p, 480p and AUTO (HLS), its 720p at /imdb/video/<id>_720p.mp4 signed for
+//        24 h; tt9000020 has only clips; any other title is a null title. Each lookup is recorded for /__stub/imdb.
+//   GET  /imdb/video/:name.mp4                  → a 20 s MP4 with range requests, as IMDb's CDN serves them: H.264 to
+//        WebKit, VP9 to Chromium (which has no H.264) and Firefox. From LUMEN_STUB_IMDB_MEDIA, else
+//        e2e/fixtures/media/imdb (scripts/gen-test-media.sh makes both files). Each request is recorded for /__stub/imdb.
+//   GET  /__stub/imdb                           → { lookups: [ids], videos: [{ name, range }] } (test control)
 //   Trakt (LUMEN_TRAKT_API_BASE points here, under /trakt): every call needs `trakt-api-version: 2` and
 //   `trakt-api-key: stub-trakt-key`, else 403 (as Trakt answers an invalid key). Lists take ?page=&limit= and answer
 //   with Trakt's X-Pagination-* headers.
@@ -78,12 +91,16 @@
 //   GET  /__stub/requests                                           → [{ user, body }] of requests filed (test control)
 //   POST /__stub/services { radarr, sonarr }                        → how many Radarr and Sonarr servers it has (test control)
 //   POST /__stub/webhook { enabled, types, webhookUrl, authHeader }  → its webhook agent's settings (test control)
-//   POST /__stub/reset                                              → clears the recorded requests, /__stub/library and
+//   POST /__stub/reset                                              → clears the recorded requests, the IMDb lookups and
+//                                                                       videos, /__stub/library and
 //                                                                       the push messages and the failing lookups, sets
 //                                                                       one Radarr and one Sonarr server again and turns
 //                                                                       the webhook off (test control)
 //   GET  /__stub/health
+import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export const STUB_API_KEY = 'stub-key';
 export const STUB_TRAKT_KEY = 'stub-trakt-key';
@@ -179,6 +196,62 @@ let library = {};
 let progress = {};
 // What Lumen sent to the stand-in push service (POST /push/:id).
 let pushes = [];
+// IMDb lookups (title ids) and video requests the stub has had (GET /__stub/imdb).
+let imdbLookups = [];
+let imdbVideos = [];
+
+const IMDB_MEDIA = process.env.LUMEN_STUB_IMDB_MEDIA ?? join(dirname(fileURLToPath(import.meta.url)), '../fixtures/media/imdb');
+// tt4154796 is the title Lumen's Health check looks up (ImdbTrailersCheck).
+const IMDB_TITLES = ['tt9000010', 'tt9000001', 'tt0133093', 'tt9001399', 'tt4154796'];
+/** IMDb's answer for a title id: its first videos, as IMDb lists them (a clip may come first). */
+const imdbTitle = (id) => {
+  if (id === 'tt9000020') return { primaryVideos: { edges: [{ node: imdbVideo('Clip', 200, id, ['720p']) }] } };
+  if (!IMDB_TITLES.includes(id)) return null;
+  return {
+    primaryVideos: {
+      edges: [
+        { node: imdbVideo('Clip', 91, `${id}clip`, ['720p']) },
+        { node: imdbVideo('Trailer', 30, `${id}teaser`, ['720p']) },
+        { node: imdbVideo('Trailer', 126, id, ['1080p', 'SD', 'AUTO', '720p', '480p']) },
+      ],
+    },
+  };
+};
+const imdbVideo = (type, seconds, name, qualities) => ({
+  id: `vi${name}`,
+  runtime: { value: seconds },
+  contentType: { displayName: { value: type } },
+  playbackURLs: qualities.map((q) => ({
+    url:
+      q === 'AUTO'
+        ? `http://localhost:${PORT}/imdb/video/${name}/hls-master.m3u8`
+        : `http://localhost:${PORT}/imdb/video/${name}_${q}.mp4?Expires=${Math.floor(Date.now() / 1000) + 86400}&Signature=stub~sig__&Key-Pair-Id=STUB`,
+    displayName: { value: q },
+  })),
+});
+/** One of the fixture MP4s, with range requests: H.264 to WebKit, VP9 to the others (Playwright's Chromium has no H.264). */
+const serveImdbVideo = (req, res, name) => {
+  const ua = req.headers['user-agent'] ?? '';
+  const webkit = /AppleWebKit/.test(ua) && !/Chrome|Chromium|Firefox/.test(ua);
+  const file = join(IMDB_MEDIA, webkit ? 'trailer-h264.mp4' : 'trailer-vp9.mp4');
+  imdbVideos.push({ name, range: req.headers.range ?? null });
+  if (!existsSync(file)) return json(res, 404, { message: `stub: no ${file} (run scripts/gen-test-media.sh)` });
+  const size = statSync(file).size;
+  const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? '');
+  const headers = { 'Content-Type': 'video/mp4', 'Accept-Ranges': 'bytes' };
+  if (!range) {
+    res.writeHead(200, { ...headers, 'Content-Length': size });
+    return createReadStream(file).pipe(res);
+  }
+  const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
+  const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+  if (start >= size || start > end) {
+    res.writeHead(416, { 'Content-Range': `bytes */${size}` });
+    return res.end();
+  }
+  res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1 });
+  return createReadStream(file, { start, end }).pipe(res);
+};
 
 // Seerr permission bits (server/lib/permissions.ts).
 const ADMIN = 2;
@@ -216,11 +289,13 @@ const REQUEST_TITLES = {
 };
 const requestTitle = (id) => movie(id, REQUEST_TITLES[id] ?? `Stub Request ${id}`, '2020-01-01');
 const details = {
-  'movie/603': { ...MATRIX, runtime: 136, genres: [{ id: 28, name: 'Action' }, { id: 878, name: 'Science Fiction' }], credits: { cast }, relatedVideos: trailer },
+  'movie/603': { ...MATRIX, imdbId: 'tt0133093', externalIds: { imdbId: 'tt0133093' }, runtime: 136, genres: [{ id: 28, name: 'Action' }, { id: 878, name: 'Science Fiction' }], credits: { cast }, relatedVideos: trailer },
   'movie/604': { ...RELOADED, runtime: 138, genres: [{ id: 28, name: 'Action' }], credits: { cast }, relatedVideos: trailer },
   'movie/605': { ...FUTURE, runtime: 120, genres: [{ id: 878, name: 'Science Fiction' }], credits: { cast }, relatedVideos: trailer },
   'tv/1399': {
     ...SAGA,
+    // A show's IMDb id is only in externalIds, as Seerr has it.
+    externalIds: { imdbId: 'tt9001399', tvdbId: 1399 },
     genres: [{ id: 10765, name: 'Sci-Fi & Fantasy' }, { id: 18, name: 'Drama' }],
     credits: { cast },
     relatedVideos: trailer,
@@ -430,12 +505,45 @@ createServer((req, res) => {
     library = {};
     progress = {};
     pushes = [];
+    imdbLookups = [];
+    imdbVideos = [];
     services = { radarr: 1, sonarr: 1 };
     webhook = WEBHOOK_OFF;
     failing = {};
     return json(res, 200, { ok: true });
   }
   if (path === '/__stub/push' && req.method === 'GET') return json(res, 200, pushes);
+  if (path === '/__stub/imdb' && req.method === 'GET') return json(res, 200, { lookups: imdbLookups, videos: imdbVideos });
+  if (path === '/imdb/graphql' && req.method === 'POST') {
+    // As IMDb: anything that doesn't ask as its own site is refused.
+    if (
+      req.headers['x-imdb-client-name'] !== 'imdb-web-next' ||
+      req.headers.origin !== 'https://www.imdb.com' ||
+      !/^Mozilla\/5\.0 /.test(req.headers['user-agent'] ?? '')
+    ) {
+      res.writeHead(403, { 'Content-Type': 'text/html' });
+      return res.end('<html><head><title>403 Forbidden</title></head></html>');
+    }
+    let raw = '';
+    req.on('data', (chunk) => (raw += chunk));
+    req.on('end', () => {
+      let body;
+      try {
+        body = JSON.parse(raw || '{}');
+      } catch {
+        return json(res, 400, { errors: [{ message: 'stub: invalid JSON' }] });
+      }
+      const id = body.variables?.id;
+      if (typeof id !== 'string' || !/primaryVideos/.test(body.query ?? '')) {
+        return json(res, 200, { errors: [{ message: 'stub: expected the trailer query with an id variable' }] });
+      }
+      imdbLookups.push(id);
+      json(res, 200, { data: { title: imdbTitle(id) }, extensions: { disclaimer: 'stub' } });
+    });
+    return;
+  }
+  const imdbVideoPath = path.match(/^\/imdb\/video\/([\w~-]+)\.mp4$/);
+  if (imdbVideoPath && req.method === 'GET') return serveImdbVideo(req, res, imdbVideoPath[1]);
   const pushed = path.match(/^\/push\/([\w-]+)$/);
   if (pushed && req.method === 'POST') {
     const chunks = [];

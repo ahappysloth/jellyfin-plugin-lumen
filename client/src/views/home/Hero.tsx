@@ -71,16 +71,18 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
   const current = items[mod(index, count)];
   const previews = !!current && config.TrailerPreview && !reducedMotion;
   const localId = previews ? current.TrailerItemId : null;
-  // Without a local trailer, the title's trailer on YouTube ("Use YouTube trailers"). Not on a TV: YouTube's player is
-  // a heavy page of its own for a TV's processor, and no longer supports browsers as old as webOS 5's Chromium 68.
-  const youTubeId =
-    (previews && !localId && config.YouTubeTrailers && getLayout() !== 'tv' && current.TrailerYouTubeId) ||
-    null;
-  const trailerId = localId || youTubeId;
+  // Without a local trailer, the title's trailer online ("Use online trailers"): IMDb's MP4 plays as a local trailer
+  // does, TVs included (plain H.264, which webOS plays). Else YouTube's, but not on a TV: YouTube's player is a heavy
+  // page of its own for a TV's processor, and no longer supports browsers as old as webOS 5's Chromium 68.
+  const online = previews && !localId && !!config.YouTubeTrailers;
+  const imdbUrl = (online && current.TrailerImdbUrl) || null;
+  const youTubeId = (online && !imdbUrl && getLayout() !== 'tv' && current.TrailerYouTubeId) || null;
+  const trailerId = localId || imdbUrl || youTubeId;
   // With HeroWaitForTrailer a slide stays up while its trailer plays. Pause then stops the trailer where it is, to go on
   // with the slideshow; otherwise Pause removes it (a trailer the timer would cut short anyway). A trailer from YouTube
   // is waited for regardless, once it plays: its player's own interface takes its first seconds (YouTubePreview.tsx),
-  // so on a slide that kept to its interval (8 s by default) it would show for a moment at best, or not at all.
+  // so on a slide that kept to its interval (8 s by default) it would show for a moment at best, or not at all. IMDb's
+  // starts as quickly as a local one, so it's treated as one.
   const waitForTrailer = !!trailerId && (config.HeroWaitForTrailer || !!youTubeId);
   /**
    * The current slide's trailer, once it's under way (one the slide waits for only), for the rest of this visit to the
@@ -416,6 +418,7 @@ export function Hero({ items, client, config, badges, onPlay, onInfo, startingId
                 <LazyTrailer
                   key={trailerId}
                   trailerId={localId}
+                  imdbUrl={imdbUrl}
                   youTubeId={youTubeId}
                   embedBase={config.YouTubeEmbedBase}
                   // Put back after it got going, it carries on at once.

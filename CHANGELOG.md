@@ -2,6 +2,22 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.6.0] - 2026-11-13
+
+### Added
+- Online trailers start in about a second: a title without a local trailer previews its trailer from IMDb, a plain
+  720p video the browser plays straight from IMDb's video servers (nothing stored on or streamed through your
+  server), before YouTube's, which take several seconds. They play like a local trailer, in the home banner and behind
+  title pages, TVs included (YouTube's still don't on TVs).
+- Seerr's title pages (titles you can request) play the title's trailer behind their header, with Pause and Mute, as
+  library title pages do.
+- A Health check that IMDb trailer lookups work while online trailers are on.
+
+### Changed
+- "Use YouTube trailers when there's no local one" is now "Use online trailers when there's no local one (IMDb, then
+  YouTube)". A server that had it on keeps it on, IMDb's trailers included. The viewer's browser then also contacts
+  IMDb's video servers.
+
 ## [0.5.2] - 2026-11-13
 
 ### Fixed

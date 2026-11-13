@@ -7,7 +7,7 @@ export const HELP_LINKS: Record<string, string> = {
 };
 
 /** The settings cards a fix can open, by key (each Card's `anchor`). */
-export const SETTING_CARDS = ['updates', 'general', 'requests', 'trakt'] as const;
+export const SETTING_CARDS = ['updates', 'general', 'hero', 'requests', 'trakt'] as const;
 
 /** A fix's target: a link (a Dashboard page or help), or a card on the Settings tab to open; null when unknown. */
 export function resolveFix(

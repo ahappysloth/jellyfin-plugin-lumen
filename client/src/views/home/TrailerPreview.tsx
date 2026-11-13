@@ -21,7 +21,13 @@ export interface TrailerClock {
 }
 
 export interface TrailerProps {
-  trailerId: string;
+  /** A local trailer: Jellyfin's item, played as its file or remuxed or transcoded by the server (trailerStream.ts). */
+  trailerId?: string | null;
+  /**
+   * Instead of a local trailer, an MP4 elsewhere: the title's trailer on IMDb's video CDN ("Use online trailers"), which
+   * the browser loads straight from there, a range at a time, as it plays. The server checked its address.
+   */
+  src?: string | null;
   delaySeconds: number;
   client: JellyfinApiClient;
   /** Defaults to true; the details page offers an unmute toggle. */
@@ -57,21 +63,30 @@ export interface TrailerProps {
 }
 
 export { TRAILER_FADE_MS, TRAILER_STARTED_SECONDS, TRAILER_START_TIMEOUT_MS };
-// The YouTube preview is part of this file's download: lazyTrailer.tsx picks whichever the title has.
+// The YouTube preview is part of this file's download: lazyTrailer.tsx picks whichever the title has. So are a details
+// page's lookup of its trailer online and the Pause and Mute buttons over it, which only matter once this file is in.
 export { YouTubePreview } from './YouTubePreview';
+export { OnlineTrailerPreview } from './OnlineTrailerPreview';
+export { TrailerControls } from './TrailerControls';
 
 interface Plan {
   source: MediaSourceInfo | null;
   options: TrailerOption[];
 }
 
+/** An MP4 elsewhere (`src`): the file itself, as any browser plays H.264 in MP4; nothing for the server to look up. */
+const REMOTE_PLAN: Plan = { source: null, options: [{ kind: 'direct' }] };
+
 /**
- * Muted local-trailer preview. It starts after a delay while visible, as the file itself when the browser can play it,
- * else (where `allowTranscode`) remuxed or transcoded by the server (trailerStream.ts). Unmounting the <video> stops and
- * releases it and ends any transcode; when every way to play it fails or stalls, the backdrop stays.
+ * Muted trailer preview. It starts after a delay while visible: a local trailer as the file itself when the browser can
+ * play it, else (where `allowTranscode`) remuxed or transcoded by the server (trailerStream.ts); an online one (`src`)
+ * as that MP4. Nothing is fetched before the delay is up (`preload="none"`, and no <video> until then), so slides passed
+ * by cost nothing. Unmounting the <video> stops and releases it and ends any transcode; when every way to play it fails
+ * or stalls, the backdrop stays.
  */
 export function TrailerPreview({
   trailerId,
+  src,
   delaySeconds,
   client,
   muted = true,
@@ -86,7 +101,7 @@ export function TrailerPreview({
   const wrapper = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLVideoElement>(null);
   const visible = useVisible(wrapper);
-  const [plan, setPlan] = useState<Plan | null>(null);
+  const [plan, setPlan] = useState<Plan | null>(src ? REMOTE_PLAN : null);
   /** Which of the plan's options plays; it moves on when one fails, and stays there for the next play. */
   const [attempt, setAttempt] = useState(0);
   /** New for every play, so the server's transcode for it can be found and stopped. */
@@ -104,7 +119,7 @@ export function TrailerPreview({
 
   // Look the trailer's container and codecs up once it's in view (most hero slides never get that far).
   useEffect(() => {
-    if (!visible || plan) return;
+    if (!visible || plan || !trailerId) return;
     let live = true;
     void getTrailerSource(client, trailerId).then((source) => {
       if (live) setPlan({ source, options: trailerOptions(source, detectBrowser(), allowTranscode) });
@@ -248,7 +263,7 @@ export function TrailerPreview({
           key={session}
           ref={video}
           class={`lmn-hero__video${shown ? ' is-shown' : ''}`}
-          src={trailerUrl(client, trailerId, plan.source, option, session)}
+          src={src || trailerUrl(client, trailerId!, plan.source, option, session)}
           muted={muted}
           playsInline
           preload="none"

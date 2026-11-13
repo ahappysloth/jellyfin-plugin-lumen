@@ -88,9 +88,11 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool HeroWaitForTrailer { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether a title without a local trailer previews its trailer from YouTube instead
-    /// (Home/YouTubeTrailers): the browser then loads YouTube's player, so it's the admin's choice. Off by default, and a
-    /// config saved before it existed reads as off.
+    /// Gets or sets a value indicating whether a title without a local trailer previews its trailer online instead
+    /// ("Use online trailers"): from IMDb (Home/ImdbTrailers), else from YouTube (Home/YouTubeTrailers). The browser then
+    /// loads the video from IMDb's or YouTube's servers, so it's the admin's choice. Off by default, and a config saved
+    /// before it existed reads as off. Named for its first form, YouTube alone (0.5.1), and kept so: a server that had
+    /// it on keeps online trailers on, IMDb's included, with no migration.
     /// </summary>
     public bool YouTubeTrailers { get; set; }
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/preact';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { setJellyfinLocale } from '../../../test/locale';
@@ -114,7 +114,7 @@ describe('DetailsView', () => {
     expect(screen.queryByRole('link', { name: 'Download' })).toBeNull();
   });
 
-  describe('a trailer from YouTube ("Use YouTube trailers")', () => {
+  describe('a trailer online ("Use online trailers")', () => {
     const plain: BaseItem = { ...movie, LocalTrailerCount: 0 };
     const youTube = { ...testConfig, TrailerPreview: true, YouTubeTrailers: true };
     const clientWith = (trailer: () => unknown, item: BaseItem = plain) =>
@@ -124,14 +124,68 @@ describe('DetailsView', () => {
           'Items/m1/LocalTrailers': [{ Id: 't1', Name: 'Trailer', Type: 'Trailer' }],
           'Items/t1': { Id: 't1', Name: 'Trailer', Type: 'Trailer', MediaSources: [] },
           'Items/m1/Similar': { Items: [] },
-          'Lumen/Items/m1/YouTubeTrailer': trailer,
+          'Lumen/Items/m1/Trailer': trailer,
         }),
       );
     afterEach(() => {
       Reflect.deleteProperty(window, 'matchMedia');
     });
 
-    it('plays behind a title without a local trailer, with no Trailer button for it', async () => {
+    it("plays IMDb's MP4 behind a title without a local trailer, in a <video>, with Pause and Mute", async () => {
+      const url = 'https://imdb-video.media-imdb.com/vi1/a.mp4?Expires=1&Signature=s';
+      const asked = vi.fn(() => ({ ImdbUrl: url, YouTubeId: null }));
+      const { container } = render(
+        <DetailsView id="m1" ctx={makeContext(clientWith(asked), { config: youTube })} />,
+      );
+
+      await waitFor(() => expect(container.querySelector('.lmn-details__trailer video')).not.toBeNull(), {
+        timeout: 4000,
+      });
+      expect(container.querySelector('video')!.getAttribute('src')).toBe(url);
+      expect(container.querySelector('iframe')).toBeNull();
+      expect(asked).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole('button', { name: 'Trailer' })).toBeNull();
+    });
+
+    it("plays IMDb's in the TV layout too, where YouTube's isn't", async () => {
+      const url = 'https://imdb-video.media-imdb.com/vi1/a.mp4';
+      const imdb = render(
+        <DetailsView
+          id="m1"
+          ctx={makeContext(
+            clientWith(() => ({ ImdbUrl: url })),
+            { config: youTube, layout: 'tv' },
+          )}
+        />,
+      );
+      await waitFor(
+        () => expect(imdb.container.querySelector('.lmn-details__trailer video')).not.toBeNull(),
+        {
+          timeout: 4000,
+        },
+      );
+      imdb.unmount();
+      resetSessionCaches();
+
+      // The TV layout as jellyfin-web marks it, which the preview reads (as the hero does).
+      document.documentElement.classList.add('layout-tv');
+      try {
+        const asked = vi.fn(() => ({ YouTubeId: 'dQw4w9WgXcQ' }));
+        const view = render(
+          <DetailsView id="m1" ctx={makeContext(clientWith(asked), { config: youTube, layout: 'tv' })} />,
+        );
+        await waitFor(() => expect(asked).toHaveBeenCalled());
+        await screen.findByRole('heading', { name: 'Lumen Alpha' });
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        });
+        expect(view.container.querySelector('.lmn-details__trailer')).toBeNull();
+      } finally {
+        document.documentElement.classList.remove('layout-tv');
+      }
+    });
+
+    it("plays YouTube's behind a title without a local trailer or one on IMDb, with no Trailer button for it", async () => {
       const asked = vi.fn(() => ({ YouTubeId: 'dQw4w9WgXcQ' }));
       const { container } = render(
         <DetailsView id="m1" ctx={makeContext(clientWith(asked), { config: youTube })} />,
@@ -157,7 +211,7 @@ describe('DetailsView', () => {
       expect(container.querySelector('.lmn-details__trailer')).toBeNull();
     });
 
-    it("isn't asked for where it wouldn't play: a local trailer, the setting off, a TV, less motion", async () => {
+    it("isn't asked for where it wouldn't play: a local trailer, the setting off, less motion", async () => {
       const asked = vi.fn(() => ({ YouTubeId: 'dQw4w9WgXcQ' }));
       const shown = async (ctx: Parameters<typeof makeContext>[1], item?: BaseItem) => {
         const view = render(<DetailsView id="m1" ctx={makeContext(clientWith(asked, item), ctx)} />);
@@ -171,7 +225,6 @@ describe('DetailsView', () => {
       await shown({ config: youTube }, movie); // it has a local trailer
       await shown({ config: { ...youTube, YouTubeTrailers: false } });
       await shown({ config: { ...youTube, TrailerPreview: false } });
-      await shown({ config: youTube, layout: 'tv' });
       window.matchMedia = vi.fn().mockReturnValue({
         matches: true,
         addEventListener: vi.fn(),

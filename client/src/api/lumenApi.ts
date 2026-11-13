@@ -15,6 +15,7 @@ import type {
   UserInfo,
   SyncPlayGroup,
   MovieRecommendation,
+  OnlineTrailer,
 } from './types';
 
 /** A rejected request with Seerr's (or Lumen's) message, for showing to the user. */
@@ -321,9 +322,12 @@ export class LumenApi {
     return this.get(`Items/${id}/LocalTrailers`, () => ({ userId: this.userId() }));
   }
 
-  /** The YouTube video id of a title's trailer, for one without a local trailer ("Use YouTube trailers"). */
-  getYouTubeTrailer(id: string): Promise<{ YouTubeId?: string | null }> {
-    return this.get(`Lumen/Items/${id}/YouTubeTrailer`);
+  /**
+   * A title's trailer online, for one without a local trailer ("Use online trailers"): `of` is `Items/{id}` for a library
+   * title, `Requests/Title/{mediaType}/{tmdbId}` for a catalog title.
+   */
+  getOnlineTrailer(of: string): Promise<OnlineTrailer> {
+    return this.get(`Lumen/${of}/Trailer`);
   }
 
   /** Stops the server's transcode for one play session (it would otherwise run on until its ping timeout). */

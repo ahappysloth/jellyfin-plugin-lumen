@@ -68,8 +68,6 @@ export const strings = {
   me: 'Me',
   search: 'Search',
   back: 'Back',
-  mute: 'Mute trailer',
-  unmute: 'Unmute trailer',
   pauseTrailer: 'Pause trailer',
   playTrailer: 'Play trailer',
   pauseRotation: 'Pause slideshow',

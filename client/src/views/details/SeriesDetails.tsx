@@ -13,7 +13,7 @@ import { DetailsHeader } from './DetailsHeader';
 import { EpisodeList } from './EpisodeList';
 import { SimilarRow } from './SimilarRow';
 import { computeSmartPlay, type SmartPlay } from './smartPlay';
-import { goBack, useItemActions, useLocalTrailer, useYouTubeTrailer } from './useItemActions';
+import { goBack, useItemActions, useLocalTrailer } from './useItemActions';
 
 const seasonLabel = (season: BaseItem): string => (season.IndexNumber === 0 ? strings.specials : season.Name);
 
@@ -37,7 +37,6 @@ export function SeriesDetails({ series, initialSeasonId, ctx, reload }: Props) {
   const loads = useRef(0);
   const loadedSeries = useRef<string | null>(null);
   const trailerId = useLocalTrailer(series, ctx);
-  const youTubeId = useYouTubeTrailer(series, ctx);
   const [seasons, setSeasons] = useState<BaseItem[]>([]);
   const [seasonId, setSeasonId] = useState<string | undefined>(initialSeasonId);
   const [episodesBySeason, setEpisodesBySeason] = useState<
@@ -135,7 +134,7 @@ export function SeriesDetails({ series, initialSeasonId, ctx, reload }: Props) {
             : null
         }
         trailerId={trailerId}
-        youTubeId={youTubeId}
+        onlineTrailer={() => ctx.api.getOnlineTrailer(`Items/${series.Id}`)}
         onTrailer={trailerId ? () => actions.play(trailerId) : undefined}
         onBack={() => goBack(ctx)}
         badges={[]}

@@ -10,7 +10,7 @@
 export type HealthStatus = 'Ok' | 'Warning' | 'Problem' | 'NotApplicable';
 
 export type HealthGroup =
-  'Server' | 'Proxy' | 'Requests' | 'Notifications' | 'Trakt' | 'SkipIntro' | 'QuickConnect';
+  'Server' | 'Proxy' | 'Requests' | 'Notifications' | 'Trakt' | 'Trailers' | 'SkipIntro' | 'QuickConnect';
 
 /**
  * Where a row's fix is: a Dashboard page (`dashboard`), a card on Lumen's Settings tab (`setting`) or a help page
@@ -60,6 +60,7 @@ export const GROUPS: { id: HealthGroup; label: string }[] = [
   { id: 'Requests', label: 'Requests (Seerr)' },
   { id: 'Notifications', label: 'Notifications' },
   { id: 'Trakt', label: 'Trakt' },
+  { id: 'Trailers', label: 'Trailers' },
   { id: 'SkipIntro', label: 'Skip Intro' },
   { id: 'QuickConnect', label: 'Quick Connect' },
 ];

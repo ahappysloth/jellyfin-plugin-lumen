@@ -75,7 +75,7 @@ describe('LazyTrailer', () => {
   it("plays the title's trailer from YouTube when it has no local one, from the same download", async () => {
     vi.doMock('./TrailerPreview', () => ({
       TrailerPreview: () => <div data-testid="local" />,
-      YouTubePreview: (p: {
+      OnlineTrailerPreview: (p: {
         youTubeId: string;
         embedBase?: string | null;
         delaySeconds: number;
@@ -117,6 +117,32 @@ describe('LazyTrailer', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("hands a trailer online (IMDb's, else YouTube's) to OnlineTrailerPreview, and a local one to TrailerPreview", async () => {
+    vi.doMock('./TrailerPreview', () => ({
+      TrailerPreview: (p: { trailerId?: string | null }) => (
+        <div data-testid="video" data-id={String(p.trailerId)} />
+      ),
+      // OnlineTrailerPreview's own tests show it plays IMDb's before YouTube's.
+      OnlineTrailerPreview: (p: { imdbUrl?: string | null; youTubeId?: string | null }) => (
+        <div data-testid="online" data-imdb={String(p.imdbUrl)} data-youtube={String(p.youTubeId)} />
+      ),
+    }));
+    const fresh = await freshModule();
+    const client = createFakeClient();
+    const url = 'https://imdb-video.media-imdb.com/vi1/a.mp4';
+    const { container, rerender } = render(
+      <fresh.LazyTrailer imdbUrl={url} youTubeId="dQw4w9WgXcQ" delaySeconds={4} client={client} />,
+    );
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="online"]')).not.toBeNull());
+    expect(container.querySelector('[data-testid="online"]')).toHaveAttribute('data-imdb', url);
+    expect(container.querySelector('[data-testid="video"]')).toBeNull();
+
+    // A local trailer wins over IMDb's.
+    rerender(<fresh.LazyTrailer trailerId="t1" imdbUrl={url} delaySeconds={4} client={client} />);
+    expect(container.querySelector('[data-testid="video"]')).toHaveAttribute('data-id', 't1');
+    expect(container.querySelector('[data-testid="online"]')).toBeNull();
+  });
+
   it('counts the delay from when the preview was asked for, the download included', async () => {
     // The code takes 1 s to arrive.
     const actual = await vi.importActual<typeof import('./TrailerPreview')>('./TrailerPreview');
@@ -152,5 +178,7 @@ describe('LazyTrailer', () => {
     expect(loadTrailer()).toBe(loadTrailer());
     expect(typeof (await loadTrailer()).TrailerPreview).toBe('function');
     expect(typeof (await loadTrailer()).YouTubePreview).toBe('function');
+    expect(typeof (await loadTrailer()).OnlineTrailerPreview).toBe('function');
+    expect(typeof (await loadTrailer()).TrailerControls).toBe('function');
   });
 });
