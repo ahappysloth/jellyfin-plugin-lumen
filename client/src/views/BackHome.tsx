@@ -31,8 +31,9 @@ export function BackHome({
   autoFocus?: boolean;
 }) {
   const deep = usePageDepth() > 1;
+  // Back alone fills the pill (buttons.css .lmn-pill--single): white all over under the pointer, no dark ring round it.
   return (
-    <div class="lmn-pill">
+    <div class={deep ? 'lmn-pill' : 'lmn-pill lmn-pill--single'}>
       <button
         type="button"
         class={`lmn-icon-button lmn-icon-button--lg${autoFocus ? ' lmn-autofocus' : ''}`}

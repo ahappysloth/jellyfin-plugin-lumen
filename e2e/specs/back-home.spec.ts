@@ -27,10 +27,20 @@ test('Back alone one page in; Back and Home deeper; Back steps out again, and Ho
 }) => {
   await login(page, ADMIN);
 
-  // Home → a movie: one page in, Back is enough.
+  // Home → a movie: one page in, Back is enough. It fills the pill, so under the pointer the whole 48px circle is white,
+  // with no dark ring of the pill's padding round it.
   await openFromHome(page, 'Lumen Alpha');
   await expect(back(page)).toBeVisible();
   await expect(home(page)).toHaveCount(0);
+  expect(await back(page).boundingBox()).toEqual(await pill(page).boundingBox());
+  expect((await pill(page).boundingBox())!.height).toBe(48);
+  // Touch screens have no hover (the white disc is for a press there: buttons.css).
+  const hovers = await page.evaluate(() => matchMedia('(hover: hover)').matches);
+  if (hovers) {
+    await back(page).hover();
+    await expect(back(page)).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    expect((await pill(page).boundingBox())!.height).toBe(48);
+  }
 
   // → an actor → one of their titles: Home joins Back, in the same pill.
   await openActor(page);
@@ -38,6 +48,14 @@ test('Back alone one page in; Back and Home deeper; Back steps out again, and Ho
   const [backBox, homeBox, pillBox] = await Promise.all([back(page), home(page), pill(page)].map((l) => l.boundingBox()));
   expect(homeBox!.x).toBeGreaterThan(backBox!.x + backBox!.width - 1);
   expect(homeBox!.x + homeBox!.width).toBeLessThanOrEqual(pillBox!.x + pillBox!.width);
+  // Two buttons keep their smaller discs inside the pill, which is as tall as Back alone was, hovered or not.
+  expect(pillBox!.height).toBe(48);
+  expect(backBox!.height).toBeLessThan(pillBox!.height);
+  if (hovers) {
+    await home(page).hover();
+    await expect(home(page)).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    expect((await pill(page).boundingBox())!.height).toBe(48);
+  }
   await page.getByRole('list', { name: 'Known for' }).getByRole('link', { name: 'Lumen Show' }).click();
   await expect(page.locator('#lmn-root .lmn-details--series')).toBeVisible();
   await expect(home(page)).toBeVisible();

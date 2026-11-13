@@ -104,6 +104,15 @@
 .lmn-details__trailer-controls > * + * {
   margin-left: 4px;
 }
+/* Back alone (BackHome.tsx): the button is the whole pill, as tall as the pill of two, so the white disc fills it rather
+   than sitting in a dark ring of padding, and nothing moves when Home joins it. Two buttons keep their smaller discs. */
+.lmn-pill--single {
+  padding: 0;
+}
+.lmn-pill--single > .lmn-icon-button {
+  width: 48px;
+  height: 48px;
+}
 @media (hover: hover) {
   .lmn-icon-button:hover {
     background: #fff;
