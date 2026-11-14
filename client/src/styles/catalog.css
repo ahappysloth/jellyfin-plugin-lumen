@@ -26,6 +26,24 @@
 .lmn-card--catalog .lmn-card__art > img:first-child {
   filter: saturate(0.92);
 }
+/* A catalog title without a logo (CatalogCard.tsx): its name over the art's lower left, on a shade that keeps it legible
+   over any picture. */
+.lmn-card__name {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 32px 12px 12px;
+  overflow: hidden;
+  background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.8));
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  white-space: nowrap;
+}
 .lmn-title__kicker {
   margin: 0 0 10px;
   color: var(--lmn-accent);

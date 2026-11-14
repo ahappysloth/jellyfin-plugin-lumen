@@ -29,4 +29,42 @@ describe('CatalogCard', () => {
     const card = screen.getByRole('button', { name: 'Lumen Saga, Partly available' });
     expect(card.querySelector('.lmn-card__state')).toHaveTextContent(/^Partial$/);
   });
+
+  describe("a landscape card's title over its art", () => {
+    const landscape = (item: CatalogItem, variant: 'landscape' | 'poster' = 'landscape') =>
+      render(
+        <CatalogCard
+          item={{ ...item, Backdrop: 'bd.jpg', Poster: 'p.jpg' }}
+          client={createFakeClient()}
+          imageToken="t"
+          variant={variant}
+          onSelect={() => {}}
+        />,
+      ).container;
+
+    it("lays the title's logo over the backdrop, through the catalog image proxy", () => {
+      const card = landscape({ ...saga, Logo: 'logo.png' });
+
+      const logo = card.querySelector<HTMLImageElement>('img.lmn-card__logo')!;
+      expect(logo.getAttribute('src')).toBe('http://jf/Lumen/Requests/Image/w300/logo.png?t=t');
+      expect(logo).toHaveAttribute('alt', '');
+      expect(card.querySelector('.lmn-card__name')).toBeNull();
+    });
+
+    it('shows the title as text where it has no logo, hidden from screen readers (the card is named already)', () => {
+      const card = landscape(saga);
+
+      const name = card.querySelector('.lmn-card__art .lmn-card__name')!;
+      expect(name).toHaveTextContent('Lumen Saga');
+      expect(name).toHaveAttribute('aria-hidden', 'true');
+      expect(card.querySelector('.lmn-card__logo')).toBeNull();
+    });
+
+    it('leaves a poster as it is: it carries its own title', () => {
+      const card = landscape({ ...saga, Logo: 'logo.png' }, 'poster');
+
+      expect(card.querySelector('.lmn-card__logo')).toBeNull();
+      expect(card.querySelector('.lmn-card__name')).toBeNull();
+    });
+  });
 });

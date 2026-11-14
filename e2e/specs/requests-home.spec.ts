@@ -108,6 +108,21 @@ test('My Requests lists what the user asked for', async ({ page }) => {
   await expect(mine.getByRole('button', { name: 'The Matrix, Requested' })).toBeVisible();
 });
 
+test("a Trending card carries its title over the art: its logo, or here (no logo lookups on a test server) its name", async ({ page }) => {
+  await enableCatalogRows(['CatalogTrending']);
+  await login(page, ADMIN);
+
+  const trending = page.getByRole('region', { name: 'Trending' });
+  const matrix = trending.getByRole('button', { name: 'The Matrix, Request' });
+  await expect(matrix.locator('.lmn-card__art .lmn-card__name')).toHaveText('The Matrix');
+  await expect(matrix.locator('.lmn-card__logo')).toHaveCount(0);
+  // Along the foot of the art (inside its 1 px border), from its left.
+  const art = (await matrix.locator('.lmn-card__art').boundingBox())!;
+  const name = (await matrix.locator('.lmn-card__name').boundingBox())!;
+  expect(Math.abs(name.y + name.height - (art.y + art.height))).toBeLessThan(2);
+  expect(Math.abs(name.x - art.x)).toBeLessThan(2);
+});
+
 test('users without a Seerr account get no catalog rows', async ({ page }) => {
   await enableCatalogRows(['CatalogTrending']);
   await login(page, KID);
