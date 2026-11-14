@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/ahappysloth/jellyfin-plugin-lumen/main/assets/lumen-plugin.png",
     "versions": [
       {
+        "version": "0.6.4.0",
+        "changelog": "\n### Added\n- A title's **Media info** has a Trailer section: whether online trailers are on, whether a local trailer exists (it\n  wins), the IMDb id used and what IMDb said (found, with its qualities; no trailer; an error such as HTTP 503; a\n  timeout), the YouTube trailer and where it came from (Jellyfin's metadata or Seerr), whether each answer was the\n  server's cached one and when it was fetched. Below that, what happened on this device in this session: which\n  trailer played and how long it took to get going, or each one that failed and why (the video's error, YouTube's\n  error code, a time-out, the browser blocking autoplay, YouTube skipped in the TV layout).\n- Administrators get **Check again**, which asks IMDb and Seerr again past the cache (at most once per title every\n  30 seconds). Everyone else sees the status only.\n- A show's ⋯ menu has **Trailer info**, the same section in Lumen's dialog (shows have no Media info).",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/ahappysloth/jellyfin-plugin-lumen/releases/download/v0.6.4/lumen_0.6.4.0.zip",
+        "checksum": "da19b64507b4b638ff6fe647ed7390fb",
+        "timestamp": "2026-11-14T01:24:54Z"
+      },
+      {
         "version": "0.6.3.0",
         "changelog": "\n### Changed\n- My requests is laid out again: one centred column, with the header, notifications toggle, search, filter chips and\n  list sharing its edges. **Everyone's requests** is a row of its own under the notifications toggle (a TV's remote\n  reaches it from anywhere on the page). Each row's status sits in a column of its own, the same width on every row,\n  so the statuses and their progress bars line up down the list. The list shows the shape of its rows while it loads,\n  and an empty search or chip says so beside an icon. Phones keep a layout of their own, with the status under the\n  title.\n- Back on its own (one page in) turns wholly white under the pointer, the remote or a press, the pill's full size,\n  instead of a white disc inside a dark ring. With Home beside it, each keeps its smaller disc inside the pill, and\n  the pill is the same size either way.",
         "targetAbi": "12.1.0.0",
