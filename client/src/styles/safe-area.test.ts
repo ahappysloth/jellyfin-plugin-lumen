@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import baseCss from './base.css?raw';
 import navCss from './nav.css?raw';
 import playerCss from './player.css?raw';
+import segmentsCss from './segments.css?raw';
 import { missingFallbacks } from '../../scripts/css-fallbacks.mjs';
 
 /**
@@ -80,6 +81,14 @@ describe('safe-area insets', () => {
     const small = '@media (max-width: 80em), (max-height: 45em)';
     const editors = `  .dialog-fixedSize${notReaders}\n    .formDialogHeader,\n  .dialog-fullscreen-lowres${notReaders}\n    .formDialogHeader`;
     expect(rule(baseCss, editors, small)).toMatch(pad);
+  });
+
+  it('keep the Skip button and the next-episode card above the home indicator, with the controls up or hidden', () => {
+    // A margin above the inset, as the controls stand on it: raised above them, or down in the corner without them.
+    expect(rule(segmentsCss, '.lmn-seg')).toMatch(
+      /bottom: calc\(max\(16px, min\(3vw, 40px\)\) \+ env\(safe-area-inset-bottom\)\);/,
+    );
+    expect(rule(segmentsCss, '.lmn-seg.is-low')).toMatch(/transform: none;/);
   });
 
   it('pad the phone tab bar on both sides', () => {

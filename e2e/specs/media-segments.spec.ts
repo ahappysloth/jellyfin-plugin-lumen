@@ -177,6 +177,44 @@ test('Skip Intro shows through the intro, with the controls hidden too, and skip
   await expect(stockSkip).toHaveClass(/\bhide\b/);
 });
 
+for (const tv of [false, true]) {
+  test(`${tv ? 'TV layout: ' : ''}Skip Intro sits just above the controls, slides down by the corner as they go, and back up as they return`, async ({
+    page,
+  }) => {
+    await setUp(page, { segments: [['Intro', 2, 14.5]], tv });
+    await play(page);
+    const skip = page.getByRole('button', { name: 'Skip Intro' });
+    await expect(skip).toBeVisible({ timeout: 10_000 });
+    const osd = page.locator('.lmn-osd');
+    /** Where it is, once it has stopped: how far its bottom is above the time over the seek bar, and above the screen's bottom edge, and its right edge from the side. */
+    const place = () =>
+      skip.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        const times = document.querySelector('.lmn-player__times')!.getBoundingClientRect();
+        return { overTimes: Math.round(times.top - box.bottom), bottom: Math.round(innerHeight - box.bottom), side: Math.round(innerWidth - box.right) };
+      });
+    const up = async () => {
+      await expect(osd).not.toHaveClass(/is-idle/);
+      await expect.poll(async () => (await place()).overTimes).toBeGreaterThanOrEqual(8);
+      expect((await place()).overTimes).toBeLessThan(40);
+    };
+    // The controls are up as the intro starts (a key that does nothing keeps them so).
+    await page.keyboard.press('Shift');
+    await up();
+
+    // They go: it comes down into the corner, as far from the bottom edge as from the side.
+    await expect(osd).toHaveClass(/is-idle/, { timeout: 6000 });
+    await expect.poll(async () => { const at = await place(); return at.bottom - at.side; }).toBe(0);
+    expect((await place()).bottom).toBeLessThan(50);
+    if (tv) await expect(skip).toBeFocused();
+
+    // A press brings them back, and it goes back up, with the remote's focus still on it.
+    await page.keyboard.press('Shift');
+    await up();
+    if (tv) await expect(skip).toBeFocused();
+  });
+}
+
 test.describe('on a phone, by touch', () => {
   // As in player-touch.spec.ts: real taps in Chromium and WebKit (with a desktop user agent: an iPhone's gets HLS, which
   // Playwright's WebKit can't play). Firefox has no touch emulation. An iPhone 15 on its side.
@@ -240,6 +278,33 @@ test.describe('on a phone, by touch', () => {
       await expect(skip).toBeHidden();
     });
   }
+
+  test("a finger held on the card, with the controls hidden, keeps it down by the corner until it lifts: then it rises above them", async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', heldOnly);
+    await setUp(page, { segments: [['Outro', 5, 16]], stock: true });
+    await play(page);
+    const name = page.getByRole('region', { name: 'Next episode' }).locator('.lmn-next__title');
+    await expect(name).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('.lmn-osd')).toHaveClass(/is-idle/);
+    // Once it has come up: its fade-in moves it too.
+    await name.evaluate((el) => Promise.all(el.closest('.lmn-next')!.getAnimations().map((a) => a.finished)));
+    const box = (await name.boundingBox())!;
+
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + 10, y: box.y + 5 }] });
+    // The touch brings the controls back; the card stays where the finger is (a fixed wait: to show it doesn't move).
+    await expect(page.locator('.lmn-osd')).not.toHaveClass(/is-idle/);
+    await page.waitForTimeout(600);
+    expect((await name.boundingBox())!.y).toBe(box.y);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await cdp.detach();
+
+    await expect.poll(async () => (await name.boundingBox())!.y).toBeLessThan(box.y - 60);
+    await expect(page.locator('.lmn-osd')).not.toHaveClass(/is-idle/);
+  });
 
   test('a held finger on Play now starts the next episode, with the controls hidden', async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', heldOnly);

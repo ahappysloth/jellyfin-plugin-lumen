@@ -31,21 +31,33 @@ html.lmn-skin-player .upNextContainer * {
   transition: none !important;
 }
 
-/* Bottom right, above the controls, and there with the controls hidden too: a press brings them back, and what is
-   pressed mustn't move from under the finger before it lifts. */
+/* Bottom right: in the corner, as far above the bottom edge (and a phone's home indicator) as it is from the side, and
+   raised just above the controls while they're up. With them hidden (.is-low, SegmentPrompts.tsx) it slides down
+   into the corner, and back up as they return: out of their way, and of a pointer that brings them back on its way. */
 .lmn-seg {
   position: absolute;
   z-index: 1;
   right: 40px;
   right: max(16px, min(3vw, 40px), env(safe-area-inset-right));
-  bottom: 132px;
-  bottom: calc(132px + env(safe-area-inset-bottom));
+  bottom: 40px;
+  bottom: calc(max(16px, min(3vw, 40px)) + env(safe-area-inset-bottom));
   left: 16px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   /* Only what's in it takes a press: the picture beside it still does what it does. */
   pointer-events: none;
+  transform: translateY(-92px);
+  transition: 0.35s var(--lmn-ease);
+}
+.lmn-seg.is-low {
+  transform: none;
+}
+/* A tap that hides the controls may be the first of a double tap (a skip), whose second brings them back: as the bars
+   do (player.css .is-tapped), it goes slowly at first, so it doesn't bob down and up. */
+.lmn-osd.is-tapped .lmn-seg {
+  transition-duration: 0.45s;
+  transition-timing-function: cubic-bezier(0.8, 0, 1, 1);
 }
 .lmn-seg > * {
   flex: none;
@@ -142,11 +154,10 @@ html.lmn-skin-player .upNextContainer * {
   }
 }
 
-/* Phones, and short windows: the controls are lower, the card smaller. */
+/* Phones, and short windows: the controls are lower (the corner's margin smaller), the card smaller. */
 @media (max-width: 640px), (max-height: 500px) {
   .lmn-seg {
-    bottom: 116px;
-    bottom: calc(116px + env(safe-area-inset-bottom));
+    transform: translateY(-100px);
   }
   .lmn-next__image {
     width: 112px;
@@ -166,6 +177,7 @@ html.lmn-skin-player .upNextContainer * {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .lmn-seg,
   .lmn-seg * {
     transition: none;
     animation: none;

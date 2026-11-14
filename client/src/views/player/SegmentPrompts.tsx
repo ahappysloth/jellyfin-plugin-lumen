@@ -340,9 +340,24 @@ export function SegmentPrompts(props: SegmentsProps) {
     }
   }, [tv, focusOn, skipped, busy, idle]);
 
+  // With the controls hidden the prompts sit low, near the bottom edge, and rise above the controls as those come back
+  // (segments.css .is-low). A press on one brings them back too, but what is pressed mustn't move from under the
+  // pointer: it stays down until the pointer lifts or leaves, and 300 ms more, as a tap's click lands a moment after the
+  // finger has gone. Neither may come (what was pressed went from under it): the controls going again ends it too.
+  const [pressed, setPressed] = useState<true>(); // and undefined again once let go
+  const release = () => setTimeout(setPressed, 300);
+  useEffect(() => void (idle && setPressed(undefined)), [idle]);
+
   const image = shown.card && next ? resolveImage(next, ['Primary', 'Thumb', 'Backdrop']) : null;
   return (
-    <div ref={root} class="lmn-seg" onFocusIn={entered}>
+    <div
+      ref={root}
+      class={`lmn-seg${idle || pressed ? ' is-low' : ''}`}
+      onFocusIn={entered}
+      onPointerDown={() => idle && setPressed(true)}
+      onPointerUp={release}
+      onPointerLeave={release}
+    >
       <div class={`lmn-seg__skipped${skipped ? ' is-shown' : ''}`}>
         {/* Always there, so a screen reader announces what lands in it. */}
         <span role="status">{skipped && segmentStrings.skipped(skipped.segment.type)}</span>

@@ -82,7 +82,9 @@ console.log(`lumen player: ${kb(player)} gzipped (budget ${PLAYER_BUDGET / 1024}
 // 4 KB at first, with 16 bytes to spare. 4.2 KB since the re-check fixes, about 130 bytes (the owner approved up to
 // 4.5 KB): jellyfin-web's unseen buttons out of the D-pad's reach, the TV focus kept on Watch credits and Undo, the
 // queue read again as the card is due, the watched mark's time limit, the group flag read from the playback manager.
-const SEGMENTS_BUDGET = 4.2 * 1024;
+// 4.3 KB with the prompts moving down as the controls hide, about 60 bytes over: held where pressed, and slow to start
+// after a tap (a double tap's second brings the controls back).
+const SEGMENTS_BUDGET = 4.3 * 1024;
 const segments = gz(`dist/${segmentsChunk}`) + gz('dist/lumen-segments.css');
 console.log(`lumen player segments + styles: ${kb(segments)} gzipped (budget ${SEGMENTS_BUDGET / 1024} KB)`);
 // Loads as a title with a trailer preview shows (views/home/lazyTrailer.tsx).
