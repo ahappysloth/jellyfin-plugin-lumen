@@ -10,6 +10,16 @@ import type { CardMenuHandler } from '../cardMenu';
 import { CatalogCard } from '../catalog/CatalogCard';
 import { Top10Items, isTop10Row, isTraktRow } from './Top10Item';
 
+/**
+ * Next Up shows the show's own art, as the other landscape cards do (its Thumb, or its backdrop with its logo), rather
+ * than the next episode's still, which looked like a title of its own: the caption says which episode it is. An episode
+ * whose show has no landscape art keeps its still.
+ */
+export const showArt = (item: BaseItem): BaseItem | undefined =>
+  item.ParentThumbImageTag || item.ParentBackdropImageTags?.length
+    ? { ...item, Type: 'Series', ImageTags: {}, BackdropImageTags: [] }
+    : undefined;
+
 export function captionFor(item: BaseItem): string | undefined {
   if (item.Type !== 'Episode') return undefined;
   return `S${item.ParentIndexNumber ?? 0}:E${item.IndexNumber ?? 0} · ${item.Name}`;
@@ -65,6 +75,7 @@ export function Row(props: Props) {
   const top10 = isTop10Row(row);
   const posters = top10 || isTraktRow(row);
   const entries = posters ? null : row.Entries;
+  const nextUp = row.Type === 'NextUp';
   return (
     <section
       class={`lmn-row${genres ? ' lmn-row--genres' : ''}${top10 ? ' lmn-row--top10' : posters ? ' lmn-row--trakt' : ''}`}
@@ -99,6 +110,23 @@ export function Row(props: Props) {
         </button>
         <div ref={scroller} class="lmn-row__scroller focuscontainer-x">
           {posters && <Top10Items {...props} />}
+          {/* The row's "See all" again as a last poster, for whoever scrolls to the end rather than up to the title. */}
+          {posters && seeAll && (
+            <div class="lmn-top10 lmn-top10--plain">
+              <a
+                class="lmn-card lmn-card--poster lmn-see-all"
+                href={seeAll}
+                aria-label={strings.seeAllNamed(row.Title)}
+              >
+                <span class="lmn-card__art">
+                  <span class="lmn-row__disc">
+                    <Icon name="chevronRight" size={24} />
+                  </span>
+                  {strings.seeAll}
+                </span>
+              </a>
+            </div>
+          )}
           {entries
             ? entries.map((entry) =>
                 entry.Catalog ? (
@@ -139,6 +167,7 @@ export function Row(props: Props) {
                     client={client}
                     variant="landscape"
                     caption={captionFor(item)}
+                    artItem={nextUp ? showArt(item) : undefined}
                     badge={badges?.[item.Id]}
                     onSelect={(selected) => onSelect(selected, row)}
                     onMenu={onMenu}

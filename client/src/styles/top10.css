@@ -81,6 +81,29 @@
 .lmn-top10 .lmn-card--poster {
   width: var(--lmn-top10-w);
 }
+/* The row's last tile, "See all" (Row.tsx): a poster of faint fill, the rows' glass arrow disc over its label. */
+.lmn-see-all .lmn-card__art {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--lmn-fill-3);
+  color: var(--lmn-text);
+  font-size: 15px;
+  font-weight: 600;
+}
+.lmn-see-all .lmn-row__disc {
+  margin-bottom: 12px;
+}
+.lmn-see-all:hover .lmn-row__disc,
+.layout-tv .lmn-see-all:focus .lmn-row__disc {
+  background: #fff;
+  color: #0f0f0f;
+}
+.lmn-see-all:focus-visible .lmn-row__disc {
+  background: #fff;
+  color: #0f0f0f;
+}
 /* Under the card, not over its art: the TV's D-pad reaches it with Down from the card. */
 .lmn-top10__request {
   display: inline-flex;

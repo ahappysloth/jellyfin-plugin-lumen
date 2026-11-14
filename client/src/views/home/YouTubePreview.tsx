@@ -74,7 +74,7 @@ export function coverSize(box: Size): Size & { left: number; top: number } {
  * - Pause fades it out to the backdrop and stops it; Play picks it up a few seconds back and fades it in at the
  *   moment it was paused at. Out of view (scrolled away, the page in the background) it's paused the same way, and
  *   played again as it's back; one away for TRAILER_HOLD_MS is let go, and asked for again (where it was) when back.
- * - Unmuted (the details page), it has sound only while it shows: it plays muted through every unseen stretch.
+ * - Unmuted (the details page, the home banner), it has sound only while it shows: it plays muted through every unseen stretch.
  * - The frame takes no pointer or keyboard input at all, so swipes and taps reach the page and nothing in it can be
  *   clicked. Removing the frame is what stops the video: there's nothing else to release.
  */
@@ -88,6 +88,7 @@ export function YouTubePreview({
   onPlayingChange,
   onProgress,
   onFinish,
+  onSilenced,
   startAt,
   logKey,
   log: given,
@@ -129,8 +130,8 @@ export function YouTubePreview({
   /** Paused by the page, or out of view: the player is paused either way. */
   const halted = paused || !visible;
   // The callbacks and flags as they are now, for the player's events (it's connected once per play).
-  const latest = useRef({ paused: halted, muted, onProgress });
-  latest.current = { paused: halted, muted, onProgress };
+  const latest = useRef({ paused: halted, muted, onProgress, onSilenced });
+  latest.current = { paused: halted, muted, onProgress, onSilenced };
 
   // The frame is sized in pixels: nothing in CSS covers a box with a fixed-ratio frame on Chromium 68 or Safari 13.
   useLayoutEffect(() => {
@@ -206,6 +207,7 @@ export function YouTubePreview({
       // (iOS) may have stopped it as it was unmuted, seconds after the tap. It plays on muted rather than not at all.
       if (status === 'paused' && !latest.current.paused && !latest.current.muted && !silenced.current) {
         silenced.current = true;
+        latest.current.onSilenced?.();
         showing.current = false;
         setShown(false);
         player.current?.setMuted(true);

@@ -632,6 +632,31 @@ describe('TrailerPreview', () => {
     expect(client.requests.map((r) => new URL(r.url).pathname)).toEqual(['/Items/t1']);
   });
 
+  it('unmuted and refused with sound (no tap to allow it here), plays on muted and says so', async () => {
+    runAs(SAFARI);
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, 'play')
+      .mockRejectedValueOnce(new DOMException('The request is not allowed', 'NotAllowedError'))
+      .mockResolvedValue(undefined);
+    const onSilenced = vi.fn();
+    const { container } = render(
+      <TrailerPreview
+        trailerId="t1"
+        delaySeconds={0}
+        client={clientFor(MP4_H264)}
+        muted={false}
+        onSilenced={onSilenced}
+      />,
+    );
+    await startAfter(0);
+
+    expect(play).toHaveBeenCalledTimes(2);
+    expect(onSilenced).toHaveBeenCalledTimes(1);
+    const video = container.querySelector('video')!;
+    expect(video).not.toBeNull();
+    expect(video.muted).toBe(true);
+  });
+
   it('shows no preview when the browser can play neither the file nor a transcode', async () => {
     const client = clientFor(MKV_HEVC);
     const { container } = render(

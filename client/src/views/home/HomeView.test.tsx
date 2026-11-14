@@ -192,10 +192,11 @@ describe('HomeView', () => {
     render(<HomeView ctx={ctx} />);
 
     const movies = await screen.findByRole('region', { name: 'Top 10 Movies This Week' });
-    expect(within(movies).getByRole('link', { name: /see all/ })).toHaveAttribute(
-      'href',
-      '#/home?lumen=charts&chart=movies&period=weekly',
-    );
+    // The title, and the tile at the end of the row.
+    const links = within(movies).getAllByRole('link', { name: /see all/ });
+    expect(links).toHaveLength(2);
+    for (const link of links)
+      expect(link).toHaveAttribute('href', '#/home?lumen=charts&chart=movies&period=weekly');
     const shows = screen.getByRole('region', { name: 'Top 10 Shows This Week' });
     expect(within(shows).queryByRole('link', { name: /see all/ })).toBeNull();
   });

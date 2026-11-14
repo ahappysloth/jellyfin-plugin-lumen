@@ -543,7 +543,10 @@ describe('YouTubePreview', () => {
   });
 
   it('unmuted and stopped by the browser for it (no tap to allow sound), plays on muted', () => {
-    const { container, rerender } = render(<YouTubePreview youTubeId={ID} delaySeconds={0} muted={false} />);
+    const onSilenced = vi.fn();
+    const { container, rerender } = render(
+      <YouTubePreview youTubeId={ID} delaySeconds={0} muted={false} onSilenced={onSilenced} />,
+    );
     advance(YOUTUBE_DWELL_MS);
     const player = playerIn(container);
     player.ready();
@@ -553,6 +556,8 @@ describe('YouTubePreview', () => {
 
     player.say('onStateChange', 2); // nobody asked for that
     expect(player.told()).toEqual(['mute', 'playVideo']);
+    // The page's Mute button goes back to Unmute (the home banner's: Hero.trailer.test).
+    expect(onSilenced).toHaveBeenCalledTimes(1);
     player.say('onStateChange', 1);
     advance(YOUTUBE_CHROME_MS);
     expect(player.frame).toHaveClass('is-shown');

@@ -94,7 +94,8 @@ test('a long Top 10 title ends in an ellipsis on a phone, and keeps See all in t
   await configureTrakt({ trakt: true, seerr: false }, [{ Type: 'Top10Movies', Title: title }]);
   await login(page, ADMIN);
 
-  const link = page.getByRole('link', { name: `${title}, see all in Top charts` });
+  // The title's link (the row's last tile is another to the same place).
+  const link = page.getByRole('heading', { name: title }).getByRole('link', { name: `${title}, see all in Top charts` });
   await expect(link).toBeVisible();
   // All of it but a fraction of a pixel (WebKit lays the title's box out at a part-pixel width).
   await expect(link.locator('.lmn-row__see-all')).toBeInViewport({ ratio: 0.95 });
@@ -102,6 +103,24 @@ test('a long Top 10 title ends in an ellipsis on a phone, and keeps See all in t
   expect(await text.evaluate((el) => el.scrollWidth > el.clientWidth && getComputedStyle(el).textOverflow === 'ellipsis')).toBe(true);
   await link.click();
   await expect(page).toHaveURL(/#\/home\?lumen=charts&chart=movies&period=weekly$/);
+});
+
+test('a Top 10 row ends with See all, a poster that opens its Top chart', async ({ page }) => {
+  await enableTop10({ trakt: true, seerr: true });
+  await login(page, ADMIN);
+
+  const movies = page.getByRole('region', { name: 'Top 10 Movies This Week' });
+  const tile = movies.locator('.lmn-row__scroller > :last-child a');
+  await expect(tile).toHaveClass(/\blmn-see-all\b/);
+  await expect(tile).toHaveText('See all');
+  await expect(tile).toHaveAccessibleName('Top 10 Movies This Week, see all in Top charts');
+  // As tall as the posters before it.
+  const poster = (await movies.locator('.lmn-card--poster .lmn-card__art').first().boundingBox())!;
+  const art = (await tile.locator('.lmn-card__art').boundingBox())!;
+  expect(Math.abs(art.height - poster.height)).toBeLessThan(2);
+  await tile.scrollIntoViewIfNeeded();
+  await tile.click();
+  await expect(page).toHaveURL(/lumen=charts&chart=movies/);
 });
 
 test('without Seerr, Top 10 shows just the ranked titles on the server', async ({ page }) => {
@@ -178,6 +197,12 @@ test.describe('TV layout', () => {
     // Four movie cards, the Matrix's Request button, two show cards.
     expect(controls.filter((c) => /lmn-card|lmn-top10__request/.test(c.classes)).length).toBeGreaterThanOrEqual(7);
     expect(unreachable.map((c) => c.name)).toEqual([]);
+
+    // The row ends with its See all tile, which the walk reached too: Right from the last card.
+    expect(controls.filter((c) => /lmn-see-all/.test(c.classes))).toHaveLength(2);
+    await movies.locator('.lmn-top10 .lmn-card').last().focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(movies.locator('a.lmn-see-all')).toBeFocused();
 
     // Down from the card reaches its Request button, and OK on it opens the dialog.
     await movies.getByRole('button', { name: '2, The Matrix' }).focus();

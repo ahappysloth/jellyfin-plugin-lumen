@@ -42,8 +42,13 @@ export interface TrailerProps {
   srcHd?: string | null;
   delaySeconds: number;
   client: JellyfinApiClient;
-  /** Defaults to true; the details page offers an unmute toggle. */
+  /** Defaults to true; the details page and the home banner offer an unmute toggle. */
   muted?: boolean;
+  /**
+   * The browser wouldn't play it with sound (it was unmuted, but sound needs a tap there, as on iOS): it plays on muted
+   * instead, and the page's Mute button should say so.
+   */
+  onSilenced?: () => void;
   /**
    * The details page's Pause: the video stops where it is; one that (re)starts meanwhile (a retry, or one let go while
    * out of view, back) waits. Either plays when this turns false again.
@@ -83,7 +88,9 @@ export { TRAILER_FADE_MS, TRAILER_STARTED_SECONDS, TRAILER_START_TIMEOUT_MS };
 // page's lookup of its trailer online and the Pause and Mute buttons over it, which only matter once this file is in.
 export { YouTubePreview } from './YouTubePreview';
 export { OnlineTrailerPreview } from './OnlineTrailerPreview';
-export { TrailerControls } from './TrailerControls';
+export { MuteButton, TrailerControls } from './TrailerControls';
+// So is the math of the home banner's pager fill that follows a trailer: it only runs once one is under way.
+export { drawHeroFill, followTrailer } from './heroFill';
 
 interface Plan {
   source: MediaSourceInfo | null;
@@ -124,6 +131,7 @@ export function TrailerPreview({
   onPlayingChange,
   onProgress,
   onFinish,
+  onSilenced,
   startAt,
   allowTranscode = false,
   logKey,
@@ -247,18 +255,26 @@ export function TrailerPreview({
     asked.current = true;
     noteStep();
     let current = true;
-    try {
-      const playing = element.play();
-      if (playing)
-        playing.catch((e: unknown) => {
-          if (current && (e as { name?: string } | null)?.name === 'NotAllowedError') {
+    // Refused with sound (the page unmuted it, but sound needs a tap here), it plays on muted rather than not at all.
+    const play = (): void => {
+      try {
+        const playing = element.play();
+        if (playing)
+          playing.catch((e: unknown) => {
+            if (!current || (e as { name?: string } | null)?.name !== 'NotAllowedError') return;
+            if (!element.muted) {
+              element.muted = true;
+              onSilenced?.();
+              return play();
+            }
             end({ outcome: 'blocked' });
             setState('done');
-          }
-        });
-    } catch {
-      // jsdom, or a browser whose play() returns nothing
-    }
+          });
+      } catch {
+        // jsdom, or a browser whose play() returns nothing
+      }
+    };
+    play();
     return () => {
       current = false;
     };
