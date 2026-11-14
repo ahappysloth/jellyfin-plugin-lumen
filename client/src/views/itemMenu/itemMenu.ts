@@ -23,7 +23,7 @@ import { strings } from '../../strings';
 import { whenStockCss } from '../../veil/stockCss';
 import type { ViewContext } from '../context';
 import { downloadUrl, nativeDownload } from '../details/download';
-import { loadTrailerInfo } from '../trailerInfo/lazyTrailerInfo';
+import { loadTrailerInfo, settleMediaInfo } from '../trailerInfo/lazyTrailerInfo';
 import { forgetItem, rememberEdit } from '../itemChanges';
 import { COMMAND_GROUPS, type ItemCommand, itemCommands, type MenuItem } from './itemCommands';
 import { ITEM_MENU_ICONS } from './itemMenuIcons';
@@ -239,7 +239,9 @@ async function run(
     // up (on a slow network, after them): have it in first (up to a few seconds) rather than restyle the dialog as it
     // shows.
     await whenStockCss();
-    const result = await openItemDialog(item, user, command);
+    const opening = openItemDialog(item, user, command);
+    if (command === 'moremediainfo') opening.then(settleMediaInfo, settleMediaInfo);
+    const result = await opening;
     if ((!document.activeElement || document.activeElement === document.body) && from instanceof HTMLElement)
       from.focus({ preventScroll: true });
     if (result.deleted) {

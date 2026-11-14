@@ -29,6 +29,9 @@ public static class TrailerStatus
 
     /// <summary>YouTube only: Seerr isn't set up, or this user has no Seerr access, so only the metadata was read.</summary>
     public const string NoSeerr = "noSeerr";
+
+    /// <summary>Whether <paramref name="status"/> is asking failing (rather than an answer, found or not).</summary>
+    public static bool IsFailure(string status) => status is HttpError or Timeout or Error;
 }
 
 /// <summary>Why no online trailer is looked up for a title at all (<see cref="TrailerStatus.Skipped"/>).</summary>
@@ -56,12 +59,14 @@ public sealed record TrailerOutcome(string Status, string? Detail, DateTimeOffse
 
 /// <summary>
 /// What the IMDb lookup for a title found: the id it asked by, how it went, which qualities IMDb has ("1080p", "720p"…;
-/// the addresses are never part of it), and whether this answer was the server's cached one.
+/// the addresses are never part of it), and whether this answer was the server's cached one. A refresh that failed
+/// where a trailer had been found keeps that one (still cached for everyone) and says how it failed in
+/// <paramref name="RefreshFailure"/>.
 /// </summary>
-public sealed record ImdbDiagnosis(string? ImdbId, TrailerOutcome Outcome, IReadOnlyList<string> Qualities, bool Cached);
+public sealed record ImdbDiagnosis(string? ImdbId, TrailerOutcome Outcome, IReadOnlyList<string> Qualities, bool Cached, TrailerOutcome? RefreshFailure = null);
 
 /// <summary>
 /// What the YouTube lookup for a title found: the video id and where it came from (<see cref="TrailerSource"/>), how it
-/// went, and whether this answer was the server's cached one.
+/// went, and whether this answer was the server's cached one; <paramref name="RefreshFailure"/> as for IMDb's.
 /// </summary>
-public sealed record YouTubeDiagnosis(string? VideoId, string? Source, TrailerOutcome Outcome, bool Cached);
+public sealed record YouTubeDiagnosis(string? VideoId, string? Source, TrailerOutcome Outcome, bool Cached, TrailerOutcome? RefreshFailure = null);

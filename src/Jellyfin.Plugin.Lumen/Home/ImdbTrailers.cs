@@ -34,7 +34,9 @@ public interface IImdbTrailers
     /// <summary>
     /// For a title's Media info: how the lookup of <paramref name="imdbId"/> went, from the cache the hero and the title
     /// pages fill (asked now if nothing is cached); with <paramref name="refresh"/>, asked again past that cache, and
-    /// the answer cached for everyone as any other. Callers check the setting. Never throws for an IMDb failure.
+    /// the answer cached for everyone as any other, except a failure where a trailer was found: that one is kept, and
+    /// the failure is only reported (<see cref="ImdbDiagnosis.RefreshFailure"/>). Callers check the setting. Never
+    /// throws for an IMDb failure.
     /// </summary>
     Task<ImdbDiagnosis> DiagnoseAsync(string? imdbId, bool refresh, CancellationToken cancellationToken);
 }
@@ -108,7 +110,7 @@ public sealed partial class ImdbTrailers : IImdbTrailers
 
     private readonly Lock _lock = new();
     private readonly Dictionary<string, Entry> _cache = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, Task<Entry>> _asking = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Task<Answer>> _asking = new(StringComparer.Ordinal);
     private readonly IHttpClientFactory _http;
     private readonly ILumenConfigReader _config;
     private readonly TimeProvider _time;
@@ -157,7 +159,7 @@ public sealed partial class ImdbTrailers : IImdbTrailers
             return null;
         }
 
-        return (await LookUpCachedAsync(imdbId!, false, cancellationToken).ConfigureAwait(false)).Entry.Trailer;
+        return (await LookUpCachedAsync(imdbId!, false, cancellationToken).ConfigureAwait(false)).Answer.Entry.Trailer;
     }
 
     public async Task<ImdbDiagnosis> DiagnoseAsync(string? imdbId, bool refresh, CancellationToken cancellationToken)
@@ -167,13 +169,15 @@ public sealed partial class ImdbTrailers : IImdbTrailers
             return new ImdbDiagnosis(null, new TrailerOutcome(TrailerStatus.NoId, null, null), [], false);
         }
 
-        var (entry, cached) = await LookUpCachedAsync(imdbId!, refresh, cancellationToken).ConfigureAwait(false);
+        var ((entry, failure), cached) = await LookUpCachedAsync(imdbId!, refresh, cancellationToken).ConfigureAwait(false);
         var trailer = entry.Trailer;
 
         // Best first, as the browser picks between them (the 1080p one where its box needs it).
         var quality = entry.Quality ?? string.Empty;
         IReadOnlyList<string> qualities = trailer is null ? [] : trailer.UrlHd is null ? [quality] : [HdQuality, quality];
-        return new ImdbDiagnosis(imdbId, entry.Outcome, qualities, cached);
+
+        // A refresh that failed kept the trailer found before: that's still the cached answer everyone gets.
+        return new ImdbDiagnosis(imdbId, entry.Outcome, qualities, cached || failure is not null, failure);
     }
 
     public async Task<ImdbCheck> CheckAsync(string imdbId, CancellationToken cancellationToken)
@@ -296,26 +300,23 @@ public sealed partial class ImdbTrailers : IImdbTrailers
 
     /// <summary>
     /// The cached answer for <paramref name="imdbId"/> (and true), else IMDb's, asked once for everyone waiting (and
-    /// false). <paramref name="refresh"/> drops the cached one first; a lookup already under way is as fresh.
+    /// false). <paramref name="refresh"/> asks past the cached one, a lookup already under way being as fresh; the cached
+    /// one stays meanwhile, so the hero and the title pages aren't kept waiting for it.
     /// </summary>
-    private async Task<(Entry Entry, bool Cached)> LookUpCachedAsync(string imdbId, bool refresh, CancellationToken cancellationToken)
+    private async Task<(Answer Answer, bool Cached)> LookUpCachedAsync(string imdbId, bool refresh, CancellationToken cancellationToken)
     {
-        TaskCompletionSource<Entry>? mine = null;
-        Task<Entry> answer;
+        TaskCompletionSource<Answer>? mine = null;
+        Task<Answer> answer;
         lock (_lock)
         {
+            if (!refresh && _cache.TryGetValue(imdbId, out var entry) && entry.Expires > _time.GetUtcNow())
+            {
+                return (new Answer(entry, null), true);
+            }
+
             if (!_asking.TryGetValue(imdbId, out var asking))
             {
-                if (refresh)
-                {
-                    _cache.Remove(imdbId);
-                }
-                else if (_cache.TryGetValue(imdbId, out var entry) && entry.Expires > _time.GetUtcNow())
-                {
-                    return (entry, true);
-                }
-
-                mine = new TaskCompletionSource<Entry>(TaskCreationOptions.RunContinuationsAsynchronously);
+                mine = new TaskCompletionSource<Answer>(TaskCreationOptions.RunContinuationsAsynchronously);
                 asking = mine.Task;
                 _asking[imdbId] = asking;
             }
@@ -332,7 +333,7 @@ public sealed partial class ImdbTrailers : IImdbTrailers
         return (await answer.WaitAsync(cancellationToken).ConfigureAwait(false), false);
     }
 
-    private async Task AskAsync(TaskCompletionSource<Entry> answer, string imdbId)
+    private async Task AskAsync(TaskCompletionSource<Answer> answer, string imdbId)
     {
         ImdbTrailer? trailer = null;
         string? quality = null;
@@ -377,14 +378,21 @@ public sealed partial class ImdbTrailers : IImdbTrailers
                 : new TrailerOutcome(TrailerStatus.Error, "unexpected error", asked);
         }
 
-        Entry entry;
+        Answer result;
         lock (_lock)
         {
-            entry = StoreLocked(imdbId, trailer, expires, quality, outcome);
+            // A refresh that failed where a trailer had been found (IMDb or the network down a moment) leaves that trailer
+            // to everyone until it lapses, rather than no trailer for FailureTtl: the failure is only reported.
+            result = TrailerStatus.IsFailure(outcome.Status)
+                && _cache.TryGetValue(imdbId, out var kept)
+                && kept.Trailer is not null
+                && kept.Expires > _time.GetUtcNow()
+                ? new Answer(kept, outcome)
+                : new Answer(StoreLocked(imdbId, trailer, expires, quality, outcome), null);
             _asking.Remove(imdbId);
         }
 
-        answer.SetResult(entry);
+        answer.SetResult(result);
     }
 
     /// <summary>One lookup: the trailer, or null when IMDb has none. Throws <see cref="ImdbException"/> when it can't say.</summary>
@@ -484,6 +492,9 @@ public sealed partial class ImdbTrailers : IImdbTrailers
 
     /// <summary>A cached answer: the trailer (null for none), until when, its first address's quality, and how it went.</summary>
     private sealed record Entry(ImdbTrailer? Trailer, DateTimeOffset Expires, long Sequence, string? Quality, TrailerOutcome Outcome);
+
+    /// <summary>A lookup's answer: the entry now cached, and how asking failed when that's the trailer found before it.</summary>
+    private sealed record Answer(Entry Entry, TrailerOutcome? RefreshFailure);
 
     private sealed class TitleBody
     {

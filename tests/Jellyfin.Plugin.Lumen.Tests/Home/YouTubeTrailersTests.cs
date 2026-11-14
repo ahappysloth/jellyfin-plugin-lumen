@@ -350,6 +350,46 @@ public class YouTubeTrailersTests
     }
 
     [Fact]
+    public async Task Diagnose_RefreshThatFails_KeepsTheTrailerFoundBefore_ForEveryone_AndOnlyReportsTheFailure()
+    {
+        await Get(Movie(603));
+        _seerr.GetTitleSummaryAsync(default!, default, default!, default, default)
+            .ThrowsAsyncForAnyArgs(new SeerrException("Seerr answered with HTTP 503", HttpStatusCode.ServiceUnavailable));
+        _time.Advance(TimeSpan.FromMinutes(1));
+
+        var info = await _trailers.DiagnoseAsync(Movie(603), _user, true, CancellationToken.None);
+
+        Assert.Equal(
+            new YouTubeDiagnosis(
+                SeerrId,
+                TrailerSource.Seerr,
+                new TrailerOutcome(TrailerStatus.Found, null, TestData.Now),
+                true,
+                new TrailerOutcome(TrailerStatus.Error, "Seerr answered HTTP 503", TestData.Now + TimeSpan.FromMinutes(1))),
+            info);
+        Assert.Equal(SeerrId, await Get(Movie(603)));
+        Assert.Null((await _trailers.DiagnoseAsync(Movie(603), _user, false, CancellationToken.None)).RefreshFailure);
+        await _seerr.ReceivedWithAnyArgs(2).GetTitleSummaryAsync(default!, default, default!, default, default);
+    }
+
+    [Fact]
+    public async Task Diagnose_WhileARefreshIsUnderWay_TheHeroGetsTheCachedTrailer_WithoutWaitingForIt()
+    {
+        await Get(Movie(603));
+        var answer = new TaskCompletionSource<SeerrTitle>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _seerr.GetTitleSummaryAsync(default!, default, default!, default, default).ReturnsForAnyArgs(answer.Task);
+
+        var refreshing = _trailers.DiagnoseAsync(Movie(603), _user, true, CancellationToken.None);
+        Assert.Equal(SeerrId, await Get(Movie(603)));
+        Assert.False(refreshing.IsCompleted);
+
+        answer.SetResult(new SeerrTitle { Id = 1, RelatedVideos = [Video("newTrailer1")] });
+        Assert.Equal("newTrailer1", (await refreshing).VideoId);
+        Assert.Equal("newTrailer1", await Get(Movie(603)));
+        await _seerr.ReceivedWithAnyArgs(2).GetTitleSummaryAsync(default!, default, default!, default, default);
+    }
+
+    [Fact]
     public async Task Diagnose_WithoutSeerr_OrATmdbId_OrAccess_SaysSo()
     {
         Assert.Equal(TrailerStatus.NoId, (await _trailers.DiagnoseAsync(Movie(null), _user, false, CancellationToken.None)).Outcome.Status);

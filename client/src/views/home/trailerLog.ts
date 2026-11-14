@@ -26,7 +26,10 @@ export type TrailerStepOutcome =
 
 export interface TrailerStep {
   source: TrailerStepSource;
-  /** IMDb: 'hd' (its 1080p file) or 'main'; a local trailer: 'direct', 'hls' or 'mp4' (trailerStream.ts). */
+  /**
+   * IMDb: the file's quality as tried ('1080p' for its 1080p one; the first one's, '720p' or another, once its picture
+   * has loaded; none for one that failed before that); a local trailer: 'direct', 'hls' or 'mp4' (trailerStream.ts).
+   */
   quality?: string;
   outcome: TrailerStepOutcome;
   /** MediaError.code, or YouTube's player error (2, 5, 100, 101, 150…). */

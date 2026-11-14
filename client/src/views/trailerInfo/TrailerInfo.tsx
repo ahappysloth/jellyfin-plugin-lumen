@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { getLayout, isBackKey } from '../../compat/jellyfin';
 import { MEDIA_INFO_DIALOG } from '../../compat/registry';
 import { Icon } from '../../components/icons';
+import { onNavigate } from '../../takeover/navigation';
 import type { TrailerStep } from '../home/trailerLog';
 import type { ViewContext } from '../context';
 import { lastAttempt } from './deviceLog';
@@ -31,6 +32,8 @@ interface SourceInfo {
   Detail?: string | null;
   Cached: boolean;
   FetchedAt?: string | null;
+  /** Check again failed where a trailer had been found: that one is kept (the rest of this), and still served. */
+  RefreshFailed?: { Status: string; Detail?: string | null } | null;
 }
 
 /** GET Lumen/…/TrailerInfo (Api/Dtos.cs TrailerInfoDto). */
@@ -95,14 +98,22 @@ function result(source: SourceInfo, imdb: boolean, qualities: string[] = []): st
   }
 }
 
-function Fetched({ source }: { source: SourceInfo }) {
-  if (!source.FetchedAt) return null;
-  const when = ago(source.FetchedAt);
-  return <Row label={t.answer}>{source.Cached ? t.cached(when) : t.fetched(when)}</Row>;
+function Fetched({ source, imdb }: { source: SourceInfo; imdb: boolean }) {
+  const failed = source.RefreshFailed;
+  const when = source.FetchedAt && ago(source.FetchedAt);
+  return (
+    <>
+      {when && <Row label={t.answer}>{source.Cached ? t.cached(when) : t.fetched(when)}</Row>}
+      {failed && (
+        <Row label={t.checkAgain}>{t.refreshFailed(result({ ...failed, Cached: false }, imdb))}</Row>
+      )}
+    </>
+  );
 }
 
-function stepLabel(step: TrailerStep, mainQuality: string): string {
-  if (step.source === 'imdb') return `${t.imdb} ${step.quality === 'hd' ? t.hd : t.main(mainQuality)}`;
+/** A step as it was tried: IMDb's file in the quality noted then (none for one that failed before it loaded). */
+function stepLabel(step: TrailerStep): string {
+  if (step.source === 'imdb') return step.quality ? `${t.imdb} ${step.quality}` : t.imdb;
   if (step.source === 'local') {
     const how =
       step.quality === 'hls' ? t.hls : step.quality === 'mp4' ? t.mp4 : step.quality ? t.direct : '';
@@ -165,6 +176,10 @@ export function TrailerInfo({
   }, []);
 
   const checkAgain = (): void => {
+    // Still focusable while it asks (aria-disabled, not disabled), and the same button after: a disabled one would drop
+    // focus to the page, out of Lumen's dialog (whose Escape and Back then go nowhere) and, on a TV, out of the remote's
+    // reach.
+    if (checking) return;
     setChecking(true);
     setNote(t.checking);
     ask(ctx, target.of, true).then(
@@ -187,7 +202,6 @@ export function TrailerInfo({
   const ready = typeof info === 'object' ? info : null;
   const imdb = ready?.Imdb;
   const youTube = ready?.YouTube;
-  const mainQuality = imdb?.Qualities.filter((q) => q !== '1080p').pop() ?? '720p';
   return (
     <div
       class="mediaInfoContent lmn-trailer-info"
@@ -218,7 +232,7 @@ export function TrailerInfo({
             )}
             <Row label={t.imdbId}>{imdb.Id ?? t.noImdbId}</Row>
             <Row label={t.imdb}>{result(imdb, true, imdb.Qualities)}</Row>
-            <Fetched source={imdb} />
+            <Fetched source={imdb} imdb />
             <Row label={t.youTube}>
               {youTube.VideoId ? (
                 <>
@@ -238,7 +252,7 @@ export function TrailerInfo({
                 result(youTube, false)
               )}
             </Row>
-            <Fetched source={youTube} />
+            <Fetched source={youTube} imdb={false} />
           </>
         )}
       </div>
@@ -251,7 +265,7 @@ export function TrailerInfo({
               {attempt.tv ? `, ${t.tvLayout}` : ''}
             </Row>
             {attempt.steps.map((step, i) => (
-              <Row key={i} label={stepLabel(step, mainQuality)}>
+              <Row key={i} label={stepLabel(step)}>
                 {stepResult(step)}
               </Row>
             ))}
@@ -269,7 +283,7 @@ export function TrailerInfo({
                 ? 'lmn-button lmn-button--secondary'
                 : 'raised emby-button lmn-trailer-info__check noautofocus'
             }
-            disabled={checking}
+            aria-disabled={checking || undefined}
             onClick={checkAgain}
           >
             {t.checkAgain}
@@ -283,22 +297,34 @@ export function TrailerInfo({
   );
 }
 
-/** How long after Media info is asked for its dialog may take to show (its chunk, then the item, from the server). */
+/**
+ * How long after Media info is asked for its dialog may take to show (its chunk, then the item, from the server), at
+ * most: the watch ends sooner as jellyfin-web is done opening it (settleMediaInfo).
+ */
 const DIALOG_WAIT_MS = 10_000;
 
-/** The last call's watch for its dialog: a newer call is for another dialog, which that one mustn't take. */
-let watching: (() => void) | null = null;
+/**
+ * Ends the last call's watch for its dialog, taking it first if it's up (`take`): a newer call is for another dialog,
+ * which that one mustn't take.
+ */
+let watching: ((take?: boolean) => void) | null = null;
 
 /**
- * Adds the section to jellyfin-web's Media info dialog as it shows (or now, if it's up). Only a dialog without it
- * already: there's one at a time, the one just asked for. Taken down as the dialog closes (dialogHelper's `close`).
+ * Adds the section to jellyfin-web's Media info dialog as it shows (or now, if it's up). Its markup doesn't say which
+ * item it's for (a heading, then the media sources, filled in later), so only the first Media info dialog to show
+ * after the call is taken, and only one without the section already: the watch ends as any shows, as the page changes,
+ * as jellyfin-web is done opening the one asked for (settleMediaInfo: one that failed to open leaves nothing to wait
+ * for, and another title's Media info, opened next, mustn't get this section), or after DIALOG_WAIT_MS. Taken down as
+ * the dialog closes (dialogHelper's `close`).
  */
 export function attachToMediaInfo(ctx: ViewContext, target: TrailerTarget, doc: Document = document): void {
   watching?.();
+  /** Whether a Media info dialog has shown: this title's, with the section added unless it had it already. */
   const attach = (): boolean => {
     const content = doc.querySelector(MEDIA_INFO_DIALOG.content);
     const dialog = content?.closest(MEDIA_INFO_DIALOG.dialog);
-    if (!content || !dialog || dialog.hasAttribute('data-lmn-trailer')) return false;
+    if (!content || !dialog) return false;
+    if (dialog.hasAttribute('data-lmn-trailer')) return true;
     dialog.setAttribute('data-lmn-trailer', '');
     const host = doc.createElement('div');
     try {
@@ -313,16 +339,29 @@ export function attachToMediaInfo(ctx: ViewContext, target: TrailerTarget, doc: 
   };
   if (attach()) return;
   const observer = new MutationObserver(() => {
-    if (attach()) stop();
+    if (attach()) end();
   });
-  const timer = setTimeout(() => stop(), DIALOG_WAIT_MS);
-  const stop = (): void => {
+  const timer = setTimeout(() => end(), DIALOG_WAIT_MS);
+  // The page changed: a dialog up by now is the one asked for (jellyfin-web may note an open dialog in the history),
+  // and one that shows later is another page's, another title's.
+  const stopNavigation = onNavigate(() => end(true), doc.defaultView ?? window);
+  const end = (take?: boolean): void => {
+    if (take) attach();
     observer.disconnect();
     clearTimeout(timer);
-    if (watching === stop) watching = null;
+    stopNavigation();
+    if (watching === end) watching = null;
   };
-  watching = stop;
+  watching = end;
   observer.observe(doc.body, { childList: true, subtree: true });
+}
+
+/**
+ * jellyfin-web is done opening the Media info dialog last asked for (compat/itemMenu.ts's openItemDialog has settled):
+ * it's up by now, or never will be. The section goes in if it hasn't yet, and the watch for the dialog ends.
+ */
+export function settleMediaInfo(): void {
+  watching?.(true);
 }
 
 function TrailerInfoDialog({
@@ -346,6 +385,20 @@ function TrailerInfoDialog({
       e.preventDefault();
       e.stopPropagation();
       onClose();
+      return;
+    }
+    if (e.key !== 'Tab' || !panel.current) return;
+    // Keep Tab inside the dialog, as views/catalog/RequestDialog.tsx does.
+    const focusable = [...panel.current.querySelectorAll<HTMLElement>('button, a[href]')];
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first || !last) return;
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
     }
   };
   return (

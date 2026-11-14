@@ -23,8 +23,9 @@ public interface IYouTubeTrailers
 
     /// <summary>
     /// For a title's Media info: where <see cref="GetAsync"/> finds the trailer, and how asking Seerr went (from the cache
-    /// it shares, or asked now); with <paramref name="refresh"/>, Seerr is asked again past that cache. Callers check the
-    /// setting. Never throws for a Seerr failure.
+    /// it shares, or asked now); with <paramref name="refresh"/>, Seerr is asked again past that cache. A refresh that
+    /// fails where a trailer was found keeps that one for everyone and only reports the failure
+    /// (<see cref="YouTubeDiagnosis.RefreshFailure"/>). Callers check the setting. Never throws for a Seerr failure.
     /// </summary>
     Task<YouTubeDiagnosis> DiagnoseAsync(BaseItem item, User user, bool refresh, CancellationToken cancellationToken);
 }
@@ -52,7 +53,7 @@ public sealed class YouTubeTrailers : IYouTubeTrailers
 
     private readonly Lock _lock = new();
     private readonly Dictionary<(string Endpoint, string MediaType, int TmdbId), Entry> _cache = [];
-    private readonly Dictionary<(string Endpoint, string MediaType, int TmdbId), Task<Entry>> _asking = [];
+    private readonly Dictionary<(string Endpoint, string MediaType, int TmdbId), Task<Answer>> _asking = [];
     private readonly ILumenConfigReader _config;
     private readonly ISeerrClient _seerr;
     private readonly ISeerrUserMap _users;
@@ -111,8 +112,8 @@ public sealed class YouTubeTrailers : IYouTubeTrailers
 
     private static YouTubeDiagnosis Without(string status, string? detail) => new(null, null, new TrailerOutcome(status, detail, null), false);
 
-    private static YouTubeDiagnosis FromEntry(Entry entry, bool cached) =>
-        new(entry.Id, entry.Id is null ? null : TrailerSource.Seerr, entry.Outcome, cached);
+    private static YouTubeDiagnosis FromEntry(Entry entry, bool cached, TrailerOutcome? refreshFailure = null) =>
+        new(entry.Id, entry.Id is null ? null : TrailerSource.Seerr, entry.Outcome, cached, refreshFailure);
 
     /// <summary>A few words on why Seerr couldn't be asked, for a title's Media info: never its address or key.</summary>
     private static string Describe(Exception e) => e switch
@@ -167,22 +168,20 @@ public sealed class YouTubeTrailers : IYouTubeTrailers
         }
 
         var key = (endpoint.CacheKey, mediaType, tmdbId);
-        TaskCompletionSource<Entry>? mine = null;
-        Task<Entry> answer;
+        TaskCompletionSource<Answer>? mine = null;
+        Task<Answer> answer;
         lock (_lock)
         {
+            // A refresh asks past the cached answer, which stays meanwhile: the hero and the title pages aren't kept
+            // waiting for it.
+            if (!refresh && TryGetCachedLocked(key, out cached))
+            {
+                return FromEntry(cached, true);
+            }
+
             if (!_asking.TryGetValue(key, out var asking))
             {
-                if (refresh)
-                {
-                    _cache.Remove(key);
-                }
-                else if (TryGetCachedLocked(key, out cached))
-                {
-                    return FromEntry(cached, true);
-                }
-
-                mine = new TaskCompletionSource<Entry>(TaskCreationOptions.RunContinuationsAsynchronously);
+                mine = new TaskCompletionSource<Answer>(TaskCreationOptions.RunContinuationsAsynchronously);
                 asking = mine.Task;
                 _asking[key] = asking;
             }
@@ -196,11 +195,12 @@ public sealed class YouTubeTrailers : IYouTubeTrailers
             _ = AskSeerrAsync(mine, key, endpoint, seerrUserId, mediaType, tmdbId);
         }
 
-        return FromEntry(await answer.WaitAsync(cancellationToken).ConfigureAwait(false), false);
+        var (entry, failure) = await answer.WaitAsync(cancellationToken).ConfigureAwait(false);
+        return FromEntry(entry, failure is not null, failure);
     }
 
     private async Task AskSeerrAsync(
-        TaskCompletionSource<Entry> answer,
+        TaskCompletionSource<Answer> answer,
         (string Endpoint, string MediaType, int TmdbId) key,
         SeerrEndpoint endpoint,
         int seerrUserId,
@@ -235,14 +235,18 @@ public sealed class YouTubeTrailers : IYouTubeTrailers
             outcome = new TrailerOutcome(TrailerStatus.Error, Describe(e), asked);
         }
 
-        Entry entry;
+        Answer result;
         lock (_lock)
         {
-            entry = StoreLocked(key, found, ttl, outcome);
+            // A refresh that failed where a trailer had been found (Seerr down a moment) leaves that trailer to everyone
+            // rather than none for FailureTtl: the failure is only reported.
+            result = TrailerStatus.IsFailure(outcome.Status) && TryGetCachedLocked(key, out var kept) && kept.Id is not null
+                ? new Answer(kept, outcome)
+                : new Answer(StoreLocked(key, found, ttl, outcome), null);
             _asking.Remove(key);
         }
 
-        answer.SetResult(entry);
+        answer.SetResult(result);
     }
 
     private bool TryGetCached((string Endpoint, string MediaType, int TmdbId) key, [MaybeNullWhen(false)] out Entry entry)
@@ -289,4 +293,7 @@ public sealed class YouTubeTrailers : IYouTubeTrailers
 
     /// <summary>A cached answer: the video id (null for none), until when, and how asking went.</summary>
     private sealed record Entry(string? Id, DateTimeOffset Expires, long Sequence, TrailerOutcome Outcome);
+
+    /// <summary>A lookup's answer: the entry now cached, and how asking failed when that's the trailer found before it.</summary>
+    private sealed record Answer(Entry Entry, TrailerOutcome? RefreshFailure);
 }

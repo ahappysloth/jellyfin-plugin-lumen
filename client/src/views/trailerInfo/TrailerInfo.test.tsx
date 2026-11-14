@@ -6,6 +6,7 @@ import { trailerLogger } from '../home/trailerLog';
 import {
   attachToMediaInfo,
   openTrailerInfoDialog,
+  settleMediaInfo,
   TrailerInfo,
   type TrailerInfoResponse,
 } from './TrailerInfo';
@@ -100,12 +101,13 @@ describe('the Trailer section', () => {
 
   it('shows this device’s last attempt: what played and how quickly, and what failed and why', async () => {
     const log = trailerLogger('m1', false)!;
-    log.end(log.add({ source: 'imdb', quality: 'hd', outcome: 'pending' }), {
+    log.end(log.add({ source: 'imdb', quality: '1080p', outcome: 'pending' }), {
       outcome: 'error',
       code: 4,
       message: 'MEDIA_ELEMENT_ERROR: Format error',
     });
-    log.add({ source: 'imdb', quality: 'main', outcome: 'timeout' });
+    log.add({ source: 'imdb', quality: '480p', outcome: 'timeout' });
+    log.add({ source: 'imdb', outcome: 'error', code: 2 });
     log.add({ source: 'youtube', outcome: 'error', code: 150 });
     log.add({ source: 'local', quality: 'hls', outcome: 'played', ms: 1250 });
     const { ctx } = setup(found);
@@ -115,7 +117,9 @@ describe('the Trailer section', () => {
     expect(text()).toContain(
       'IMDb 1080pFailed: format not supported (4) (MEDIA_ELEMENT_ERROR: Format error)',
     );
-    expect(text()).toContain('IMDb 720pTimed out before the first frame');
+    // As noted when tried, whatever the server's answer now: not a guess from it.
+    expect(text()).toContain('IMDb 480pTimed out before the first frame');
+    expect(text()).toContain('IMDbFailed: network error (2)');
     expect(text()).toContain('YouTubeFailed: embedding not allowed (150)');
     expect(text()).toContain('Local trailer (remuxed / transcoded (HLS))Played, under way after 1.3 s');
   });
@@ -132,6 +136,48 @@ describe('the Trailer section', () => {
       'GET /Lumen/Items/m1/TrailerInfo',
       'POST /Lumen/Items/m1/TrailerInfo/Refresh',
     ]);
+  });
+
+  it('keeps focus on Check again while it asks and after, and takes no second press meanwhile', async () => {
+    let answer!: (value: unknown) => void;
+    const { client, ctx } = setup(
+      { ...failing, CanRefresh: true },
+      () => new Promise((resolve) => (answer = resolve)),
+    );
+    render(<TrailerInfo ctx={ctx} target={target} />);
+    const check = await screen.findByRole('button', { name: 'Check again' });
+    check.focus();
+
+    fireEvent.click(check);
+    expect(check.getAttribute('aria-disabled')).toBe('true');
+    expect(check.hasAttribute('disabled')).toBe(false);
+    expect(document.activeElement).toBe(check);
+    fireEvent.click(check);
+    expect(client.requests.filter((r) => r.type === 'POST')).toHaveLength(1);
+
+    await act(async () => answer({ ...found, CanRefresh: true }));
+    await screen.findByText('Found: 1080p, 720p available');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Check again' }));
+    expect(check.hasAttribute('aria-disabled')).toBe(false);
+  });
+
+  it('says when Check again failed but the trailer found before is kept', async () => {
+    const { ctx } = setup({
+      ...found,
+      Imdb: { ...found.Imdb, RefreshFailed: { Status: 'httpError', Detail: 'HTTP 503' } },
+      YouTube: {
+        Status: 'found',
+        VideoId: 'dQw4w9WgXcQ',
+        Source: 'seerr',
+        Cached: true,
+        RefreshFailed: { Status: 'error', Detail: 'Seerr answered HTTP 503' },
+      },
+    });
+    render(<TrailerInfo ctx={ctx} target={target} />);
+
+    await screen.findByText('Found: 1080p, 720p available');
+    expect(text()).toContain('Check againIMDb error: HTTP 503. Still using the answer above');
+    expect(text()).toContain('Check againError: Seerr answered HTTP 503. Still using the answer above');
   });
 
   it('scrolls a control the remote focuses into view: jellyfin-web doesn’t in its full-screen TV dialog', async () => {
@@ -223,9 +269,66 @@ describe('Media info’s Trailer section', () => {
     await screen.findByText('Found: 1080p, 720p available');
     expect(dialog.querySelectorAll('.lmn-trailer-info')).toHaveLength(1);
   });
+
+  it('stops watching once jellyfin-web is done opening it: a dialog that failed leaves the next title’s alone', async () => {
+    const { ctx } = setup(found);
+    attachToMediaInfo(ctx, target);
+    // jellyfin-web's Media info didn't open (its item didn't load).
+    settleMediaInfo();
+    const other = mediaInfo();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(other.querySelector('.lmn-trailer-info')).toBeNull();
+    expect(other.hasAttribute('data-lmn-trailer')).toBe(false);
+  });
+
+  it('as jellyfin-web is done opening it, goes in at once if it’s up', async () => {
+    const { ctx } = setup(found);
+    attachToMediaInfo(ctx, target);
+    const observed = vi.spyOn(MutationObserver.prototype, 'disconnect');
+    const dialog = mediaInfo();
+    settleMediaInfo();
+    expect(dialog.querySelector('.lmn-trailer-info')).not.toBeNull();
+    expect(observed).toHaveBeenCalled();
+    observed.mockRestore();
+  });
+
+  it('stops watching once any Media info shows, and as the page changes', async () => {
+    const { ctx } = setup(found);
+    // One already with the section (another call's): the watch ends there, rather than wait for the next.
+    const first = mediaInfo();
+    first.setAttribute('data-lmn-trailer', '');
+    attachToMediaInfo(ctx, target);
+    first.remove();
+    const second = mediaInfo();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(second.querySelector('.lmn-trailer-info')).toBeNull();
+    second.remove();
+
+    attachToMediaInfo(ctx, target);
+    act(() => {
+      history.pushState(null, '', '#/elsewhere');
+    });
+    const third = mediaInfo();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(third.querySelector('.lmn-trailer-info')).toBeNull();
+    third.remove();
+
+    // One up as the page changes is the one asked for (jellyfin-web may put an open dialog in the history first).
+    attachToMediaInfo(ctx, target);
+    const fourth = mediaInfo();
+    act(() => {
+      history.pushState(null, '', '#/dialog');
+    });
+    expect(fourth.querySelector('.lmn-trailer-info')).not.toBeNull();
+    history.replaceState(null, '', '/');
+  });
 });
 
 describe('Trailer info (a show)', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
   it('opens Lumen’s dialog with the section, closes on Escape, and gives focus back', async () => {
     const { ctx } = setup(found);
     const opener = document.createElement('button');
@@ -240,5 +343,38 @@ describe('Trailer info (a show)', () => {
     act(() => void fireEvent.keyDown(dialog, { key: 'Escape' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(opener);
+  });
+
+  it('keeps Tab inside the dialog', async () => {
+    const { ctx } = setup({ ...found, CanRefresh: true });
+    act(() => openTrailerInfoDialog(ctx, target, null));
+    const close = screen.getByRole('button', { name: 'Close' });
+    const check = await screen.findByRole('button', { name: 'Check again' });
+    const dialog = screen.getByRole('dialog');
+
+    check.focus();
+    expect(fireEvent.keyDown(check, { key: 'Tab' })).toBe(false);
+    expect(document.activeElement).toBe(close);
+    expect(fireEvent.keyDown(close, { key: 'Tab', shiftKey: true })).toBe(false);
+    expect(document.activeElement).toBe(check);
+    // Within it, Tab moves as the browser has it.
+    close.focus();
+    expect(fireEvent.keyDown(close, { key: 'Tab' })).toBe(true);
+
+    act(() => void fireEvent.keyDown(dialog, { key: 'Escape' }));
+  });
+
+  it('keeps focus on Check again in the dialog, so Escape still closes it', async () => {
+    let answer!: (value: unknown) => void;
+    const { ctx } = setup({ ...found, CanRefresh: true }, () => new Promise((resolve) => (answer = resolve)));
+    act(() => openTrailerInfoDialog(ctx, target, null));
+    const check = await screen.findByRole('button', { name: 'Check again' });
+    check.focus();
+    fireEvent.click(check);
+    await act(async () => answer({ ...found, CanRefresh: true }));
+
+    expect(document.activeElement).toBe(check);
+    act(() => void fireEvent.keyDown(document.activeElement!, { key: 'Escape' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

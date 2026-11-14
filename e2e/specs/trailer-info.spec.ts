@@ -110,13 +110,21 @@ test('IMDb failing says so, and Check again asks it again, once per title every 
   await expect(trailer).toContainText('IMDbIMDb error: HTTP 503');
   await shoot(page, 'media-info-failure', trailer);
 
-  const before = (await imdbLookups()).filter((id) => id === 'tt9000503').length;
-  await trailer.getByRole('button', { name: 'Check again' }).click();
+  const lookups = async () => (await imdbLookups()).filter((id) => id === 'tt9000503').length;
+  const before = await lookups();
+  const check = trailer.getByRole('button', { name: 'Check again' });
   const status = trailer.getByRole('status');
-  // A retry of this test within half a minute is limited from the start.
+  await check.click();
   await expect(status).toHaveText(/^(Checked again|Checked a moment ago\. Try again in \d+ s\.)$/);
-  if ((await status.textContent()) === 'Checked again')
-    expect((await imdbLookups()).filter((id) => id === 'tt9000503').length).toBe(before + 1);
+  // A retry of this test (or an earlier test's Check again) within half a minute is limited from the start: wait that
+  // out, so the lookup is always checked.
+  const limited = /Try again in (\d+) s/.exec((await status.textContent()) ?? '');
+  if (limited) {
+    await page.waitForTimeout(Number(limited[1]) * 1000 + 500);
+    await check.click();
+  }
+  await expect(status).toHaveText('Checked again');
+  expect(await lookups()).toBe(before + 1);
   await expect(trailer).toContainText('IMDbIMDb error: HTTP 503');
 
   // Straight after: limited.
@@ -194,6 +202,14 @@ test('TV layout: the D-pad reaches Check again in Media info', async ({ page }) 
   await page.waitForTimeout(1000);
   await expect(check).toBeFocused();
   await shoot(page, 'media-info-tv');
+
+  // Pressed with the remote, it keeps focus while it asks and after (aria-disabled, not disabled, which would drop focus
+  // to the page and Back out of reach). Answered or limited (an earlier test's Check again of this title), it's
+  // re-rendered either way.
+  await page.keyboard.press('Enter');
+  await expect(section(page).getByRole('status')).toHaveText(/^(Checked again|Checked a moment ago\. Try again in \d+ s\.)$/);
+  await expect(check).toBeFocused();
+  await expect(check).not.toHaveAttribute('aria-disabled', /.*/);
 
   await page.keyboard.press('Escape');
   await expect(page.locator('.dialogContainer .dialog')).toHaveCount(0);

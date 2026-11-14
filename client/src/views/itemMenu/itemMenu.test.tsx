@@ -12,8 +12,15 @@ import { useState } from 'preact/hooks';
 import { resetSessionCaches } from '../../util/sessionCaches';
 import { openItemMenuAt, prepareItemMenu, resetItemMenuUsers, whenItemDialogsLoad } from './itemMenu';
 
-const trailerInfo = vi.hoisted(() => ({ attachToMediaInfo: vi.fn(), openTrailerInfoDialog: vi.fn() }));
-vi.mock('../trailerInfo/lazyTrailerInfo', () => ({ loadTrailerInfo: () => Promise.resolve(trailerInfo) }));
+const trailerInfo = vi.hoisted(() => ({
+  attachToMediaInfo: vi.fn(),
+  openTrailerInfoDialog: vi.fn(),
+  settleMediaInfo: vi.fn(),
+}));
+vi.mock('../trailerInfo/lazyTrailerInfo', () => ({
+  loadTrailerInfo: () => Promise.resolve(trailerInfo),
+  settleMediaInfo: trailerInfo.settleMediaInfo,
+}));
 
 const full = {
   Id: 'm1',
@@ -125,6 +132,20 @@ describe('the item menu', () => {
         name: 'Alpha',
       }),
     );
+    // Once jellyfin-web is done opening it, the section stops watching for it.
+    await waitFor(() => expect(trailerInfo.settleMediaInfo).toHaveBeenCalled());
+  });
+
+  it('ends a watch for Media info that failed to open, so the next title’s isn’t taken', async () => {
+    trailerInfo.settleMediaInfo.mockClear();
+    vi.spyOn(dialogs, 'openItemDialog').mockRejectedValue(new Error('item failed to load'));
+    const { ctx } = context();
+    render(<ContextMenuHost />);
+    const menu = await prepareItemMenu(ctx, card);
+    act(() => menu.open({ x: 0, y: 0, returnFocus: null }));
+
+    choose('Media info');
+    await waitFor(() => expect(trailerInfo.settleMediaInfo).toHaveBeenCalled());
   });
 
   it('gives a show Trailer info, in Lumen’s dialog, while trailer previews are on', async () => {

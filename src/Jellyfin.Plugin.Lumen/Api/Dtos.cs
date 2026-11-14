@@ -135,17 +135,27 @@ public sealed record TrailerInfoDto(
             diagnosis.Online,
             diagnosis.LocalTrailer,
             diagnosis.Skipped,
-            new ImdbInfoDto(imdb.ImdbId, imdb.Outcome.Status, imdb.Outcome.Detail, imdb.Qualities, imdb.Cached, imdb.Outcome.FetchedAt),
-            new YouTubeInfoDto(youTube.Outcome.Status, youTube.VideoId, youTube.Source, youTube.Outcome.Detail, youTube.Cached, youTube.Outcome.FetchedAt),
+            new ImdbInfoDto(imdb.ImdbId, imdb.Outcome.Status, imdb.Outcome.Detail, imdb.Qualities, imdb.Cached, imdb.Outcome.FetchedAt, RefreshFailureDto.From(imdb.RefreshFailure)),
+            new YouTubeInfoDto(youTube.Outcome.Status, youTube.VideoId, youTube.Source, youTube.Outcome.Detail, youTube.Cached, youTube.Outcome.FetchedAt, RefreshFailureDto.From(youTube.RefreshFailure)),
             canRefresh && diagnosis.Skipped is null);
     }
 }
 
-/// <summary>The IMDb part of <see cref="TrailerInfoDto"/>: the id asked by (null: none in the metadata).</summary>
-public sealed record ImdbInfoDto(string? Id, string Status, string? Detail, IReadOnlyList<string> Qualities, bool Cached, DateTimeOffset? FetchedAt);
+/// <summary>
+/// The IMDb part of <see cref="TrailerInfoDto"/>: the id asked by (null: none in the metadata). <c>RefreshFailed</c>:
+/// Check again failed where a trailer had been found, which is kept (the rest of it).
+/// </summary>
+public sealed record ImdbInfoDto(string? Id, string Status, string? Detail, IReadOnlyList<string> Qualities, bool Cached, DateTimeOffset? FetchedAt, RefreshFailureDto? RefreshFailed = null);
 
 /// <summary>The YouTube part of <see cref="TrailerInfoDto"/>: the video id, a checked one (<see cref="YouTubeId"/>), and its source.</summary>
-public sealed record YouTubeInfoDto(string Status, string? VideoId, string? Source, string? Detail, bool Cached, DateTimeOffset? FetchedAt);
+public sealed record YouTubeInfoDto(string Status, string? VideoId, string? Source, string? Detail, bool Cached, DateTimeOffset? FetchedAt, RefreshFailureDto? RefreshFailed = null);
+
+/// <summary>How Check again failed (a failure <see cref="TrailerStatus"/>, a few words, when it asked), the earlier answer kept.</summary>
+public sealed record RefreshFailureDto(string Status, string? Detail, DateTimeOffset? AskedAt)
+{
+    public static RefreshFailureDto? From(TrailerOutcome? outcome) =>
+        outcome is null ? null : new(outcome.Status, outcome.Detail, outcome.FetchedAt);
+}
 
 /// <summary>
 /// One home row. Catalog rows (discover lists, My Requests) have an empty <c>Items</c> and set <c>Entries</c>, one ordered

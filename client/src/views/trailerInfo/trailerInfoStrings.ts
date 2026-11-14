@@ -44,8 +44,6 @@ export const trailerInfoStrings = {
   tvLayout: 'TV layout',
   local: 'Local trailer',
   lookup: 'Asking the server',
-  hd: '1080p',
-  main: (quality: string) => quality,
   direct: 'the file',
   hls: 'remuxed / transcoded (HLS)',
   mp4: 'transcoded (MP4)',
@@ -79,5 +77,6 @@ export const trailerInfoStrings = {
   checking: 'Checking again…',
   checked: 'Checked again',
   checkFailed: 'Couldn’t check again.',
+  refreshFailed: (how: string) => `${how}. Still using the answer above`,
   tooSoon: (seconds: number) => `Checked a moment ago. Try again in ${seconds} s.`,
 } as const;

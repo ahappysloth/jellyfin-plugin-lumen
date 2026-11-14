@@ -954,7 +954,7 @@ describe('TrailerPreview notes how it went on this device (its Media info)', () 
       />,
     );
     await run(0);
-    expect(lastAttempt('m1')!.steps).toEqual([{ source: 'imdb', quality: 'hd', outcome: 'pending' }]);
+    expect(lastAttempt('m1')!.steps).toEqual([{ source: 'imdb', quality: '1080p', outcome: 'pending' }]);
 
     await run(TRAILER_START_TIMEOUT_MS);
     const video = container.querySelector('video')!;
@@ -964,8 +964,9 @@ describe('TrailerPreview notes how it went on this device (its Media info)', () 
     });
 
     expect(lastAttempt('m1')!.steps).toEqual([
-      { source: 'imdb', quality: 'hd', outcome: 'timeout' },
-      { source: 'imdb', quality: 'main', outcome: 'error', code: 4, message: 'Format error' },
+      { source: 'imdb', quality: '1080p', outcome: 'timeout' },
+      // The 720p file's quality isn't known before its picture loads: it's not guessed.
+      { source: 'imdb', outcome: 'error', code: 4, message: 'Format error' },
     ]);
   });
 
@@ -986,9 +987,113 @@ describe('TrailerPreview notes how it went on this device (its Media info)', () 
       container.querySelector('video')!.dispatchEvent(new Event('timeupdate'));
     });
 
+    expect(lastAttempt('m1')!.steps).toEqual([{ source: 'imdb', outcome: 'played', ms: 800 }]);
+  });
+
+  it('a file refused while it loads ahead of the delay, before it was asked to play', async () => {
+    const { container } = render(
+      <TrailerPreview
+        src="https://imdb-video.media-imdb.com/vi1/a.mp4"
+        delaySeconds={5}
+        client={createFakeClient()}
+        logKey="m1"
+      />,
+    );
+    await run(2000);
+    const video = container.querySelector('video')!;
+    // Loading, not asked to play yet: nothing noted (a hero slide swiped past now leaves the last attempt as it was).
+    expect(lastAttempt('m1')).toBeNull();
+
+    // IMDb's CDN answering 403, an ad blocker, a proxy.
+    Object.defineProperty(video, 'error', { value: { code: 2, message: 'MEDIA_ERR_NETWORK' } });
+    act(() => {
+      video.dispatchEvent(new Event('error'));
+    });
     expect(lastAttempt('m1')!.steps).toEqual([
-      { source: 'imdb', quality: 'main', outcome: 'played', ms: 800 },
+      { source: 'imdb', outcome: 'error', code: 2, message: 'MEDIA_ERR_NETWORK' },
     ]);
+
+    // Nothing more is noted for it as the delay runs out.
+    await run(5000);
+    expect(lastAttempt('m1')!.steps).toHaveLength(1);
+  });
+
+  it('a slide swiped past while its video loads leaves the last attempt as it was', async () => {
+    const { unmount } = render(
+      <TrailerPreview
+        src="https://imdb-video.media-imdb.com/vi1/a.mp4"
+        delaySeconds={5}
+        client={createFakeClient()}
+        logKey="m1"
+      />,
+    );
+    await run(2500);
+    unmount();
+    expect(lastAttempt('m1')).toBeNull();
+  });
+
+  it('a local trailer that fails to decode while it loads, and the next way tried', async () => {
+    runAs(SAFARI);
+    const { container } = render(
+      <TrailerPreview
+        trailerId="t1"
+        delaySeconds={5}
+        client={clientFor(MP4_H264)}
+        allowTranscode
+        logKey="m1"
+      />,
+    );
+    await startAfter(2000);
+    const video = container.querySelector('video')!;
+    expect(lastAttempt('m1')).toBeNull();
+    Object.defineProperty(video, 'error', { value: { code: 3, message: '' } });
+    act(() => {
+      video.dispatchEvent(new Event('error'));
+    });
+    await run(3000);
+
+    expect(lastAttempt('m1')!.steps).toEqual([
+      { source: 'local', quality: 'direct', outcome: 'error', code: 3 },
+      { source: 'local', quality: 'hls', outcome: 'pending' },
+    ]);
+  });
+
+  it("IMDb's file as its picture says it is, loaded ahead of the delay or after", async () => {
+    const size = (video: HTMLVideoElement, width: number, height: number) => {
+      Object.defineProperty(video, 'videoWidth', { configurable: true, value: width });
+      Object.defineProperty(video, 'videoHeight', { configurable: true, value: height });
+      act(() => {
+        video.dispatchEvent(new Event('loadedmetadata'));
+      });
+    };
+    const { container } = render(
+      <TrailerPreview
+        src="https://imdb-video.media-imdb.com/vi1/a.mp4"
+        delaySeconds={4}
+        client={createFakeClient()}
+        logKey="m1"
+      />,
+    );
+    await run(1000);
+    // A scope trailer, letterboxed: IMDb's 720p.
+    size(container.querySelector('video')!, 1280, 536);
+    await run(2750);
+    expect(lastAttempt('m1')!.steps).toEqual([{ source: 'imdb', quality: '720p', outcome: 'pending' }]);
+    cleanup();
+
+    // The only file IMDb had, in 1080p, known once it loads after it was asked to play.
+    const second = render(
+      <TrailerPreview
+        src="https://imdb-video.media-imdb.com/vi1/b.mp4"
+        delaySeconds={0}
+        client={createFakeClient()}
+        logKey="m2"
+      />,
+    );
+    await run(0);
+    expect(lastAttempt('m2')!.steps).toEqual([{ source: 'imdb', outcome: 'pending' }]);
+    size(second.container.querySelector('video')!, 1920, 1080);
+    expect(lastAttempt('m2')!.steps).toEqual([{ source: 'imdb', quality: '1080p', outcome: 'pending' }]);
   });
 
   it('a browser that refused to start it, and a local trailer it can’t play', async () => {

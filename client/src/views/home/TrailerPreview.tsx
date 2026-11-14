@@ -11,7 +11,7 @@ import {
   trailerUrl,
   type TrailerOption,
 } from './trailerStream';
-import { trailerFiles } from './trailerQuality';
+import { trailerFiles, videoQuality } from './trailerQuality';
 import { type TrailerLogger, type TrailerStep, useTrailerLog } from './trailerLog';
 import {
   TRAILER_FADE_MS,
@@ -132,9 +132,8 @@ export function TrailerPreview({
   const log = useTrailerLog(given, logKey);
   /** This session's step in the log, and when it was asked to play. */
   const step = useRef<{ session: string; step: TrailerStep; asked: number } | null>(null);
-  const end = (change: Partial<TrailerStep>): void => {
-    if (step.current) log?.end(step.current.step, change);
-  };
+  /** The quality of the session's IMDb file, as its picture says once it has loaded that far (markQuality). */
+  const loaded = useRef<{ session: string; quality?: string }>({ session: '' });
   const wrapper = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLVideoElement>(null);
   const visible = useVisible(wrapper);
@@ -246,18 +245,7 @@ export function TrailerPreview({
       return;
     }
     asked.current = true;
-    if (log && step.current?.session !== session) {
-      const file = files.current[attempt];
-      step.current = {
-        session,
-        asked: Date.now(),
-        step: log.add({
-          source: src ? 'imdb' : 'local',
-          quality: src ? (file && file === srcHd ? 'hd' : 'main') : option.kind,
-          outcome: 'pending',
-        }),
-      };
-    }
+    noteStep();
     let current = true;
     try {
       const playing = element.play();
@@ -362,6 +350,50 @@ export function TrailerPreview({
   const latest = useRef(markStarted);
   latest.current = markStarted;
 
+  /**
+   * This session's step, added as it's asked to play (not as its video is put in place to load: a hero slide swiped past
+   * meanwhile mustn't take the place of the last real attempt), or as it fails while still loading, before that (IMDb's
+   * CDN, an ad blocker or a proxy refusing the file): every way tried that failed is noted.
+   */
+  const noteStep = (): TrailerStep | null => {
+    if (!log || !option) return null;
+    if (step.current?.session !== session) {
+      const file = files.current[attempt];
+      step.current = {
+        session,
+        asked: Date.now(),
+        step: log.add({
+          source: src ? 'imdb' : 'local',
+          // IMDb's file as it's tried: its 1080p one, or the one the server sent first, whose quality (720p, 480p,
+          // 1080p or SD) only its picture says, as it loads (markQuality).
+          quality: src
+            ? file && file === srcHd
+              ? '1080p'
+              : loaded.current.session === session
+                ? loaded.current.quality
+                : undefined
+            : option.kind,
+          outcome: 'pending',
+        }),
+      };
+    }
+    return step.current.step;
+  };
+  const end = (change: Partial<TrailerStep>, add = false): void => {
+    const current = add ? noteStep() : step.current?.session === session ? step.current.step : null;
+    if (current) log?.end(current, change);
+  };
+
+  /** IMDb's first file may be 720p, 480p, 1080p or SD: its picture says which, once it has loaded that far. */
+  const markQuality = (e: { currentTarget: HTMLVideoElement }): void => {
+    if (!src) return;
+    const quality = videoQuality(e.currentTarget);
+    loaded.current = { session, quality };
+    // Usually still loading ahead of the delay, before the step is added; else it's noted now.
+    const current = step.current?.session === session ? step.current.step : null;
+    if (current && !current.quality && quality) log?.end(current, { quality });
+  };
+
   const onError = (): void => {
     const count = src ? files.current.length : (plan?.options.length ?? 0);
     if (attempt + 1 < count) {
@@ -387,12 +419,15 @@ export function TrailerPreview({
           muted={muted}
           playsInline
           preload="auto"
-          onLoadedMetadata={startAt ? seekToStart : undefined}
+          onLoadedMetadata={(e) => {
+            markQuality(e);
+            if (startAt) seekToStart(e);
+          }}
           onPlaying={markStarted}
           onTimeUpdate={markStarted}
           onError={(e) => {
             const error = e.currentTarget.error;
-            end({ outcome: 'error', code: error?.code, message: error?.message || undefined });
+            end({ outcome: 'error', code: error?.code, message: error?.message || undefined }, true);
             onError();
           }}
           onEnded={() => setEnding(true)}

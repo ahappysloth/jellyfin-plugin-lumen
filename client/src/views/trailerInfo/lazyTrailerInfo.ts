@@ -19,3 +19,14 @@ export function loadTrailerInfo(): Promise<TrailerInfoModule> {
   );
   return loading;
 }
+
+/**
+ * jellyfin-web is done opening a movie's Media info (it's up, or failed to open): the Trailer section's watch for it
+ * ends (TrailerInfo.tsx settleMediaInfo), so another title's Media info can't get this one's section.
+ */
+export function settleMediaInfo(): void {
+  void loading?.then(
+    (module) => module.settleMediaInfo(),
+    () => undefined,
+  );
+}

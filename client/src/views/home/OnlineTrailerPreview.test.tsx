@@ -225,7 +225,32 @@ describe('OnlineTrailerPreview', () => {
     await run(YOUTUBE_DWELL_MS);
     expect(container.querySelector('iframe')).not.toBeNull();
     expect(lastAttempt('m1')!.steps).toEqual([
-      { source: 'imdb', quality: 'main', outcome: 'error' },
+      { source: 'imdb', outcome: 'error' },
+      { source: 'youtube', outcome: 'pending' },
+    ]);
+    sessionStorage.clear();
+  });
+
+  it("notes IMDb's file refused while it loads ahead of the delay, before YouTube's", async () => {
+    const { container } = render(
+      <OnlineTrailerPreview
+        imdbUrl={URL_720}
+        youTubeId="dQw4w9WgXcQ"
+        delaySeconds={6}
+        client={createFakeClient()}
+        logKey="m1"
+      />,
+    );
+    await run(3000);
+    Object.defineProperty(container.querySelector('video')!, 'error', { value: { code: 2, message: '' } });
+    act(() => {
+      container.querySelector('video')!.dispatchEvent(new Event('error'));
+    });
+    await run(3000 + YOUTUBE_DWELL_MS);
+
+    expect(container.querySelector('iframe')).not.toBeNull();
+    expect(lastAttempt('m1')!.steps).toEqual([
+      { source: 'imdb', outcome: 'error', code: 2 },
       { source: 'youtube', outcome: 'pending' },
     ]);
     sessionStorage.clear();

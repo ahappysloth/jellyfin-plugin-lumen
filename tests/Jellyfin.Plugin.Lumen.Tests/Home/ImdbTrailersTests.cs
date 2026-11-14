@@ -499,6 +499,81 @@ public sealed class ImdbTrailersTests : IDisposable
         Assert.Equal(2, _imdb.Requests.Count);
     }
 
+    [Fact]
+    public async Task Refresh_ThatFails_KeepsTheTrailerFoundBefore_ForEveryone_AndOnlyReportsTheFailure()
+    {
+        await Get(Id);
+        _imdb.Answer = _ => Fail("500");
+        _time.Advance(TimeSpan.FromMinutes(1));
+
+        var refreshed = await _trailers.DiagnoseAsync(Id, true, CancellationToken.None);
+
+        Assert.Equal(new TrailerOutcome(TrailerStatus.Found, null, TestData.Now), refreshed.Outcome);
+        Assert.Equal(["1080p", "720p"], refreshed.Qualities);
+        Assert.True(refreshed.Cached);
+        Assert.Equal(new TrailerOutcome(TrailerStatus.HttpError, "HTTP 500", TestData.Now + TimeSpan.FromMinutes(1)), refreshed.RefreshFailure);
+        Assert.Equal(2, _imdb.Requests.Count);
+
+        // The hero and the title pages still get it, from the cache, and Media info no longer says the refresh failed.
+        Assert.Equal(Mp4("a720"), await Get(Id));
+        var after = await _trailers.DiagnoseAsync(Id, false, CancellationToken.None);
+        Assert.Equal(TrailerStatus.Found, after.Outcome.Status);
+        Assert.Null(after.RefreshFailure);
+        Assert.Equal(2, _imdb.Requests.Count);
+    }
+
+    [Fact]
+    public async Task Refresh_ThatFails_WhereThereWasNoTrailer_IsCachedAsAnyFailure()
+    {
+        _imdb.Answer = _ => Answer();
+        await Get(Id);
+        _imdb.Answer = _ => Fail("timeout");
+
+        var refreshed = await _trailers.DiagnoseAsync(Id, true, CancellationToken.None);
+
+        Assert.Equal(TrailerStatus.Timeout, refreshed.Outcome.Status);
+        Assert.False(refreshed.Cached);
+        Assert.Null(refreshed.RefreshFailure);
+        Assert.Equal(TrailerStatus.Timeout, (await _trailers.DiagnoseAsync(Id, false, CancellationToken.None)).Outcome.Status);
+    }
+
+    [Fact]
+    public async Task Refresh_ThatFails_AfterTheTrailerFoundLapsed_IsCachedAsAnyFailure()
+    {
+        await Get(Id);
+        _time.Advance(ImdbTrailers.HitTtl);
+        _imdb.Answer = _ => Fail("500");
+
+        var refreshed = await _trailers.DiagnoseAsync(Id, true, CancellationToken.None);
+
+        Assert.Equal(TrailerStatus.HttpError, refreshed.Outcome.Status);
+        Assert.Null(refreshed.RefreshFailure);
+        Assert.Null(await Get(Id));
+    }
+
+    [Fact]
+    public async Task WhileARefreshIsUnderWay_TheHeroGetsTheCachedTrailer_WithoutWaitingForIt()
+    {
+        await Get(Id);
+        var answer = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _imdb.Gate = answer.Task;
+        _imdb.Answer = _ => Answer(Video("Trailer", 120, ("720p", Mp4("new"))));
+
+        var refreshing = _trailers.DiagnoseAsync(Id, true, CancellationToken.None);
+        await _imdb.WaitForRequests(2);
+        Assert.Equal(Mp4("a720"), await Get(Id));
+        Assert.Equal(TrailerStatus.Found, (await _trailers.DiagnoseAsync(Id, false, CancellationToken.None)).Outcome.Status);
+        Assert.False(refreshing.IsCompleted);
+
+        // A second refresh meanwhile waits for the same lookup.
+        var again = _trailers.DiagnoseAsync(Id, true, CancellationToken.None);
+        answer.SetResult();
+        Assert.Equal(["720p"], (await refreshing).Qualities);
+        Assert.Equal(["720p"], (await again).Qualities);
+        Assert.Equal(2, _imdb.Requests.Count);
+        Assert.Equal(Mp4("new"), await Get(Id));
+    }
+
     [Theory]
     [InlineData("https://x/a.mp4?Expires=1794667866&Signature=s", 1794667866L)]
     [InlineData("https://x/a.mp4?Signature=s&Expires=5", 5L)]

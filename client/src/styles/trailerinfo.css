@@ -47,6 +47,10 @@
 .lmn-trailer-info__actions {
   margin: 0.5em 0;
 }
+/* Check again while it asks: aria-disabled rather than disabled, so it keeps keyboard and remote focus. */
+.lmn-trailer-info [aria-disabled='true'] {
+  opacity: 0.6;
+}
 .lmn-trailer-info a {
   color: inherit;
   text-decoration: underline;
