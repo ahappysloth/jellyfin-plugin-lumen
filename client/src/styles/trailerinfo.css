@@ -1,0 +1,73 @@
+/* The Trailer section of a title's Media info (views/trailerInfo/TrailerInfo.tsx), built as lumen-trailerinfo.css and
+   linked with its file. In jellyfin-web's dialog it uses that dialog's own classes (.mediaInfoStream, .mediaInfoLabel),
+   so jellyfin-web's rules and lumen-stock.css's skin of them apply; these only add what the section has besides, and
+   the same layout in Lumen's dialog for a show (.lmn-trailer-dialog), where jellyfin-web's rules may not be loaded. */
+.lmn-trailer-info {
+  margin-top: 1em;
+  padding-top: 1em;
+  border-top: 1px solid #444;
+  border-top: 1px solid var(--lmn-line, #444);
+}
+.lmn-trailer-info .mediaInfoStream {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0 3em 1em 0;
+  vertical-align: top;
+}
+.lmn-trailer-info .mediaInfoLabel,
+.lmn-trailer-info .mediaInfoAttribute {
+  display: inline-block;
+  line-height: 1.6;
+}
+.lmn-trailer-info .mediaInfoLabel {
+  margin-right: 1em;
+  font-weight: 600;
+}
+[dir='rtl'] .lmn-trailer-info .mediaInfoLabel {
+  margin-right: 0;
+  margin-left: 1em;
+}
+.lmn-trailer-info .mediaInfoAttribute {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.lmn-trailer-info__group {
+  margin: 0.5em 0;
+  font-size: 1em;
+  font-weight: 600;
+  opacity: 0.7;
+}
+.lmn-trailer-info__note {
+  margin: 0.25em 0;
+  opacity: 0.8;
+}
+.lmn-trailer-info__note:empty {
+  display: none;
+}
+.lmn-trailer-info__actions {
+  margin: 0.5em 0;
+}
+/* Check again while it asks: aria-disabled rather than disabled, so it keeps keyboard and remote focus. */
+.lmn-trailer-info [aria-disabled='true'] {
+  opacity: 0.6;
+}
+.lmn-trailer-info a {
+  color: inherit;
+  text-decoration: underline;
+}
+/* Lumen's dialog for a show: wider than a confirmation, its text Lumen's. */
+.lmn-trailer-dialog {
+  max-width: 640px;
+  color: var(--lmn-text);
+  font-size: 14px;
+}
+.lmn-trailer-dialog .lmn-trailer-info {
+  width: auto;
+  margin: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.lmn-trailer-dialog .mediaInfoLabel {
+  color: var(--lmn-text-3);
+  font-weight: 500;
+}

@@ -144,4 +144,11 @@ describe('itemCommands (jellyfin-web 12.4 getCommands)', () => {
     const local = { ...movie, Id: 'local:1', CanDelete: false };
     expect(itemCommands(local, admin, desktop)).toEqual(['download', 'copy-stream', 'moremediainfo']);
   });
+
+  it('gives a show Lumen’s Trailer info while trailer previews are on: a movie has it in Media info', () => {
+    expect(itemCommands(asKid(series), kid, { tv: true, trailerInfo: true })).toEqual(['trailerinfo']);
+    expect(itemCommands(movie, kid, { tv: false, trailerInfo: true })).not.toContain('trailerinfo');
+    expect(itemCommands(asKid(series), kid, { tv: true })).toEqual([]);
+    expect(itemCommands(asKid(season), kid, { tv: true, trailerInfo: true })).toEqual([]);
+  });
 });

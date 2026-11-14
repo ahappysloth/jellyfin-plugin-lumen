@@ -31,6 +31,7 @@ public sealed class RequestsControllerTests : IDisposable
     private readonly IReadyAnnouncements _announcements = Substitute.For<IReadyAnnouncements>();
     private readonly IOnlineTrailers _trailers = Substitute.For<IOnlineTrailers>();
     private readonly IEveryonesRequests _everyone = Substitute.For<IEveryonesRequests>();
+    private readonly TrailerRefreshLimiter _limiter = new(TimeProvider.System);
     private readonly HomeCache _home = new(Substitute.For<IUserDataManager>(), Substitute.For<ILibraryManager>(), TimeProvider.System);
     private readonly Jellyfin.Database.Implementations.Entities.User _jellyfinUser = TestData.User();
     private readonly Guid _user;
@@ -328,6 +329,44 @@ public sealed class RequestsControllerTests : IDisposable
         // IMDb's files, and YouTube's id with them: the page plays YouTube's should IMDb's file not play in the browser.
         Assert.Equal(new OnlineTrailerDto("https://imdb-video.media-imdb.com/a.mp4", "dQw4w9WgXcQ", "https://imdb-video.media-imdb.com/a_1080p.mp4"), trailer);
         await _seerr.DidNotReceiveWithAnyArgs().GetTvAsync(default!, default, default, default);
+    }
+
+    [Fact]
+    public async Task TitleTrailerInfo_DiagnosesTheTitleFromSeerrsSharedCache()
+    {
+        GrantAccess();
+        var title = new SeerrTitle { Id = 603, ImdbId = "tt0133093" };
+        _seerr.GetTitleSummaryAsync(Arg.Any<SeerrEndpoint>(), 9, "movie", 603, Arg.Any<CancellationToken>()).Returns(title);
+        var outcome = new TrailerOutcome(TrailerStatus.HttpError, "HTTP 403", TestData.Now);
+        _trailers.DiagnoseAsync(title, false, Arg.Any<CancellationToken>()).Returns(new TrailerDiagnosis(
+            true, true, null, null, new ImdbDiagnosis("tt0133093", outcome, [], true), new YouTubeDiagnosis(null, null, new TrailerOutcome(TrailerStatus.NotFound, null, null), false)));
+
+        var info = (await Create().GetTitleTrailerInfo("movie", 603, CancellationToken.None)).Value!;
+
+        Assert.Equal(new ImdbInfoDto("tt0133093", "httpError", "HTTP 403", [], true, TestData.Now), info.Imdb);
+        Assert.Null(info.LocalTrailer);
+        Assert.False(info.CanRefresh);
+    }
+
+    [Fact]
+    public async Task TitleTrailerInfo_Refresh_IsForAdministratorsOnly_AndLimited()
+    {
+        GrantAccess();
+        var title = new SeerrTitle { Id = 603, ImdbId = "tt0133093" };
+        _seerr.GetTitleSummaryAsync(Arg.Any<SeerrEndpoint>(), 9, "movie", 603, Arg.Any<CancellationToken>()).Returns(title);
+        var skipped = new TrailerOutcome(TrailerStatus.Found, null, TestData.Now);
+        _trailers.DiagnoseAsync(title, true, Arg.Any<CancellationToken>()).Returns(new TrailerDiagnosis(
+            true, true, null, null, new ImdbDiagnosis("tt0133093", skipped, ["720p"], false), new YouTubeDiagnosis(null, null, skipped, false)));
+
+        var refused = Assert.IsType<ObjectResult>((await Create().RefreshTitleTrailerInfo("movie", 603, CancellationToken.None)).Result);
+        Assert.Equal(StatusCodes.Status403Forbidden, refused.StatusCode);
+        Assert.Empty(_trailers.ReceivedCalls());
+
+        MakeAdministrator();
+        Assert.True((await Create().RefreshTitleTrailerInfo("movie", 603, CancellationToken.None)).Value!.CanRefresh);
+        var limited = Assert.IsType<ObjectResult>((await Create().RefreshTitleTrailerInfo("movie", 603, CancellationToken.None)).Result);
+        Assert.Equal(StatusCodes.Status429TooManyRequests, limited.StatusCode);
+        Assert.Equal(Policies.RequiresElevation, typeof(RequestsController).GetMethod(nameof(RequestsController.RefreshTitleTrailerInfo))!.GetCustomAttributes(typeof(AuthorizeAttribute), false).Cast<AuthorizeAttribute>().Single().Policy);
     }
 
     [Fact]
@@ -647,7 +686,7 @@ public sealed class RequestsControllerTests : IDisposable
     private void GrantAccess() =>
         _users.GetAccessAsync(_user, Arg.Any<CancellationToken>()).Returns(new RequestAccess(true, true, true, 9, Endpoint));
 
-    private RequestsController Create(bool signedIn = true) => new(_users, _images, _seerr, _home, _userManager, new CatalogMapper(_library), _progress, _announcements, _trailers, _everyone, NullLogger<RequestsController>.Instance)
+    private RequestsController Create(bool signedIn = true) => new(_users, _images, _seerr, _home, _userManager, new CatalogMapper(_library), _progress, _announcements, _trailers, _everyone, _limiter, NullLogger<RequestsController>.Instance)
     {
         ControllerContext = new ControllerContext
         {

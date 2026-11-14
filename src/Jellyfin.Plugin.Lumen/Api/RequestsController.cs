@@ -37,6 +37,7 @@ public sealed class RequestsController : ControllerBase
     private readonly IReadyAnnouncements _announcements;
     private readonly IOnlineTrailers _trailers;
     private readonly IEveryonesRequests _everyone;
+    private readonly TrailerRefreshLimiter _limiter;
     private readonly ILogger<RequestsController> _logger;
 
     public RequestsController(
@@ -50,6 +51,7 @@ public sealed class RequestsController : ControllerBase
         IReadyAnnouncements announcements,
         IOnlineTrailers trailers,
         IEveryonesRequests everyone,
+        TrailerRefreshLimiter limiter,
         ILogger<RequestsController> logger)
     {
         _users = users;
@@ -62,6 +64,7 @@ public sealed class RequestsController : ControllerBase
         _announcements = announcements;
         _trailers = trailers;
         _everyone = everyone;
+        _limiter = limiter;
         _logger = logger;
     }
 
@@ -253,6 +256,23 @@ public sealed class RequestsController : ControllerBase
         return OnlineTrailerDto.From(await _trailers.GetAsync(title, cancellationToken).ConfigureAwait(false));
     }
 
+    /// <summary>
+    /// What the server found of a catalog title's trailer and why, as TrailersController's TrailerInfo does for a library
+    /// title (no local trailer here); the title comes from Seerr's shared title cache, as for the trailer.
+    /// </summary>
+    [HttpGet("Title/{mediaType}/{tmdbId}/TrailerInfo")]
+    public Task<ActionResult<TrailerInfoDto>> GetTitleTrailerInfo([FromRoute] string mediaType, [FromRoute] int tmdbId, CancellationToken cancellationToken) =>
+        TitleTrailerInfoAsync(mediaType, tmdbId, false, cancellationToken);
+
+    /// <summary>
+    /// "Check again" for a catalog title: IMDb asked again past the cache (its YouTube trailer is part of Seerr's title
+    /// details). Administrators only, and limited per user and title, as for a library title.
+    /// </summary>
+    [HttpPost("Title/{mediaType}/{tmdbId}/TrailerInfo/Refresh")]
+    [Authorize(Policy = Policies.RequiresElevation)]
+    public Task<ActionResult<TrailerInfoDto>> RefreshTitleTrailerInfo([FromRoute] string mediaType, [FromRoute] int tmdbId, CancellationToken cancellationToken) =>
+        TitleTrailerInfoAsync(mediaType, tmdbId, true, cancellationToken);
+
     /// <summary>Files a request in Seerr as the signed-in user; Seerr applies their permissions, quota and auto-approval.</summary>
     [HttpPost]
     public async Task<ActionResult<RequestResultDto>> CreateRequest([FromBody] CatalogRequestDto? body, CancellationToken cancellationToken)
@@ -397,6 +417,48 @@ public sealed class RequestsController : ControllerBase
         // Only ever this user's own list (keyed by their Jellyfin id): another user's ids change nothing of theirs.
         _announcements.MarkAnnounced(caller.UserId, caller.Endpoint!.BaseUrl.ToString(), ids);
         return NoContent();
+    }
+
+    private async Task<ActionResult<TrailerInfoDto>> TitleTrailerInfoAsync(string mediaType, int tmdbId, bool refresh, CancellationToken cancellationToken)
+    {
+        if (!CatalogMediaType.IsValid(mediaType) || tmdbId <= 0)
+        {
+            return BadRequest(new ErrorDto("Invalid title."));
+        }
+
+        var caller = await GetCallerAsync(cancellationToken).ConfigureAwait(false);
+        if (caller.Failure is { } failure)
+        {
+            return failure;
+        }
+
+        var admin = TrailersController.IsAdmin(caller.User);
+        if (refresh && !admin)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new ErrorDto("Only administrators can check a trailer again."));
+        }
+
+        if (refresh && TrailersController.Limited(this, _limiter, caller.UserId, mediaType + "/" + tmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture)) is { } limited)
+        {
+            return limited;
+        }
+
+        SeerrTitle title;
+        try
+        {
+            title = await _seerr.GetTitleSummaryAsync(caller.Endpoint!, caller.SeerrUserId, mediaType, tmdbId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (SeerrException e) when (e.Status == HttpStatusCode.NotFound)
+        {
+            return NotFound(new ErrorDto("Title not found."));
+        }
+        catch (SeerrException e)
+        {
+            return SeerrUnavailable(e, "a title's trailer");
+        }
+
+        Response.Headers.CacheControl = "no-store";
+        return TrailerInfoDto.From(await _trailers.DiagnoseAsync(title, refresh, cancellationToken).ConfigureAwait(false), admin);
     }
 
     private async Task<IReadOnlyList<CatalogItemDto>> GetRecommendationsAsync(SeerrEndpoint endpoint, Caller caller, string mediaType, int tmdbId, CancellationToken cancellationToken)

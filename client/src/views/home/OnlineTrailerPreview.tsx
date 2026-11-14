@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { OnlineTrailer } from '../../api/types';
 import { getLayout } from '../../compat/jellyfin';
 import { TrailerPreview, type TrailerProps } from './TrailerPreview';
+import { useTrailerLog } from './trailerLog';
 import { YouTubePreview } from './YouTubePreview';
 
 export type OnlineTrailerPreviewProps = Omit<TrailerProps, 'trailerId' | 'src' | 'srcHd'> & {
@@ -29,8 +30,11 @@ export function OnlineTrailerPreview({
   youTubeId,
   lookup,
   embedBase,
+  logKey,
   ...props
 }: OnlineTrailerPreviewProps) {
+  // One attempt for both: IMDb's file, then YouTube's should it fail.
+  const log = useTrailerLog(null, logKey);
   const [found, setFound] = useState<{ trailer: OnlineTrailer; delaySeconds: number } | null>(null);
   /** IMDb's file never got under way here (a proxy's policy, an ad blocker, IMDb refusing it): YouTube's instead. */
   const [imdbFailed, setImdbFailed] = useState(false);
@@ -41,13 +45,19 @@ export function OnlineTrailerPreview({
     let live = true;
     lookup().then(
       (trailer) => {
+        if (!trailer.ImdbUrl && !trailer.YouTubeId) log?.add({ source: 'lookup', outcome: 'none' });
         if (live)
           setFound({
             trailer,
             delaySeconds: Math.max(0, props.delaySeconds - (Date.now() - asked.current) / 1000),
           });
       },
-      () => undefined,
+      (error: unknown) =>
+        log?.add({
+          source: 'lookup',
+          outcome: 'error',
+          code: (error as { status?: number } | null)?.status,
+        }),
     );
     return () => {
       live = false;
@@ -57,7 +67,8 @@ export function OnlineTrailerPreview({
   if (!trailer) return null;
   // Looked up, the wait for the answer was part of the delay; the hero's own (0 for a trailer put back) is used as is.
   const delaySeconds = lookup ? found!.delaySeconds : props.delaySeconds;
-  const fallback = getLayout() !== 'tv' ? trailer.YouTubeId : null;
+  const tv = getLayout() === 'tv';
+  const fallback = !tv ? trailer.YouTubeId : null;
   if (trailer.ImdbUrl && !imdbFailed)
     return (
       <TrailerPreview
@@ -65,6 +76,7 @@ export function OnlineTrailerPreview({
         src={trailer.ImdbUrl}
         srcHd={trailer.ImdbUrlHd}
         delaySeconds={delaySeconds}
+        log={log}
         onPlayingChange={(on) => {
           if (on) imdbPlayed.current = true;
           props.onPlayingChange?.(on);
@@ -75,7 +87,23 @@ export function OnlineTrailerPreview({
         }}
       />
     );
-  return fallback ? (
-    <YouTubePreview {...props} youTubeId={fallback} embedBase={embedBase} delaySeconds={delaySeconds} />
-  ) : null;
+  if (fallback)
+    return (
+      <YouTubePreview
+        {...props}
+        youTubeId={fallback}
+        embedBase={embedBase}
+        delaySeconds={delaySeconds}
+        log={log}
+      />
+    );
+  return trailer.YouTubeId ? <SkippedOnTv log={log} /> : null;
+}
+
+/** Notes, once, that YouTube's trailer wasn't tried: the TV layout never uses its player (Hero.tsx). */
+function SkippedOnTv({ log }: { log: ReturnType<typeof useTrailerLog> }) {
+  useEffect(() => {
+    log?.add({ source: 'youtube', outcome: 'skipped', message: 'tv' });
+  }, []);
+  return null;
 }

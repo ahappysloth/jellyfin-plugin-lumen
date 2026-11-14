@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TRAILER_FADE_MS, TRAILER_HOLD_MS, TRAILER_START_TIMEOUT_MS } from './trailerTiming';
 import { coverSize, YOUTUBE_CHROME_MS, YOUTUBE_DWELL_MS, YouTubePreview } from './YouTubePreview';
 
+import { lastAttempt } from '../trailerInfo/deviceLog';
+
 const ORIGIN = 'https://www.youtube-nocookie.com';
 const ID = 'dQw4w9WgXcQ';
 
@@ -612,5 +614,44 @@ describe('coverSize', () => {
     covers({ width: 2560, height: 900 });
     covers({ width: 800, height: 800 });
     covers({ width: 1920, height: 1080 });
+  });
+});
+
+describe('YouTubePreview notes how it went on this device (its Media info)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    cleanup();
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    sessionStorage.clear();
+  });
+
+  it('the player’s error code', () => {
+    const { container } = render(<YouTubePreview youTubeId={ID} delaySeconds={0} logKey="m1" />);
+    advance(YOUTUBE_DWELL_MS);
+    const player = playerIn(container);
+    player.ready();
+    player.say('onError', 150);
+    expect(lastAttempt('m1')!.steps).toEqual([{ source: 'youtube', outcome: 'error', code: 150 }]);
+  });
+
+  it('a player that never started', () => {
+    render(<YouTubePreview youTubeId={ID} delaySeconds={0} logKey="m1" />);
+    advance(YOUTUBE_DWELL_MS);
+    advance(TRAILER_START_TIMEOUT_MS);
+    expect(lastAttempt('m1')!.steps).toEqual([{ source: 'youtube', outcome: 'timeout' }]);
+  });
+
+  it('one that played, and how long after its frame was asked for', () => {
+    const view = render(<YouTubePreview youTubeId={ID} delaySeconds={0} logKey="m1" />);
+    advance(YOUTUBE_DWELL_MS);
+    const player = playerIn(view.container);
+    advance(1500);
+    player.ready();
+    player.play();
+    expect(lastAttempt('m1')!.steps).toEqual([{ source: 'youtube', outcome: 'played', ms: 1500 }]);
   });
 });

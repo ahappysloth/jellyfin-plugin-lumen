@@ -12,6 +12,7 @@ export type ItemCommand =
   | 'downloadall'
   | 'copy-stream'
   | 'moremediainfo'
+  | 'trailerinfo'
   | 'edit'
   | 'editimages'
   | 'editsubtitles'
@@ -44,11 +45,24 @@ export interface MenuEnv {
   tv: boolean;
   /** The page already shows a Download button for this item (details/download.ts), so the menu needn't repeat it. */
   downloadButton?: boolean;
+  /**
+   * Trailer previews are on: a movie or show without Media info (a show never has media sources) gets Lumen's own
+   * "Trailer info" (views/trailerInfo), which a movie's Media info has as a section.
+   */
+  trailerInfo?: boolean;
 }
 
 /** Lumen's order: the everyday actions first, then the administrator's editors, then Delete on its own. */
 export const COMMAND_GROUPS: readonly (readonly ItemCommand[])[] = [
-  ['addtoplaylist', 'addtocollection', 'download', 'downloadall', 'copy-stream', 'moremediainfo'],
+  [
+    'addtoplaylist',
+    'addtocollection',
+    'download',
+    'downloadall',
+    'copy-stream',
+    'moremediainfo',
+    'trailerinfo',
+  ],
   ['edit', 'editimages', 'editsubtitles', 'identify', 'refresh'],
   ['delete'],
 ];
@@ -163,6 +177,7 @@ export function itemCommands(item: MenuItem, policy: MenuPolicy, env: MenuEnv): 
   if (canEditSubtitles(policy, item)) offered.add('editsubtitles');
   if (canIdentify(policy, item)) offered.add('identify');
   if (item.MediaSources) offered.add('moremediainfo');
+  else if (env.trailerInfo && (item.Type === 'Series' || item.Type === 'Movie')) offered.add('trailerinfo');
   if (canRefreshMetadata(policy, item)) offered.add('refresh');
   const ordered: ItemCommand[] = [];
   for (const group of COMMAND_GROUPS)

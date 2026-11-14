@@ -32,3 +32,12 @@ export function trailerFiles(
   const box = { width: element.clientWidth, height: element.clientHeight };
   return needsHd(box, window.devicePixelRatio, !!connection?.saveData) ? [srcHd, src] : [src];
 }
+
+/**
+ * A video's quality as IMDb names it ("720p"…), from its picture: its rows, or for a wide one letterboxed in fewer (a
+ * 1280x536 scope trailer is IMDb's 720p) as many as 16:9 at its width would have. Undefined before its metadata loads.
+ */
+export function videoQuality(video: { videoWidth: number; videoHeight: number }): string | undefined {
+  const rows = Math.max(video.videoHeight, Math.round((video.videoWidth * 9) / 16));
+  return rows > 0 ? `${rows}p` : undefined;
+}

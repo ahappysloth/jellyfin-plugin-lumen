@@ -120,6 +120,7 @@ export function DetailsHeader(props: Props) {
           class="lmn-details__trailer"
           onPlayingChange={trailer.setPlaying}
           allowTranscode
+          logKey={item.Id}
         />
       )}
       <div class="lmn-details__scrim" />

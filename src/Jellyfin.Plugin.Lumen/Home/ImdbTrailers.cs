@@ -30,6 +30,15 @@ public interface IImdbTrailers
 
     /// <summary>The Health tab's check: one lookup of <paramref name="imdbId"/>, past the cache and the setting.</summary>
     Task<ImdbCheck> CheckAsync(string imdbId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// For a title's Media info: how the lookup of <paramref name="imdbId"/> went, from the cache the hero and the title
+    /// pages fill (asked now if nothing is cached); with <paramref name="refresh"/>, asked again past that cache, and
+    /// the answer cached for everyone as any other, except a failure where a trailer was found: that one is kept, and
+    /// the failure is only reported (<see cref="ImdbDiagnosis.RefreshFailure"/>). Callers check the setting. Never
+    /// throws for an IMDb failure.
+    /// </summary>
+    Task<ImdbDiagnosis> DiagnoseAsync(string? imdbId, bool refresh, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -101,7 +110,7 @@ public sealed partial class ImdbTrailers : IImdbTrailers
 
     private readonly Lock _lock = new();
     private readonly Dictionary<string, Entry> _cache = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, Task<ImdbTrailer?>> _asking = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Task<Answer>> _asking = new(StringComparer.Ordinal);
     private readonly IHttpClientFactory _http;
     private readonly ILumenConfigReader _config;
     private readonly TimeProvider _time;
@@ -150,32 +159,25 @@ public sealed partial class ImdbTrailers : IImdbTrailers
             return null;
         }
 
-        TaskCompletionSource<ImdbTrailer?>? mine = null;
-        Task<ImdbTrailer?> answer;
-        lock (_lock)
+        return (await LookUpCachedAsync(imdbId!, false, cancellationToken).ConfigureAwait(false)).Answer.Entry.Trailer;
+    }
+
+    public async Task<ImdbDiagnosis> DiagnoseAsync(string? imdbId, bool refresh, CancellationToken cancellationToken)
+    {
+        if (!IsTitleId(imdbId))
         {
-            if (_cache.TryGetValue(imdbId!, out var entry) && entry.Expires > _time.GetUtcNow())
-            {
-                return entry.Trailer;
-            }
-
-            if (!_asking.TryGetValue(imdbId!, out var asking))
-            {
-                mine = new TaskCompletionSource<ImdbTrailer?>(TaskCreationOptions.RunContinuationsAsynchronously);
-                asking = mine.Task;
-                _asking[imdbId!] = asking;
-            }
-
-            answer = asking;
+            return new ImdbDiagnosis(null, new TrailerOutcome(TrailerStatus.NoId, null, null), [], false);
         }
 
-        if (mine is not null)
-        {
-            // Not cancelled with this caller: others may be waiting for it, and the answer is cached for the next.
-            _ = AskAsync(mine, imdbId!);
-        }
+        var ((entry, failure), cached) = await LookUpCachedAsync(imdbId!, refresh, cancellationToken).ConfigureAwait(false);
+        var trailer = entry.Trailer;
 
-        return await answer.WaitAsync(cancellationToken).ConfigureAwait(false);
+        // Best first, as the browser picks between them (the 1080p one where its box needs it).
+        var quality = entry.Quality ?? string.Empty;
+        IReadOnlyList<string> qualities = trailer is null ? [] : trailer.UrlHd is null ? [quality] : [HdQuality, quality];
+
+        // A refresh that failed kept the trailer found before: that's still the cached answer everyone gets.
+        return new ImdbDiagnosis(imdbId, entry.Outcome, qualities, cached || failure is not null, failure);
     }
 
     public async Task<ImdbCheck> CheckAsync(string imdbId, CancellationToken cancellationToken)
@@ -188,7 +190,7 @@ public sealed partial class ImdbTrailers : IImdbTrailers
         try
         {
             var found = await LookUpAsync(imdbId, cancellationToken).ConfigureAwait(false);
-            return new ImdbCheck(found?.Url, null);
+            return new ImdbCheck(found?.Trailer.Url, null);
         }
         catch (ImdbException e)
         {
@@ -202,34 +204,7 @@ public sealed partial class ImdbTrailers : IImdbTrailers
     /// <paramref name="videoOrigin"/>, and in 1080p besides (the same video) unless that's the one. A video with none of
     /// those is passed over for the next. Null when there's none. Its expiry is the sooner of the two addresses'.
     /// </summary>
-    internal static ImdbTrailer? Pick(JsonElement? title, string videoOrigin)
-    {
-        var trailers = Videos(title)
-            .Where(v => string.Equals(v.ContentType?.DisplayName?.Value, "Trailer", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        var ordered = trailers.Where(v => v.Runtime?.Value >= PreferredSeconds).Concat(trailers.Where(v => !(v.Runtime?.Value >= PreferredSeconds)));
-        foreach (var video in ordered)
-        {
-            foreach (var quality in Qualities)
-            {
-                if (File(video, quality, videoOrigin) is not { } url)
-                {
-                    continue;
-                }
-
-                var hd = string.Equals(quality, HdQuality, StringComparison.Ordinal) ? null : File(video, HdQuality, videoOrigin);
-                var expires = ExpiresOf(url);
-                if (hd is not null && ExpiresOf(hd) is { } hdExpires && !(expires <= hdExpires))
-                {
-                    expires = hdExpires;
-                }
-
-                return new ImdbTrailer(url.AbsoluteUri, expires, hd?.AbsoluteUri);
-            }
-        }
-
-        return null;
-    }
+    internal static ImdbTrailer? Pick(JsonElement? title, string videoOrigin) => PickWithQuality(title, videoOrigin)?.Trailer;
 
     /// <summary>
     /// <paramref name="value"/> if it's an MP4 on <paramref name="videoOrigin"/> (scheme, host and port as given, no user),
@@ -266,6 +241,36 @@ public sealed partial class ImdbTrailers : IImdbTrailers
         return null;
     }
 
+    /// <summary><see cref="Pick"/>, with the quality of its first address ("720p", else "480p", "1080p" or "SD").</summary>
+    private static (ImdbTrailer Trailer, string Quality)? PickWithQuality(JsonElement? title, string videoOrigin)
+    {
+        var trailers = Videos(title)
+            .Where(v => string.Equals(v.ContentType?.DisplayName?.Value, "Trailer", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var ordered = trailers.Where(v => v.Runtime?.Value >= PreferredSeconds).Concat(trailers.Where(v => !(v.Runtime?.Value >= PreferredSeconds)));
+        foreach (var video in ordered)
+        {
+            foreach (var quality in Qualities)
+            {
+                if (File(video, quality, videoOrigin) is not { } url)
+                {
+                    continue;
+                }
+
+                var hd = string.Equals(quality, HdQuality, StringComparison.Ordinal) ? null : File(video, HdQuality, videoOrigin);
+                var expires = ExpiresOf(url);
+                if (hd is not null && ExpiresOf(hd) is { } hdExpires && !(expires <= hdExpires))
+                {
+                    expires = hdExpires;
+                }
+
+                return (new ImdbTrailer(url.AbsoluteUri, expires, hd?.AbsoluteUri), quality);
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>The video's first MP4 in <paramref name="quality"/> on <paramref name="videoOrigin"/>, or null.</summary>
     private static Uri? File(VideoBody video, string quality, string videoOrigin) =>
         (video.PlaybackUrls ?? [])
@@ -293,29 +298,71 @@ public sealed partial class ImdbTrailers : IImdbTrailers
     [GeneratedRegex(@"^tt[0-9]{7,9}\z", RegexOptions.CultureInvariant)]
     private static partial Regex TitleId();
 
-    private async Task AskAsync(TaskCompletionSource<ImdbTrailer?> answer, string imdbId)
+    /// <summary>
+    /// The cached answer for <paramref name="imdbId"/> (and true), else IMDb's, asked once for everyone waiting (and
+    /// false). <paramref name="refresh"/> asks past the cached one, a lookup already under way being as fresh; the cached
+    /// one stays meanwhile, so the hero and the title pages aren't kept waiting for it.
+    /// </summary>
+    private async Task<(Answer Answer, bool Cached)> LookUpCachedAsync(string imdbId, bool refresh, CancellationToken cancellationToken)
+    {
+        TaskCompletionSource<Answer>? mine = null;
+        Task<Answer> answer;
+        lock (_lock)
+        {
+            if (!refresh && _cache.TryGetValue(imdbId, out var entry) && entry.Expires > _time.GetUtcNow())
+            {
+                return (new Answer(entry, null), true);
+            }
+
+            if (!_asking.TryGetValue(imdbId, out var asking))
+            {
+                mine = new TaskCompletionSource<Answer>(TaskCreationOptions.RunContinuationsAsynchronously);
+                asking = mine.Task;
+                _asking[imdbId] = asking;
+            }
+
+            answer = asking;
+        }
+
+        if (mine is not null)
+        {
+            // Not cancelled with this caller: others may be waiting for it, and the answer is cached for the next.
+            _ = AskAsync(mine, imdbId);
+        }
+
+        return (await answer.WaitAsync(cancellationToken).ConfigureAwait(false), false);
+    }
+
+    private async Task AskAsync(TaskCompletionSource<Answer> answer, string imdbId)
     {
         ImdbTrailer? trailer = null;
-        var now = _time.GetUtcNow();
+        string? quality = null;
+        var asked = _time.GetUtcNow();
+        var now = asked;
         var expires = now + FailureTtl;
+        TrailerOutcome outcome;
         try
         {
             var found = await LookUpAsync(imdbId, CancellationToken.None).ConfigureAwait(false);
             now = _time.GetUtcNow();
-            if (found is null)
+            if (found is not { Trailer: var picked })
             {
                 expires = now + MissTtl;
+                outcome = new TrailerOutcome(TrailerStatus.NotFound, null, asked);
             }
-            else if (found.Expires is { } lapses && lapses - ExpiryMargin <= now)
+            else if (picked.Expires is { } lapses && lapses - ExpiryMargin <= now)
             {
                 // IMDb signs its addresses for a day; one about to lapse is no use to a browser that may play it later.
                 expires = now + FailureTtl;
+                outcome = new TrailerOutcome(TrailerStatus.Error, "address about to expire", asked);
             }
             else
             {
-                trailer = found;
+                trailer = picked;
+                quality = found.Value.Quality;
                 var until = now + HitTtl;
-                expires = found.Expires is { } at && at - ExpiryMargin < until ? at - ExpiryMargin : until;
+                expires = picked.Expires is { } at && at - ExpiryMargin < until ? at - ExpiryMargin : until;
+                outcome = new TrailerOutcome(TrailerStatus.Found, null, asked);
             }
         }
         catch (Exception e)
@@ -325,19 +372,31 @@ public sealed partial class ImdbTrailers : IImdbTrailers
             {
                 _logger.LogDebug("Lumen couldn't ask IMDb for a trailer: {Message}", e.Message);
             }
+
+            outcome = e is ImdbException imdb
+                ? new TrailerOutcome(imdb.Reason, imdb.Detail, asked)
+                : new TrailerOutcome(TrailerStatus.Error, "unexpected error", asked);
         }
 
+        Answer result;
         lock (_lock)
         {
-            StoreLocked(imdbId, trailer, expires);
+            // A refresh that failed where a trailer had been found (IMDb or the network down a moment) leaves that trailer
+            // to everyone until it lapses, rather than no trailer for FailureTtl: the failure is only reported.
+            result = TrailerStatus.IsFailure(outcome.Status)
+                && _cache.TryGetValue(imdbId, out var kept)
+                && kept.Trailer is not null
+                && kept.Expires > _time.GetUtcNow()
+                ? new Answer(kept, outcome)
+                : new Answer(StoreLocked(imdbId, trailer, expires, quality, outcome), null);
             _asking.Remove(imdbId);
         }
 
-        answer.SetResult(trailer);
+        answer.SetResult(result);
     }
 
     /// <summary>One lookup: the trailer, or null when IMDb has none. Throws <see cref="ImdbException"/> when it can't say.</summary>
-    private async Task<ImdbTrailer?> LookUpAsync(string imdbId, CancellationToken cancellationToken)
+    private async Task<(ImdbTrailer Trailer, string Quality)?> LookUpAsync(string imdbId, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(Timeout);
@@ -364,12 +423,14 @@ public sealed partial class ImdbTrailers : IImdbTrailers
                         : string.Create(CultureInfo.InvariantCulture, $"IMDb answered with HTTP {status}."))
                 {
                     Status = response.StatusCode,
+                    Reason = TrailerStatus.HttpError,
+                    Detail = string.Create(CultureInfo.InvariantCulture, $"HTTP {status}"),
                 };
             }
 
             if (response.Content.Headers.ContentLength > MaxResponseBytes)
             {
-                throw new ImdbException("IMDb's answer was too big to be a title's videos.");
+                throw new ImdbException("IMDb's answer was too big to be a title's videos.") { Detail = "answer too big" };
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
@@ -378,31 +439,36 @@ public sealed partial class ImdbTrailers : IImdbTrailers
             if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
             {
                 // GraphQL's errors without data: the query itself was refused (IMDb changed its schema).
-                throw new ImdbException("IMDb didn't understand Lumen's question.");
+                throw new ImdbException("IMDb didn't understand Lumen's question.") { Detail = "query refused" };
             }
 
             // A title IMDb doesn't know is a null title: no trailer, as for one without videos.
-            return Pick(data.TryGetProperty("title", out var title) ? title : null, VideoOrigin);
+            return PickWithQuality(data.TryGetProperty("title", out var title) ? title : null, VideoOrigin);
         }
         catch (OperationCanceledException e) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new ImdbException(string.Create(CultureInfo.InvariantCulture, $"IMDb did not answer within {Timeout.TotalSeconds:0} seconds."), e);
+            throw new ImdbException(string.Create(CultureInfo.InvariantCulture, $"IMDb did not answer within {Timeout.TotalSeconds:0} seconds."), e)
+            {
+                Reason = TrailerStatus.Timeout,
+                Detail = string.Create(CultureInfo.InvariantCulture, $"no answer within {Timeout.TotalSeconds:0} s"),
+            };
         }
         catch (HttpRequestException e)
         {
-            throw new ImdbException("Couldn't reach IMDb: " + e.Message, e);
+            // The detail leaves out the message, which names the address (the test server's, too).
+            throw new ImdbException("Couldn't reach IMDb: " + e.Message, e) { Detail = "couldn't connect" };
         }
         catch (IOException e)
         {
-            throw new ImdbException("IMDb's answer was cut off: " + e.Message, e);
+            throw new ImdbException("IMDb's answer was cut off: " + e.Message, e) { Detail = "answer cut off" };
         }
         catch (JsonException e)
         {
-            throw new ImdbException("IMDb returned something Lumen doesn't understand.", e);
+            throw new ImdbException("IMDb returned something Lumen doesn't understand.", e) { Detail = "unreadable answer" };
         }
     }
 
-    private void StoreLocked(string imdbId, ImdbTrailer? trailer, DateTimeOffset expires)
+    private Entry StoreLocked(string imdbId, ImdbTrailer? trailer, DateTimeOffset expires, string? quality, TrailerOutcome outcome)
     {
         var now = _time.GetUtcNow();
         _cache.Remove(imdbId);
@@ -419,10 +485,16 @@ public sealed partial class ImdbTrailers : IImdbTrailers
             _cache.Remove(_cache.MinBy(e => e.Value.Sequence).Key);
         }
 
-        _cache[imdbId] = new Entry(trailer, expires, ++_sequence);
+        var entry = new Entry(trailer, expires, ++_sequence, quality, outcome);
+        _cache[imdbId] = entry;
+        return entry;
     }
 
-    private sealed record Entry(ImdbTrailer? Trailer, DateTimeOffset Expires, long Sequence);
+    /// <summary>A cached answer: the trailer (null for none), until when, its first address's quality, and how it went.</summary>
+    private sealed record Entry(ImdbTrailer? Trailer, DateTimeOffset Expires, long Sequence, string? Quality, TrailerOutcome Outcome);
+
+    /// <summary>A lookup's answer: the entry now cached, and how asking failed when that's the trailer found before it.</summary>
+    private sealed record Answer(Entry Entry, TrailerOutcome? RefreshFailure);
 
     private sealed class TitleBody
     {
@@ -500,4 +572,10 @@ public sealed class ImdbException : Exception
     }
 
     public HttpStatusCode? Status { get; init; }
+
+    /// <summary>Gets how it went, for a title's Media info: <see cref="TrailerStatus.HttpError"/>, <see cref="TrailerStatus.Timeout"/> or <see cref="TrailerStatus.Error"/>.</summary>
+    public string Reason { get; init; } = TrailerStatus.Error;
+
+    /// <summary>Gets a few words for a title's Media info ("HTTP 403"): never an address or an exception's text.</summary>
+    public string? Detail { get; init; }
 }

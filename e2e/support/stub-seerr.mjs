@@ -54,7 +54,8 @@
 //        tt9000001, tt0133093 (The Matrix, movie 603), tt9001399 (Lumen Saga, tv 1399) and tt4154796 (the Health
 //        check's), a Clip, a 30 s Trailer with
 //        720p, and a 126 s Trailer in 1080p, 720p, 480p and AUTO (HLS), its 720p at /imdb/video/<id>_720p.mp4 signed for
-//        24 h; tt9000020 has only clips; any other title is a null title. Each lookup is recorded for /__stub/imdb.
+//        24 h; tt9000020 has only clips; tt9000503 answers HTTP 503 (IMDb failing); any other title is a null title.
+//        Each lookup is recorded for /__stub/imdb.
 //   GET  /imdb/video/:name.mp4                  → a 20 s MP4 with range requests, as IMDb's CDN serves them: H.264 to
 //        WebKit, VP9 to Chromium (which has no H.264) and Firefox; 1920x1080 for a `…_1080p` name, else 640x360. From
 //        LUMEN_STUB_IMDB_MEDIA, else e2e/fixtures/media/imdb (scripts/gen-test-media.sh makes the four files). Each
@@ -582,6 +583,10 @@ createServer((req, res) => {
       const id = body.variables?.id;
       if (typeof id !== 'string' || !/primaryVideos/.test(body.query ?? '')) {
         return json(res, 200, { errors: [{ message: 'stub: expected the trailer query with an id variable' }] });
+      }
+      if (id === 'tt9000503') {
+        imdbLookups.push(id);
+        return json(res, 503, { errors: [{ message: 'stub: IMDb is down' }] });
       }
       imdbLookups.push(id);
       json(res, 200, { data: { title: imdbTitle(id) }, extensions: { disclaimer: 'stub' } });

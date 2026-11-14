@@ -164,6 +164,67 @@ public class OnlineTrailersTests
         Assert.Equal("tt0903747", show.ImdbTitleId);
     }
 
+    [Theory]
+    [InlineData(false, true, false, TrailerSkip.PreviewsOff)]
+    [InlineData(true, false, true, TrailerSkip.OnlineOff)]
+    public async Task Diagnose_SettingOff_AsksNothing_AndSaysWhy(bool previews, bool online, bool local, string skipped)
+    {
+        _config.Current.Returns(new PluginConfiguration { TrailerPreview = previews, YouTubeTrailers = online });
+
+        var info = await _online.DiagnoseAsync(Movie("tt0133093"), _user, local, false, CancellationToken.None);
+
+        Assert.Equal(skipped, info.Skipped);
+        Assert.Equal((previews, online, (bool?)local), (info.Previews, info.Online, info.LocalTrailer));
+        Assert.Equal("tt0133093", info.Imdb.ImdbId);
+        Assert.Equal(TrailerStatus.Skipped, info.Imdb.Outcome.Status);
+        Assert.Equal(TrailerStatus.Skipped, info.YouTube.Outcome.Status);
+        Assert.Empty(_imdb.ReceivedCalls());
+        Assert.Empty(_youTube.ReceivedCalls());
+    }
+
+    [Fact]
+    public async Task Diagnose_ALocalTrailer_WinsButTheOnlineOnesAreStillLookedUp_ForWhatWouldPlayWithoutIt()
+    {
+        var movie = Movie("tt0133093");
+        var imdb = new ImdbDiagnosis("tt0133093", new TrailerOutcome(TrailerStatus.Found, null, TestData.Now), ["720p"], false);
+        var youTube = new YouTubeDiagnosis(null, null, new TrailerOutcome(TrailerStatus.NoSeerr, "Seerr isn't set up", null), false);
+        _imdb.DiagnoseAsync("tt0133093", false, Arg.Any<CancellationToken>()).Returns(imdb);
+        _youTube.DiagnoseAsync(movie, _user, false, Arg.Any<CancellationToken>()).Returns(youTube);
+
+        Assert.Equal(new TrailerDiagnosis(true, true, true, null, imdb, youTube), await _online.DiagnoseAsync(movie, _user, true, false, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Diagnose_AsksBothSources_PassingRefreshOn()
+    {
+        var movie = Movie("tt0133093");
+        var imdb = new ImdbDiagnosis("tt0133093", new TrailerOutcome(TrailerStatus.Timeout, "no answer within 4 s", TestData.Now), [], false);
+        var youTube = new YouTubeDiagnosis("dQw4w9WgXcQ", TrailerSource.Seerr, new TrailerOutcome(TrailerStatus.Found, null, TestData.Now), true);
+        _imdb.DiagnoseAsync("tt0133093", true, Arg.Any<CancellationToken>()).Returns(imdb);
+        _youTube.DiagnoseAsync(movie, _user, true, Arg.Any<CancellationToken>()).Returns(youTube);
+
+        var info = await _online.DiagnoseAsync(movie, _user, false, true, CancellationToken.None);
+
+        Assert.Equal(new TrailerDiagnosis(true, true, false, null, imdb, youTube), info);
+    }
+
+    [Fact]
+    public async Task Diagnose_ACatalogTitle_TakesItsYouTubeTrailerFromSeerr_AndHasNoLocalTrailer()
+    {
+        var imdb = new ImdbDiagnosis("tt0133093", new TrailerOutcome(TrailerStatus.NotFound, null, TestData.Now), [], true);
+        _imdb.DiagnoseAsync("tt0133093", false, Arg.Any<CancellationToken>()).Returns(imdb);
+        var title = new SeerrTitle { Id = 603, ImdbId = "tt0133093", RelatedVideos = [new SeerrVideo { Site = "YouTube", Type = "Trailer", Key = "dQw4w9WgXcQ" }] };
+
+        var info = await _online.DiagnoseAsync(title, false, CancellationToken.None);
+
+        Assert.Null(info.LocalTrailer);
+        Assert.Equal(imdb, info.Imdb);
+        Assert.Equal(new YouTubeDiagnosis("dQw4w9WgXcQ", TrailerSource.Seerr, new TrailerOutcome(TrailerStatus.Found, null, null), false), info.YouTube);
+
+        var none = await _online.DiagnoseAsync(new SeerrTitle { Id = 604 }, false, CancellationToken.None);
+        Assert.Equal(TrailerStatus.NotFound, none.YouTube.Outcome.Status);
+    }
+
     private static MediaBrowser.Controller.Entities.Movies.Movie Movie(string imdb)
     {
         var movie = TestData.Movie("m");

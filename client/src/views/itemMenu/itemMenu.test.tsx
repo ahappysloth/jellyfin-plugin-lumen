@@ -12,6 +12,16 @@ import { useState } from 'preact/hooks';
 import { resetSessionCaches } from '../../util/sessionCaches';
 import { openItemMenuAt, prepareItemMenu, resetItemMenuUsers, whenItemDialogsLoad } from './itemMenu';
 
+const trailerInfo = vi.hoisted(() => ({
+  attachToMediaInfo: vi.fn(),
+  openTrailerInfoDialog: vi.fn(),
+  settleMediaInfo: vi.fn(),
+}));
+vi.mock('../trailerInfo/lazyTrailerInfo', () => ({
+  loadTrailerInfo: () => Promise.resolve(trailerInfo),
+  settleMediaInfo: trailerInfo.settleMediaInfo,
+}));
+
 const full = {
   Id: 'm1',
   Name: 'Alpha',
@@ -104,6 +114,60 @@ describe('the item menu', () => {
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
     expect(open).toHaveBeenCalledWith(expect.objectContaining({ Id: 'm1', CanDelete: true }), admin, 'edit');
     expect(onDeleted).not.toHaveBeenCalled();
+  });
+
+  it('adds the Trailer section to a movie’s Media info, which still opens as jellyfin-web has it', async () => {
+    const open = vi.spyOn(dialogs, 'openItemDialog').mockResolvedValue({ updated: false, deleted: false });
+    const { ctx } = context();
+    render(<ContextMenuHost />);
+    const menu = await prepareItemMenu(ctx, card);
+    act(() => menu.open({ x: 0, y: 0, returnFocus: null }));
+
+    choose('Media info');
+    await waitFor(() => expect(open).toHaveBeenCalledWith(expect.anything(), admin, 'moremediainfo'));
+    await waitFor(() =>
+      expect(trailerInfo.attachToMediaInfo).toHaveBeenCalledWith(ctx, {
+        key: 'm1',
+        of: 'Items/m1',
+        name: 'Alpha',
+      }),
+    );
+    // Once jellyfin-web is done opening it, the section stops watching for it.
+    await waitFor(() => expect(trailerInfo.settleMediaInfo).toHaveBeenCalled());
+  });
+
+  it('ends a watch for Media info that failed to open, so the next title’s isn’t taken', async () => {
+    trailerInfo.settleMediaInfo.mockClear();
+    vi.spyOn(dialogs, 'openItemDialog').mockRejectedValue(new Error('item failed to load'));
+    const { ctx } = context();
+    render(<ContextMenuHost />);
+    const menu = await prepareItemMenu(ctx, card);
+    act(() => menu.open({ x: 0, y: 0, returnFocus: null }));
+
+    choose('Media info');
+    await waitFor(() => expect(trailerInfo.settleMediaInfo).toHaveBeenCalled());
+  });
+
+  it('gives a show Trailer info, in Lumen’s dialog, while trailer previews are on', async () => {
+    const show = { Id: 's1', Name: 'Saga', Type: 'Series', IsFolder: true, CanDelete: false };
+    const client = createFakeClient(routes({ 'Users/user1': kid, 'Items/s1': show }));
+    const ctx = makeContext(client, { config: { ...makeContext(client).config, TrailerPreview: true } });
+    render(<ContextMenuHost />);
+    const menu = await prepareItemMenu(ctx, show as BaseItem, { complete: true });
+    expect(menu.commands).toContain('trailerinfo');
+    act(() => menu.open({ x: 0, y: 0, returnFocus: null }));
+
+    choose('Trailer info');
+    await waitFor(() =>
+      expect(trailerInfo.openTrailerInfoDialog).toHaveBeenCalledWith(
+        ctx,
+        { key: 's1', of: 'Items/s1', name: 'Saga' },
+        expect.anything(),
+      ),
+    );
+    expect(
+      (await prepareItemMenu(makeContext(client), show as BaseItem, { complete: true })).commands,
+    ).not.toContain('trailerinfo');
   });
 
   it("opens jellyfin-web's dialog once its stylesheet is in, so it doesn't restyle as it shows", async () => {

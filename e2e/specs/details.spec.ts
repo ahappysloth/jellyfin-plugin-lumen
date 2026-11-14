@@ -420,7 +420,8 @@ test("jellyfin-web's other dialogs fit Lumen's panel: three answers one under th
 
 test('More offers a restricted user only what their policy allows', async ({ page }) => {
   const { items } = loadState();
-  // The kid may download and make playlists: no editors, no collections, no Delete.
+  // The kid may download and make playlists: no editors, no collections, no Delete. Trailer info is everyone's (a show
+  // has no Media info for it to be in).
   await login(page, KID);
   await page.goto(`/web/#/details?id=${items['Lumen Show']}`);
 
@@ -428,6 +429,7 @@ test('More offers a restricted user only what their policy allows', async ({ pag
   await expect(page.getByRole('menu', { name: 'More actions for Lumen Show' }).getByRole('menuitem')).toHaveText([
     'Add to playlist',
     'Download all',
+    'Trailer info',
   ]);
 });
 
