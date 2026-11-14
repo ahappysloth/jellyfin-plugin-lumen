@@ -289,6 +289,83 @@ describe('the Skip button', () => {
     expect(document.documentElement).not.toHaveClass(SEGMENTS_CLASS);
   });
 
+  describe('with the controls hidden', () => {
+    const prompts = () => document.querySelector('.lmn-seg')!;
+
+    it('sits low, by the bottom edge, and rises above the controls as they come back', async () => {
+      const player = await setUp({ idle: true });
+      await player.at(70_000);
+      expect(prompts()).toHaveClass('is-low');
+
+      player.set({ idle: false });
+      expect(prompts()).not.toHaveClass('is-low');
+      player.set({ idle: true });
+      expect(prompts()).toHaveClass('is-low');
+    });
+
+    it('stays down while pressed, though the press brings the controls back, and rises once the pointer has gone', async () => {
+      const player = await setUp({ idle: true });
+      await player.at(70_000);
+      fireEvent.pointerDown(skipButton()!);
+      player.set({ idle: false });
+      await player.wait(1000);
+      expect(prompts()).toHaveClass('is-low');
+
+      // A finger leaves as it lifts: the tap's click lands just after, where the button still is.
+      fireEvent.pointerLeave(prompts());
+      await player.wait(250);
+      expect(prompts()).toHaveClass('is-low');
+      await player.wait(100);
+      expect(prompts()).not.toHaveClass('is-low');
+    });
+
+    it('rises once the press lifts, though the pointer stays on it', async () => {
+      const player = await setUp({ idle: true });
+      await player.at(70_000);
+      fireEvent.pointerDown(skipButton()!);
+      player.set({ idle: false });
+      fireEvent.pointerUp(skipButton()!);
+      await player.wait(350);
+      expect(prompts()).not.toHaveClass('is-low');
+    });
+
+    it('isn’t held down for good when what was pressed goes from under the pointer: the controls going ends the press', async () => {
+      const player = await setUp({ idle: true });
+      await player.at(70_000);
+      fireEvent.pointerDown(skipButton()!);
+      player.set({ idle: false });
+      // The intro ends under the finger: no lift or leave reaches the prompts.
+      await player.at(148_000);
+      expect(skipButton()).toBeNull();
+      player.set({ idle: true });
+      await player.wait();
+      player.set({ idle: false });
+      expect(prompts()).not.toHaveClass('is-low');
+    });
+
+    it('isn’t taken down by a press with the controls up', async () => {
+      const player = await setUp();
+      await player.at(70_000);
+      fireEvent.pointerDown(skipButton()!);
+      expect(prompts()).not.toHaveClass('is-low');
+      player.set({ idle: true });
+      expect(prompts()).toHaveClass('is-low');
+      player.set({ idle: false });
+      expect(prompts()).not.toHaveClass('is-low');
+    });
+
+    it('takes the remote’s focus down with it in the TV layout, and keeps it as the controls come back', async () => {
+      const player = await setUp({ layout: 'tv', idle: true });
+      await player.at(70_000);
+      expect(skipButton()).toHaveFocus();
+      expect(prompts()).toHaveClass('is-low');
+
+      player.set({ idle: false });
+      expect(prompts()).not.toHaveClass('is-low');
+      expect(skipButton()).toHaveFocus();
+    });
+  });
+
   describe('in the TV layout', () => {
     it('takes the remote’s focus as it comes up with the controls hidden, and gives it back as it goes', async () => {
       const player = await setUp({ layout: 'tv', idle: true });
