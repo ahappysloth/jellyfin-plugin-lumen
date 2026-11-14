@@ -2,6 +2,29 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.6.5] - 2026-11-14
+
+### Added
+- The home banner's trailer has a **sound button** beside Pause while it plays. Sound stays on for the next slide's
+  trailer for the rest of the visit.
+- Turning a banner trailer's sound on, resting the mouse on the banner, or (on a TV) staying on the banner lets the
+  trailer play to the end before the next slide. Moving away, or turning the sound off again, lets the slideshow go on:
+  at once if the slide's time is up (after a moment's pause), or when it is.
+- The **Top 10** rows end with a **See all** card after the last title, which opens the same Top chart as the row's
+  title. A TV's remote reaches it like any card.
+
+### Changed
+- **Next Up** cards show the show's own picture (its title art, or its backdrop with its logo) instead of a still of
+  the next episode. The line under the card still says which episode is next.
+- **Popular Genres** no longer uses the same title for more than one genre's picture. A show counts once, however many
+  of its episodes or seasons are in a genre. A title only repeats when a genre has nothing else left.
+- Cards in the **Trending**, Popular and Upcoming rows (titles from Seerr that aren't on the server yet) show the
+  title's logo over the picture, as the other cards do. The logos come from TMDB through Jellyfin's own metadata
+  provider, and are remembered. A title without a logo, or whose logo is still being fetched, shows its name instead.
+
+### Fixed
+- The Skip intro / Skip credits / Next episode button moves down when the player's controls hide.
+
 ## [0.6.4] - 2026-11-13
 
 ### Added
