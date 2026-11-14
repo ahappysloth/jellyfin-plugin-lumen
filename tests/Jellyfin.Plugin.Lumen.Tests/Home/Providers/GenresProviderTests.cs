@@ -22,8 +22,8 @@ public sealed class GenresProviderTests : IDisposable
     private readonly User _user = TestData.User();
     private readonly List<InternalItemsQuery> _queries = [];
     private readonly Dictionary<Guid, int> _counts = [];
-    private readonly Dictionary<Guid, BaseItem> _titleBackdrops = [];
-    private readonly Dictionary<Guid, BaseItem> _anyBackdrops = [];
+    private readonly Dictionary<Guid, BaseItem[]> _titleBackdrops = [];
+    private readonly Dictionary<Guid, BaseItem[]> _anyBackdrops = [];
     private readonly List<Genre> _genres = [];
 
     public GenresProviderTests()
@@ -36,7 +36,7 @@ public sealed class GenresProviderTests : IDisposable
         {
             var q = ci.Arg<InternalItemsQuery>();
             var source = q.IncludeItemTypes.Length == 0 ? _anyBackdrops : _titleBackdrops;
-            return source.TryGetValue(q.GenreIds[0], out var item) ? new[] { item } : Array.Empty<BaseItem>();
+            return source.TryGetValue(q.GenreIds[0], out var items) ? items.Take(q.Limit ?? int.MaxValue).ToArray() : Array.Empty<BaseItem>();
         });
     }
 
@@ -88,9 +88,9 @@ public sealed class GenresProviderTests : IDisposable
         var bare = WithGenre("C", 1);
         var topTitle = TestData.Movie("top").WithImages(ImageType.Backdrop);
         var other = TestData.Movie("other").WithImages(ImageType.Backdrop);
-        _titleBackdrops[withTitle.Id] = topTitle;
-        _anyBackdrops[withTitle.Id] = other;
-        _anyBackdrops[withOther.Id] = other;
+        _titleBackdrops[withTitle.Id] = [topTitle];
+        _anyBackdrops[withTitle.Id] = [other];
+        _anyBackdrops[withOther.Id] = [other];
 
         var rows = await Provider().GetRowsAsync(TestData.Context(_user), TestData.Section(SectionTypes.Genres), CancellationToken.None);
 
@@ -98,10 +98,90 @@ public sealed class GenresProviderTests : IDisposable
         Assert.Same(topTitle, sources[withTitle.Id]);
         Assert.Same(other, sources[withOther.Id]);
         Assert.False(sources.ContainsKey(bare.Id));
-        var representative = _queries.First(q => q.Limit == 1 && q.GenreIds[0] == withTitle.Id);
+        var representative = _queries.First(q => q.Limit == GenresProvider.BackdropCandidates && q.GenreIds[0] == withTitle.Id);
         Assert.Equal([ImageType.Backdrop], representative.ImageTypes);
         Assert.Equal((ItemSortBy.CommunityRating, Jellyfin.Database.Implementations.Enums.SortOrder.Descending), representative.OrderBy[0]);
         Assert.Equal([BaseItemKind.Movie, BaseItemKind.Series], representative.IncludeItemTypes);
+    }
+
+    [Fact]
+    public async Task NoTitleBacksTwoTiles_WhileAGenreHasAnotherLeft()
+    {
+        // Avatar is top-rated in all three genres; Action and Adventure have others, Animation only Avatar.
+        var action = WithGenre("Action", 3);
+        var adventure = WithGenre("Adventure", 3);
+        var animation = WithGenre("Animation", 1);
+        var avatar = Backdropped(TestData.Series("Avatar"));
+        var heat = Backdropped(TestData.Movie("Heat"));
+        var hook = Backdropped(TestData.Movie("Hook"));
+        _titleBackdrops[action.Id] = [avatar, heat, hook];
+        _titleBackdrops[adventure.Id] = [avatar, hook];
+        _titleBackdrops[animation.Id] = [avatar];
+
+        var sources = await Sources();
+
+        // The smallest genre chooses first and keeps Avatar; the others take their next best, never the same one.
+        Assert.Same(avatar, sources[animation.Id]);
+        Assert.Same(heat, sources[action.Id]);
+        Assert.Same(hook, sources[adventure.Id]);
+    }
+
+    [Fact]
+    public async Task AShowCountsOnce_WhateverItsEpisodesAndSeasons()
+    {
+        var comedy = WithGenre("Comedy", 2);
+        var fantasy = WithGenre("Fantasy", 2);
+        var scifi = WithGenre("Science Fiction", 2);
+        var show = Backdropped(TestData.Series("Rick and Morty"));
+        var episode = Backdropped(TestData.Episode(show, 1, 1));
+        var season = Backdropped(new MediaBrowser.Controller.Entities.TV.Season { Id = Guid.NewGuid(), Name = "Season 2", SeriesId = show.Id });
+        var other = Backdropped(TestData.Movie("Other"));
+        _titleBackdrops[comedy.Id] = [show];
+        _titleBackdrops[fantasy.Id] = [show, other];
+
+        // Science Fiction's titles are all taken: its fallback (items of any kind) has only the same show's.
+        _titleBackdrops[scifi.Id] = [show];
+        _anyBackdrops[scifi.Id] = [episode, season];
+
+        var sources = await Sources();
+
+        Assert.Equal(GenresProvider.TitleKey(show), GenresProvider.TitleKey(episode));
+        Assert.Equal(GenresProvider.TitleKey(show), GenresProvider.TitleKey(season));
+
+        // Comedy (A to Z among the one-title genres) keeps the show; Fantasy takes its other title; Science Fiction has
+        // nothing free, so it repeats its own top-rated title rather than showing nothing.
+        Assert.Same(show, sources[comedy.Id]);
+        Assert.Same(other, sources[fantasy.Id]);
+        Assert.Same(show, sources[scifi.Id]);
+    }
+
+    [Fact]
+    public async Task TheFallbackIsAskedOnlyWhenNoTitleIsFree()
+    {
+        var drama = WithGenre("Drama", 2);
+        _titleBackdrops[drama.Id] = [Backdropped(TestData.Movie("Free"))];
+        _anyBackdrops[drama.Id] = [Backdropped(TestData.Movie("Unused"))];
+
+        await Sources();
+
+        Assert.DoesNotContain(_queries, q => q.Limit is not null && q.IncludeItemTypes.Length == 0);
+    }
+
+    [Fact]
+    public async Task TheChoice_IsTheSameOnEveryLoad()
+    {
+        var shared = Backdropped(TestData.Movie("Shared"));
+        var genres = Enumerable.Range(0, 6).Select(i => WithGenre($"G{i}", 6 - i)).ToList();
+        foreach (var genre in genres)
+        {
+            _titleBackdrops[genre.Id] = [shared, .. Enumerable.Range(0, 3).Select(i => Backdropped(TestData.Movie($"{genre.Name}-{i}")))];
+        }
+
+        var first = await Sources();
+        var second = await Sources();
+
+        Assert.Equal(first, second);
+        Assert.Equal(genres.Count, first.Values.Select(GenresProvider.TitleKey).Distinct().Count());
     }
 
     [Fact]
@@ -174,12 +254,21 @@ public sealed class GenresProviderTests : IDisposable
         Assert.Contains(comedy, Assert.Single(rows).Items);
     }
 
+    private static T Backdropped<T>(T item)
+        where T : BaseItem => item.WithImages(ImageType.Backdrop);
+
     private Genre WithGenre(string name, int count)
     {
         var genre = new Genre { Id = Guid.NewGuid(), Name = name };
         _counts[genre.Id] = count;
         _genres.Add(genre);
         return genre;
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, BaseItem>> Sources()
+    {
+        var rows = await Provider().GetRowsAsync(TestData.Context(_user), TestData.Section(SectionTypes.Genres), CancellationToken.None);
+        return Assert.Single(rows).BackdropSources!;
     }
 
     private GenresProvider Provider() => new(_library, _libraryCache, _time);
