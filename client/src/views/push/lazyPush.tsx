@@ -19,7 +19,12 @@ let loaded: PushModule | null = null;
  * notifications on, once the first page is up. A failed load is asked for again next time.
  */
 export function loadPush(): Promise<PushModule> {
-  loading ??= Promise.all([import('./PushSettings'), loadStyles('lumen-push.css')]).then(
+  // The toggle is a group like the profile page's, in its look (lumen-profile.css), wherever it shows.
+  loading ??= Promise.all([
+    import('./PushSettings'),
+    loadStyles('lumen-push.css'),
+    loadStyles('lumen-profile.css'),
+  ]).then(
     ([module]) => (loaded = module),
     (error: unknown) => {
       loading = null;
