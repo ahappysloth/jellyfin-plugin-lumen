@@ -16,12 +16,7 @@ const CODE_IN_HASH = /[?&]code=/;
  * sign-in page can load it too. A failed load is asked for again next time.
  */
 export function loadQuickConnect(): Promise<QuickConnectModule> {
-  // The approve page shows the account's avatar as the profile page does (lumen-profile.css).
-  loading ??= Promise.all([
-    import('./QuickConnect'),
-    loadStyles('lumen-quickconnect.css'),
-    loadStyles('lumen-profile.css'),
-  ]).then(
+  loading ??= Promise.all([import('./QuickConnect'), loadStyles('lumen-quickconnect.css')]).then(
     ([module]) => (loaded = module),
     (error: unknown) => {
       loading = null;

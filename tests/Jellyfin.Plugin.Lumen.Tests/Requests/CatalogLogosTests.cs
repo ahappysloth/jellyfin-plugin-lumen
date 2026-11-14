@@ -1,8 +1,14 @@
 using Jellyfin.Plugin.Lumen.Api;
 using Jellyfin.Plugin.Lumen.Requests;
+using MediaBrowser.Controller.Configuration;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Providers;
+using MediaBrowser.Model.Configuration;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Providers;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
+using NSubstitute;
 using Xunit;
 
 namespace Jellyfin.Plugin.Lumen.Tests.Requests;
@@ -141,6 +147,39 @@ public sealed class CatalogLogosTests : IDisposable
         Assert.Null(TmdbLogoSource.Pick([], "en"));
     }
 
+    [Fact]
+    public async Task TheTmdbSource_AsksJellyfinsTmdbProviderByTmdbId_AndTakesALogo()
+    {
+        var providers = Substitute.For<IProviderManager>();
+        BaseItem? asked = null;
+        RemoteImageQuery? query = null;
+        providers.GetAvailableRemoteImages(Arg.Do<BaseItem>(i => asked = i), Arg.Do<RemoteImageQuery>(q => query = q), Arg.Any<CancellationToken>())
+            .Returns([
+                new RemoteImageInfo { Url = "https://image.tmdb.org/t/p/original/poster.jpg", Type = ImageType.Primary },
+                new RemoteImageInfo { Url = "https://image.tmdb.org/t/p/original/logo.png", Type = ImageType.Logo, Language = "en" },
+            ]);
+
+        var file = await Source(providers).FindAsync("tv", 1399, CancellationToken.None);
+
+        Assert.Equal("logo.png", file);
+        Assert.IsType<MediaBrowser.Controller.Entities.TV.Series>(asked);
+        Assert.Equal("1399", asked!.GetProviderId(MetadataProvider.Tmdb));
+        Assert.Equal(TmdbLogoSource.ProviderName, query!.ProviderName);
+    }
+
+    [Fact]
+    public async Task TheTmdbSource_SaysNoLogo_ForATitleWithImagesButNoLogo_AndFails_WhenTmdbGaveNothingAtAll()
+    {
+        var providers = Substitute.For<IProviderManager>();
+        providers.GetAvailableRemoteImages(default!, default!, default).ReturnsForAnyArgs(
+            [new RemoteImageInfo { Url = "https://image.tmdb.org/t/p/original/poster.jpg", Type = ImageType.Primary }]);
+        Assert.Null(await Source(providers).FindAsync("movie", 603, CancellationToken.None));
+
+        // Jellyfin answers a TMDb error or time-out with no images at all: that's a failed lookup, not "no logo".
+        providers.GetAvailableRemoteImages(default!, default!, default).ReturnsForAnyArgs(Array.Empty<RemoteImageInfo>());
+        await Assert.ThrowsAsync<CatalogLogoException>(() => Source(providers).FindAsync("movie", 603, CancellationToken.None));
+    }
+
     [Theory]
     [InlineData("https://image.tmdb.org/t/p/original/abc123.png", "abc123.png")]
     [InlineData("https://image.tmdb.org/t/p/w500/abc123.png?x=1", "abc123.png")]
@@ -150,6 +189,13 @@ public sealed class CatalogLogosTests : IDisposable
     [InlineData(null, null)]
     public void FileOf_TakesOnlyAFileNameTheImageProxyServes(string? url, string? expected) =>
         Assert.Equal(expected, TmdbLogoSource.FileOf(url));
+
+    private static TmdbLogoSource Source(IProviderManager providers)
+    {
+        var config = Substitute.For<IServerConfigurationManager>();
+        config.Configuration.Returns(new ServerConfiguration { PreferredMetadataLanguage = "en" });
+        return new TmdbLogoSource(providers, config);
+    }
 
     private static CatalogItemDto Item(string mediaType, int tmdbId) =>
         new($"{mediaType}-{tmdbId}", mediaType, tmdbId, "T", null, null, null, [], null, "b.jpg", "None", null);

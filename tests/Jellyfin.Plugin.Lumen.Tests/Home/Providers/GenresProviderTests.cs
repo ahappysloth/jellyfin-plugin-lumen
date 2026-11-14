@@ -127,6 +127,29 @@ public sealed class GenresProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task AGenreThatFindsItsTitlesTaken_HasThemMovedAlong_RatherThanRepeatOne()
+    {
+        // p (Action, Comedy) rated best, then q (Action, Adventure, Comedy), then r (Adventure). Choosing in turn, Action
+        // would take p and Adventure q, leaving Comedy nothing; moving them along gives each genre a title of its own.
+        var action = WithGenre("Action", 2);
+        var adventure = WithGenre("Adventure", 2);
+        var comedy = WithGenre("Comedy", 2);
+        var p = Backdropped(TestData.Movie("p"));
+        var q = Backdropped(TestData.Movie("q"));
+        var r = Backdropped(TestData.Movie("r"));
+        _titleBackdrops[action.Id] = [p, q];
+        _titleBackdrops[adventure.Id] = [q, r];
+        _titleBackdrops[comedy.Id] = [p, q];
+
+        var sources = await Sources();
+
+        Assert.Equal(3, sources.Values.Distinct().Count());
+        Assert.Contains(sources[action.Id], new[] { p, q });
+        Assert.Contains(sources[adventure.Id], new[] { q, r });
+        Assert.Contains(sources[comedy.Id], new[] { p, q });
+    }
+
+    [Fact]
     public async Task AShowCountsOnce_WhateverItsEpisodesAndSeasons()
     {
         var comedy = WithGenre("Comedy", 2);

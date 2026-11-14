@@ -15,8 +15,8 @@ import { target } from './vite.target.ts';
  * - lumen-trailerinfo.css: the Trailer section of a title's Media info (styles/trailerinfo.css), linked with its file
  *   (views/trailerInfo/lazyTrailerInfo.ts).
  * - lumen-profile.css: the profile page and the settings pages' frame (styles/profile.css), linked with their file
- *   (views/profile/lazyProfile.tsx); also by the notifications toggle and Quick Connect's approve page, which borrow
- *   its groups and avatar (views/push/lazyPush.tsx, views/quickconnect/lazyQuickConnect.tsx).
+ *   (views/profile/lazyProfile.tsx). The notifications toggle and Quick Connect's approve page, which share a little
+ *   of its look, carry those rules in their own sheets.
  * - lumen-stock.css: jellyfin-web's sign-in, settings and admin pages' controls, and its dialogs and menus on every
  *   page (styles/stock.css), while "Restyle Jellyfin's sign-in, settings and Dashboard pages" is on.
  * - lumen-dashboard.css: the admin pages' own look (styles/dashboard.css), on those pages only.

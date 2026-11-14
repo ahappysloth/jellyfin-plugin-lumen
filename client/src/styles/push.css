@@ -132,3 +132,12 @@
     transition: none;
   }
 }
+/* The toggle's heading, as the profile page's groups have theirs (profile.css): My requests doesn't load that sheet. */
+.lmn-profile__group-title {
+  margin: 0 0 10px 4px;
+  color: var(--lmn-text-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

@@ -31,6 +31,22 @@ describe('MuteButton', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Pause' }));
   });
 
+  it("hands focus to Pause after it too (the banner's order on a wide screen)", () => {
+    const Controls = ({ mute }: { mute: boolean }) => (
+      <div>
+        <div role="tablist" />
+        {mute && <MuteButton muted onChange={vi.fn()} />}
+        <button type="button">Pause</button>
+      </div>
+    );
+    const { rerender } = render(<Controls mute />);
+    screen.getByRole('button', { name: 'Unmute trailer' }).focus();
+
+    rerender(<Controls mute={false} />);
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Pause' }));
+  });
+
   it('leaves focus alone when it goes without it', () => {
     const Controls = ({ mute }: { mute: boolean }) => (
       <div>

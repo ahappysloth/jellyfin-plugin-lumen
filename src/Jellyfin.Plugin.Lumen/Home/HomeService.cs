@@ -149,7 +149,7 @@ public sealed class HomeService : IHomeService
         var rows = sections.SelectMany(r => r).Where(r => r.HasContent).ToList();
 
         // The landscape catalog rows' logos, all at once. Those still being looked up are left out (the cards show their
-        // titles as text), and the home is kept only briefly, so the next load has them.
+        // titles as text) and carry on in the background: a home built after they're back has them.
         var logos = await RunGuardedAsync(
             "logos",
             ct => _logos.GetAsync(rows.Where(r => LogoRows.Contains(r.Type)).SelectMany(r => r.Entries ?? []).Select(e => e.Catalog).OfType<CatalogItemDto>(), ct),
@@ -157,11 +157,6 @@ public sealed class HomeService : IHomeService
             Timeout,
             build,
             cancellationToken);
-        if (logos.Pending)
-        {
-            build.MarkDegraded();
-        }
-
         var rowDtos = rows
             .Select(r => new HomeRowDto(r.Id, r.Type, r.Title, MapRow(r, user)) { Entries = MapEntries(r, user, LogoRows.Contains(r.Type) ? logos.Logos : null), Source = r.Source })
             .ToList();

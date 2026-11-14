@@ -110,7 +110,8 @@ export function Row(props: Props) {
         </button>
         <div ref={scroller} class="lmn-row__scroller focuscontainer-x">
           {posters && <Top10Items {...props} />}
-          {/* The row's "See all" again as a last poster, for whoever scrolls to the end rather than up to the title. */}
+          {/* The row's "See all" again as a last poster, for whoever scrolls to the end rather than up to the
+              title. */}
           {posters && seeAll && (
             <div class="lmn-top10 lmn-top10--plain">
               <a

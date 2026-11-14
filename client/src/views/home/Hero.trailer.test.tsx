@@ -472,13 +472,13 @@ describe('Hero: holding the slide while the viewer watches its trailer', () => {
   });
 
   describe('the Mute button', () => {
-    it('shows only while the trailer does, after Pause, and turns its sound on and off', () => {
+    it('shows only while the trailer does, left of Pause (which stays put), and turns its sound on and off', () => {
       const { container } = renderWatching();
       expect(screen.queryByRole('button', { name: 'Unmute trailer' })).toBeNull();
       advance(4000);
       start(video());
 
-      expect(controls(container)).toEqual(['Featured titles', 'Pause slideshow', 'Unmute trailer']);
+      expect(controls(container)).toEqual(['Featured titles', 'Unmute trailer', 'Pause slideshow']);
       expect(trailer!.muted).toBe(true);
       unmute();
       expect(trailer!.muted).toBe(false);
@@ -599,6 +599,64 @@ describe('Hero: holding the slide while the viewer watches its trailer', () => {
       play(v, 20);
       expect(showing('Alpha')).toBeInTheDocument();
     });
+  });
+
+  describe('Pause', () => {
+    it('stops a trailer the viewer is watching where it is, and the slide with it', () => {
+      renderWatching();
+      advance(4000);
+      const v = video();
+      start(v);
+      unmute();
+      play(v, 2);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Pause slideshow' }));
+      expect(trailer!.paused).toBe(true);
+      advance(30_000);
+      expect(showing('Alpha')).toBeInTheDocument();
+      expect(trailer).not.toBeNull();
+    });
+
+    it("takes off a trailer that's only under the mouse (whoever clicks Pause is over the hero)", () => {
+      renderWatching();
+      advance(4000);
+      start(video());
+      fireEvent.click(screen.getByRole('button', { name: 'Pause slideshow' }));
+      advance(16);
+      expect(trailer).toBeNull();
+    });
+  });
+
+  it('gives up a watched trailer that stalls, and moves on a beat later', () => {
+    renderWatching();
+    advance(4000);
+    const v = video();
+    start(v);
+    unmute();
+    play(v, 2);
+
+    advance(11_000); // no progress: a stall
+    advance(1500 + SLIDE);
+    expect(showing('Beta')).toBeInTheDocument();
+  });
+
+  it('holds again when watched again before the slide moves on, the fill following the trailer as before', () => {
+    const { container } = renderWatching();
+    advance(4000);
+    const v = video();
+    start(v);
+    unmute();
+    play(v, 10);
+    const following = scale(container);
+    mute();
+    advance(1000); // the fill eases towards full meanwhile
+    expect(scale(container)).toBeGreaterThan(following);
+
+    unmute();
+    play(v, 1);
+    expect(scale(container)).toBeCloseTo(0.5 + 0.5 * (11 / 99.5), 2);
+    play(v, 30);
+    expect(showing('Alpha')).toBeInTheDocument();
   });
 
   describe('a mouse over the hero', () => {

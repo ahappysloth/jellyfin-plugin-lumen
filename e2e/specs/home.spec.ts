@@ -115,7 +115,7 @@ test.describe("the hero's trailer, held while the viewer watches", () => {
     return title(page);
   };
 
-  test('Unmute, beside Pause, plays it with sound and keeps its slide up; Mute lets the slideshow go on', async ({ page }) => {
+  test('Unmute, left of Pause, plays it with sound and keeps its slide up; Mute lets the slideshow go on', async ({ page }) => {
     await login(page, ADMIN);
     await awayFromHero(page); // a mouse over the hero would hold it too
     const showing = await trailerShowing(page);
@@ -123,8 +123,8 @@ test.describe("the hero's trailer, held while the viewer watches", () => {
     await expect(controls).toHaveCount(3);
     expect(await controls.evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))).toEqual([
       'Featured titles',
-      'Pause slideshow',
       'Unmute trailer',
+      'Pause slideshow',
     ]);
 
     await page.getByRole('button', { name: 'Unmute trailer' }).click();

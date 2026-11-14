@@ -71,8 +71,10 @@ export function CatalogCard({ item, client, imageToken, variant, onSelect, rank,
               decoding="async"
             />
             {/* A landscape card's backdrop carries no title, so it gets one as library cards' do: the title's logo, or
-                its name in type where it has none (or it's still being looked up: HomeService). A poster has its own. */}
+                its name in type where it has none (or it's still being looked up: HomeService). A poster, here too
+                when there's no backdrop, has its own. */}
             {variant === 'landscape' &&
+              file === item.Backdrop &&
               (item.Logo ? (
                 <img
                   class="lmn-card__logo"

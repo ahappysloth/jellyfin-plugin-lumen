@@ -26,8 +26,8 @@
 .lmn-card--catalog .lmn-card__art > img:first-child {
   filter: saturate(0.92);
 }
-/* A catalog title without a logo (CatalogCard.tsx): its name over the art's lower left, on a shade that keeps it legible
-   over any picture. */
+/* A catalog title without a logo (CatalogCard.tsx): its name over the art's lower left, on a shade that keeps it
+   legible over any picture. */
 .lmn-card__name {
   position: absolute;
   right: 0;

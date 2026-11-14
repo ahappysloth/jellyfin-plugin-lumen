@@ -42,13 +42,16 @@ export function MuteButton({
   large?: boolean;
 }) {
   const button = useRef<HTMLButtonElement>(null);
-  // It goes when its trailer stops showing. With focus on it, focus goes to the control before it (Pause) rather than
-  // to the page, where a TV remote would be stranded.
+  // It goes when its trailer stops showing. With focus on it, focus goes to the button beside it (Pause) rather than to
+  // the page, where a TV remote would be stranded.
   useLayoutEffect(() => {
     const element = button.current;
     return () => {
-      if (element && document.activeElement === element)
-        (element.previousElementSibling as HTMLElement | null)?.focus({ preventScroll: true });
+      if (!element || document.activeElement !== element) return;
+      const beside = [element.nextElementSibling, element.previousElementSibling].find(
+        (e): e is HTMLButtonElement => e instanceof HTMLButtonElement,
+      );
+      beside?.focus({ preventScroll: true });
     };
   }, []);
   return (

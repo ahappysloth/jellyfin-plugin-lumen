@@ -11,9 +11,9 @@ let loaded: ProfileModule | null = null;
 
 /**
  * The profile page and the frame over the stock settings pages (with its dropdowns) are a separate file with its own
- * stylesheet, loaded the first time either shows, so the other pages don't download or parse them. A failed load is asked for again next time,
- * though a browser may remember the failure until the page reloads (as it will for a page left open across a Lumen
- * update, whose old file is gone).
+ * stylesheet, loaded the first time either shows, so the other pages don't download or parse them. A failed load is
+ * asked for again next time, though a browser may remember the failure until the page reloads (as it will for a page
+ * left open across a Lumen update, whose old file is gone).
  */
 export function loadProfile(): Promise<ProfileModule> {
   loading ??= Promise.all([import('./ProfilePages'), loadStyles('lumen-profile.css')]).then(

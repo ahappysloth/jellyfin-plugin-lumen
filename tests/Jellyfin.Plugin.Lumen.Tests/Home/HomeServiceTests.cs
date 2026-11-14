@@ -354,7 +354,7 @@ public sealed class HomeServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task AHomeBuiltWhileLogosAreStillComing_IsKeptOnlyBriefly()
+    public async Task LogosStillComing_DontShortenTheCache_TheNextBuildHasThem()
     {
         var item = new CatalogItemDto("movie-1", "movie", 1, "One", null, null, null, [], null, "bd.jpg", "None", null);
         var calls = 0;
@@ -369,9 +369,14 @@ public sealed class HomeServiceTests : IDisposable
         var first = await service.GetHomeAsync(_user, CancellationToken.None);
         Assert.Null(first.Rows[0].Entries![0].Catalog!.Logo);
 
+        // Not rebuilt every few seconds while lookups drain: kept as long as any home.
         _time.Advance(HomeCache.DegradedTtl + TimeSpan.FromSeconds(1));
-        var second = await service.GetHomeAsync(_user, CancellationToken.None);
-        Assert.Equal("logo.png", second.Rows[0].Entries![0].Catalog!.Logo);
+        Assert.Null((await service.GetHomeAsync(_user, CancellationToken.None)).Rows[0].Entries![0].Catalog!.Logo);
+        Assert.Equal(1, calls);
+
+        _time.Advance(HomeCache.Ttl);
+        var later = await service.GetHomeAsync(_user, CancellationToken.None);
+        Assert.Equal("logo.png", later.Rows[0].Entries![0].Catalog!.Logo);
     }
 
     [Fact]

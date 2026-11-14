@@ -140,7 +140,10 @@
   bottom: clamp(96px, 17%, 180px);
   display: flex;
   align-items: center;
-  gap: 14px;
+}
+/* Not flex gap: Chromium 68 and Safari 13 don't have it. */
+.lmn-hero__controls > * + * {
+  margin-left: 14px;
 }
 .lmn-hero__pager {
   display: flex;
@@ -198,7 +201,8 @@
 .lmn-hero__pager.is-paused .lmn-hero__fill {
   animation-play-state: paused;
 }
-/* Once a trailer the slide waits for is under way, Hero.tsx draws the fill itself, following the trailer and the clock. */
+/* Once a trailer holding its slide is under way, Hero.tsx draws the fill itself, following the trailer and the
+   clock. */
 .lmn-hero__fill.is-trailer {
   animation: none;
 }
@@ -243,7 +247,9 @@
   /* Bottom right, under the slide's buttons (--lmn-gutter clears a notch in landscape). */
   .lmn-hero__controls {
     bottom: 18px;
-    gap: 8px;
+  }
+  .lmn-hero__controls > * + * {
+    margin-left: 8px;
   }
   .lmn-hero__controls .lmn-icon-button {
     width: 30px;

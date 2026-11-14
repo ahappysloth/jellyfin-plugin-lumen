@@ -103,8 +103,10 @@ public sealed class CatalogLogos : ICatalogLogos, IDisposable
 
         if (waiting.Count > 0)
         {
+            using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             var all = Task.WhenAll(waiting.Select(w => w.Lookup));
-            await Task.WhenAny(all, Task.Delay(WaitBudget, _time, cancellationToken)).ConfigureAwait(false);
+            await Task.WhenAny(all, Task.Delay(WaitBudget, _time, budget.Token)).ConfigureAwait(false);
+            await budget.CancelAsync().ConfigureAwait(false); // the delay, when the lookups were back first
             cancellationToken.ThrowIfCancellationRequested();
         }
 
@@ -147,7 +149,8 @@ public sealed class CatalogLogos : ICatalogLogos, IDisposable
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
-            // Not a reason to fail anything: the card shows the title as text, and it's asked again after FailedTtl.
+            // Not a reason to fail anything (a time-out included): the card shows the title as text, and it's asked again
+            // after FailedTtl.
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 _logger.LogDebug(e, "Lumen couldn't look up the logo of {Key}", key);
@@ -194,9 +197,17 @@ public sealed class TmdbLogoSource : ICatalogLogoSource
     {
         BaseItem item = mediaType == CatalogMediaType.Tv ? new Series() : new Movie();
         item.SetProviderId(MetadataProvider.Tmdb, tmdbId.ToString(CultureInfo.InvariantCulture));
-        var query = new RemoteImageQuery(ProviderName) { ImageType = ImageType.Logo, IncludeAllLanguages = true, IncludeDisabledProviders = true };
-        var images = await _providers.GetAvailableRemoteImages(item, query, cancellationToken).ConfigureAwait(false);
-        return Pick(images, _config.Configuration.PreferredMetadataLanguage);
+
+        // Every kind of image, not just logos: Jellyfin answers a TMDb error or time-out with no images at all rather than
+        // an exception, and a real title always has a poster or a backdrop, so nothing at all means the lookup failed.
+        var query = new RemoteImageQuery(ProviderName) { IncludeAllLanguages = true, IncludeDisabledProviders = true };
+        var images = (await _providers.GetAvailableRemoteImages(item, query, cancellationToken).ConfigureAwait(false)).ToList();
+        if (images.Count == 0)
+        {
+            throw new CatalogLogoException($"TMDb had no images for {mediaType} {tmdbId.ToString(CultureInfo.InvariantCulture)}");
+        }
+
+        return Pick(images.Where(i => i.Type == ImageType.Logo), _config.Configuration.PreferredMetadataLanguage);
     }
 
     /// <summary>
@@ -233,5 +244,23 @@ public sealed class TmdbLogoSource : ICatalogLogoSource
         }
 
         return string.Equals(image, "en", StringComparison.OrdinalIgnoreCase) ? 1 : string.IsNullOrEmpty(image) ? 2 : 3;
+    }
+}
+
+/// <summary>A logo lookup that got no answer: remembered for <see cref="CatalogLogos.FailedTtl"/> only.</summary>
+public sealed class CatalogLogoException : Exception
+{
+    public CatalogLogoException()
+    {
+    }
+
+    public CatalogLogoException(string message)
+        : base(message)
+    {
+    }
+
+    public CatalogLogoException(string message, Exception innerException)
+        : base(message, innerException)
+    {
     }
 }

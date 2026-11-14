@@ -60,6 +60,21 @@ describe('CatalogCard', () => {
       expect(card.querySelector('.lmn-card__logo')).toBeNull();
     });
 
+    it("adds nothing over a landscape card's poster, used when there's no backdrop: it carries its own title", () => {
+      const card = render(
+        <CatalogCard
+          item={{ ...saga, Poster: 'p.jpg', Logo: 'logo.png' }}
+          client={createFakeClient()}
+          imageToken="t"
+          variant="landscape"
+          onSelect={() => {}}
+        />,
+      ).container;
+
+      expect(card.querySelector('.lmn-card__logo')).toBeNull();
+      expect(card.querySelector('.lmn-card__name')).toBeNull();
+    });
+
     it('leaves a poster as it is: it carries its own title', () => {
       const card = landscape({ ...saga, Logo: 'logo.png' }, 'poster');
 
