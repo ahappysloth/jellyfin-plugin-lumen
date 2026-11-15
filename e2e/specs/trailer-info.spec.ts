@@ -11,6 +11,9 @@ import { resetStub } from '../support/trakt';
 // Every fixture movie has a local trailer, which wins; the online ones are still looked up for Media info. Lumen Alpha
 // gets IMDb id tt9000001, which the stub IMDb (support/stub-seerr.mjs) knows with a trailer in 1080p and 720p, and TMDB
 // id 603, which the stub Seerr knows with a YouTube trailer; then tt9000503, for which the stub IMDb answers HTTP 503.
+// A title the server doesn't have (a Seerr title's page) has the same in Lumen's dialog, from its More button (GET
+// /Lumen/Requests/Title/{type}/{tmdbId}/TrailerInfo): The Matrix (movie 603) is IMDb's tt0133093, which the stub IMDb
+// knows, and has the same YouTube trailer.
 // Set LUMEN_E2E_SHOTS to a folder to save screenshots of the section there.
 const MOVIE = 'Lumen Alpha';
 const SHOW = 'Lumen Show';
@@ -214,4 +217,105 @@ test('TV layout: the D-pad reaches Check again in Media info', async ({ page }) 
   await page.keyboard.press('Escape');
   await expect(page.locator('.dialogContainer .dialog')).toHaveCount(0);
   await expect(more(page)).toBeFocused();
+});
+
+test.describe("a title the server doesn't have", () => {
+  const TITLE = 'The Matrix';
+  const header = (page: Page) => page.locator('#lmn-root .lmn-details__header');
+  const titleMore = (page: Page) => header(page).getByRole('button', { name: `More actions for ${TITLE}` });
+  const dialog = (page: Page) => page.getByRole('dialog', { name: `Trailer info: ${TITLE}` });
+
+  test('its page has More, as a library title’s does, with Trailer info: IMDb’s and YouTube’s, this device’s, and Check again', { tag: '@smoke' }, async ({ page }) => {
+    await login(page, ADMIN);
+    await page.goto('/web/#/home?title=movie-603');
+    // Its trailer plays behind the header first: this device's attempt.
+    await expect(header(page).locator('.lmn-details__trailer video')).toHaveClass(/\bis-shown\b/, { timeout: 20_000 });
+    // After the header's other buttons, as on a library title's page.
+    await expect(header(page).locator('.lmn-actions > :last-child')).toHaveAccessibleName(`More actions for ${TITLE}`);
+
+    await titleMore(page).click();
+    await expect(titleMore(page)).toHaveAttribute('aria-expanded', 'true');
+    await page.getByRole('menu').getByRole('menuitem', { name: 'Trailer info' }).click();
+    await expect(dialog(page)).toBeVisible();
+    await expect(dialog(page).getByRole('button', { name: 'Close' })).toBeFocused();
+    await expect(dialog(page)).toContainText('Online trailersOn');
+    // No local trailer to speak of: it isn't on the server.
+    await expect(dialog(page)).not.toContainText('Local trailerYes');
+    await expect(dialog(page)).toContainText('IMDb idtt0133093');
+    await expect(dialog(page)).toContainText('IMDbFound: 1080p, 720p available');
+    await expect(dialog(page)).not.toContainText('/imdb/video/');
+    await expect(dialog(page).getByRole('link', { name: 'dQw4w9WgXcQ' })).toHaveAttribute('href', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    await expect(dialog(page)).toContainText('from Seerr (TMDB)');
+    await expect(dialog(page)).toContainText(/IMDb \d+pPlayed, under way after \d+\.\d s/);
+    await shoot(page, 'title-trailer-info', dialog(page));
+
+    // Check again asks IMDb again for this title (or says it was asked a moment ago: a retry of this test).
+    const before = (await imdbLookups()).filter((id) => id === 'tt0133093').length;
+    await dialog(page).getByRole('button', { name: 'Check again' }).click();
+    const status = dialog(page).getByRole('status');
+    await expect(status).toHaveText(/^(Checked again|Checked a moment ago\. Try again in \d+ s\.)$/);
+    if ((await status.textContent()) === 'Checked again') expect((await imdbLookups()).filter((id) => id === 'tt0133093').length).toBe(before + 1);
+
+    // Tab stays in the dialog.
+    for (let i = 0; i < 4; i++) {
+      await page.keyboard.press('Tab');
+      expect(await dialog(page).evaluate((el) => el.contains(document.activeElement))).toBe(true);
+    }
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toHaveCount(0);
+    await expect(titleMore(page)).toBeFocused();
+    await expect(titleMore(page)).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('TV layout: its More and Trailer info with the D-pad, and Back to More', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('layout', 'tv'));
+    await login(page, ADMIN);
+    await page.goto('/web/#/home?title=movie-603');
+    await expect(header(page).getByRole('button', { name: 'Request' })).toBeFocused();
+    for (let i = 0; i < 4 && !(await titleMore(page).evaluate((b) => b === document.activeElement)); i++)
+      await page.keyboard.press('ArrowRight');
+    await expect(titleMore(page)).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('menu').getByRole('menuitem').first()).toHaveText('Trailer info');
+    await page.keyboard.press('Enter');
+
+    await expect(dialog(page)).toContainText('IMDbFound: 1080p, 720p available');
+    await expect(dialog(page).getByRole('button', { name: 'Close' })).toBeFocused();
+    // Down through the dialog to Check again, each press once jellyfin-web has moved focus for the last.
+    const check = dialog(page).getByRole('button', { name: 'Check again' });
+    const focused = () => page.evaluate(() => document.activeElement?.textContent ?? '');
+    for (let i = 0; i < 6 && (await focused()) !== 'Check again'; i++) {
+      const before = await focused();
+      await page.keyboard.press('ArrowDown');
+      await expect.poll(focused).not.toBe(before);
+    }
+    await expect(check).toBeFocused();
+    await expect(check).toBeInViewport({ ratio: 1 });
+    // The D-pad stays in the dialog: up from its first control goes nowhere else.
+    for (let i = 0; i < 6; i++) await page.keyboard.press('ArrowUp');
+    expect(await dialog(page).evaluate((el) => el.contains(document.activeElement))).toBe(true);
+    await shoot(page, 'title-trailer-info-tv', dialog(page));
+
+    // Back (Escape, as jellyfin-web's TV layout takes it): the dialog closes, and the page stays.
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toHaveCount(0);
+    await expect(titleMore(page)).toBeFocused();
+    await expect(page).toHaveURL(/#\/home\?title=movie-603$/);
+  });
+
+  test('with online trailers off, its Trailer info says so', async ({ page }) => {
+    const { admin } = loadState();
+    const config = await api<Config>('/Lumen/Admin/Config', { token: admin.token });
+    await api('/Lumen/Admin/Config', { method: 'POST', token: admin.token, body: { ...config, YouTubeTrailers: false } });
+    try {
+      await login(page, ADMIN);
+      await page.goto('/web/#/home?title=movie-603');
+      await titleMore(page).click();
+      await page.getByRole('menu').getByRole('menuitem', { name: 'Trailer info' }).click();
+      await expect(dialog(page)).toContainText('Online trailersOff (“Use online trailers” is off)');
+      await expect(dialog(page)).not.toContainText('IMDbFound');
+    } finally {
+      await api('/Lumen/Admin/Config', { method: 'POST', token: admin.token, body: config });
+    }
+  });
 });
