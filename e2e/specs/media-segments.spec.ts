@@ -396,7 +396,9 @@ for (const transcode of [false, true]) {
       await play(page);
       if (transcode) await expect.poll(() => video(page).evaluate((v: HTMLVideoElement) => v.currentSrc)).toMatch(/^blob:/);
       // Seeks from the intro on (a converted stream may make one of its own as it starts), and those Lumen asked for:
-      // its files (/Lumen/Assets/) are in the stack of the call that moved the video.
+      // its files (/Lumen/Assets/) are in the stack of the call that moved the video. Its synchronous part only: Firefox
+      // adds the async causes ("setInterval handler*…", "EventListener.handleEvent*…"), and jellyfin-web's own skip,
+      // from a listener added as Lumen's Play started the video, would count as Lumen's.
       await page.evaluate(() => {
         const w = window as unknown as { seeks: number; lumenSeeks: number };
         w.seeks = 0;
@@ -406,7 +408,9 @@ for (const transcode of [false, true]) {
         Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', {
           ...position,
           set(this: HTMLMediaElement, seconds: number) {
-            if (seconds >= 3 && /\/Lumen\/Assets\//.test(new Error().stack ?? '')) w.lumenSeeks++;
+            const frames = (new Error().stack ?? '').split('\n');
+            const cause = frames.findIndex((frame) => /^[^@]*\*/.test(frame) || /^\s*at async /.test(frame));
+            if (seconds >= 3 && /\/Lumen\/Assets\//.test((cause < 0 ? frames : frames.slice(0, cause)).join('\n'))) w.lumenSeeks++;
             position.set!.call(this, seconds);
           },
         });
@@ -435,8 +439,9 @@ for (const transcode of [false, true]) {
 
       await expect.poll(() => time(page)).toBeLessThan(6);
       await expect(notice).toBeHidden();
-      // The intro plays this time, with the button to skip it after all.
-      await expect(page.getByRole('button', { name: 'Skip Intro' })).toBeVisible();
+      // The intro plays this time, with the button to skip it after all (once a converted stream has started again
+      // there, which can take as long as its first start).
+      await expect(page.getByRole('button', { name: 'Skip Intro' })).toBeVisible({ timeout: 15_000 });
       await expect.poll(() => time(page)).toBeGreaterThan(5);
       expect(await time(page)).toBeLessThan(11);
       // Undo is one seek, Lumen's.
