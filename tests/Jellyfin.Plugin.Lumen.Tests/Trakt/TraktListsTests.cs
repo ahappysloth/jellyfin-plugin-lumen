@@ -367,9 +367,14 @@ public class TraktListsTests
 
     private static IReadOnlyList<TraktTitle> List(string first) => [new TraktTitle(first, 2026, 1, null)];
 
+    /// <summary>
+    /// Waits for background refreshes (real threads), up to 10 s of real time: 2 s wasn't always enough on a busy CI
+    /// runner. It returns as soon as the condition holds, so a passing run is no slower.
+    /// </summary>
     private static async Task WaitForAsync(Func<Task<bool>> condition)
     {
-        for (var i = 0; i < 200; i++)
+        var deadline = System.Diagnostics.Stopwatch.StartNew();
+        while (deadline.Elapsed < TimeSpan.FromSeconds(10))
         {
             if (await condition())
             {
