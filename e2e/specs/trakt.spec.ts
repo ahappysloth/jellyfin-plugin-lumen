@@ -29,7 +29,9 @@ test.describe('Top charts', () => {
     await login(page, ADMIN);
 
     // From the Top 10 row's title.
-    await page.getByRole('link', { name: 'Top 10 Movies This Week, see all in Top charts' }).click();
+    await page
+      .getByRole('heading', { name: 'Top 10 Movies This Week' })
+      .getByRole('link', { name: 'Top 10 Movies This Week, see all in Top charts' }).click();
     await expect(page).toHaveURL(/#\/home\?lumen=charts&chart=movies&period=weekly$/);
     await expect(page.getByRole('heading', { level: 1, name: 'Top charts' })).toBeVisible();
 
@@ -287,7 +289,9 @@ test.describe('TV layout', () => {
     await configureTrakt({ trakt: true, seerr: true, only: true }, [{ Type: 'Top10Movies' }]);
     await signInOnTv(page);
     // From home, the D-pad reaches the row's See all.
-    const seeAll = page.getByRole('link', { name: 'Top 10 Movies This Week, see all in Top charts' });
+    const seeAll = page
+      .getByRole('heading', { name: 'Top 10 Movies This Week' })
+      .getByRole('link', { name: 'Top 10 Movies This Week, see all in Top charts' });
     await expect(seeAll).toBeVisible();
     await page.getByRole('region', { name: 'Top 10 Movies This Week' }).getByRole('link', { name: '1, Lumen Beta' }).focus();
     await page.keyboard.press('ArrowUp');

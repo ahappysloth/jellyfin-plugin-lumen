@@ -68,7 +68,7 @@ export function HeroSettings({
             />
             <Switch
               label="Let trailers finish before the next slide"
-              hint="Off, each slide stays for its seconds and cuts its trailer short. On, a slide whose trailer is playing stays until the trailer ends."
+              hint="Off, each slide stays for its seconds and cuts its trailer short, unless the viewer is watching it: they turned its sound on, their mouse is on the banner, or on a TV they're on the banner. On, a slide whose trailer is playing always stays until the trailer ends."
               checked={config.HeroWaitForTrailer}
               onChange={(v) => update({ HeroWaitForTrailer: v })}
             />

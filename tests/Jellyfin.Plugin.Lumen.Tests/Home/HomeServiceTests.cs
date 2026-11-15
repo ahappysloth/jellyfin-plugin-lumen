@@ -3,6 +3,7 @@ using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.Lumen.Api;
 using Jellyfin.Plugin.Lumen.Configuration;
 using Jellyfin.Plugin.Lumen.Home;
+using Jellyfin.Plugin.Lumen.Requests;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Dto;
@@ -20,6 +21,7 @@ public sealed class HomeServiceTests : IDisposable
     private readonly IHeroService _hero = Substitute.For<IHeroService>();
     private readonly IWatchHistoryService _history = Substitute.For<IWatchHistoryService>();
     private readonly IBadgeService _badges = Substitute.For<IBadgeService>();
+    private readonly ICatalogLogos _logos = Substitute.For<ICatalogLogos>();
     private readonly HomeCache _cache;
     private readonly User _user = TestData.User();
     private readonly PluginConfiguration _config = new() { SchemaVersion = 1, ConfigVersion = 1 };
@@ -31,6 +33,7 @@ public sealed class HomeServiceTests : IDisposable
         _hero.GetHeroAsync(default!, default!, default).ReturnsForAnyArgs(Task.FromResult<IReadOnlyList<HeroItem>>([]));
         _history.GetAsync(default!, default, default).ReturnsForAnyArgs(Task.FromResult(WatchHistory.Empty));
         _badges.GetBadges(default!, default!).ReturnsForAnyArgs(new Dictionary<string, string>());
+        _logos.GetAsync(default!, default).ReturnsForAnyArgs(new CatalogLogoResult(new Dictionary<string, string>(), false));
     }
 
     public void Dispose() => _cache.Dispose();
@@ -102,6 +105,7 @@ public sealed class HomeServiceTests : IDisposable
             new FakeMapper(),
             _badges,
             _cache,
+            _logos,
             _time,
             NullLogger<HomeService>.Instance)
         {
@@ -321,6 +325,61 @@ public sealed class HomeServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task LandscapeCatalogRows_GetTheirTitlesLogos_PosterRowsAreNotAskedFor()
+    {
+        var trending = new CatalogItemDto("movie-1", "movie", 1, "One", null, null, null, [], null, "bd.jpg", "None", null);
+        var unknown = new CatalogItemDto("movie-2", "movie", 2, "Two", null, null, null, [], null, "bd.jpg", "None", null);
+        var top = new CatalogItemDto("movie-3", "movie", 3, "Three", null, null, null, [], "p.jpg", null, "None", null);
+        IReadOnlyList<CatalogItemDto>? asked = null;
+        _logos.GetAsync(Arg.Do<IEnumerable<CatalogItemDto>>(i => asked = i.ToList()), Arg.Any<CancellationToken>())
+            .Returns(new CatalogLogoResult(new Dictionary<string, string> { ["movie-1"] = "logo.png" }, false));
+        Add(SectionTypes.CatalogTrending);
+        Add(SectionTypes.Top10Movies);
+        var service = Create(
+            new FakeSectionProvider(SectionTypes.CatalogTrending)
+            {
+                Rows = (_, d, _) => Task.FromResult(HomeRow.Catalog(d, "Trending", [HomeRowEntry.ForCatalog(trending), HomeRowEntry.ForCatalog(unknown)])),
+            },
+            new FakeSectionProvider(SectionTypes.Top10Movies)
+            {
+                Rows = (_, d, _) => Task.FromResult(HomeRow.Catalog(d, "Top 10", [HomeRowEntry.ForCatalog(top)])),
+            });
+
+        var home = await service.GetHomeAsync(_user, CancellationToken.None);
+
+        Assert.Equal([trending, unknown], asked);
+        Assert.Equal(["logo.png", null], home.Rows[0].Entries!.Select(e => e.Catalog!.Logo));
+        Assert.Equal("One", home.Rows[0].Entries![0].Catalog!.Title);
+        Assert.Null(home.Rows[1].Entries![0].Catalog!.Logo);
+    }
+
+    [Fact]
+    public async Task LogosStillComing_DontShortenTheCache_TheNextBuildHasThem()
+    {
+        var item = new CatalogItemDto("movie-1", "movie", 1, "One", null, null, null, [], null, "bd.jpg", "None", null);
+        var calls = 0;
+        _logos.GetAsync(default!, default).ReturnsForAnyArgs(_ =>
+            new CatalogLogoResult(calls++ == 0 ? new Dictionary<string, string>() : new Dictionary<string, string> { ["movie-1"] = "logo.png" }, calls == 1));
+        Add(SectionTypes.CatalogTrending);
+        var service = Create(new FakeSectionProvider(SectionTypes.CatalogTrending)
+        {
+            Rows = (_, d, _) => Task.FromResult(HomeRow.Catalog(d, "Trending", [HomeRowEntry.ForCatalog(item)])),
+        });
+
+        var first = await service.GetHomeAsync(_user, CancellationToken.None);
+        Assert.Null(first.Rows[0].Entries![0].Catalog!.Logo);
+
+        // Not rebuilt every few seconds while lookups drain: kept as long as any home.
+        _time.Advance(HomeCache.DegradedTtl + TimeSpan.FromSeconds(1));
+        Assert.Null((await service.GetHomeAsync(_user, CancellationToken.None)).Rows[0].Entries![0].Catalog!.Logo);
+        Assert.Equal(1, calls);
+
+        _time.Advance(HomeCache.Ttl);
+        var later = await service.GetHomeAsync(_user, CancellationToken.None);
+        Assert.Equal("logo.png", later.Rows[0].Entries![0].Catalog!.Logo);
+    }
+
+    [Fact]
     public async Task CatalogRow_WithOnlyCatalogEntries_IsKept_AndEmptyCatalogRowIsOmitted()
     {
         var catalog = new CatalogItemDto("tv-1", "tv", 1, "T", null, null, null, [], null, null, "None", null);
@@ -354,7 +413,7 @@ public sealed class HomeServiceTests : IDisposable
                 return HomeRow.Single(d, "Slow", [TestData.Movie("s")]);
             },
         };
-        var service = new HomeService([provider], _store, _hero, _history, new FakeMapper(), _badges, _cache, TimeProvider.System, NullLogger<HomeService>.Instance);
+        var service = new HomeService([provider], _store, _hero, _history, new FakeMapper(), _badges, _cache, _logos, TimeProvider.System, NullLogger<HomeService>.Instance);
 
         using var leaving = new CancellationTokenSource();
         var first = service.GetHomeAsync(_user, leaving.Token);
@@ -383,7 +442,7 @@ public sealed class HomeServiceTests : IDisposable
                 return HomeRow.Single(d, "Slow", [TestData.Movie("build " + build)]);
             },
         };
-        var service = new HomeService([provider], _store, _hero, _history, new FakeMapper(), _badges, _cache, TimeProvider.System, NullLogger<HomeService>.Instance);
+        var service = new HomeService([provider], _store, _hero, _history, new FakeMapper(), _badges, _cache, _logos, TimeProvider.System, NullLogger<HomeService>.Instance);
 
         var before = service.GetHomeAsync(_user, CancellationToken.None);
         _cache.InvalidateUser(_user.Id); // e.g. marked watched while the first build runs
@@ -407,7 +466,7 @@ public sealed class HomeServiceTests : IDisposable
                 return HomeRow.Single(d, "Patient", [TestData.Movie("p")]);
             },
         };
-        var service = new HomeService([provider], _store, _hero, _history, new FakeMapper(), _badges, _cache, TimeProvider.System, NullLogger<HomeService>.Instance)
+        var service = new HomeService([provider], _store, _hero, _history, new FakeMapper(), _badges, _cache, _logos, TimeProvider.System, NullLogger<HomeService>.Instance)
         {
             Timeout = TimeSpan.FromMilliseconds(100),
         };
@@ -436,7 +495,7 @@ public sealed class HomeServiceTests : IDisposable
             },
         };
         using var slots = new SemaphoreSlim(1);
-        var service = new HomeService([provider], _store, _hero, _history, new FakeMapper(), _badges, _cache, TimeProvider.System, NullLogger<HomeService>.Instance)
+        var service = new HomeService([provider], _store, _hero, _history, new FakeMapper(), _badges, _cache, _logos, TimeProvider.System, NullLogger<HomeService>.Instance)
         {
             Timeout = TimeSpan.FromMilliseconds(200),
             WorkSlots = slots,
@@ -463,7 +522,7 @@ public sealed class HomeServiceTests : IDisposable
     private HomeService Create(params IHomeSectionProvider[] providers) => Create(new FakeMapper(), providers);
 
     private HomeService Create(FakeMapper mapper, params IHomeSectionProvider[] providers) =>
-        new(providers, _store, _hero, _history, mapper, _badges, _cache, _time, NullLogger<HomeService>.Instance);
+        new(providers, _store, _hero, _history, mapper, _badges, _cache, _logos, _time, NullLogger<HomeService>.Instance);
 
     private SectionDefinition Add(string type, bool enabled = true)
     {

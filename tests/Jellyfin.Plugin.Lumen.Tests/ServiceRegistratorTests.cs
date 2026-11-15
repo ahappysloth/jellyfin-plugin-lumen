@@ -36,6 +36,7 @@ public class ServiceRegistratorTests
         services.AddSingleton(Substitute.For<MediaBrowser.Controller.Devices.IDeviceManager>());
         services.AddSingleton(Substitute.For<MediaBrowser.Controller.Configuration.IServerConfigurationManager>());
         services.AddSingleton(Substitute.For<MediaBrowser.Common.Plugins.IPluginManager>());
+        services.AddSingleton(Substitute.For<MediaBrowser.Controller.Providers.IProviderManager>());
         services.AddSingleton(Substitute.For<IServerApplicationHost>());
         services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
 

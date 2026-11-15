@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.Lumen.Api;
 using Jellyfin.Plugin.Lumen.Configuration;
+using Jellyfin.Plugin.Lumen.Requests;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Model.Dto;
 using Microsoft.Extensions.Logging;
@@ -42,6 +43,19 @@ public sealed class HomeService : IHomeService
 {
     public static readonly TimeSpan ProviderTimeout = TimeSpan.FromSeconds(3);
 
+    /// <summary>
+    /// The rows whose catalog titles show as landscape cards, and so get title logos over their art: Seerr's catalog rows
+    /// and My Requests. (Top 10's and Trakt's are posters, which carry their titles.)
+    /// </summary>
+    public static readonly IReadOnlySet<string> LogoRows = new HashSet<string>(StringComparer.Ordinal)
+    {
+        SectionTypes.CatalogTrending,
+        SectionTypes.CatalogPopularMovies,
+        SectionTypes.CatalogPopularShows,
+        SectionTypes.CatalogUpcoming,
+        SectionTypes.MyRequests,
+    };
+
     /// <summary>Enough for a few home loads at once (a load runs one piece per section, plus hero and badges).</summary>
     public static readonly int MaxConcurrentWork = Math.Max(32, Environment.ProcessorCount * 4);
 
@@ -52,6 +66,7 @@ public sealed class HomeService : IHomeService
     private readonly IHomeDtoMapper _mapper;
     private readonly IBadgeService _badges;
     private readonly HomeCache _cache;
+    private readonly ICatalogLogos _logos;
     private readonly TimeProvider _time;
     private readonly ILogger<HomeService> _logger;
     private readonly ConcurrentDictionary<(Guid UserId, int ConfigVersion, HomeCache.CacheStamp Stamp), Lazy<Task<HomeResponseDto>>> _building = new();
@@ -64,6 +79,7 @@ public sealed class HomeService : IHomeService
         IHomeDtoMapper mapper,
         IBadgeService badges,
         HomeCache cache,
+        ICatalogLogos logos,
         TimeProvider time,
         ILogger<HomeService> logger)
     {
@@ -74,6 +90,7 @@ public sealed class HomeService : IHomeService
         _mapper = mapper;
         _badges = badges;
         _cache = cache;
+        _logos = logos;
         _time = time;
         _logger = logger;
     }
@@ -130,7 +147,19 @@ public sealed class HomeService : IHomeService
         var hero = await heroTask;
 
         var rows = sections.SelectMany(r => r).Where(r => r.HasContent).ToList();
-        var rowDtos = rows.Select(r => new HomeRowDto(r.Id, r.Type, r.Title, MapRow(r, user)) { Entries = MapEntries(r, user), Source = r.Source }).ToList();
+
+        // The landscape catalog rows' logos, all at once. Those still being looked up are left out (the cards show their
+        // titles as text) and carry on in the background: a home built after they're back has them.
+        var logos = await RunGuardedAsync(
+            "logos",
+            ct => _logos.GetAsync(rows.Where(r => LogoRows.Contains(r.Type)).SelectMany(r => r.Entries ?? []).Select(e => e.Catalog).OfType<CatalogItemDto>(), ct),
+            new CatalogLogoResult(new Dictionary<string, string>(), false),
+            Timeout,
+            build,
+            cancellationToken);
+        var rowDtos = rows
+            .Select(r => new HomeRowDto(r.Id, r.Type, r.Title, MapRow(r, user)) { Entries = MapEntries(r, user, LogoRows.Contains(r.Type) ? logos.Logos : null), Source = r.Source })
+            .ToList();
         var heroDtos = hero.Select(h => new HeroItemDto(_mapper.MapHero(h.Item, user), h.TrailerItemId, h.TrailerYouTubeId, h.TrailerImdbUrl, h.TrailerImdbUrlHd)).ToList();
 
         // Genre tiles are not titles, so they never get a badge.
@@ -160,8 +189,11 @@ public sealed class HomeService : IHomeService
         return cards;
     }
 
-    /// <summary>A catalog row's entries in order, their library items mapped in one batch; null for other rows.</summary>
-    private List<HomeRowEntryDto>? MapEntries(HomeRow row, User user)
+    /// <summary>
+    /// A catalog row's entries in order, their library items mapped in one batch, its catalog titles with their
+    /// <paramref name="logos"/>; null for other rows.
+    /// </summary>
+    private List<HomeRowEntryDto>? MapEntries(HomeRow row, User user, IReadOnlyDictionary<string, string>? logos)
     {
         if (row.Entries is null)
         {
@@ -183,7 +215,8 @@ public sealed class HomeService : IHomeService
             }
             else if (entry.Catalog is not null)
             {
-                entries.Add(new HomeRowEntryDto(null, entry.Catalog));
+                var logo = logos?.GetValueOrDefault(entry.Catalog.Key);
+                entries.Add(new HomeRowEntryDto(null, logo is null ? entry.Catalog : entry.Catalog with { Logo = logo }));
             }
         }
 

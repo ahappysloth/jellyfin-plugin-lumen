@@ -87,7 +87,9 @@ test.describe('Top charts, My requests and Lumen’s settings', () => {
     await configureTrakt({ trakt: true, seerr: false }, [{ Type: 'Top10Movies' }]);
     await login(page, ADMIN);
     // The row's title is a link to its chart, named "…, see all in Top charts".
-    const seeAll = page.getByRole('link', { name: 'Top 10 Movies This Week, see all in Top charts' });
+    const seeAll = page
+      .getByRole('heading', { name: 'Top 10 Movies This Week' })
+      .getByRole('link', { name: 'Top 10 Movies This Week, see all in Top charts' });
     await expect(seeAll).toBeVisible();
     await expectNoViolations(page, 'a Top 10 row’s title', [], '.lmn-row__title');
 

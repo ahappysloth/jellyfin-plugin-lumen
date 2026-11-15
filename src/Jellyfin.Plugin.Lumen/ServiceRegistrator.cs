@@ -68,6 +68,8 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ISeerrUserMap, SeerrUserMap>();
         serviceCollection.AddSingleton<ITmdbImageCache, TmdbImageCache>();
         serviceCollection.AddSingleton<CatalogMapper>();
+        serviceCollection.AddSingleton<ICatalogLogoSource, TmdbLogoSource>();
+        serviceCollection.AddSingleton<ICatalogLogos, CatalogLogos>();
         serviceCollection.AddSingleton<CatalogRowAccess>();
         serviceCollection.AddSingleton<IReadyAnnouncements, ReadyAnnouncements>();
         serviceCollection.AddSingleton<IEveryonesRequests, EveryonesRequests>();

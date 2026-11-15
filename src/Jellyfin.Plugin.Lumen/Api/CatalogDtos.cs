@@ -17,7 +17,14 @@ public record CatalogItemDto(
     string? Poster,
     string? Backdrop,
     string State,
-    string? JellyfinItemId);
+    string? JellyfinItemId)
+{
+    /// <summary>
+    /// Gets the title's logo, a TMDB file name like <see cref="Poster"/>: set only in the home screen's landscape catalog
+    /// rows, over the art (<see cref="Requests.CatalogLogos"/>). Without one the card shows the title as text instead.
+    /// </summary>
+    public string? Logo { get; init; }
+}
 
 /// <summary>Response of GET /Lumen/Requests/Title/{mediaType}/{tmdbId}: the item plus details for the title page.</summary>
 public sealed record CatalogTitleDto : CatalogItemDto

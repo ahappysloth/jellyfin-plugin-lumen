@@ -182,5 +182,17 @@ describe('LazyTrailer', () => {
     expect(typeof (await loadTrailer()).YouTubePreview).toBe('function');
     expect(typeof (await loadTrailer()).OnlineTrailerPreview).toBe('function');
     expect(typeof (await loadTrailer()).TrailerControls).toBe('function');
+    expect(typeof (await loadTrailer()).MuteButton).toBe('function');
+  });
+
+  it("renders the banner's Mute button only once the trailer's code is in", async () => {
+    const { LazyMuteButton, loadTrailer: load } = await freshModule();
+    const { container, rerender } = render(<LazyMuteButton muted onChange={vi.fn()} />);
+    expect(container.innerHTML).toBe('');
+
+    await load();
+    rerender(<LazyMuteButton muted onChange={vi.fn()} />);
+    expect(container.querySelector('button')).toHaveAccessibleName('Unmute trailer');
+    cleanup();
   });
 });

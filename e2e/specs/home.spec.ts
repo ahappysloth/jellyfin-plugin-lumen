@@ -67,6 +67,117 @@ test('every card on home is a link named by its visible title, not an aria-label
   }
 });
 
+test("Next Up shows the show's own art, with the episode in its caption", async ({ page }) => {
+  const { admin } = loadState();
+  const episodes = await api<{ Items: { Id: string; SeriesId: string; IndexNumber: number; ParentIndexNumber: number }[] }>('/Items', {
+    token: admin.token,
+    query: { userId: admin.userId, IncludeItemTypes: 'Episode', Recursive: 'true' },
+  });
+  const first = episodes.Items.find((e) => e.ParentIndexNumber === 1 && e.IndexNumber === 1)!;
+  await api(`/UserPlayedItems/${first.Id}`, { method: 'POST', token: admin.token, query: { userId: admin.userId } });
+  try {
+    await login(page, ADMIN);
+
+    const card = page.getByRole('region', { name: 'Next Up' }).locator('a.lmn-card').first();
+    await expect(card.locator('.lmn-card__meta')).toHaveText(/^S1:E2 · /);
+    // The show's backdrop with its logo over it, not the next episode's still.
+    const series = first.SeriesId.replace(/-/g, '');
+    await expect(card.locator('.lmn-card__art > img').first()).toHaveAttribute('src', new RegExp(`/Items/${series}/Images/(Thumb|Backdrop)`));
+    await expect(card.locator('img.lmn-card__logo')).toHaveAttribute('src', new RegExp(`/Items/${series}/Images/Logo`));
+  } finally {
+    await api(`/UserPlayedItems/${first.Id}`, { method: 'DELETE', token: admin.token, query: { userId: admin.userId } });
+  }
+});
+
+test.describe("the hero's trailer, held while the viewer watches", () => {
+  test.beforeEach(async ({ page }) => {
+    // A 3 s interval, previews from the start, and no waiting for trailers but the viewer's: the fixtures' trailers run
+    // 8 s, well past the interval.
+    await page.route(/\/Lumen\/ClientConfig/, async (route) => {
+      const response = await route.fetch();
+      await route.fulfill({
+        response,
+        json: { ...(await response.json()), HeroIntervalSeconds: 3, TrailerDelaySeconds: 0, HeroWaitForTrailer: false },
+      });
+    });
+  });
+  const title = (page: Page) =>
+    page.locator('#lmn-root .lmn-hero__slide.is-current h2').evaluate((h) => h.textContent || h.querySelector('img')?.alt);
+  /** Moves the mouse off the hero (which reaches the top of the page, under the nav), to the rows below it. */
+  const awayFromHero = async (page: Page) => {
+    const hero = (await page.locator('#lmn-root .lmn-hero').boundingBox())!;
+    const height = page.viewportSize()!.height;
+    await page.mouse.move(hero.x + 4, Math.min(hero.y + hero.height + 8, height - 2));
+  };
+  /** Waits for a slide whose trailer is showing (not every title has one), and says which. */
+  const trailerShowing = async (page: Page) => {
+    await expect(page.locator('#lmn-root .lmn-hero__slide.is-current video.is-shown')).toBeVisible({ timeout: 30_000 });
+    return title(page);
+  };
+
+  test('Unmute, left of Pause, plays it with sound and keeps its slide up; Mute lets the slideshow go on', async ({ page }) => {
+    await login(page, ADMIN);
+    await awayFromHero(page); // a mouse over the hero would hold it too
+    const showing = await trailerShowing(page);
+    const controls = page.locator('#lmn-root .lmn-hero__controls > *');
+    await expect(controls).toHaveCount(3);
+    expect(await controls.evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))).toEqual([
+      'Featured titles',
+      'Unmute trailer',
+      'Pause slideshow',
+    ]);
+
+    await page.getByRole('button', { name: 'Unmute trailer' }).click();
+    await awayFromHero(page);
+    const video = page.locator('#lmn-root .lmn-hero__slide.is-current video');
+    expect(await video.evaluate((v: HTMLVideoElement) => v.muted)).toBe(false);
+    await expect(page.getByRole('button', { name: 'Mute trailer' })).toBeVisible();
+    // Past the 3 s interval: still this title, the bar following its trailer.
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 10_000 }).toBeGreaterThan(4);
+    expect(await title(page)).toBe(showing);
+    await expect(page.locator('#lmn-root .lmn-hero__fill')).toHaveClass(/\bis-trailer\b/);
+
+    await page.getByRole('button', { name: 'Mute trailer' }).click();
+    await awayFromHero(page);
+    await expect.poll(() => title(page), { timeout: 5_000 }).not.toBe(showing);
+  });
+
+  test('a mouse over the hero keeps the slide up for its trailer, and moves on as it leaves', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'a mouse: the phone has none');
+    await login(page, ADMIN);
+    const box = (await page.locator('#lmn-root .lmn-hero').boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 3);
+    const showing = await trailerShowing(page);
+    await page.mouse.move(box.x + box.width / 2 + 10, box.y + box.height / 3);
+    await expect.poll(() => page.locator('#lmn-root .lmn-hero__slide.is-current video').evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 10_000 }).toBeGreaterThan(4);
+    expect(await title(page)).toBe(showing);
+
+    await awayFromHero(page);
+    await expect.poll(() => title(page), { timeout: 5_000 }).not.toBe(showing);
+  });
+
+  test('TV layout: focus on the hero keeps the slide up for its trailer; Mute comes after Pause', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.addInitScript(() => localStorage.setItem('layout', 'tv'));
+    await login(page, ADMIN);
+    await expect(page.locator('html')).toHaveClass(/\blayout-tv\b/);
+    // Play has the autofocus: that's the remote on the hero.
+    await expect(page.locator('#lmn-root .lmn-hero__slide.is-current .lmn-button--primary')).toBeFocused();
+    const showing = await trailerShowing(page);
+    expect(await page.locator('#lmn-root .lmn-hero__controls > *').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))).toEqual([
+      'Pause slideshow',
+      'Unmute trailer',
+      'Featured titles',
+    ]);
+    await expect.poll(() => page.locator('#lmn-root .lmn-hero__slide.is-current video').evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 10_000 }).toBeGreaterThan(4);
+    expect(await title(page)).toBe(showing);
+
+    // Down to the rows: the slideshow goes on.
+    await page.keyboard.press('ArrowDown');
+    await expect.poll(() => title(page), { timeout: 5_000 }).not.toBe(showing);
+  });
+});
+
 test.describe('hero pager', () => {
   /** How far the current bar's fill has grown, 0 to 1 (its scaleX). */
   const fillScale = (page: Page) =>

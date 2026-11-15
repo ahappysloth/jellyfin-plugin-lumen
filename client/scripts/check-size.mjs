@@ -106,10 +106,11 @@ const title = gz(`dist/${titleChunk}`) + gz('dist/lumen-requests.css');
 console.log(
   `lumen catalog title + my requests styles: ${kb(title)} gzipped (budget ${TITLE_BUDGET / 1024} KB)`,
 );
-// Loads on the profile page or a stock settings page (views/profile/lazyProfile.tsx).
+// Loads on the profile page or a stock settings page (views/profile/lazyProfile.tsx). With its stylesheet since 0.6.5,
+// when it moved out of lumen.css (about 0.9 KB) to make room at startup for the home screen's polish: still in budget.
 const PROFILE_BUDGET = 5 * 1024;
-const profile = gz(`dist/${profileChunk}`);
-console.log(`lumen profile: ${kb(profile)} gzipped (budget ${PROFILE_BUDGET / 1024} KB)`);
+const profile = gz(`dist/${profileChunk}`) + gz('dist/lumen-profile.css');
+console.log(`lumen profile + styles: ${kb(profile)} gzipped (budget ${PROFILE_BUDGET / 1024} KB)`);
 // Loads as a details page shows, or a card's "More actions…" is picked (views/itemMenu/lazyItemMenu.ts). 5 KB since its
 // own strings and icons moved here out of the core (views/itemMenu/itemMenuStrings.ts, itemMenuIcons.ts).
 const ITEM_MENU_BUDGET = 5 * 1024;

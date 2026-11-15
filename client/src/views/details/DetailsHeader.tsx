@@ -116,6 +116,8 @@ export function DetailsHeader(props: Props) {
           delaySeconds={DETAILS_TRAILER_DELAY_SECONDS}
           client={client}
           muted={trailer.muted}
+          // Sound refused (it needs a tap there): it plays on muted, and the Mute button says so.
+          onSilenced={() => trailer.setMuted(true)}
           paused={trailer.paused}
           class="lmn-details__trailer"
           onPlayingChange={trailer.setPlaying}

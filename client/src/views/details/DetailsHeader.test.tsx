@@ -11,8 +11,12 @@ interface MockProps {
   paused?: boolean;
   muted?: boolean;
   onPlayingChange?: (on: boolean) => void;
+  onSilenced?: () => void;
 }
+/** The latest local trailer's props: a test plays the browser refusing its sound. */
+let local: MockProps | null = null;
 const LocalMock = (props: MockProps) => {
+  local = props;
   useEffect(() => props.onPlayingChange?.(true), []);
   return (
     <div
@@ -145,6 +149,18 @@ describe('DetailsHeader', () => {
     expect(trailer).toHaveAttribute('data-paused', 'true');
     fireEvent.click(screen.getByRole('button', { name: 'Unmute trailer' }));
     expect(trailer).toHaveAttribute('data-muted', 'false');
+  });
+
+  it('says Unmute again when the browser would only play the trailer without sound', async () => {
+    renderHeader({ trailerId: 't1', config: { ...testConfig, TrailerPreview: true } });
+    const trailer = await screen.findByTestId('trailer');
+    fireEvent.click(await screen.findByRole('button', { name: 'Unmute trailer' }));
+    expect(trailer).toHaveAttribute('data-muted', 'false');
+
+    act(() => local!.onSilenced!());
+
+    expect(trailer).toHaveAttribute('data-muted', 'true');
+    expect(screen.getByRole('button', { name: 'Unmute trailer' })).toBeInTheDocument();
   });
 
   it('prefers the local trailer to one online, which it never asks for', async () => {

@@ -153,7 +153,8 @@ export function ApprovePage({ ctx }: { ctx: ViewContext }) {
     <div ref={root} class="lmn-browse lmn-qc-approve">
       <h1 class="lmn-browse__title">{strings.settings.quickConnect[0]}</h1>
       <div class="lmn-qc-approve__account">
-        <span class="lmn-profile__avatar" aria-hidden="true">
+        {/* The account menu's avatar (startup styles), in the profile page's look (quickconnect.css). */}
+        <span class="lmn-account__avatar lmn-profile__avatar" aria-hidden="true">
           {avatar ? <img src={avatar} alt="" /> : initials(target.Name)}
         </span>
         <p>

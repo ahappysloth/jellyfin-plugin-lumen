@@ -25,6 +25,9 @@ export function loadTrailer(): Promise<TrailerModule> {
   return loading;
 }
 
+/** The trailer's code if it's in, else null: for what only ever runs once a trailer is under way (Hero's fill). */
+export const trailerModule = (): TrailerModule | null => loaded;
+
 type LocalProps = ComponentProps<TrailerModule['TrailerPreview']>;
 
 /**
@@ -98,6 +101,14 @@ export function useTrailerControls(): TrailerControlState {
   const [paused, setPaused] = useState(false);
   const [playing, setPlaying] = useState(false);
   return { muted, paused, playing, setMuted, setPaused, setPlaying };
+}
+
+/**
+ * The home banner's Mute button (TrailerControls.tsx), beside its Pause while the trailer shows: by then the trailer's
+ * code is in, so the button and its names cost the startup file nothing.
+ */
+export function LazyMuteButton(props: { muted: boolean; onChange: (muted: boolean) => void }) {
+  return loaded ? <loaded.MuteButton {...props} /> : null;
 }
 
 /**

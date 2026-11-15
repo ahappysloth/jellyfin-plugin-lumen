@@ -4,8 +4,9 @@ import { useEffect, useRef } from 'preact/hooks';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient } from '../../../test/fakeClient';
 import type { ClientConfig, HeroItem } from '../../api/types';
-import { Hero } from './Hero';
+import { Hero, resetHeroSound } from './Hero';
 import type { TrailerPreview } from './TrailerPreview';
+import * as heroFill from './heroFill';
 
 // The trailer itself is TrailerPreview's business (TrailerPreview.test): here it is a stand-in whose callbacks the tests
 // call as a playing video would. Like TrailerPreview, it says it isn't playing as it mounts.
@@ -14,6 +15,7 @@ let trailer: TrailerProps | null = null;
 let owner: object | null = null;
 let mounts = 0;
 vi.mock('./lazyTrailer', () => ({
+  trailerModule: () => heroFill,
   LazyTrailer: (props: TrailerProps) => {
     const me = useRef({}).current;
     trailer = props;
@@ -25,8 +27,22 @@ vi.mock('./lazyTrailer', () => ({
         if (owner === me) trailer = null; // not a later one's (an earlier test's can clean up late)
       };
     }, []);
-    return <div class="lmn-hero__trailer" data-paused={String(!!props.paused)} />;
+    return (
+      <div
+        class="lmn-hero__trailer"
+        data-paused={String(!!props.paused)}
+        data-muted={String(props.muted !== false)}
+      />
+    );
   },
+  LazyMuteButton: ({ muted, onChange }: { muted: boolean; onChange: (muted: boolean) => void }) => (
+    <button
+      type="button"
+      class="lmn-icon-button"
+      aria-label={muted ? 'Unmute trailer' : 'Mute trailer'}
+      onClick={() => onChange(!muted)}
+    />
+  ),
 }));
 
 const config: ClientConfig = {
@@ -119,10 +135,15 @@ describe('Hero: letting trailers finish (HeroWaitForTrailer)', () => {
   });
 
   it('off: the slide moves on at its interval and cuts the trailer short', () => {
-    renderHero({ HeroWaitForTrailer: false });
-    expect(trailer!.onProgress).toBeUndefined();
+    const { container } = renderHero({ HeroWaitForTrailer: false });
+    advance(4000);
+    const v = video();
+    start(v);
+    play(v, 3);
+    // The fill is the pager's own animation, not drawn after the trailer.
+    expect(fill(container)).not.toHaveClass('is-trailer');
 
-    advance(8000 + SLIDE);
+    advance(1000 + SLIDE);
     expect(showing('Beta')).toBeInTheDocument();
   });
 
@@ -409,5 +430,338 @@ describe('Hero: letting trailers finish (HeroWaitForTrailer)', () => {
     expect(fill(container)).not.toHaveClass('is-trailer');
     advance(8000 + SLIDE); // its trailer hasn't got going this time: nothing to wait for
     expect(showing('Beta')).toBeInTheDocument();
+  });
+});
+
+describe('Hero: holding the slide while the viewer watches its trailer', () => {
+  const three: HeroItem[] = [
+    items[0]!,
+    { Item: { Id: 'c', Name: 'Gamma', Type: 'Movie', BackdropImageTags: ['b'] }, TrailerItemId: 't2' },
+    items[1]!,
+  ];
+  const renderWatching = (list = items) =>
+    render(
+      <Hero
+        items={list}
+        client={createFakeClient()}
+        config={{ ...config, HeroWaitForTrailer: false }}
+        onPlay={vi.fn()}
+        onInfo={vi.fn()}
+      />,
+    );
+  const hero = () => screen.getByRole('region', { name: 'Featured' });
+  const unmute = () => fireEvent.click(screen.getByRole('button', { name: 'Unmute trailer' }));
+  const mute = () => fireEvent.click(screen.getByRole('button', { name: 'Mute trailer' }));
+  const controls = (container: Element) =>
+    [...container.querySelector('.lmn-hero__controls')!.children].map(
+      (el) => el.getAttribute('aria-label') ?? el.getAttribute('role'),
+    );
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    trailer = null;
+    resetHeroSound();
+  });
+  afterEach(() => {
+    cleanup();
+    document.documentElement.classList.remove('layout-tv');
+    vi.restoreAllMocks();
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    resetHeroSound();
+  });
+
+  describe('the Mute button', () => {
+    it('shows only while the trailer does, left of Pause (which stays put), and turns its sound on and off', () => {
+      const { container } = renderWatching();
+      expect(screen.queryByRole('button', { name: 'Unmute trailer' })).toBeNull();
+      advance(4000);
+      start(video());
+
+      expect(controls(container)).toEqual(['Featured titles', 'Unmute trailer', 'Pause slideshow']);
+      expect(trailer!.muted).toBe(true);
+      unmute();
+      expect(trailer!.muted).toBe(false);
+      mute();
+      expect(trailer!.muted).toBe(true);
+
+      act(() => trailer!.onPlayingChange!(false));
+      expect(screen.queryByRole('button', { name: /mute trailer/i })).toBeNull();
+    });
+
+    it('comes right after Pause on a TV, before the pager', () => {
+      document.documentElement.classList.add('layout-tv');
+      const { container } = renderWatching();
+      advance(4000);
+      start(video());
+
+      expect(controls(container)).toEqual(['Pause slideshow', 'Unmute trailer', 'Featured titles']);
+    });
+
+    it('says the trailer is muted again when the browser would only play it without sound', () => {
+      renderWatching();
+      advance(4000);
+      start(video());
+      unmute();
+
+      act(() => trailer!.onSilenced!());
+
+      expect(trailer!.muted).toBe(true);
+      expect(screen.getByRole('button', { name: 'Unmute trailer' })).toBeInTheDocument();
+    });
+  });
+
+  describe('sound on', () => {
+    it('holds the slide to the end of its trailer, the fill following it, then moves on a beat later', () => {
+      const { container } = renderWatching();
+      advance(4000);
+      const v = video();
+      start(v);
+      unmute();
+      play(v, 10);
+
+      expect(showing('Alpha')).toBeInTheDocument();
+      expect(fill(container)).toHaveClass('is-trailer');
+      // From half full (the clock's 4 s of 8) when the viewer started watching, on with the trailer's 10 s of 99.5.
+      expect(scale(container)).toBeCloseTo(0.5 + 0.5 * (10 / 99.5), 2);
+      play(v, 30);
+      expect(showing('Alpha')).toBeInTheDocument();
+
+      end();
+      advance(1400);
+      expect(showing('Alpha')).toBeInTheDocument();
+      advance(100 + SLIDE);
+      expect(showing('Beta')).toBeInTheDocument();
+    });
+
+    it('stays on for the next slide, whose trailer holds it too', () => {
+      renderWatching(three);
+      advance(4000);
+      start(video());
+      unmute();
+      end(); // sooner than the interval: the slide still gets all of it
+      advance(4000 + SLIDE);
+      expect(showing('Gamma')).toBeInTheDocument();
+      expect(trailer!.muted).toBe(false);
+
+      advance(4000);
+      const v = video();
+      start(v);
+      play(v, 30);
+      expect(showing('Gamma')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Mute trailer' })).toBeInTheDocument();
+    });
+
+    it('muted again past the interval, the slide moves on a beat later', () => {
+      const { container } = renderWatching();
+      advance(4000);
+      const v = video();
+      start(v);
+      unmute();
+      play(v, 10);
+      const before = scale(container);
+
+      mute();
+      advance(1400);
+      expect(showing('Alpha')).toBeInTheDocument();
+      // The fill eases from where it was to full over the beat.
+      expect(scale(container)).toBeGreaterThan(before);
+      advance(100 + SLIDE);
+      expect(showing('Beta')).toBeInTheDocument();
+    });
+
+    it('muted again within the interval, the slide keeps to it', () => {
+      renderWatching();
+      advance(4000);
+      const v = video();
+      start(v);
+      unmute();
+      play(v, 2);
+
+      mute();
+      advance(1900);
+      expect(showing('Alpha')).toBeInTheDocument();
+      advance(100 + SLIDE);
+      expect(showing('Beta')).toBeInTheDocument();
+    });
+
+    it('turned on again before the slide moves on, holds it again', () => {
+      renderWatching();
+      advance(4000);
+      const v = video();
+      start(v);
+      unmute();
+      play(v, 10);
+      mute();
+      advance(500);
+
+      unmute();
+      play(v, 20);
+      expect(showing('Alpha')).toBeInTheDocument();
+    });
+  });
+
+  describe('Pause', () => {
+    it('stops a trailer the viewer is watching where it is, and the slide with it', () => {
+      renderWatching();
+      advance(4000);
+      const v = video();
+      start(v);
+      unmute();
+      play(v, 2);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Pause slideshow' }));
+      expect(trailer!.paused).toBe(true);
+      advance(30_000);
+      expect(showing('Alpha')).toBeInTheDocument();
+      expect(trailer).not.toBeNull();
+    });
+
+    it("takes off a trailer that's only under the mouse (whoever clicks Pause is over the hero)", () => {
+      renderWatching();
+      advance(4000);
+      start(video());
+      fireEvent.click(screen.getByRole('button', { name: 'Pause slideshow' }));
+      advance(16);
+      expect(trailer).toBeNull();
+    });
+  });
+
+  it('gives up a watched trailer that stalls, and moves on a beat later', () => {
+    renderWatching();
+    advance(4000);
+    const v = video();
+    start(v);
+    unmute();
+    play(v, 2);
+
+    advance(11_000); // no progress: a stall
+    advance(1500 + SLIDE);
+    expect(showing('Beta')).toBeInTheDocument();
+  });
+
+  it('holds again when watched again before the slide moves on, the fill following the trailer as before', () => {
+    const { container } = renderWatching();
+    advance(4000);
+    const v = video();
+    start(v);
+    unmute();
+    play(v, 10);
+    const following = scale(container);
+    mute();
+    advance(1000); // the fill eases towards full meanwhile
+    expect(scale(container)).toBeGreaterThan(following);
+
+    unmute();
+    play(v, 1);
+    expect(scale(container)).toBeCloseTo(0.5 + 0.5 * (11 / 99.5), 2);
+    play(v, 30);
+    expect(showing('Alpha')).toBeInTheDocument();
+  });
+
+  describe('a mouse over the hero', () => {
+    const over = (pointerType = 'mouse') =>
+      fireEvent.pointerMove(hero(), { pointerId: 9, pointerType, clientX: 300, clientY: 100 });
+
+    it('holds the trailer to its end, and the slide moves on a beat after it ends', () => {
+      const { container } = renderWatching();
+      over();
+      advance(4000);
+      const v = video();
+      start(v);
+      play(v, 30);
+      expect(showing('Alpha')).toBeInTheDocument();
+      expect(fill(container)).toHaveClass('is-trailer');
+
+      end();
+      advance(1500 + SLIDE);
+      expect(showing('Beta')).toBeInTheDocument();
+    });
+
+    it('lets go as it leaves: past the interval, the slide moves on a beat later', () => {
+      renderWatching();
+      advance(4000);
+      const v = video();
+      start(v);
+      over();
+      play(v, 10);
+      expect(showing('Alpha')).toBeInTheDocument();
+
+      fireEvent.pointerLeave(hero(), { pointerId: 9, pointerType: 'mouse' });
+      advance(1400);
+      expect(showing('Alpha')).toBeInTheDocument();
+      advance(100 + SLIDE);
+      expect(showing('Beta')).toBeInTheDocument();
+    });
+
+    it('does nothing for a touch, and nothing on a TV', () => {
+      renderWatching();
+      over('touch');
+      advance(4000);
+      start(video());
+      advance(4000 + SLIDE);
+      expect(showing('Beta')).toBeInTheDocument();
+      cleanup();
+
+      document.documentElement.classList.add('layout-tv');
+      renderWatching();
+      over();
+      advance(4000);
+      start(video());
+      advance(4000 + SLIDE);
+      expect(showing('Beta')).toBeInTheDocument();
+    });
+  });
+
+  describe('a TV remote on the hero', () => {
+    const play_ = () =>
+      screen.getAllByRole('button', { name: 'Play' }).find((b) => !b.hasAttribute('disabled'))!;
+
+    it("holds the trailer while focus is in the hero (Play's autofocus included), and lets go as it leaves", () => {
+      document.documentElement.classList.add('layout-tv');
+      renderWatching();
+      act(() => play_().focus());
+      advance(4000);
+      const v = video();
+      start(v);
+      play(v, 20);
+      expect(showing('Alpha')).toBeInTheDocument();
+
+      const rows = document.body.appendChild(document.createElement('button'));
+      act(() => rows.focus());
+      advance(1500 + SLIDE);
+      expect(showing('Beta')).toBeInTheDocument();
+      rows.remove();
+    });
+
+    it('after the trailer ends, moves on a beat later, focus following to the next slide', () => {
+      document.documentElement.classList.add('layout-tv');
+      renderWatching(three);
+      act(() => play_().focus());
+      advance(4000);
+      const v = video();
+      start(v);
+      play(v, 20);
+      end();
+      advance(1500 + SLIDE);
+
+      expect(showing('Gamma')).toBeInTheDocument();
+      expect(document.activeElement).toBe(play_());
+      // Still on the hero: the next trailer holds its slide too.
+      advance(4000);
+      const next = video();
+      start(next);
+      play(next, 20);
+      expect(showing('Gamma')).toBeInTheDocument();
+    });
+
+    it('is the TV only: a keyboard focus on a desktop leaves the slideshow as it was', () => {
+      renderWatching();
+      act(() => play_().focus());
+      advance(4000);
+      start(video());
+      advance(4000 + SLIDE);
+      expect(showing('Beta')).toBeInTheDocument();
+    });
   });
 });

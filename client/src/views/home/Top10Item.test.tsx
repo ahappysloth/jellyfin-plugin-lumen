@@ -158,7 +158,10 @@ describe('Trakt rows', () => {
   it('links a row’s title to Top charts when asked, with See all', () => {
     render(<Row row={top10} client={createFakeClient()} onSelect={vi.fn()} seeAll="#/home?lumen=charts" />);
 
-    const link = screen.getByRole('link', { name: 'Top 10 Movies This Week, see all in Top charts' });
+    // The title's link (the row's last tile is another, to the same place: Row.test).
+    const link = within(screen.getByRole('heading', { level: 2 })).getByRole('link', {
+      name: 'Top 10 Movies This Week, see all in Top charts',
+    });
     expect(link).toHaveAttribute('href', '#/home?lumen=charts');
     // A space between the two: run together, the link's text ("…This WeekSee all") isn't part of its name ("…This
     // Week, see all in Top charts"), which speech input goes by (axe's label-content-name-mismatch).
@@ -204,14 +207,17 @@ describe('Top 10 on the home screen', () => {
       <HomeView ctx={makeContext(client, { config: { ...makeContext(client).config, Charts: true } })} />,
     );
 
-    expect(await screen.findByRole('link', { name: /^Top 10 Movies This Week, see all/ })).toHaveAttribute(
-      'href',
+    // The title and the row's last tile.
+    const movieLinks = await screen.findAllByRole('link', { name: /^Top 10 Movies This Week, see all/ });
+    expect(movieLinks.map((a) => a.getAttribute('href'))).toEqual([
       '#/home?lumen=charts&chart=movies&period=weekly',
-    );
-    expect(screen.getByRole('link', { name: /^Top 10 Shows This Week, see all/ })).toHaveAttribute(
-      'href',
+      '#/home?lumen=charts&chart=movies&period=weekly',
+    ]);
+    const showLinks = screen.getAllByRole('link', { name: /^Top 10 Shows This Week, see all/ });
+    expect(showLinks.map((a) => a.getAttribute('href'))).toEqual([
       '#/home?lumen=charts&chart=shows&period=weekly',
-    );
+      '#/home?lumen=charts&chart=shows&period=weekly',
+    ]);
     // Trakt's other rows have no chart of their own.
     expect(screen.queryByRole('link', { name: /^Trending Shows/ })).toBeNull();
     unmount();

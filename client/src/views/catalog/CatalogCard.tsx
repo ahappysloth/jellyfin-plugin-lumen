@@ -63,12 +63,32 @@ export function CatalogCard({ item, client, imageToken, variant, onSelect, rank,
     >
       <span class="lmn-card__art">
         {file && imageToken ? (
-          <img
-            src={catalogImageUrl(client, file, variant === 'poster' ? 'w300' : 'w780', imageToken)}
-            alt=""
-            loading="lazy"
-            decoding="async"
-          />
+          <>
+            <img
+              src={catalogImageUrl(client, file, variant === 'poster' ? 'w300' : 'w780', imageToken)}
+              alt=""
+              loading="lazy"
+              decoding="async"
+            />
+            {/* A landscape card's backdrop carries no title, so it gets one as library cards' do: the title's logo, or
+                its name in type where it has none (or it's still being looked up: HomeService). A poster, here too
+                when there's no backdrop, has its own. */}
+            {variant === 'landscape' &&
+              file === item.Backdrop &&
+              (item.Logo ? (
+                <img
+                  class="lmn-card__logo"
+                  src={catalogImageUrl(client, item.Logo, 'w300', imageToken)}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : (
+                <span class="lmn-card__name" aria-hidden="true">
+                  {item.Title}
+                </span>
+              ))}
+          </>
         ) : (
           <span class="lmn-card__placeholder">{item.Title}</span>
         )}

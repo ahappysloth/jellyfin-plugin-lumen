@@ -14,6 +14,9 @@ import { target } from './vite.target.ts';
  *   (views/player/lazySegments.tsx).
  * - lumen-trailerinfo.css: the Trailer section of a title's Media info (styles/trailerinfo.css), linked with its file
  *   (views/trailerInfo/lazyTrailerInfo.ts).
+ * - lumen-profile.css: the profile page and the settings pages' frame (styles/profile.css), linked with their file
+ *   (views/profile/lazyProfile.tsx). The notifications toggle and Quick Connect's approve page, which share a little
+ *   of its look, carry those rules in their own sheets.
  * - lumen-stock.css: jellyfin-web's sign-in, settings and admin pages' controls, and its dialogs and menus on every
  *   page (styles/stock.css), while "Restyle Jellyfin's sign-in, settings and Dashboard pages" is on.
  * - lumen-dashboard.css: the admin pages' own look (styles/dashboard.css), on those pages only.
@@ -35,6 +38,7 @@ export default defineConfig({
         'lumen-requests': 'src/styles/requests.css',
         'lumen-segments': 'src/styles/segments.css',
         'lumen-trailerinfo': 'src/styles/trailerinfo.css',
+        'lumen-profile': 'src/styles/profile.css',
       },
       output: { assetFileNames: '[name][extname]' },
     },

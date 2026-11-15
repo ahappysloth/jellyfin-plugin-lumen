@@ -295,6 +295,8 @@ export interface CatalogItem {
   State: CatalogState;
   /** Set when the server has it and this user can see it: open the normal details page instead. */
   JellyfinItemId?: string | null;
+  /** The title's logo (a TMDB file, like Poster), laid over the art of a home row's landscape card. */
+  Logo?: string | null;
 }
 
 export interface CatalogSeason {

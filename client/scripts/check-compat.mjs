@@ -49,6 +49,7 @@ const REQUIRED = [
   'lumen-requests.css',
   'lumen-push-sw.js',
   'lumen-segments.css',
+  'lumen-profile.css',
 ];
 for (const file of REQUIRED) {
   if (!existsSync(`dist/${file}`)) failures.push(`dist/${file} is missing: run \`npm run build\` first`);

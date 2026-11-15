@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'preact/hooks';
 import { Icon } from '../../components/icons';
 import { strings } from '../../strings';
 import type { TrailerControlState } from './lazyTrailer';
@@ -22,14 +23,46 @@ export function TrailerControls({ state }: { state: TrailerControlState }) {
       >
         <Icon name={state.paused ? 'play' : 'pause'} size={20} />
       </button>
-      <button
-        type="button"
-        class="lmn-icon-button lmn-icon-button--lg"
-        aria-label={state.muted ? UNMUTE : MUTE}
-        onClick={() => state.setMuted(!state.muted)}
-      >
-        <Icon name={state.muted ? 'volumeOff' : 'volumeHigh'} size={20} />
-      </button>
+      <MuteButton muted={state.muted} onChange={state.setMuted} large />
     </div>
+  );
+}
+
+/**
+ * Mute or Unmute for a trailer: the details header's, and the home banner's beside its Pause (Hero.tsx, through
+ * lazyTrailer.tsx's LazyMuteButton), with the details page's icons and names.
+ */
+export function MuteButton({
+  muted,
+  onChange,
+  large,
+}: {
+  muted: boolean;
+  onChange: (muted: boolean) => void;
+  large?: boolean;
+}) {
+  const button = useRef<HTMLButtonElement>(null);
+  // It goes when its trailer stops showing. With focus on it, focus goes to the button beside it (Pause) rather than to
+  // the page, where a TV remote would be stranded.
+  useLayoutEffect(() => {
+    const element = button.current;
+    return () => {
+      if (!element || document.activeElement !== element) return;
+      const beside = [element.nextElementSibling, element.previousElementSibling].find(
+        (e): e is HTMLButtonElement => e instanceof HTMLButtonElement,
+      );
+      beside?.focus({ preventScroll: true });
+    };
+  }, []);
+  return (
+    <button
+      ref={button}
+      type="button"
+      class={`lmn-icon-button${large ? ' lmn-icon-button--lg' : ''}`}
+      aria-label={muted ? UNMUTE : MUTE}
+      onClick={() => onChange(!muted)}
+    >
+      <Icon name={muted ? 'volumeOff' : 'volumeHigh'} size={large ? 20 : 16} />
+    </button>
   );
 }
