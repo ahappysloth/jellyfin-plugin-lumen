@@ -2,7 +2,6 @@ import { useEffect, useState } from 'preact/hooks';
 import type { AllRequests, MyRequest } from '../../api/types';
 import { registerSessionCache } from '../../util/sessionCaches';
 import type { ViewContext } from '../context';
-import { filterOf } from './requestFilters';
 import { FAST_MS, isMoving } from './requestProgress';
 
 /**
@@ -54,8 +53,8 @@ export function saveEveryone(userId: string, on: boolean): void {
 /** How long until the next check of this answer, or null for none. */
 export function nextCheck(answer: AllRequests): number | null {
   if (answer.Partial || answer.Requests.some((r) => isMoving(r.Status))) return FAST_MS;
-  // In flight: waiting for approval, or on its way (requestProgress.ts IN_FLIGHT).
-  return answer.Requests.some((r) => /^(pending|downloading)$/.test(filterOf(r.Status))) ? NORMAL_MS : null;
+  // In flight: waiting for approval, or on its way (requestProgress.ts IN_FLIGHT): anything not settled.
+  return answer.Requests.some((r) => !/^(Ready|Declined|Failed)$/.test(r.Status)) ? NORMAL_MS : null;
 }
 
 /** Everyone's requests while `on`; `retry` asks again (Try again). */

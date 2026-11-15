@@ -134,11 +134,69 @@ test('a downloading movie’s title page shows its progress, and no Request butt
   await page.goto('/web/#/home?title=movie-603');
 
   await expect(page.getByRole('heading', { name: 'The Matrix', level: 1 })).toBeVisible();
-  await expect(page.getByRole('progressbar', { name: 'Downloading' })).toHaveAttribute('aria-valuenow', '45', {
-    timeout: 10_000,
-  });
-  await expect(page.locator('.lmn-request-progress__status')).toContainText(/45% · (9|10) min left/);
+  // The word, bar and detail of its row in My requests, on a link to that row.
+  const status = page.getByRole('link', { name: /^Downloading ?, My requests$/ });
+  await expect(status.locator('.lmn-progress__fill')).toHaveAttribute('style', /width: 45%/, { timeout: 10_000 });
+  await expect(status).toHaveAccessibleDescription(/^45% · (9|10) min left$/);
   await expect(page.getByRole('button', { name: 'Request', exact: true })).toHaveCount(0);
+});
+
+/** Requests in several states, oldest first: the one waiting for approval ends up last in My requests. */
+async function requestSeveral(): Promise<void> {
+  await request(705, { requestStatus: 1 }); // waiting for approval
+  await request(702, { requestStatus: 3 }); // declined
+  await request(703, { requestStatus: 4 }); // failed
+  await request(701, { mediaStatus: 3 }); // approved, nothing downloading yet
+  await request(704, { mediaStatus: 3, downloads: [{ size: 1000, sizeLeft: 0 }] }); // downloaded, being imported
+  await request(603, { mediaStatus: 3, downloads: [{ size: 1000, sizeLeft: 250, etaSeconds: 90 }] }); // downloading
+}
+
+test('a title page’s status opens My requests at that request, and Back returns to the title', { tag: '@smoke' }, async ({
+  page,
+}) => {
+  await enableSeerr();
+  await requestSeveral();
+  await login(page, ADMIN);
+  await page.goto('/web/#/home?title=movie-705');
+
+  await expect(page.getByRole('heading', { name: 'Stub Awaiting Approval', level: 1 })).toBeVisible();
+  const status = page.getByRole('link', { name: /^Pending ?, My requests$/ });
+  await expect(status).toHaveAccessibleDescription('Waiting for approval.', { timeout: 10_000 });
+  await status.click();
+
+  await expect(page).toHaveURL(/#\/home\?lumen=requests&request=movie-705$/);
+  await expect(page.getByRole('list', { name: 'My requests' }).getByRole('link')).toHaveCount(6);
+  await expect(page.getByRole('group', { name: 'Show' }).getByRole('button', { name: /^All/ })).toHaveAttribute('aria-pressed', 'true');
+  // Its row, scrolled to and outlined for a moment (only the outline comes and goes: the row is found by its title).
+  const row = page.getByRole('list', { name: 'My requests' }).getByRole('link').filter({ hasText: 'Stub Awaiting Approval' });
+  await expect(page.locator('.lmn-request.is-found')).toHaveCount(1);
+  await expect(row).toBeInViewport();
+  await expect(row).not.toHaveClass(/\bis-found\b/, { timeout: 5_000 });
+
+  await page.goBack();
+  await expect(page).toHaveURL(/#\/home\?title=movie-705$/);
+  await expect(page.getByRole('heading', { name: 'Stub Awaiting Approval', level: 1 })).toBeVisible();
+});
+
+test('TV layout: a title page’s status takes the focus, and OK opens My requests focused on that request', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.addInitScript(() => localStorage.setItem('layout', 'tv'));
+  await enableSeerr();
+  await requestSeveral();
+  await login(page, ADMIN);
+  await expect(page.locator('html')).toHaveClass(/\blayout-tv\b/);
+  await page.goto('/web/#/home?title=movie-701');
+
+  // Requested already, so no Request button: the status is the page's action.
+  const status = page.getByRole('link', { name: /^Queued ?, My requests$/ });
+  await expect(status).toBeFocused({ timeout: 10_000 });
+  await expect(status).toHaveAccessibleDescription('Waiting to download');
+  await page.keyboard.press('Enter');
+
+  await expect(page).toHaveURL(/#\/home\?lumen=requests&request=movie-701$/);
+  const row = page.getByRole('list', { name: 'My requests' }).getByRole('link').filter({ hasText: 'Stub Queued' });
+  await expect(row).toBeFocused();
+  await expect(row).toBeInViewport();
 });
 
 test('the title page follows a download as it moves', async ({ page }) => {
@@ -161,15 +219,17 @@ test('the title page follows a download as it moves', async ({ page }) => {
   await login(page, ADMIN);
   await page.goto('/web/#/home?title=tv-1399');
 
-  const bar = page.getByRole('progressbar', { name: 'Downloading' });
-  await expect(bar).toBeVisible({ timeout: 10_000 });
-  await expect(page.locator('.lmn-request-progress__status')).toContainText(/0 of 2 episodes · (29|30) min left/);
-  const first = Number(await bar.getAttribute('aria-valuenow'));
+  const status = page.getByRole('link', { name: /^Downloading ?, My requests$/ });
+  const bar = status.locator('.lmn-progress__fill');
+  const percent = async (): Promise<number> => Number(/width: ([\d.]+)%/.exec((await bar.getAttribute('style')) ?? '')?.[1] ?? 0);
+  await expect(bar).toBeAttached({ timeout: 10_000 });
+  await expect(status).toHaveAccessibleDescription(/^0 of 2 episodes · (29|30) min left$/);
+  const first = await percent();
   expect(first).toBeLessThan(100);
 
   // Checked every 10 s on this page while it downloads: it moves without a reload.
   await expect
-    .poll(async () => Number((await bar.getAttribute('aria-valuenow')) ?? 0), { timeout: 30_000 })
+    .poll(percent, { timeout: 30_000 })
     .toBeGreaterThan(first);
 });
 
@@ -196,11 +256,11 @@ test('My requests lists the user’s requests newest first, and opens each title
   const expected = [
     ['The Matrix', 'Downloading'],
     ['Stub Ready', 'Ready'],
-    ['Stub Processing', 'Processing'],
+    ['Stub Processing', 'Downloading'],
     ['Stub Queued', 'Queued'],
     ['Stub Failed', 'Failed'],
     ['Stub Declined', 'Declined'],
-    ['Stub Awaiting Approval', 'Requested'],
+    ['Stub Awaiting Approval', 'Pending'],
   ];
   for (const [i, [title, status]] of expected.entries()) {
     await expect(rows.nth(i).locator('.lmn-request__title')).toHaveText(title!);
@@ -208,6 +268,18 @@ test('My requests lists the user’s requests newest first, and opens each title
   }
   await expect(rows.nth(0)).toContainText(/75% · (1|2) min left/);
   await expect(rows.nth(0).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '75');
+  await expect(rows.nth(2).locator('.lmn-request-progress__status')).toHaveText('DownloadingAdding to your library');
+  await expect(rows.nth(3).locator('.lmn-request-progress__status')).toHaveText('QueuedWaiting to download');
+  // A chip for each word the rows show, named the same, in a request's order.
+  await expect(page.getByRole('group', { name: 'Show' }).getByRole('button')).toHaveText([
+    'All7',
+    'Pending1',
+    'Queued1',
+    'Downloading2',
+    'Ready1',
+    'Declined1',
+    'Failed1',
+  ]);
 
   // Ready: its library page.
   await rows.nth(1).click();

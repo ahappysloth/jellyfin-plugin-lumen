@@ -2,6 +2,25 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.6.6] - 2026-11-15
+
+### Changed
+- **My requests**: the filter chips now match what each request says. A request reads Pending, Queued, Downloading,
+  Ready, Declined or Failed, and there's a chip of each name, in that order after All. Only chips with a request
+  under them show (the one you picked stays, with its "nothing here" message and a way back to All). Declined and
+  Failed are chips of their own; "Available" is now Ready.
+- A request waiting for an admin now says **Pending** everywhere it shows (posters, the title page, My requests),
+  where it said Requested. One being added to your library after downloading still says **Downloading**, with
+  "Adding to your library" under it, instead of Processing. A queued request says "Waiting to download".
+  A title someone else requested still says Requested.
+- On a title you requested that isn't on the server yet, the status can now be selected, like a button. It shows the
+  same word as My requests, with its progress bar while it downloads. Under it is the line its row shows (how far
+  along and the time left, "Adding to your library", "Waiting to download"), or, where the row has none, what the word
+  means ("Waiting for approval."). It stays up to date while the page is open. Selecting it opens My requests
+  scrolled to that request, which is outlined for a moment (and has the focus on a TV). Back returns to the title.
+- The quick Request sheet on Top 10 and Trakt rows uses the same words when the title turns out to be your own
+  request already.
+
 ## [0.6.5] - 2026-11-14
 
 ### Added

@@ -24,15 +24,17 @@ export const titleStrings = {
   loadingTitle: 'Loading…',
   watchTrailer: 'Trailer',
   openInLibrary: 'Open in library',
-  // Request progress (RequestProgressBlock, MyRequestsView).
+  // Request progress: under the status on a title's page, where the row in My requests has no detail to show
+  // (progressDetail: Queued and Processing always have one, Downloading has its percentage).
   progressNote: {
     Requested: 'Waiting for approval.',
-    Queued: 'Approved. The download hasn’t started yet.',
+    Queued: null,
     Downloading: null,
-    Processing: 'Downloaded. It’s being added to your library.',
+    Processing: null,
     Ready: 'Ready to watch.',
     Declined: 'Your request was declined.',
-    Failed: 'The download failed. Ask the server owner to look at it.',
+    // Seerr couldn't hand the request to Radarr or Sonarr (a failed download isn't this: they look for another).
+    Failed: 'The request failed. Ask the server owner to look at it.',
   },
   noRequests: 'No requests yet',
   noRequestsHint: 'Search for a movie or show that isn’t here yet and request it.',
@@ -43,20 +45,16 @@ export const titleStrings = {
   searchRequests: 'Search requests',
   clearSearch: 'Clear search',
   filterLabel: 'Show',
-  filters: {
-    all: 'All',
-    pending: 'Pending',
-    downloading: 'Downloading',
-    available: 'Available',
-    problem: 'Declined or failed',
-  },
+  /** The first chip's name; the others are named by their rows' status (strings.progress). */
+  filterAll: 'All',
   /** Under a chip with nothing to show (no search). */
   filterEmpty: {
-    all: '',
-    pending: 'Nothing is waiting for approval',
-    downloading: 'Nothing is downloading',
-    available: 'Nothing is ready to watch yet',
-    problem: 'Nothing was declined or failed',
+    Requested: 'Nothing is waiting for approval',
+    Queued: 'Nothing is waiting to download',
+    Downloading: 'Nothing is downloading',
+    Ready: 'Nothing is ready to watch yet',
+    Declined: 'No requests were declined',
+    Failed: 'No requests have failed',
   },
   showAll: 'Show all requests',
   noMatch: (query: string) => `No requests match “${query}”`,

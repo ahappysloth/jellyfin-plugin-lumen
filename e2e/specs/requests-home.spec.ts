@@ -105,7 +105,8 @@ test('My Requests lists what the user asked for', async ({ page }) => {
   await login(page, ADMIN);
 
   const mine = page.getByRole('region', { name: 'My Requests' });
-  await expect(mine.getByRole('button', { name: 'The Matrix, Requested' })).toBeVisible();
+  // Their own request: Pending, as in My requests, once the first check answers.
+  await expect(mine.getByRole('button', { name: 'The Matrix, Pending' })).toBeVisible({ timeout: 10_000 });
 });
 
 test("a Trending card carries its title over the art: its logo, or here (no logo lookups on a test server) its name", async ({ page }) => {

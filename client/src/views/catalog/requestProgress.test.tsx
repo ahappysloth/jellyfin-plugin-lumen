@@ -520,7 +520,8 @@ describe('progress words', () => {
       '3 of 8 episodes',
     );
     expect(progressDetail(myRequest({ Status: 'Processing' }), now)).toBe('Adding to your library');
-    expect(progressDetail(myRequest({ Status: 'Queued', Percent: null }), now)).toBe('');
+    expect(progressDetail(myRequest({ Status: 'Queued', Percent: null }), now)).toBe('Waiting to download');
+    expect(progressDetail(myRequest({ Status: 'Requested', Percent: null }), now)).toBe('');
   });
 
   it('rounds the time left to whole minutes before splitting it into hours, and counts one day as one', () => {

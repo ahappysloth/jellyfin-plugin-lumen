@@ -1,29 +1,32 @@
 import type { MyRequest, RequestProgressStatus } from '../../api/types';
-
-/** My requests' filter chips, in the order they show. */
-export const REQUEST_FILTERS = ['all', 'pending', 'downloading', 'available', 'problem'] as const;
-export type RequestFilter = (typeof REQUEST_FILTERS)[number];
+import { MY_REQUESTS_HASH } from '../../compat/jellyfin';
 
 /**
- * Which chip each status the server gives a title (RequestProgressState, Requests/RequestProgress.cs) falls under:
- * - pending: Requested, waiting for an admin's approval (Seerr's request status PENDING);
- * - downloading: approved and on its way: Queued (Radarr/Sonarr looking for a release, or a download waiting to start),
- *   Downloading, and Processing (downloaded, being imported). A show that's partly on the server with more seasons
- *   coming is one of these too: the server only says Ready once Seerr has the requested media AVAILABLE;
- * - available: Ready, on the server;
- * - problem: Declined by an admin, or Failed (Seerr couldn't hand it to Radarr or Sonarr).
+ * My requests' filter chips, in the order they show: All, then a request's life. Each of the others is a status, named
+ * by the word its rows show (strings.progress: Requested shows as "Pending"), so no row says something no chip does:
+ * - Requested: waiting for an admin's approval (Seerr's request status PENDING);
+ * - Queued: approved, nothing downloading yet (Radarr/Sonarr looking for a release, or a download waiting to start);
+ * - Downloading: and Processing (downloaded, being imported), which shows as Downloading too. A show that's partly on
+ *   the server with more seasons coming is one of these or Queued: the server only says Ready once Seerr has the
+ *   requested media AVAILABLE;
+ * - Ready: on the server;
+ * - Declined: by an admin;
+ * - Failed: Seerr couldn't hand it to Radarr or Sonarr.
+ * (RequestProgressState, Requests/RequestProgress.cs.)
  */
-const FILTER_OF: Record<RequestProgressStatus, Exclude<RequestFilter, 'all'>> = {
-  Requested: 'pending',
-  Queued: 'downloading',
-  Downloading: 'downloading',
-  Processing: 'downloading',
-  Ready: 'available',
-  Declined: 'problem',
-  Failed: 'problem',
-};
+export const REQUEST_FILTERS = [
+  'all',
+  'Requested',
+  'Queued',
+  'Downloading',
+  'Ready',
+  'Declined',
+  'Failed',
+] as const;
+export type RequestFilter = (typeof REQUEST_FILTERS)[number];
 
-export const filterOf = (status: RequestProgressStatus): Exclude<RequestFilter, 'all'> => FILTER_OF[status];
+export const filterOf = (status: RequestProgressStatus): Exclude<RequestFilter, 'all'> =>
+  status === 'Processing' ? 'Downloading' : status;
 
 /** Lower case without accents, so "amelie" finds "Amélie". */
 export const fold = (text: string): string =>
@@ -43,16 +46,32 @@ export function matchesSearch(request: MyRequest, words: string[]): boolean {
 
 /** How many of `requests` each chip would show. */
 export function countByFilter(requests: MyRequest[]): Record<RequestFilter, number> {
-  const counts: Record<RequestFilter, number> = {
-    all: requests.length,
-    pending: 0,
-    downloading: 0,
-    available: 0,
-    problem: 0,
-  };
+  const counts = {} as Record<RequestFilter, number>;
+  REQUEST_FILTERS.forEach((f) => (counts[f] = 0));
+  counts.all = requests.length;
   for (const r of requests) counts[filterOf(r.Status)]++;
   return counts;
 }
 
+/**
+ * The chips to show, in their fixed order: All, those with a request under the search (a short list doesn't get a row
+ * of zeros), and the active one even with none (a check or the search emptied it: its "nothing here" says so, with the
+ * way back to All).
+ */
+export const shownFilters = (counts: Record<RequestFilter, number>, active: RequestFilter): RequestFilter[] =>
+  REQUEST_FILTERS.filter((f) => f === 'all' || f === active || counts[f] > 0);
+
 export const inFilter = (request: MyRequest, filter: RequestFilter): boolean =>
   filter === 'all' || filterOf(request.Status) === filter;
+
+/**
+ * My requests showing one request (a title page's status links here): the title's catalog key ("movie-603", nothing to
+ * escape) rides along as `request`. Read by the page itself, as Top charts reads its chart (charts/chartsRoute.ts), not by parseRoute,
+ * which the inline guard carries.
+ */
+export const myRequestHash = (key: string): string => `${MY_REQUESTS_HASH}&request=${key}`;
+
+export function requestFromHash(hash: string): string | null {
+  const queryStart = hash.indexOf('?');
+  return queryStart < 0 ? null : new URLSearchParams(hash.slice(queryStart + 1)).get('request');
+}

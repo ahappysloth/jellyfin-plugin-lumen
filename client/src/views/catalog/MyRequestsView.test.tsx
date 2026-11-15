@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { myRequest } from '../../../test/myRequest';
 import { makeContext, testConfig } from '../../../test/viewContext';
@@ -148,13 +148,13 @@ describe('MyRequestsView', () => {
 /** My requests as `admin` (or not), with the user's own `mine` and everyone's `all` on the server. */
 async function loadAs(
   admin: boolean,
-  mine: MyRequest[],
+  mine: MyRequest[] | (() => { Requests: MyRequest[] }),
   all: AllRequests = { Requests: [], Partial: false },
   layout: 'desktop' | 'tv' = 'desktop',
 ) {
   const client = createFakeClient(
     routes({
-      'Lumen/Requests/Mine': { Requests: mine },
+      'Lumen/Requests/Mine': typeof mine === 'function' ? mine : { Requests: mine },
       'Lumen/Requests/All': () => (admin ? all : Promise.reject({ status: 403 })),
       'Lumen/Requests/Status': { Enabled: true, CanRequestMovies: true, CanRequestTv: true, ImageToken: 't' },
       'Users/user1': { Id: 'user1', Name: 'me', Policy: { IsAdministrator: admin } },
@@ -174,6 +174,10 @@ const rowTitles = () =>
     .getAllByRole('link')
     .map((l) => l.querySelector('.lmn-request__title')!.textContent);
 const chip = (name: RegExp) => screen.getByRole('button', { name });
+const chipNames = () =>
+  within(screen.getByRole('group', { name: 'Show' }))
+    .getAllByRole('button')
+    .map((c) => c.textContent);
 /** Waits for a row with this title. */
 const listed = (title: string) => waitFor(() => expect(rowTitles()).toContain(title));
 
@@ -226,44 +230,147 @@ describe('MyRequestsView search and filters', () => {
     render(<MyRequestsView ctx={ctx} />);
     await screen.findByRole('list', { name: 'My requests' });
 
-    const chips = within(screen.getByRole('group', { name: 'Show' })).getAllByRole('button');
-    expect(chips.map((c) => c.textContent)).toEqual([
-      'All5',
-      'Pending1',
-      'Downloading2',
-      'Available1',
-      'Declined or failed1',
-    ]);
+    // Named as the rows' statuses are, in a request's order; only those with a request under them (no Failed here).
+    expect(chipNames()).toEqual(['All5', 'Pending1', 'Queued1', 'Downloading1', 'Ready1', 'Declined1']);
     expect(chip(/^All/)).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.click(chip(/^Downloading/));
-    expect(chip(/^Downloading/)).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(chip(/^Queued/));
+    expect(chip(/^Queued/)).toHaveAttribute('aria-pressed', 'true');
     expect(chip(/^All/)).toHaveAttribute('aria-pressed', 'false');
-    expect(rowTitles()).toEqual(['The Matrix', 'Lumen Saga']);
+    expect(rowTitles()).toEqual(['Lumen Saga']);
+    expect(screen.getByRole('list', { name: 'My requests' })).toHaveTextContent('QueuedWaiting to download');
 
+    fireEvent.click(chip(/^Downloading/));
+    expect(rowTitles()).toEqual(['The Matrix']);
     fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'matrix' } });
     expect(rowTitles()).toEqual(['The Matrix']);
-    expect(chips.map((c) => c.textContent)).toEqual([
-      'All2',
-      'Pending0',
-      'Downloading1',
-      'Available1',
-      'Declined or failed0',
-    ]);
+    expect(chipNames()).toEqual(['All2', 'Downloading1', 'Ready1']);
   });
 
-  it('says when a chip has nothing, with a way back to all of them', async () => {
-    const { ctx } = await loadAs(false, list.slice(0, 2));
+  it('keeps the active chip when nothing is left under it, saying so, with a way back to all of them', async () => {
+    let mine = [
+      myRequest({ key: 'movie-1', title: 'Amélie', Status: 'Requested' }),
+      myRequest({ key: 'movie-2', title: 'The Matrix', Status: 'Downloading' }),
+    ];
+    const { ctx } = await loadAs(false, () => ({ Requests: mine }));
     render(<MyRequestsView ctx={ctx} />);
     await screen.findByRole('list', { name: 'My requests' });
+    expect(chipNames()).toEqual(['All2', 'Pending1', 'Downloading1']);
 
-    fireEvent.click(chip(/^Available/));
-    expect(screen.getByText('Nothing is ready to watch yet')).toBeInTheDocument();
-    fireEvent.click(chip(/^Declined or failed/));
-    expect(screen.getByText('Nothing was declined or failed')).toBeInTheDocument();
+    fireEvent.click(chip(/^Pending/));
+    expect(rowTitles()).toEqual(['Amélie']);
+    // Approved meanwhile: a check moves it on.
+    mine = [{ ...mine[0]!, Status: 'Queued' }, mine[1]!];
+    await act(() => refreshRequestProgress());
+    expect(chipNames()).toEqual(['All2', 'Pending0', 'Queued1', 'Downloading1']);
+    expect(chip(/^Pending/)).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Nothing is waiting for approval')).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', { name: 'Show all requests' }));
     expect(rowTitles()).toHaveLength(2);
     expect(chip(/^All/)).toHaveAttribute('aria-pressed', 'true');
+    // No longer active, and empty: gone.
+    expect(chipNames()).toEqual(['All2', 'Queued1', 'Downloading1']);
+  });
+
+  it('moves focus to the chip in its place when a check takes away the one it was on', async () => {
+    let mine = [
+      myRequest({ key: 'movie-1', title: 'Amélie', Status: 'Requested' }),
+      myRequest({ key: 'movie-2', title: 'The Matrix', Status: 'Queued' }),
+    ];
+    const { ctx } = await loadAs(false, () => ({ Requests: mine }), undefined, 'tv');
+    render(<MyRequestsView ctx={ctx} />);
+    const list = await screen.findByRole('list', { name: 'My requests' });
+    // The TV's first focus, the newest request, before the remote moves up to the chips.
+    await waitFor(() => expect(within(list).getAllByRole('link')[0]).toHaveFocus());
+
+    // Resting on Pending (All is the active one): it goes, and the next chip takes focus.
+    act(() => chip(/^Pending/).focus());
+    mine = [{ ...mine[0]!, Status: 'Queued' }, mine[1]!];
+    await act(() => refreshRequestProgress());
+    expect(chipNames()).toEqual(['All2', 'Queued2']);
+    expect(chip(/^Queued/)).toHaveFocus();
+
+    // The last one goes: the one before it.
+    mine = mine.map((r) => ({ ...r, Status: 'Ready' as const }));
+    await act(() => refreshRequestProgress());
+    expect(chipNames()).toEqual(['All2', 'Ready2']);
+    expect(chip(/^Ready/)).toHaveFocus();
+    mine = mine.map((r) => ({ ...r, Status: 'Failed' as const }));
+    await act(() => refreshRequestProgress());
+    expect(chipNames()).toEqual(['All2', 'Failed2']);
+    expect(chip(/^Failed/)).toHaveFocus();
+
+    // Focus elsewhere stays where it is.
+    const first = within(screen.getByRole('list', { name: 'My requests' })).getAllByRole('link')[0]!;
+    act(() => first.focus());
+    mine = mine.map((r) => ({ ...r, Status: 'Declined' as const }));
+    await act(() => refreshRequestProgress());
+    expect(chipNames()).toEqual(['All2', 'Declined2']);
+    expect(within(screen.getByRole('list', { name: 'My requests' })).getAllByRole('link')[0]).toHaveFocus();
+  });
+
+  describe('opened from a title page’s status', () => {
+    const at = (key: string) => window.history.replaceState(null, '', `#/home?lumen=requests&request=${key}`);
+    afterEach(() => window.history.replaceState(null, '', '#/'));
+
+    it('scrolls to that request and lights it up, under All', async () => {
+      const scroll = vi.fn();
+      const had = Element.prototype.scrollIntoView;
+      Element.prototype.scrollIntoView = scroll;
+      try {
+        at('tv-3');
+        const { ctx } = await loadAs(false, list);
+        render(<MyRequestsView ctx={ctx} />);
+        const rows = within(await screen.findByRole('list', { name: 'My requests' })).getAllByRole('link');
+        expect(rows).toHaveLength(5);
+        expect(chip(/^All/)).toHaveAttribute('aria-pressed', 'true');
+        expect(rows.filter((r) => r.classList.contains('is-found'))).toEqual([rows[2]]);
+        await waitFor(() => expect(scroll).toHaveBeenCalledTimes(1));
+        expect(scroll.mock.contexts[0]).toBe(rows[2]);
+        // Lit up once: gone when its moment is over.
+        fireEvent.animationEnd(rows[2]!);
+        expect(rows[2]).not.toHaveClass('is-found');
+      } finally {
+        Element.prototype.scrollIntoView = had;
+      }
+    });
+
+    it('gives that request the first focus on a TV', async () => {
+      at('movie-4');
+      const { ctx } = await loadAs(false, list, undefined, 'tv');
+      render(<MyRequestsView ctx={ctx} />);
+      const rows = within(await screen.findByRole('list', { name: 'My requests' })).getAllByRole('link');
+      await waitFor(() => expect(rows[3]).toHaveFocus());
+      expect(rows[3]).toHaveTextContent('Matrix Reloaded');
+    });
+
+    it('with a request not in the list (older than it goes back, say), is the page as usual', async () => {
+      at('movie-999');
+      const { ctx } = await loadAs(false, list, undefined, 'tv');
+      render(<MyRequestsView ctx={ctx} />);
+      const rows = within(await screen.findByRole('list', { name: 'My requests' })).getAllByRole('link');
+      await waitFor(() => expect(rows[0]).toHaveFocus());
+      expect(document.querySelector('.is-found')).toBeNull();
+    });
+
+    it('in everyone’s requests, picks the user’s own row for the title', async () => {
+      window.localStorage.setItem(everyoneKey('user1'), '1');
+      at('movie-603');
+      // The user's own list hasn't got it (yet): their row is known by who asked.
+      const { ctx } = await loadAs(true, [], {
+        Requests: [
+          myRequest({ RequestIds: [2], RequestedBy: { Name: 'kid', UserId: 'kid1' } }),
+          myRequest({ RequestIds: [1], Status: 'Ready', RequestedBy: { Name: 'me', UserId: 'user1' } }),
+        ],
+        Partial: false,
+      });
+      render(<MyRequestsView ctx={ctx} />);
+      await waitFor(() => expect(document.querySelectorAll('.lmn-request__by')).toHaveLength(2));
+      const found = document.querySelectorAll('.lmn-request.is-found');
+      expect(found).toHaveLength(1);
+      expect(found[0]).toHaveTextContent('Requested by me');
+    });
   });
 
   it('has no search or chips with no requests', async () => {
@@ -355,7 +462,7 @@ describe("MyRequestsView: everyone's requests", () => {
     fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'kid' } });
     expect(rowTitles()).toEqual(['Kid Movie']);
     fireEvent.input(screen.getByRole('searchbox'), { target: { value: '' } });
-    expect(chip(/^Available/)).toHaveTextContent('Available1');
+    expect(chipNames()).toEqual(['All4', 'Pending1', 'Downloading1', 'Ready1', 'Failed1']);
 
     // Off: the user's own again, and off in this browser.
     await act(async () => toggle.click());
@@ -435,11 +542,7 @@ describe("MyRequestsView: everyone's requests", () => {
   it('counts time left down from when everyone’s requests arrived, not the user’s own', () => {
     // No answer of the user's own (reset): counted from theirs, it would be long gone.
     render(
-      <RequestProgressBlock
-        request={myRequest({ SecondsLeft: 600 })}
-        compact
-        receivedAt={Date.now() - 120_000}
-      />,
+      <RequestProgressBlock request={myRequest({ SecondsLeft: 600 })} receivedAt={Date.now() - 120_000} />,
     );
     expect(document.querySelector('.lmn-request-progress__status')).toHaveTextContent(
       'Downloading40% · 8 min left',
@@ -481,6 +584,35 @@ describe("CatalogCard with the user's own request", () => {
     const card = screen.getByRole('button', { name: 'The Matrix, Declined' });
     expect(card.querySelector('.lmn-card__state')).toHaveClass('is-problem');
     expect(card.querySelector('.lmn-progress')).toBeNull();
+  });
+
+  it('says Pending while it waits for approval, and Downloading while it’s added to the library, as My requests does', async () => {
+    const ctx = await load([
+      myRequest({ Status: 'Requested', Percent: null, SecondsLeft: null }),
+      myRequest({
+        key: 'movie-604',
+        title: 'Reloaded',
+        Status: 'Processing',
+        Percent: 100,
+        SecondsLeft: null,
+      }),
+    ]);
+    const card = (key: string, title: string) =>
+      render(
+        <CatalogCard
+          item={{ ...myRequest().Item, Key: key, Title: title, State: 'Requested' }}
+          client={ctx.client}
+          imageToken="t"
+          variant="poster"
+          onSelect={() => {}}
+        />,
+      );
+    card('movie-603', 'The Matrix');
+    card('movie-604', 'Reloaded');
+
+    expect(screen.getByRole('button', { name: 'The Matrix, Pending' })).toBeInTheDocument();
+    const processing = screen.getByRole('button', { name: 'Reloaded, Downloading, Adding to your library' });
+    expect(processing.querySelector('.lmn-card__state')).toHaveTextContent('Downloading');
   });
 
   it("keeps another user's request as the card's plain state", () => {

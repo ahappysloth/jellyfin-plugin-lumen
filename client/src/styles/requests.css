@@ -99,6 +99,16 @@
   color: inherit;
   text-decoration: none;
 }
+/* The request a title page's status opened the page on (MyRequestsView): ringed for a moment (easing in, so the ring
+   stays bright at first), then as the others. */
+.lmn-request.is-found {
+  animation: lmn-request-found 2.4s ease-in;
+}
+@keyframes lmn-request-found {
+  from {
+    box-shadow: inset 0 0 0 2px var(--lmn-accent);
+  }
+}
 /* Two rules: Chromium 68 has no :focus-visible and would drop :hover with it. */
 .lmn-request:hover {
   background: var(--lmn-fill-3);
@@ -146,9 +156,6 @@
   font-size: 13px;
 }
 /* The status on the left, how far along on the right, the bar under both. */
-.lmn-request .lmn-request-progress {
-  margin: 0;
-}
 .lmn-request .lmn-request-progress__status {
   align-items: baseline;
 }
@@ -207,8 +214,9 @@
   font-weight: 600;
   object-fit: cover;
 }
-/* Phones: all five chips on one line, scrolling sideways (not squeezed to the screen's width, as the library pages' are:
-   browse.css). Only there: a scrolling row clips its chips' focus rings, which a remote or keyboard needs whole. */
+/* Phones: the chips on one line (up to seven: those with requests under them, MyRequestsView), scrolling sideways (not
+   squeezed to the screen's width, as the library pages' are: browse.css). Only there: a scrolling row clips its chips'
+   focus rings, which a remote or keyboard needs whole. */
 @media (max-width: 720px) {
   .lmn-segmented.lmn-requests-filters {
     max-width: 100%;

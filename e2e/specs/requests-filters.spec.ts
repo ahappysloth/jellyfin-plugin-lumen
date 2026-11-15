@@ -115,25 +115,26 @@ test('My requests: the search filters as you type, and the chips by where each r
   await expect(search).toHaveValue('');
   await expect(rowTitles(page)).toHaveCount(4);
 
-  // One chip at a time, each with its count.
-  await expect(page.getByRole('group', { name: 'Show' }).getByRole('button')).toHaveText([
-    'All4',
-    'Pending1',
-    'Downloading2',
-    'Available0',
-    'Declined or failed1',
-  ]);
+  // One chip at a time, each with its count, named as the rows' statuses are: only those some request has (no Ready or
+  // Failed here).
+  const chips = page.getByRole('group', { name: 'Show' }).getByRole('button');
+  await expect(chips).toHaveText(['All4', 'Pending1', 'Queued1', 'Downloading1', 'Declined1']);
   await chip(page, 'Pending').click();
   await expect(chip(page, 'Pending')).toHaveAttribute('aria-pressed', 'true');
   await expect(rowTitles(page)).toHaveText(['Stub Awaiting Approval']);
+  await chip(page, 'Queued').click();
+  await expect(rowTitles(page)).toHaveText(['Stub Queued']);
   await chip(page, 'Downloading').click();
-  await expect(rowTitles(page)).toHaveText(['The Matrix', 'Stub Queued']);
+  await expect(rowTitles(page)).toHaveText(['The Matrix']);
   await expect(page.getByRole('list', { name: 'My requests' }).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '75');
-  await chip(page, 'Declined or failed').click();
+  await chip(page, 'Declined').click();
   await expect(rowTitles(page)).toHaveText(['Stub Declined']);
-  await chip(page, 'Available').click();
-  await expect(page.getByText('Nothing is ready to watch yet')).toBeVisible();
-  await page.getByRole('button', { name: 'Show all requests' }).click();
+  // The counts follow the search; the chip in use stays, with nothing under it.
+  await search.fill('matrix');
+  await expect(chips).toHaveText(['All1', 'Downloading1', 'Declined0']);
+  await expect(chip(page, 'Declined')).toHaveAttribute('aria-pressed', 'true');
+  await search.fill('');
+  await chip(page, 'All').click();
   await expect(chip(page, 'All')).toHaveAttribute('aria-pressed', 'true');
   await expect(rowTitles(page)).toHaveCount(4);
 
@@ -172,8 +173,8 @@ test('an administrator turns on Everyone’s requests: every user’s requests, 
   await search.fill('kid');
   await expect(rowTitles(page)).toHaveText(['The Matrix']);
   await search.fill('');
-  await expect(chip(page, 'Declined or failed')).toHaveText('Declined or failed1');
-  await chip(page, 'Declined or failed').click();
+  await expect(chip(page, 'Declined')).toHaveText('Declined1');
+  await chip(page, 'Declined').click();
   await expect(rowTitles(page)).toHaveText(['Stub Declined']);
 
   // Kept on in this browser.
@@ -185,6 +186,25 @@ test('an administrator turns on Everyone’s requests: every user’s requests, 
   await page.getByRole('switch', { name: 'Everyone’s requests' }).click();
   await expect(rowTitles(page)).toHaveText(['Stub Queued']);
   await expect(page.locator('.lmn-request__by')).toHaveCount(0);
+});
+
+test('with Everyone’s requests on, a title page’s status opens the list at the user’s own request for it', async ({ page }) => {
+  const { admin } = loadState();
+  await enableSeerr();
+  // The same title asked for by the admin (through Lumen), then by kid (in Seerr): kid's row, the newer, is first.
+  await request(603, { mediaStatus: 3 });
+  await requestInSeerr(KID_SEERR_ID, 603, { mediaStatus: 3 });
+  await page.addInitScript((id) => localStorage.setItem(`${id}-lumen-everyone-requests`, '1'), admin.userId.replace(/-/g, ''));
+  await login(page, ADMIN);
+  await page.goto('/web/#/home?title=movie-603');
+
+  // The admin's own status (whichever it is), a link to it.
+  await page.getByRole('link', { name: /^\w+ ?, My requests$/ }).click();
+  await expect(page.getByRole('switch', { name: 'Everyone’s requests' })).toHaveAttribute('aria-checked', 'true');
+  const rows = page.getByRole('list', { name: 'My requests' }).getByRole('link');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0).locator('.lmn-request__by > span:last-child')).toHaveText('Requested by kid');
+  await expect(page.locator('.lmn-request.is-found .lmn-request__by > span:last-child')).toHaveText('Requested by admin');
 });
 
 test('everyone’s requests name the requester, never their email, even where Seerr’s name for them is it', async () => {
@@ -270,9 +290,9 @@ test('TV layout: the D-pad reaches the search, every chip and the Everyone’s r
 
   const { unreachable, controls } = await walkDpad(page, rows.nth(0));
   expect(unreachable.map((c) => c.name)).toEqual([]);
-  // Among them: the search, the five chips and the switch.
+  // Among them: the search, the chips (All, and the two statuses the admin's own requests have) and the switch.
   const classes = controls.map((c) => c.classes);
-  expect(classes.filter((c) => /\blmn-chip\b/.test(c))).toHaveLength(5);
+  expect(classes.filter((c) => /\blmn-chip\b/.test(c))).toHaveLength(3);
   expect(classes.filter((c) => /\blmn-requests-search__input\b/.test(c))).toHaveLength(1);
   expect(classes.filter((c) => /\blmn-requests-everyone__switch\b/.test(c))).toHaveLength(1);
 

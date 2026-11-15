@@ -50,7 +50,7 @@ test.describe('Top charts', () => {
     await dialog.getByRole('button', { name: 'Request', exact: true }).click();
     await expect(dialog.getByText('Requested, waiting for approval.')).toBeVisible();
     await dialog.getByRole('button', { name: 'Done' }).click();
-    await expect(week.getByRole('button', { name: '2, The Matrix, Requested' })).toBeVisible();
+    await expect(week.getByRole('button', { name: '2, The Matrix, Pending' })).toBeVisible();
 
     // Shows.
     await page.getByRole('group', { name: 'Movies or shows' }).getByRole('button', { name: 'Shows' }).click();
@@ -224,7 +224,7 @@ test.describe('Trakt rows', () => {
     const dialog = page.getByRole('dialog', { name: 'Request Stub Request 790' });
     await dialog.getByRole('button', { name: 'Request', exact: true }).click();
     await dialog.getByRole('button', { name: 'Done' }).click();
-    await expect(box.getByRole('button', { name: 'Stub Request 790, Requested' })).toBeVisible();
+    await expect(box.getByRole('button', { name: 'Stub Request 790, Pending' })).toBeVisible();
   });
 
   test('without Seerr, the rows show only titles here, and Most Anticipated is hidden', async ({ page }) => {

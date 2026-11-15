@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { MyRequest, Requester } from '../../api/types';
 import { Icon } from '../../components/icons';
 import { LoadError } from '../../components/LoadError';
@@ -29,7 +29,9 @@ import {
   matchesSearch,
   REQUEST_FILTERS,
   type RequestFilter,
+  requestFromHash,
   searchWords,
+  shownFilters,
 } from './requestFilters';
 import { titleStrings } from './titleStrings';
 
@@ -67,8 +69,15 @@ export function MyRequestsView({ ctx }: { ctx: ViewContext }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<RequestFilter>('all');
   const [styled, setStyled] = useState(false);
+  // The request a title page's status opened this page on (myRequestHash): its row is scrolled to and lit up once, and
+  // takes a TV's first focus instead of the newest.
+  const [target, setTarget] = useState(() => requestFromHash(window.location.hash));
+  const scrolled = useRef(false);
   const field = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const chipsRef = useRef<HTMLDivElement>(null);
+  /** The chip that had focus as this render began (see below). */
+  const focusedChip = useRef<RequestFilter | null>(null);
 
   const requests = !accountKnown ? null : everyone ? all.requests : mine.requests;
   const failed = accountKnown && (everyone ? all.failed : mine.failed);
@@ -103,8 +112,53 @@ export function MyRequestsView({ ctx }: { ctx: ViewContext }) {
   const words = searchWords(query);
   const found = requests?.filter((r) => matchesSearch(r, words)) ?? [];
   const counts = countByFilter(found);
+  const chips = shownFilters(counts, filter);
   const visible = found.filter((r) => inFilter(r, filter));
+  // In everyone's requests, the user's own row for it (the title may be there once per requester), known by its
+  // requester's id rather than from the user's own list, which may answer later.
+  const at = visible.findIndex(
+    (r) => r.Item.Key === target && (!everyone || r.RequestedBy?.UserId === ctx.userId),
+  );
+  useEffect(() => {
+    // Once the rows are on the page (they wait for its styles).
+    const root = rootRef.current;
+    if (at < 0 || !styled || scrolled.current || !root) return;
+    scrolled.current = true;
+    const row = root.querySelector('.lmn-request.is-found');
+    let y = -1;
+    const show = (): void => {
+      // Not after the user has scrolled on their own.
+      if (y >= 0 && window.scrollY !== y) return;
+      row?.scrollIntoView?.({ block: 'center' });
+      y = window.scrollY;
+    };
+    show();
+    // What shows above it a moment later (the notifications toggle, whose code loads on its own) would push it down:
+    // centred again while it's lit up. Not in Safari 13.0, which lacks ResizeObserver. No cleanup: this effect runs
+    // on every render, and a page left meanwhile only leaves a detached row, which doesn't scroll.
+    if (typeof ResizeObserver !== 'function') return;
+    const watch = new ResizeObserver(show);
+    watch.observe(root);
+    window.setTimeout(() => watch.disconnect(), 2400);
+  });
   const tools = features && styled && !!requests && requests.length > 0;
+
+  // A chip goes when nothing is left under it (a check moved its last request on), and one with focus may: never the
+  // active one, but one the remote or keyboard is resting on. Focus would fall to the page, where a TV's D-pad has
+  // nothing to move from, so it goes to the chip now in its place (the next one shown, else the one before; All always
+  // shows). Which chip had it is read before the change reaches the page: not every browser fires blur on an element
+  // that's removed.
+  const focused = document.activeElement as HTMLElement | null;
+  focusedChip.current =
+    focused && focused.parentNode === chipsRef.current ? (focused.dataset.filter as RequestFilter) : null;
+  useLayoutEffect(() => {
+    const gone = focusedChip.current;
+    if (!gone || chips.indexOf(gone) >= 0 || (document.activeElement || document.body) !== document.body)
+      return;
+    const goneAt = REQUEST_FILTERS.indexOf(gone);
+    const next = chips.filter((f) => REQUEST_FILTERS.indexOf(f) > goneAt)[0] || chips[chips.length - 1];
+    chipsRef.current?.querySelector<HTMLElement>(`[data-filter="${next}"]`)?.focus();
+  });
 
   let body;
   if (!features) {
@@ -152,7 +206,9 @@ export function MyRequestsView({ ctx }: { ctx: ViewContext }) {
           <Icon name={words.length ? 'search' : 'download'} size={32} />
         </span>
         <p class="lmn-browse__empty-title">
-          {words.length ? titleStrings.noMatch(query.trim()) : titleStrings.filterEmpty[filter]}
+          {words.length
+            ? titleStrings.noMatch(query.trim())
+            : titleStrings.filterEmpty[filter as Exclude<RequestFilter, 'all'>]}
         </p>
         <button
           type="button"
@@ -178,7 +234,8 @@ export function MyRequestsView({ ctx }: { ctx: ViewContext }) {
             request={request}
             ctx={ctx}
             imageToken={imageToken}
-            first={i === 0}
+            first={at < 0 ? i === 0 : i === at}
+            onFound={i === at ? () => setTarget(null) : undefined}
             by={everyone ? (request.RequestedBy ?? {}) : null}
             receivedAt={everyone ? all.receivedAt : undefined}
           />
@@ -258,21 +315,23 @@ export function MyRequestsView({ ctx }: { ctx: ViewContext }) {
           )}
           {tools && (
             // Like the library pages' chips (Toolbar.tsx Segmented), but none takes the TV's first focus: the newest
-            // request does, as before.
+            // request does, as before. Only those with something under them (shownFilters).
             <div
+              ref={chipsRef}
               class="lmn-segmented lmn-requests-filters focuscontainer-x"
               role="group"
               aria-label={titleStrings.filterLabel}
             >
-              {REQUEST_FILTERS.map((f) => (
+              {chips.map((f) => (
                 <button
                   key={f}
                   type="button"
+                  data-filter={f}
                   class={`lmn-chip${f === filter ? ' is-active' : ''}`}
                   aria-pressed={f === filter}
                   onClick={() => setFilter(f)}
                 >
-                  {titleStrings.filters[f]}
+                  {f === 'all' ? titleStrings.filterAll : strings.progress[f]}
                   <span class="lmn-chip__count">{formatNumber(counts[f])}</span>
                 </button>
               ))}
@@ -295,6 +354,7 @@ function RequestRow({
   ctx,
   imageToken,
   first,
+  onFound,
   by,
   receivedAt,
 }: {
@@ -302,6 +362,8 @@ function RequestRow({
   ctx: ViewContext;
   imageToken: string | null | undefined;
   first: boolean;
+  /** The row a title page's status opened the page on: lit up, then this once that's done. */
+  onFound?: () => void;
   /** Who asked: in everyone's requests only. */
   by: Requester | null;
   /** When everyone's requests arrived, for the time left (the user's own count from their own answer). */
@@ -321,7 +383,11 @@ function RequestRow({
   return (
     <li>
       {/* Ready (and on the server for this user): its library page; otherwise the title's page. */}
-      <a class={`lmn-request${first ? ' lmn-autofocus' : ''}`} href={catalogHash(item)}>
+      <a
+        class={`lmn-request${first ? ' lmn-autofocus' : ''}${onFound ? ' is-found' : ''}`}
+        href={catalogHash(item)}
+        onAnimationEnd={onFound}
+      >
         <span class="lmn-request__art">
           {art && imageToken ? (
             <img src={catalogImageUrl(ctx.client, art, 'w185', imageToken)} alt="" loading="lazy" />
@@ -337,7 +403,7 @@ function RequestRow({
           <span class="lmn-request__meta">{meta.join(' · ')}</span>
         </div>
         {/* A column of its own, as wide on every row: the statuses and their bars line up down the list. */}
-        <RequestProgressBlock request={request} compact receivedAt={receivedAt} />
+        <RequestProgressBlock request={request} receivedAt={receivedAt} />
         <Icon name="chevronRight" size={20} class="lmn-request__go" />
       </a>
     </li>

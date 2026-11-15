@@ -285,17 +285,18 @@ export function secondsLeft(request: MyRequest, now: number = Date.now()): numbe
   return Math.max(0, request.SecondsLeft - Math.floor((now - receivedAt) / 1000));
 }
 
-/** "Downloading", "Ready"…: the label for a request's status. */
+/** "Pending", "Downloading", "Ready"…: the label for a request's status (the same as its chip in My requests). */
 export function progressLabel(status: RequestProgressStatus): string {
   return strings.progress[status];
 }
 
 /**
- * The words under a label: "45% · 12 min left", "3 of 8 episodes · 12 min left", "Adding to your library". Empty when
- * there's nothing to add.
+ * The words under a label: "45% · 12 min left", "3 of 8 episodes · 12 min left", "Adding to your library" (Processing,
+ * which is labelled Downloading), "Waiting to download" (Queued). Empty when there's nothing to add.
  */
 export function progressDetail(request: MyRequest, now?: number): string {
   if (request.Status === 'Processing') return strings.processingDetail;
+  if (request.Status === 'Queued') return strings.queuedDetail;
   if (request.Status !== 'Downloading') return '';
   const left = secondsLeft(request, now);
   return [

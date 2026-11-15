@@ -52,7 +52,8 @@ test('Top 10 ranks Trakt’s weekly titles: the ones here open their page, the r
   await expect(dialog.getByText('Requested, waiting for approval.')).toBeVisible();
   await dialog.getByRole('button', { name: 'Done' }).click();
   await expect(dialog).toBeHidden();
-  await expect(movies.getByRole('button', { name: '2, The Matrix, Requested' })).toBeVisible();
+  // The user's own request: Pending, as in My requests, once the check after requesting answers.
+  await expect(movies.getByRole('button', { name: '2, The Matrix, Pending' })).toBeVisible();
   await expect(movies.getByRole('button', { name: /^Request / })).toHaveCount(0);
   await expect(page).toHaveURL(/#\/home/);
   const filed = (await (await fetch(`${STUB_SEERR}/__stub/requests`)).json()) as { body: { mediaId: number } }[];
