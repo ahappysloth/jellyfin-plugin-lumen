@@ -552,8 +552,15 @@ test.describe('TV layout', () => {
     const button = page.locator('.btnQuick');
     const submit = page.locator('.manualLoginForm .button-submit');
     const background = (l: Locator): Promise<string> => l.evaluate((e) => getComputedStyle(e).backgroundColor);
-    // jellyfin-web asks the server on every visit to the sign-in page, and shows the button if it's on.
+    // jellyfin-web asks the server as the sign-in page loads, and shows the button if it's on. From 13.0 (`unstable`) it
+    // keeps its answers in IndexedDB (idb-keyval's database, "jellyfin-query-cache") and shows the page from them on the
+    // next load without asking: dropped first, so it asks again (on earlier releases there's nothing to drop).
     const loadSignIn = async (reload = false): Promise<void> => {
+      if (reload)
+        await page.evaluate(() => new Promise((done) => {
+          const dropped = indexedDB.deleteDatabase('keyval-store');
+          dropped.onsuccess = dropped.onerror = dropped.onblocked = done;
+        }));
       const answered = page.waitForResponse(/\/QuickConnect\/Enabled\b/);
       await (reload ? page.reload() : page.goto('/web/#/login'));
       await answered;

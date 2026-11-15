@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { ADMIN, BASE_URL, SEERR_URL, STUB_SEERR, api, loadState, resetLumen } from '../support/api';
 import { walkDpad } from '../support/dpad';
@@ -22,6 +23,9 @@ async function rerun(root: Locator): Promise<void> {
 }
 
 const row = (root: Locator, id: string): Locator => root.locator(`[data-check="${id}"]`);
+
+/** The Jellyfin releases Lumen's tests have passed on (client/src/compat/testedVersions.ts). */
+const TESTED: string[] = JSON.parse(readFileSync(new URL('../../client/src/compat/tested-jellyfin.json', import.meta.url), 'utf8')).versions;
 
 async function lumenConfig(change: Record<string, unknown>): Promise<void> {
   const { admin } = loadState();
@@ -51,8 +55,15 @@ test('the Health tab lists the checks by group, each with its status in words, a
 
   for (const group of ['Health check', 'Server', 'Proxy and network', 'Requests (Seerr)', 'Notifications', 'Trakt', 'Trailers', 'Skip Intro', 'Quick Connect', 'Devices'])
     await expect(root.getByRole('group', { name: group, exact: true })).toBeVisible();
-  await expect(row(root, 'server.jellyfin')).toContainText('OK');
-  await expect(row(root, 'server.jellyfin')).toContainText(/Lumen has been tested with Jellyfin 12\.\d+\./);
+  // OK on a release Lumen's tests have passed on; a warning on another (the nightly runs `unstable`, the next release).
+  const release = /^\d+\.\d+/.exec((await api<{ Version: string }>('/System/Info/Public')).Version)![0];
+  if (TESTED.includes(release)) {
+    await expect(row(root, 'server.jellyfin')).toContainText('OK');
+    await expect(row(root, 'server.jellyfin')).toContainText(`Lumen has been tested with Jellyfin ${release}.`);
+  } else {
+    await expect(row(root, 'server.jellyfin')).toContainText('Warning');
+    await expect(row(root, 'server.jellyfin')).toContainText(`Lumen hasn't been tested with Jellyfin ${release} yet`);
+  }
   // No proxy here: the probe's headers arrive as Lumen sent them.
   await expect(row(root, 'proxy.cache')).toContainText("Lumen's files arrive with the caching headers Lumen sends");
   await expect(row(root, 'proxy.cache')).toContainText('Received: Cache-Control: no-cache.');
@@ -196,6 +207,9 @@ test('a fix saved on the Settings tab shows on the Health tab at once, without r
 
     // The row's fix, the right key, Save: the server dropped the report it kept, and the page asked again.
     await seerr.getByRole('button', { name: 'Open Requests settings' }).click();
+    // The fix puts focus on the card's first control after the render that shows the tab: typed before that (a slow
+    // WebKit), the key would go to wherever focus then went, not the field, and there'd be nothing to save.
+    await expect(root.getByRole('switch', { name: 'Enable catalog browsing and requests' })).toBeFocused();
     await root.getByLabel('Seerr API key').fill('stub-key');
     await root.getByRole('button', { name: 'Save' }).click();
     await expect(root.locator('.lmna-savebar').getByText('Settings saved.')).toBeVisible();
