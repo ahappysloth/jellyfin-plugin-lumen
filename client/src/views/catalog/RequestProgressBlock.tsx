@@ -1,6 +1,5 @@
 import type { MyRequest } from '../../api/types';
 import { isMoving, progressDetail, progressLabel } from './requestProgress';
-import { titleStrings } from './titleStrings';
 import { strings } from '../../strings';
 
 /**
@@ -15,17 +14,15 @@ function detailFrom(request: MyRequest, at: number): string {
 }
 
 /**
- * How the user's own request for a title is going, on its page and in My requests: the status and what it means
- * ("Downloading · 45% · 12 min left"), and a progress bar while it downloads. The bar is a progressbar (its value is
- * read when it's reached, not announced on every update).
+ * How a request is going, in its row in My requests: the status and how far along ("Downloading · 45% · 12 min left"),
+ * and a progress bar while it downloads. The bar is a progressbar (its value is read when it's reached, not announced
+ * on every update). A title's page shows the same word, bar and detail on its link here (TitleView).
  */
 export function RequestProgressBlock({
   request,
-  compact = false,
   receivedAt,
 }: {
   request: MyRequest;
-  compact?: boolean;
   /** When the list it came in arrived, if it isn't the user's own (everyone's requests: allRequests.ts). */
   receivedAt?: number;
 }) {
@@ -33,7 +30,6 @@ export function RequestProgressBlock({
   const detail = receivedAt === undefined ? progressDetail(request) : detailFrom(request, receivedAt);
   const percent = isMoving(request.Status) && request.Percent != null ? request.Percent : null;
   const problem = request.Status === 'Declined' || request.Status === 'Failed';
-  const note = compact ? null : titleStrings.progressNote[request.Status];
   return (
     <div class={`lmn-request-progress${problem ? ' is-problem' : ''}`}>
       <p class="lmn-request-progress__status">
@@ -53,7 +49,6 @@ export function RequestProgressBlock({
           <span style={{ width: `${Math.max(0, Math.min(100, percent))}%` }} />
         </div>
       )}
-      {note && <p class="lmn-request-progress__note">{note}</p>}
     </div>
   );
 }

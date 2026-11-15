@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
-import { makeContext } from '../../../test/viewContext';
+import { myRequest } from '../../../test/myRequest';
+import { makeContext, testConfig } from '../../../test/viewContext';
 import type { CatalogItem, CatalogTitle, HomeResponse, HomeRow } from '../../api/types';
 import { resetSessionCaches } from '../../util/sessionCaches';
+import { reset, startRequestProgress } from '../catalog/requestProgress';
 import { HomeView } from './HomeView';
 import { setCachedHome } from './homeStore';
 import { Row } from './Row';
@@ -263,6 +265,35 @@ describe('Top 10 on the home screen', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('says Pending, as everywhere else, when the user requested it themselves on another device meanwhile', async () => {
+    const ctx = makeContext(
+      createFakeClient(
+        routes({
+          'Lumen/Home': homeWithTop10,
+          'Lumen/Requests/Status': {
+            Enabled: true,
+            CanRequestMovies: true,
+            CanRequestTv: true,
+            ImageToken: 't',
+          },
+          'Lumen/Requests/Mine': { Requests: [myRequest({ Status: 'Requested', Percent: null })] },
+          'Lumen/Requests/Title/movie/603': { ...title, State: 'Requested', CanRequest: false },
+        }),
+      ),
+      { config: { ...testConfig, Requests: true } },
+    );
+    // Followed, but not asked yet (nothing in flight when this page last checked): the sheet asks.
+    startRequestProgress(ctx);
+    try {
+      render(<HomeView ctx={ctx} />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Request The Matrix' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Request The Matrix' });
+      expect(await within(dialog).findByText('Pending', {}, { timeout: 900 })).toBeInTheDocument();
+    } finally {
+      reset();
+    }
   });
 
   it("says so when the title can't be requested any more, and closes on Back", async () => {

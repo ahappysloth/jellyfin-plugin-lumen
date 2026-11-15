@@ -57,7 +57,9 @@ test('search offers catalog titles; a movie is requested as the signed-in Seerr 
   await expect(dialog.getByText('Requested, waiting for approval.')).toBeVisible();
   await dialog.getByRole('button', { name: 'Done' }).click();
   // The page follows the new request: waiting for an admin's approval (the stub doesn't auto-approve).
-  await expect(page.locator('.lmn-request-progress')).toContainText('RequestedWaiting for approval.');
+  const status = page.getByRole('link', { name: /^Pending ?, My requests$/ });
+  await expect(status).toBeVisible();
+  await expect(status).toHaveAccessibleDescription('Waiting for approval.');
 
   const filed = await requests();
   expect(filed).toHaveLength(1);

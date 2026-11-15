@@ -90,22 +90,66 @@ describe('TitleView', () => {
     await act(() => refreshRequestProgress());
     render(<TitleView mediaType="movie" tmdbId={603} ctx={ctx} />);
 
-    const bar = await screen.findByRole('progressbar', { name: 'Downloading' });
-    expect(bar).toHaveAttribute('aria-valuenow', '40');
-    expect(bar).toHaveAttribute('aria-valuetext', '40% · 10 min left');
-    // Its progress replaces the plain state.
-    expect(screen.queryByRole('status')).toBeNull();
+    try {
+      // The word, bar and detail its row in My requests shows, on a link to that row.
+      const status = await screen.findByRole('link', { name: 'Downloading, My requests' });
+      expect(status).toHaveAttribute('href', '#/home?lumen=requests&request=movie-603');
+      expect(status).toHaveAccessibleDescription('40% · 10 min left');
+      expect(status.querySelector<HTMLElement>('.lmn-progress__fill')!.style.width).toBe('40%');
+      // Its progress replaces the plain state.
+      expect(screen.queryByRole('status')).toBeNull();
 
-    answer = myRequest({ Percent: 75, SecondsLeft: 120 });
-    await act(() => refreshRequestProgress());
-    expect(screen.getByRole('progressbar', { name: 'Downloading' })).toHaveAttribute('aria-valuenow', '75');
+      answer = myRequest({ Percent: 75, SecondsLeft: 120 });
+      await act(() => refreshRequestProgress());
+      expect(status).toHaveAccessibleDescription('75% · 2 min left');
+      expect(status.querySelector<HTMLElement>('.lmn-progress__fill')!.style.width).toBe('75%');
 
-    ready = true;
-    answer = myRequest({ Status: 'Ready', Percent: null, SecondsLeft: null });
+      // Imported: still Downloading, as in My requests, with what's happening under it.
+      answer = myRequest({ Status: 'Processing', Percent: 100, SecondsLeft: null });
+      await act(() => refreshRequestProgress());
+      expect(status).toHaveAccessibleName('Downloading, My requests');
+      expect(status).toHaveAccessibleDescription('Adding to your library');
+
+      ready = true;
+      answer = myRequest({ Status: 'Ready', Percent: null, SecondsLeft: null });
+      await act(() => refreshRequestProgress());
+      expect(await screen.findByRole('button', { name: 'Open in library' })).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: /My requests/ })).toBeNull();
+    } finally {
+      reset();
+    }
+  });
+
+  it.each([
+    ['Requested', 'Pending', 'Waiting for approval.'],
+    ['Queued', 'Queued', 'Waiting to download'],
+    ['Declined', 'Declined', 'Your request was declined.'],
+    ['Failed', 'Failed', 'The request failed. Ask the server owner to look at it.'],
+  ] as const)('a request %s says %s, as its row does, and links to it', async (Status, word, detail) => {
+    const client = createFakeClient(
+      routes({
+        'Lumen/Requests/Title/movie/603': { ...movie, State: 'Requested', CanRequest: false },
+        'Lumen/Requests/Mine': { Requests: [myRequest({ Status, Percent: null, SecondsLeft: null })] },
+        'Lumen/Requests/Status': {
+          Enabled: true,
+          CanRequestMovies: true,
+          CanRequestTv: true,
+          ImageToken: 't',
+        },
+      }),
+    );
+    const ctx = makeContext(client, { config: { ...testConfig, Requests: true } });
+    startRequestProgress(ctx);
     await act(() => refreshRequestProgress());
-    expect(await screen.findByRole('button', { name: 'Open in library' })).toBeInTheDocument();
-    expect(screen.queryByRole('progressbar')).toBeNull();
-    reset();
+    try {
+      render(<TitleView mediaType="movie" tmdbId={603} ctx={ctx} />);
+      const status = await screen.findByRole('link', { name: `${word}, My requests` });
+      expect(status).toHaveAttribute('href', '#/home?lumen=requests&request=movie-603');
+      expect(status).toHaveAccessibleDescription(detail);
+      expect(status.querySelector('.lmn-progress')).toBeNull();
+    } finally {
+      reset();
+    }
   });
 
   it('shows the title with Request, trailer link, cast and recommendations', async () => {

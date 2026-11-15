@@ -232,10 +232,6 @@ a.lmn-button {
   color: var(--lmn-text-2);
   font-variant-numeric: tabular-nums;
 }
-.lmn-request-progress {
-  margin-top: 18px;
-  max-width: 420px;
-}
 /* Margins, not flex gap: Chromium 68 (webOS 5) and Safari 13 have no gap on flex containers. The top margin takes
    back the first row's spacing. */
 .lmn-request-progress__status {
@@ -269,11 +265,6 @@ a.lmn-button {
   border-radius: inherit;
   background: var(--lmn-accent);
   transition: width 0.6s var(--lmn-ease);
-}
-.lmn-request-progress__note {
-  margin: 8px 0 0;
-  color: var(--lmn-text-3);
-  font-size: 13px;
 }
 /* My requests' rows are in that page's own stylesheet (requests.css). */
 @media (prefers-reduced-motion: reduce) {

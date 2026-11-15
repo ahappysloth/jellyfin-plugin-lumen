@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { CatalogItem, CatalogMediaType, CatalogTitle, RequestResult } from '../../api/types';
 import { detailsHash } from '../../compat/jellyfin';
 import { Icon } from '../../components/icons';
+import { ProgressBar } from '../../components/ProgressBar';
 import { LoadError } from '../../components/LoadError';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { strings } from '../../strings';
@@ -25,8 +26,8 @@ import {
 } from './catalog';
 import { CatalogCard } from './CatalogCard';
 import { RequestDialog, requestedState } from './RequestDialog';
-import { RequestProgressBlock } from './RequestProgressBlock';
-import { isMoving, usePollFast, useRequestProgress } from './requestProgress';
+import { myRequestHash } from './requestFilters';
+import { isMoving, progressDetail, progressLabel, usePollFast, useRequestProgress } from './requestProgress';
 import { titleStrings } from './titleStrings';
 
 // The request dialog for a card's Request button (lazyTitle.tsx's LazyQuickRequest) and My requests come in this chunk
@@ -191,8 +192,10 @@ function TitleHeader({
   const reducedMotion = usePrefersReducedMotion();
   const preview = ctx.config.TrailerPreview && ctx.config.YouTubeTrailers && !reducedMotion;
   const trailer = useTrailerControls();
-  // The user's own request shows its progress under the header instead of the state (RequestProgressBlock).
+  // The user's own request shows as a link to it in My requests instead of the state: the word its row there shows,
+  // with the row's bar while it downloads, and the row's detail under it (or what the word means, where it has none).
   const mine = useRequestProgress(title.Key);
+  const mineDetail = mine && (progressDetail(mine) || titleStrings.progressNote[mine.Status]);
   const meta = [
     title.Rating ? title.Rating.toFixed(1) : undefined,
     title.Year?.toString(),
@@ -272,6 +275,20 @@ function TitleHeader({
                 : strings.request}
             </button>
           ) : null}
+          {mine && !owned && (
+            // Without an aria-label (a phone shrinks a labelled secondary button to its icon): its words name it.
+            <a
+              class="lmn-button lmn-button--secondary lmn-autofocus lmn-title__status"
+              href={myRequestHash(title.Key)}
+              aria-describedby={mineDetail ? 'lmn-title-progress' : undefined}
+            >
+              {/* Ready shows only until the page, fetched again, offers Open in library. */}
+              <Icon name={/^(Declined|Failed)$/.test(mine.Status) ? 'close' : 'download'} />
+              {progressLabel(mine.Status)}
+              {isMoving(mine.Status) && mine.Percent != null && <ProgressBar percent={mine.Percent} />}
+              <span class="lmn-visually-hidden">, {strings.myRequests}</span>
+            </a>
+          )}
           {!owned && label && state !== 'None' && !mine && (
             <span class="lmn-title__state" role="status">
               <Icon name={state === 'Downloading' ? 'film' : 'check'} size={18} />
@@ -291,7 +308,11 @@ function TitleHeader({
             </a>
           )}
         </div>
-        {mine && !owned && <RequestProgressBlock request={mine} />}
+        {mine && !owned && mineDetail && (
+          <p id="lmn-title-progress" class="lmn-title__note">
+            {mineDetail}
+          </p>
+        )}
         {note && <p class="lmn-title__note">{note}</p>}
       </div>
     </header>

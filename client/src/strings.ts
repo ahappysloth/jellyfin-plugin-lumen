@@ -179,15 +179,26 @@ export const strings = {
   partlyAvailableShort: 'Partial',
   // Request progress (views/catalog/requestProgress.ts): posters, the title page, My requests, the ready pop-up.
   myRequests: 'My requests',
+  /**
+   * The word for where the user's own request stands, by the server's status. Each is also the name of a chip in My
+   * requests (views/catalog/requestFilters.ts), so a title reads the same on its poster, its page and that list:
+   * the server's Requested is "Pending", and Processing (downloaded, being imported) is still "Downloading", with
+   * processingDetail under it. A title someone else requested keeps the catalog's "Requested" (requested, above).
+   */
   progress: {
-    Requested: 'Requested',
+    Requested: 'Pending',
     Queued: 'Queued',
     Downloading: 'Downloading',
-    Processing: 'Processing',
+    Processing: 'Downloading',
     Ready: 'Ready',
     Declined: 'Declined',
     Failed: 'Failed',
   },
+  /**
+   * Under Queued: approved, nothing downloading yet. Radarr or Sonarr may still be looking for a release, or have one
+   * waiting in their queue, or Seerr may not be connected to them at all; the server can't always tell which.
+   */
+  queuedDetail: 'Waiting to download',
   processingDetail: 'Adding to your library',
   episodesOf: (done: number, total: number) => `${formatNumber(done)} of ${formatNumber(total)} episodes`,
   timeLeft: (s: number) => {

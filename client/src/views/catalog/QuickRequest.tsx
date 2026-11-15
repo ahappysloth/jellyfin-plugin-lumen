@@ -5,6 +5,7 @@ import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import type { ViewContext } from '../context';
 import { setCatalogState, stateLabel } from './catalog';
 import { RequestDialog, requestedState } from './RequestDialog';
+import { progressLabel, refreshRequestProgress, useRequestProgress } from './requestProgress';
 import { titleStrings } from './titleStrings';
 
 /**
@@ -23,7 +24,10 @@ export function QuickRequest({
 }) {
   const [title, setTitle] = useState<CatalogTitle | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  /** Requested (or on the server) by now: if it's the user's own request, its word says so, as everywhere else. */
+  const [taken, setTaken] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
+  const mine = useRequestProgress(item.Key);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,6 +38,11 @@ export function QuickRequest({
         if (t.CanRequest) setTitle(t);
         else {
           setCatalogState(t.Key, t.State);
+          if (t.State !== 'Blocklisted' && t.State !== 'None') {
+            setTaken(true);
+            // Filed on another device since this page last checked, say: the user's own list is asked again.
+            void refreshRequestProgress();
+          }
           setFailed(
             t.State === 'Blocklisted'
               ? titleStrings.blocklisted
@@ -91,7 +100,7 @@ export function QuickRequest({
         {failed && (
           <>
             <p class="lmn-dialog__text" role="status">
-              {failed}
+              {taken && mine ? progressLabel(mine.Status) : failed}
             </p>
             <div class="lmn-dialog__actions">
               <button type="button" class="lmn-button lmn-button--primary" onClick={onClose}>

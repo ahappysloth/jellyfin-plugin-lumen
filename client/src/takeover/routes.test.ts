@@ -82,6 +82,8 @@ describe('parseRoute', () => {
     ['#/mypreferencesmenu', { kind: 'profile' }],
     ['#/home?lumen=history', { kind: 'history' }],
     ['#/home?lumen=requests', { kind: 'requests' }],
+    // A title page's status opens it on one request (the page reads which itself: requestFilters.ts).
+    ['#/home?lumen=requests&request=movie-603', { kind: 'requests' }],
     ['#/home?lumen=charts', { kind: 'charts' }],
     ['#/home?lumen=charts&chart=shows&period=monthly', { kind: 'charts' }],
     ['#/home?lumen=nope', { kind: 'home' }],
