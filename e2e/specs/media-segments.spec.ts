@@ -422,6 +422,8 @@ for (const transcode of [false, true]) {
       // Lumen and jellyfin-web don't both make the skip: Lumen seeks only where jellyfin-web won't. jellyfin-web 12.1's
       // segment manager seeks a second time as it lands on the intro's end (the end still counts as inside it there),
       // a seek of its own to where it already is that Lumen has no part in: so only Lumen's are counted where it skips.
+      // Counted once playback has gone on past the end, so a seek made on a later `timeupdate` there is in.
+      await expect.poll(() => time(page), { timeout: 10_000 }).toBeGreaterThan(11.5);
       const skipped = await counts();
       if (stock) {
         expect(skipped.lumen).toBe(0);

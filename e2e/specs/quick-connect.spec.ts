@@ -553,14 +553,26 @@ test.describe('TV layout', () => {
     const submit = page.locator('.manualLoginForm .button-submit');
     const background = (l: Locator): Promise<string> => l.evaluate((e) => getComputedStyle(e).backgroundColor);
     // jellyfin-web asks the server as the sign-in page loads, and shows the button if it's on. From 13.0 (`unstable`) it
-    // keeps its answers in IndexedDB (idb-keyval's database, "jellyfin-query-cache") and shows the page from them on the
-    // next load without asking: dropped first, so it asks again (on earlier releases there's nothing to drop).
+    // keeps its answers in IndexedDB (idb-keyval's "keyval-store" database, its "keyval" store, key
+    // "jellyfin-query-cache") and shows the page from them on the next load without asking: deleted first, so it asks
+    // again (earlier releases have no such database, and nothing is deleted).
     const loadSignIn = async (reload = false): Promise<void> => {
       if (reload)
-        await page.evaluate(() => new Promise((done) => {
-          const dropped = indexedDB.deleteDatabase('keyval-store');
-          dropped.onsuccess = dropped.onerror = dropped.onblocked = done;
-        }));
+        await page.evaluate(async () => {
+          if (!(await indexedDB.databases()).some((d) => d.name === 'keyval-store')) return;
+          await new Promise<void>((done, fail) => {
+            const opened = indexedDB.open('keyval-store');
+            opened.onerror = () => fail(opened.error);
+            opened.onsuccess = () => {
+              const db = opened.result;
+              if (!db.objectStoreNames.contains('keyval')) return done(db.close());
+              const tx = db.transaction('keyval', 'readwrite');
+              tx.objectStore('keyval').delete('jellyfin-query-cache');
+              tx.oncomplete = () => done(db.close());
+              tx.onerror = () => fail(tx.error);
+            };
+          });
+        });
       const answered = page.waitForResponse(/\/QuickConnect\/Enabled\b/);
       await (reload ? page.reload() : page.goto('/web/#/login'));
       await answered;

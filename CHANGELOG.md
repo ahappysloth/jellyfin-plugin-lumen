@@ -15,7 +15,6 @@ All notable changes to Lumen are documented here. Versions follow SemVer; Jellyf
   failures were in the tests, not in Lumen: Jellyfin 12.1 skips an intro with two seeks of its own, the next Jellyfin
   remembers its sign-in page between visits, and two timing checks were too strict. Jellyfin 12.4 itself can crash
   when a browser disconnects at the wrong moment (a Jellyfin bug); the tests now restart it and report it.
-- Checked along the way: an iPhone doesn't download a title page's trailer again when you scroll away and back.
 
 ## [0.6.6] - 2026-11-15
 

@@ -9,7 +9,8 @@ on:
         type: string
         default: e2e-report
       # Pull requests run every spec on chromium and the `@smoke` ones on firefox and webkit-iphone, in parallel jobs
-      # that take no longer than a chromium one. The nightly run sets this to run every spec on all three.
+      # that take no longer than a chromium one. The weekly compatibility run sets this to run every spec on all three
+      # (or on Chromium alone, with chromium-only).
       all-browsers:
         type: boolean
         default: false
@@ -33,11 +34,11 @@ jobs:
       matrix:
         # The Playwright projects in e2e/playwright.config.ts, and the browser each one installs. Chromium runs every
         # spec, so it's split in two jobs (`part`, LUMEN_E2E_PART in the config). `chromium-only` drops the other two.
+        # (Folded: its lines, all indented alike, join into one, so no JSON string has a line break in it.)
         include: >-
           ${{ fromJSON(inputs.chromium-only
-            && '[{"project":"chromium","browser":"chromium","part":1},{"project":"chromium","browser":"chromium","part":2}]'
-            || '[{"project":"chromium","browser":"chromium","part":1},{"project":"chromium","browser":"chromium","part":2},
-                 {"project":"firefox","browser":"firefox"},{"project":"webkit-iphone","browser":"webkit"}]') }}
+          && '[{"project":"chromium","browser":"chromium","part":1},{"project":"chromium","browser":"chromium","part":2}]'
+          || '[{"project":"chromium","browser":"chromium","part":1},{"project":"chromium","browser":"chromium","part":2},{"project":"firefox","browser":"firefox"},{"project":"webkit-iphone","browser":"webkit"}]') }}
     steps:
       - uses: actions/checkout@v7
       # Docker shares one download between this and `docker run` below, which then waits for it.
