@@ -1,13 +1,15 @@
-import { HOME_HASH } from '../compat/jellyfin';
+import { HOME_HASH, replaceWith } from '../compat/jellyfin';
 import { Icon } from '../components/icons';
 import { strings } from '../strings';
-import { usePageDepth } from '../takeover/pageDepth';
-import type { ViewContext } from './context';
+import { pagesBehind, usePageDepth } from '../takeover/pageDepth';
 
-/** Back to wherever the user came from; home when the page was opened directly. */
-export function goBack(ctx: Pick<ViewContext, 'navigate'>): void {
-  if (window.history.length > 1) window.history.back();
-  else ctx.navigate(HOME_HASH);
+/**
+ * Back to the app's page before this one; with none (a link, a new tab), `to` (home) in this page's place, so Back
+ * from there doesn't come back here.
+ */
+export function goBack(to = HOME_HASH): void {
+  if (pagesBehind()) window.history.back();
+  else replaceWith(to);
 }
 
 /**

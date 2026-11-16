@@ -22,7 +22,7 @@ export function MovieDetails({ item, ctx, reload }: DetailsProps & { item: BaseI
     complete: true,
     downloadButton: !!download,
     onChanged: reload,
-    onDeleted: () => goBack(ctx),
+    onDeleted: () => goBack(),
     fallback: ctx.onFallback,
   });
   const rootRef = useRef<HTMLElement>(null);
@@ -47,7 +47,7 @@ export function MovieDetails({ item, ctx, reload }: DetailsProps & { item: BaseI
         onTrailer={trailerId ? () => actions.play(trailerId) : undefined}
         download={download}
         more={more}
-        onBack={() => goBack(ctx)}
+        onBack={() => goBack()}
         badges={deriveBadges(item.MediaStreams)}
         {...actions}
       />

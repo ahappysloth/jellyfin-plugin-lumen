@@ -17,7 +17,7 @@ test("Play hands off to jellyfin-web's own player", { tag: '@smoke' }, async ({ 
 
   await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
 
-  await expect(page).toHaveURL(/#\/video/);
+  await expect(page).toHaveURL(/#\/(details\/)?video/);
   await expect(page.locator('video').first()).toBeVisible();
 });
 
@@ -36,9 +36,9 @@ test('Play starts in the tab it was pressed in, even with another Jellyfin tab o
   await page.bringToFront();
   await play.click();
 
-  await expect(page).toHaveURL(/#\/video/);
+  await expect(page).toHaveURL(/#\/(details\/)?video/);
   await expect(page.locator('video').first()).toBeVisible();
-  await expect(other).not.toHaveURL(/#\/video/);
+  await expect(other).not.toHaveURL(/#\/(details\/)?video/);
   await expect(other.locator('video')).toHaveCount(0);
 });
 
@@ -47,7 +47,7 @@ test("the scroll wheel shows Lumen's volume pill, not jellyfin-web's card or the
   await login(page, ADMIN);
   await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
   await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
-  await expect(page).toHaveURL(/#\/video/);
+  await expect(page).toHaveURL(/#\/(details\/)?video/);
   await expect(page.locator('video.htmlvideoplayer')).toBeVisible();
 
   // Leave the controls to hide, then scroll over the picture: jellyfin-web turns the wheel into volume steps.
@@ -297,7 +297,7 @@ test("Lumen's player controls drive jellyfin-web's player, including subtitle tr
   await login(page, ADMIN);
   await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
   await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
-  await expect(page).toHaveURL(/#\/video/);
+  await expect(page).toHaveURL(/#\/(details\/)?video/);
 
   // Lumen's controls replace jellyfin-web's (which stay in the DOM, hidden).
   await expect(page.getByRole('heading', { name: 'Lumen Alpha' })).toBeVisible();
@@ -400,9 +400,9 @@ test('Cast moves what is playing to another Jellyfin session', async ({ page, br
   await page.getByRole('menu', { name: 'Cast' }).getByRole('menuitem').first().click();
 
   // It plays there, and stops here.
-  await expect(tvPage).toHaveURL(/#\/video/, { timeout: 20_000 });
+  await expect(tvPage).toHaveURL(/#\/(details\/)?video/, { timeout: 20_000 });
   await expect.poll(() => tvPage.locator('video.htmlvideoplayer').evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 20_000 }).toBeGreaterThan(0);
-  await expect(page).not.toHaveURL(/#\/video/, { timeout: 20_000 });
+  await expect(page).not.toHaveURL(/#\/(details\/)?video/, { timeout: 20_000 });
   await endPlayback(tvPage);
   await tv.close();
 });

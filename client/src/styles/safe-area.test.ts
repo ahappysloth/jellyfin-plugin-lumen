@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import baseCss from './base.css?raw';
 import navCss from './nav.css?raw';
-import playerCss from './player.css?raw';
+import playerCss from './player-controls.css?raw';
 import segmentsCss from './segments.css?raw';
 import { missingFallbacks } from '../../scripts/css-fallbacks.mjs';
 

@@ -16,7 +16,7 @@ export function CollectionDetails({ item, ctx, reload }: DetailsProps & { item: 
   const more = useItemMenu(ctx, item, {
     complete: true,
     onChanged: reload,
-    onDeleted: () => goBack(ctx),
+    onDeleted: () => goBack(),
     fallback: ctx.onFallback,
   });
   const rootRef = useRef<HTMLElement>(null);
@@ -46,7 +46,7 @@ export function CollectionDetails({ item, ctx, reload }: DetailsProps & { item: 
         }
         trailerId={null}
         backdropFallback={state.items[0]}
-        onBack={() => goBack(ctx)}
+        onBack={() => goBack()}
         badges={state.total ? [strings.titleCount(state.total)] : []}
         more={more}
         {...actions}

@@ -54,6 +54,58 @@ describe('startLumen', () => {
     return { mount, unmount };
   };
 
+  describe("a remote's Back with none of the app's pages behind", () => {
+    const MOVIE = '#/details?id=0123456789abcdef0123456789abcdef';
+    /** Presses Back as a remote sends it, and says whether jellyfin-web (on window, bubble phase) would act on it. */
+    const press = (init: KeyboardEventInit): boolean => {
+      let reached = false;
+      const stock = (e: KeyboardEvent): void => void (reached = !e.defaultPrevented);
+      window.addEventListener('keydown', stock);
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }));
+      window.removeEventListener('keydown', stock);
+      return reached;
+    };
+    const open = async (hash: string) => {
+      history.replaceState(null, '', hash);
+      const { mount } = start(); // a page opened from a link: nothing of the app's behind it
+      await vi.waitFor(() => expect(mount).toHaveBeenCalled());
+    };
+
+    it('goes home in its place, not onto nothing, and jellyfin-web never sees it', async () => {
+      await open(MOVIE);
+      const length = history.length;
+      expect(press({ keyCode: 461 })).toBe(false);
+      expect(location.hash).toBe('#/home');
+      expect(history.length).toBe(length);
+    });
+
+    it('takes Escape in the TV layout only, as jellyfin-web does', async () => {
+      await open(MOVIE);
+      expect(press({ key: 'Escape', keyCode: 27 })).toBe(true);
+      expect(location.hash).toBe(MOVIE);
+
+      document.documentElement.className = 'layout-tv';
+      expect(press({ key: 'Escape', keyCode: 27 })).toBe(false);
+      expect(location.hash).toBe('#/home');
+    });
+
+    it('leaves it to jellyfin-web on home (a TV app exits there) and on its own pages', async () => {
+      await open('#/home');
+      expect(press({ keyCode: 461 })).toBe(true);
+
+      history.replaceState(null, '', '#/login'); // jellyfin-web's own page
+      expect(press({ keyCode: 461 })).toBe(true);
+      expect(location.hash).toBe('#/login');
+    });
+
+    it("goes back as usual with one of the app's pages behind", async () => {
+      await open('#/home');
+      history.pushState(null, '', MOVIE);
+      expect(press({ keyCode: 461 })).toBe(true);
+      expect(location.hash).toBe(MOVIE);
+    });
+  });
+
   it('waits for a signed-in user, then takes over home and applies the accent to #lmn-root', async () => {
     client.userId = null;
     const { mount } = start();

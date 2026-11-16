@@ -3,7 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient } from '../../../test/fakeClient';
 import { makeContext } from '../../../test/viewContext';
 import { clearStarting } from '../../playback/starting';
+import { loadStyles } from '../../util/loadStyles';
 import { loadPlayer } from './lazyPlayer';
+
+// jsdom never loads a stylesheet: the player's (lumen-player.css) is taken as in.
+vi.mock('../../util/loadStyles', () => ({ loadStyles: vi.fn(() => Promise.resolve()) }));
 
 describe('LazyPlayer', () => {
   afterEach(() => {
@@ -49,8 +53,9 @@ describe('LazyPlayer', () => {
     }
   });
 
-  it('loads the code once, however often it is asked for', async () => {
+  it('loads the code once, however often it is asked for, with its stylesheet', async () => {
     expect(loadPlayer()).toBe(loadPlayer());
     expect(typeof (await loadPlayer()).PlayerView).toBe('function');
+    expect(loadStyles).toHaveBeenCalledWith('lumen-player.css');
   });
 });

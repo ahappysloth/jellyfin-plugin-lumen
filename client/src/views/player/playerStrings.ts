@@ -51,6 +51,9 @@ export const playerStrings = {
   noCastTargets: 'No devices to cast to',
   castingTo: (name: string) => `Playing on ${name}`,
   castFailed: "Couldn't start playback on that device",
+  /** A title's player URL, opened again (views/player/playerUrl.ts), names a title that isn't there. */
+  restoreFailed:
+    "Couldn't play that title. It may have been removed, or your account doesn't have access to it.",
   buffering: 'Loading',
   directPlay: 'Direct play',
   directStream: 'Direct stream',

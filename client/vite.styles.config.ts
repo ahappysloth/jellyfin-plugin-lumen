@@ -10,6 +10,9 @@ import { target } from './vite.target.ts';
  * - lumen-push.css: the notifications toggle (styles/push.css), linked with its file (views/push/lazyPush.tsx).
  * - lumen-requests.css: My requests' search, filter chips and "Everyone's requests" (styles/requests.css), linked by
  *   the page (views/catalog/MyRequestsView.tsx).
+ * - lumen-player.css: the player's controls (styles/player-controls.css), linked with its file
+ *   (views/player/lazyPlayer.tsx). What every page needs of the player (the stock OSD hidden, the loading screen) stays
+ *   in lumen.css (styles/player.css).
  * - lumen-segments.css: the player's Skip button and next-episode card (styles/segments.css), linked with their file
  *   (views/player/lazySegments.tsx).
  * - lumen-trailerinfo.css: the Trailer section of a title's Media info (styles/trailerinfo.css), linked with its file
@@ -36,6 +39,7 @@ export default defineConfig({
         'lumen-quickconnect': 'src/styles/quickconnect.css',
         'lumen-push': 'src/styles/push.css',
         'lumen-requests': 'src/styles/requests.css',
+        'lumen-player': 'src/styles/player-controls.css',
         'lumen-segments': 'src/styles/segments.css',
         'lumen-trailerinfo': 'src/styles/trailerinfo.css',
         'lumen-profile': 'src/styles/profile.css',

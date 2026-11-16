@@ -48,6 +48,7 @@ const REQUIRED = [
   'lumen-push.css',
   'lumen-requests.css',
   'lumen-push-sw.js',
+  'lumen-player.css',
   'lumen-segments.css',
   'lumen-profile.css',
 ];

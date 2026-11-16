@@ -167,6 +167,9 @@ function Option({ selected, label, detail, onSelect, tabbable }: OptionProps) {
       aria-checked={selected}
       tabIndex={tabbable === false ? -1 : undefined}
       class={`lmn-panel__option${selected ? ' is-selected' : ''}`}
+      // The whole name for a pointer, where a long one ends in an ellipsis (player-controls.css). Screen readers read it
+      // whole from the text either way.
+      title={detail ? `${label} · ${detail}` : label}
       onClick={onSelect}
     >
       <span class="lmn-panel__option-label">{label}</span>

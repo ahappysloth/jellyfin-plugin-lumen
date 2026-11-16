@@ -3,7 +3,10 @@ import { useTrickplay } from './trickplay';
 import { LoadingScreen } from './LoadingScreen';
 import { othersInGroup, useSyncPlayState } from '../syncplay/syncPlayState';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { HOME_HASH, isBackKey, isRemoteBack } from '../../compat/jellyfin';
+import { detailsHash, isBackKey, isRemoteBack } from '../../compat/jellyfin';
+import { goBack } from '../BackHome';
+import { parseRoute } from '../../takeover/routes';
+import { playerHash, playerUrlItem, rememberPosition, restorePlayback } from './playerUrl';
 import { IGNORED_KEY_CODE } from '../../compat/registry';
 import { getPlaybackManager, type PlaybackManager, type Player } from '../../compat/playbackManager';
 import { Icon } from '../../components/icons';
@@ -30,6 +33,7 @@ import { lockLandscape, unlockOrientation } from './orientation';
 import { isTouchLike, type LastTap, surfaceTap } from './touch';
 import { SKIP_KEYS, skipTarget } from './skip';
 import { LazySegments } from './lazySegments';
+import { restingSubtitles, subtitleLift } from './subtitleLift';
 import { throttle, volumeIcon } from './volume';
 
 /**
@@ -37,6 +41,8 @@ import { throttle, volumeIcon } from './volume';
  * they show changed, and not at all in a background tab.
  */
 const POLL_MS = 250;
+/** Read by player-controls.css: how far the subtitles move up over the bottom bar (subtitleLift.ts). */
+const SUBTITLE_LIFT = '--lmn-subtitle-lift';
 /** Controls fade out after this long without input while playing. */
 const IDLE_MS = 3000;
 /** How long the volume pill stays after the last change. */
@@ -82,6 +88,8 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
    */
   const lastSkip = useRef<{ ms: number; at: number } | null>(null);
   const readNow = useRef<() => void>(() => undefined);
+  /** What playing reads last, for the report as the page goes (below). */
+  const latest = useRef<PlayerSnapshot | null>(null);
 
   // Poll the player. Give it a moment to appear; if it never does, fall back to the stock controls. Without a playback
   // manager there's nothing to wait for (the takeover normally checks before mounting: takeover.ts playerCheck).
@@ -92,17 +100,22 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
     }
     let last: { player: Player; key: string } | null = null;
     let itemId: string | undefined;
+    // Opened at a title's player URL with nothing playing (a reload, a pasted link): play it again (playerUrl.ts). That
+    // leaves this page, so there's no player to wait for meanwhile.
+    const restoring = playerUrlItem(location.hash);
+    if (restoring && !pm.current.getCurrentPlayer()) void restorePlayback(ctx, restoring, pm.current);
     const read = (): void => {
       if (document.hidden) return;
       const manager = pm.current;
       const player = manager?.getCurrentPlayer();
       if (!manager || !player) {
         missing.current += 1;
-        if (missing.current * POLL_MS > 4000) ctx.onFallback();
+        if (missing.current * POLL_MS > 4000 && !restoring) ctx.onFallback();
         return;
       }
       missing.current = 0;
       const next = readPlayerState(manager, player);
+      latest.current = next;
       // The skip arrived: the next one goes on from the video, as it plays on (the seek bar lets go the same way). Or
       // the next episode began: where the last one's skip went says nothing about this one.
       if (
@@ -170,6 +183,42 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   }, []);
 
   const itemId = snap?.item?.Id;
+
+  // The address names what plays (playerUrl.ts), so a reload or the link opens this player again: the episode's own,
+  // and the next one's as it begins. In place of the entry jellyfin-web added, so one Back still leaves the player.
+  useEffect(() => {
+    if (!itemId || parseRoute(location.hash).kind !== 'player') return;
+    const hash = playerHash(itemId, ctx.client.serverId?.());
+    if (location.hash !== hash) history.replaceState(history.state, '', hash);
+  }, [itemId]);
+
+  // A reload or a closed tab: the server keeps where the video was, for that player to start from. jellyfin-web reports
+  // the stop as the page goes (beforeunload) with an ordinary request, which the browser may cancel with the page, and
+  // its last report before that can be 10 s old. A keepalive request outlives the page.
+  useEffect(() => {
+    const onHide = (): void => {
+      const last = latest.current;
+      const token = ctx.client.accessToken();
+      if (!last?.item || !token) return;
+      // jellyfin-web has stopped its player by now (on beforeunload, which comes first): it has no position left, so the
+      // last reading (a quarter of a second old at most) stands in.
+      const live = readPosition(pm.current!, last.player);
+      const ticks = Math.round((live > 0 ? live : last.positionMs) * 10_000);
+      rememberPosition(last.item.Id, ticks);
+      void fetch(ctx.client.getUrl('Sessions/Playing/Stopped'), {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json', 'X-Emby-Token': token },
+        body: JSON.stringify({
+          ItemId: last.item.Id,
+          MediaSourceId: last.mediaSourceId,
+          PositionTicks: ticks,
+        }),
+      }).catch(() => undefined);
+    };
+    window.addEventListener('pagehide', onHide);
+    return () => window.removeEventListener('pagehide', onHide);
+  }, []);
 
   // Is there an episode after this one in the play queue? (Read once per item; the queue is a promise.)
   const [hasNext, setHasNext] = useState(false);
@@ -312,11 +361,26 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   const preview = useTrickplay(ctx.api, ctx.client, snap?.item?.Id, snap?.mediaSourceId);
   const switching = useStreamSwitch();
   const progress = usePlaybackProgress();
+  // Paused before its first frame: the browser wouldn't start it without a click (a restored player: playerUrl.ts).
+  // Its controls, with Play, not the loading screen; jellyfin-web's own start always plays first.
+  const started = progress.started || !!snap?.paused;
   const starting = useStarting();
+  // Subtitles clear the bottom bar while it's up, and go back down as it hides (subtitleLift.ts). Read again each time
+  // the controls draw: the bar's height changes with the layout, and the subtitles with the track and the window.
+  const subtitleLiftPx = useRef('');
+  useLayoutEffect(() => {
+    const bar = osdRef.current?.querySelector<HTMLElement>('.lmn-player__bottom');
+    const times = bar?.querySelector<HTMLElement>('.lmn-player__times');
+    const up = started && !!snap && (visible || (snap.paused && !tapHidden) || panel !== null);
+    const px = `${up && bar && times ? subtitleLift(bar.offsetHeight - times.offsetTop + 8, restingSubtitles()) : 0}px`;
+    if (px !== subtitleLiftPx.current)
+      document.documentElement.style.setProperty(SUBTITLE_LIFT, (subtitleLiftPx.current = px));
+  });
+  useEffect(() => () => document.documentElement.style.removeProperty(SUBTITLE_LIFT), []);
   // The loading screen that began at the Play click ends with the first frame (or when the player closes).
   useEffect(() => {
-    if (progress.started) clearStarting();
-  }, [progress.started]);
+    if (started) clearStarting();
+  }, [started]);
   useEffect(() => clearStarting, []);
   const [info, setInfo] = useState(false);
   const settingsPill = useRef<HTMLButtonElement>(null);
@@ -432,14 +496,21 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
       if (!isRemoteBack(e) && ctx.layout !== 'tv') return;
       // A jellyfin-web dialog over the player (its OSD ignores Back then too) closes on it instead.
       if (document.querySelector('.dialogContainer .dialog.opened')) return;
-      // Nothing to go back to: jellyfin-web's Back exits the app (webOS, Tizen) where it can.
-      if (window.history.length <= 1) return;
       consume(e);
-      window.history.back();
+      leave();
     };
     document.body.addEventListener('keydown', onKey);
     return () => document.body.removeEventListener('keydown', onKey);
   }, [ctx.layout]);
+
+  /**
+   * Back: to the app's page before the player (a restored player's is its title's page: playerUrl.ts). With none, its
+   * title's page in its place, or home, never out of the app.
+   */
+  const leave = (): void => {
+    const id = latest.current?.item?.Id;
+    goBack(id ? detailsHash(id, ctx.client.serverId?.() ?? undefined) : undefined);
+  };
 
   /** Skips 10 s back or on (skip.ts) and says how far it went, in seconds; set as each render has the player. */
   const skipRef = useRef<(direction: 'back' | 'forward') => number>(() => 0);
@@ -520,9 +591,9 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
         if (e.key === ' ' && keyboardFocus.current && (e.target as Element).closest('button'))
           Object.defineProperty(e, 'keyCode', { value: IGNORED_KEY_CODE });
       }}
-      class={`lmn-osd${shown ? '' : ' is-idle'}${tapHidden ? ' is-tapped' : ''}${panel ? ' has-panel' : ''}${progress.started ? '' : ' is-loading'}`}
+      class={`lmn-osd${shown ? '' : ' is-idle'}${tapHidden ? ' is-tapped' : ''}${panel ? ' has-panel' : ''}${started ? '' : ' is-loading'}`}
     >
-      {!progress.started && <LoadingScreen ctx={ctx} snap={snap} starting={starting} />}
+      {!started && <LoadingScreen ctx={ctx} snap={snap} starting={starting} />}
       {progress.started && progress.buffering && !switching.state?.shown && (
         <div class="lmn-player-buffering" role="status" aria-label={playerStrings.buffering}>
           <span class="lmn-spinner" aria-hidden="true" />
@@ -600,11 +671,7 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
           type="button"
           class="lmn-player__icon lmn-player__back"
           aria-label={playerStrings.back}
-          onClick={() => {
-            // Opened with nothing behind it: go home, as a details page's Back does.
-            if (window.history.length > 1) window.history.back();
-            else ctx.navigate(HOME_HASH);
-          }}
+          onClick={leave}
         >
           <Icon name={PLAYER_ICONS.arrowLeft} size={28} />
         </button>

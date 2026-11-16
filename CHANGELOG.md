@@ -4,7 +4,24 @@ All notable changes to Lumen are documented here. Versions follow SemVer; Jellyf
 
 ## [0.6.8] - 2026-11-15
 
+### Added
+- The player's address now names what's playing: the title's page address with `/video` added
+  (`#/details/video?id=…`). Reloading the page, or opening that address in a new tab, starts the title again where it
+  was, with its usual audio, subtitles, intro skipping and next-episode card. A title that's gone takes you home with
+  a message. If the browser won't start a video with sound until you click (some do after a reload), the player opens
+  paused at that point, with Play. Back from it goes to the title's page.
+- Subtitles move up above the player's controls while they show, and back down as the controls hide, from wherever
+  you placed them in Jellyfin's subtitle settings. This covers subtitles Jellyfin draws as text; ASS and PGS
+  subtitles, which are drawn as pictures with their own placement, stay put.
+
+### Changed
+- The time left on a download now reads "< 1 min left" instead of "Less than a minute left".
+
 ### Fixed
+- Back on a title's page (and the TV remote's Back) did nothing, or left the app, when the page was opened from a link,
+  in a new tab or after a reload with nothing before it. It now goes home.
+- The Audio & Subtitles menu now widens to fit long track names, up to the width of the screen, and a name too long
+  for that ends in "…" (point at it to read it all). It never runs off the side of a phone.
 - A widescreen film's quality is now named by its full picture. A 1080p film cropped to 1920×804 showed as **720p** on
   the player's Quality button and as **804p** in Playback info. It now says **1080p**, and Playback info adds the real
   frame size: "1080p (1920×804)". The Quality menu also offers 1080p for these films, which it left out before.

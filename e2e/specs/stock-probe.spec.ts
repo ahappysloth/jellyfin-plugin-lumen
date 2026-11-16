@@ -80,7 +80,7 @@ test('stock selectors in the video player', async ({ page, browserName, isMobile
   await login(page, ADMIN);
   await page.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
   await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).click();
-  await expect(page).toHaveURL(/#\/video/);
+  await expect(page).toHaveURL(/#\/(details\/)?video/);
   // Lumen found jellyfin-web's PlaybackManager (its controls replace the stock ones).
   await expect(page.locator('#lmn-root .lmn-osd')).toBeVisible();
   await expectSelectorsOn(page, 'player');

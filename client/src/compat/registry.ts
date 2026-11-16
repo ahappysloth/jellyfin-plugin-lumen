@@ -48,6 +48,13 @@ export const STOCK_SELECTORS = {
    * Lumen's player (player.css).
    */
   skipIntro: { selector: '.skip-button-container' },
+  /**
+   * jellyfin-web's own subtitle text (htmlVideoPlayer renderSubtitlesWithCustomElement) and its line: where it draws
+   * subtitles itself rather than leaving them to the browser. Lumen's player lifts them over its bottom bar
+   * (views/player/subtitleLift.ts, player-controls.css). Only there while such a subtitle track is on.
+   */
+  videoSubtitles: { selector: '.videoSubtitles' },
+  videoSubtitlesInner: { selector: '.videoSubtitlesInner' },
   upNext: { selector: '.upNextContainer' },
   /** The sign-in form (stock-skin.css restyles it). */
   loginForm: { selector: '.manualLoginForm' },

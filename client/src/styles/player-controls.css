@@ -1,0 +1,904 @@
+/*
+ * Lumen's video player controls (views/player), drawn over jellyfin-web's player while html.lmn-skin-player is set:
+ * lumen-player.css, linked with the player's file (views/player/lazyPlayer.tsx), which waits for it. The rules every
+ * page needs (the stock OSD hidden, the loading screen) are in player.css.
+ */
+.lmn-osd {
+  position: absolute;
+  inset: 0;
+  cursor: default;
+}
+.lmn-osd.is-idle {
+  cursor: none;
+}
+.lmn-player__surface {
+  position: absolute;
+  inset: 0;
+  /* Two quick taps skip (views/player/touch.ts), so they mustn't zoom the page; and no grey flash on a tap in Safari. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Where Escape leaves focus as the controls go away: nothing to show. */
+.lmn-player__surface:focus {
+  outline: none;
+}
+.lmn-player__top,
+.lmn-player__bottom {
+  position: absolute;
+  right: 0;
+  left: 0;
+  /* clamp(16px, 3vw, 40px), or more where a phone's notch is in landscape (jellyfin-web sets viewport-fit=cover).
+     Spelled with min() and max(): Safari 13.0 has them but not clamp(). */
+  padding-right: 40px;
+  padding-right: max(16px, min(3vw, 40px), env(safe-area-inset-right));
+  padding-left: 40px;
+  padding-left: max(16px, min(3vw, 40px), env(safe-area-inset-left));
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s var(--lmn-ease);
+}
+.lmn-player__top {
+  top: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-top: 20px;
+  padding-top: max(20px, env(safe-area-inset-top));
+  padding-bottom: 60px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.3) 55%, transparent);
+}
+.lmn-player__bottom {
+  bottom: 0;
+  padding-top: 70px;
+  padding-bottom: 14px;
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.35) 55%, transparent);
+}
+/* On a touch screen the bars' shading is the picture's: a tap there shows or hides the controls, as one on the picture
+   does. Only what's in them takes it, and only while they're shown. A mouse (a TV's pointer remote too) still clicks
+   the shading for nothing: a click on the picture plays or pauses. */
+@media (hover: none) {
+  .lmn-player__top,
+  .lmn-player__bottom {
+    pointer-events: none;
+  }
+  .lmn-osd:not(.is-idle) .lmn-player__back,
+  .lmn-osd:not(.is-idle) .lmn-player__pills,
+  .lmn-osd:not(.is-idle) .lmn-seek,
+  .lmn-osd:not(.is-idle) .lmn-player__group {
+    pointer-events: auto;
+  }
+}
+/* An open panel lies over the bottom bar (and Playback info), so every entry in it can be reached. The top bar doesn't
+   slide while one is open: a moving bar would carry a phone's panel along (it's fixed to the screen, below). */
+.lmn-osd.has-panel .lmn-player__top {
+  z-index: 2;
+  transition: opacity 0.35s ease;
+}
+.lmn-osd.is-idle .lmn-player__top {
+  opacity: 0;
+  transform: translateY(-12px);
+  pointer-events: none;
+}
+.lmn-osd.is-idle .lmn-player__bottom {
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+}
+/* A tap puts the controls away at once, but they fade slowly at first: if it was the first of a double tap (a skip),
+   the second (within touch.ts DOUBLE_TAP_MS) brings them back before they've visibly gone. */
+.lmn-osd.is-tapped .lmn-player__top,
+.lmn-osd.is-tapped .lmn-player__bottom {
+  transition-duration: 0.45s;
+  transition-timing-function: cubic-bezier(0.8, 0, 1, 1);
+}
+
+/* Buttons: bare icons over the picture (no glass at rest: a dozen blurs over a playing video would cost a TV frames).
+   Under the pointer, pressed, or with the keyboard's or a remote's focus they're the white disc of Lumen's other round
+   buttons (buttons.css), and the pills beside them the same in their own shape. */
+.lmn-player__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    transform 0.15s;
+}
+.lmn-player__icon:active {
+  transform: scale(0.94);
+}
+.lmn-player__icon.is-on .lmn-icon {
+  color: var(--lmn-accent);
+}
+/* Skip forward: the skip-back ring turned round (SkipIcon puts its "10" back the right way). */
+.lmn-skip-icon.is-forward {
+  transform: scaleX(-1);
+}
+.lmn-osd :is(button, [role='slider'], input):focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.lmn-osd :is(button, input):focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Top: back, titles, pills. */
+.lmn-player__back {
+  margin: -4px 0 0 -8px;
+}
+.lmn-player__titles {
+  flex: 1;
+  min-width: 0;
+}
+.lmn-player__title {
+  margin: 0;
+  overflow: hidden;
+  font-size: 24px;
+  font-size: clamp(18px, 1.8vw, 24px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+.lmn-player__subtitle {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  font-weight: 500;
+}
+.lmn-player__pills {
+  position: relative;
+  display: flex;
+  gap: 10px;
+}
+.lmn-player__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  font: 600 14px var(--lmn-font);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.lmn-player__pill.is-open {
+  background: rgba(30, 30, 30, 0.72);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+.lmn-player__pill-value {
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 500;
+}
+/* Icon-only pills: Watch together and Settings. */
+.lmn-player__pill--icon {
+  justify-content: center;
+  width: 42px;
+  padding: 0;
+}
+.lmn-player__pill.is-syncplay {
+  background: rgba(30, 30, 30, 0.72);
+  color: var(--lmn-accent);
+}
+/* The white disc and pill (see .lmn-player__icon). After the pills' own states, which they override. */
+@media (hover: hover) {
+  .lmn-player__icon:hover,
+  .lmn-player__pill:hover {
+    background: #fff;
+    color: #0f0f0f;
+  }
+  .lmn-player__pill:hover .lmn-player__pill-value {
+    color: rgba(0, 0, 0, 0.6);
+  }
+}
+.lmn-player__icon:active,
+.lmn-player__pill:active,
+.layout-tv .lmn-player__icon:focus,
+.layout-tv .lmn-player__pill:focus {
+  background: #fff;
+  color: #0f0f0f;
+}
+/* Its own rule: Chromium 68 has no :focus-visible and would drop the others with it. */
+.lmn-player__icon:focus-visible,
+.lmn-player__pill:focus-visible {
+  background: #fff;
+  color: #0f0f0f;
+}
+
+/* Panels: glass cards under the pills. */
+.lmn-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 440px;
+  width: min(440px, calc(100vw - 32px));
+  max-height: 70vh;
+  max-height: min(70vh, 560px);
+  padding: 22px;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: rgba(22, 22, 22, 0.82);
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.85);
+  -webkit-backdrop-filter: blur(24px) saturate(1.3);
+  backdrop-filter: blur(24px) saturate(1.3);
+  animation: lmn-panel-in 0.18s var(--lmn-ease);
+  scrollbar-width: thin;
+  /* A finger scrolls the panel, with momentum (iOS 12 has to be asked), and not the page once it reaches the end. */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+@keyframes lmn-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+.lmn-panel__columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.lmn-panel__column + .lmn-panel__column {
+  padding-left: 18px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+.lmn-panel__columns:has(> :only-child) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.lmn-panel__heading {
+  display: block;
+  margin: 0 0 12px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.lmn-panel__option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: rgba(255, 255, 255, 0.78);
+  font: 600 14px var(--lmn-font);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.lmn-panel__option:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+.lmn-panel__option.is-selected {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.lmn-panel__option-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lmn-panel__option-detail {
+  max-width: 100%;
+  margin-top: 2px;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Audio & Subtitles: as wide as its longest track name, each on one line (from 440px, as the other panels), up to the
+   screen less the bars' side margins and a notch's insets (and 720px). Past that a name ends in an ellipsis (its whole
+   text is the option's title). max-content is in Chromium 46 and Safari 11; the plain width first is for older. Each
+   column takes what its names need, down to nothing (minmax(0, …)), so a long one doesn't push the panel off screen. */
+.lmn-panel--tracks {
+  width: 440px;
+  width: max-content;
+  min-width: 440px;
+  max-width: calc(100vw - 80px);
+  max-width: min(
+    720px,
+    calc(
+      100vw - max(16px, min(3vw, 40px), env(safe-area-inset-left)) -
+        max(16px, min(3vw, 40px), env(safe-area-inset-right))
+    )
+  );
+}
+.lmn-panel--tracks .lmn-panel__columns {
+  grid-template-columns: minmax(0, auto) minmax(0, auto);
+}
+.lmn-panel__empty {
+  margin: 16px 4px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 13px;
+  text-align: center;
+}
+.lmn-panel__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.lmn-panel__footer .lmn-panel__heading {
+  margin: 0;
+}
+.lmn-panel__speeds,
+.lmn-panel__stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.lmn-panel__speed {
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: rgba(255, 255, 255, 0.7);
+  font: 600 13px var(--lmn-font);
+  cursor: pointer;
+}
+.lmn-panel__speed:hover {
+  color: #fff;
+}
+.lmn-panel__speed.is-selected {
+  background: #fff;
+  color: #000;
+}
+.lmn-panel__offset {
+  min-width: 52px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Bottom: time, progress, controls. */
+.lmn-player__times {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 10px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+}
+.lmn-player__time,
+.lmn-player__ends {
+  margin: 0;
+  font-size: 14px;
+}
+.lmn-player__time {
+  color: rgba(255, 255, 255, 0.82);
+  font-weight: 600;
+}
+/* "Ends at 10:42 PM": the remaining time at the current speed. */
+.lmn-player__ends {
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+}
+.lmn-seek {
+  position: relative;
+  height: 18px;
+  margin: 0 0 6px;
+  cursor: pointer;
+  touch-action: none;
+}
+/* A finger gets more than the bar's 18px to land on: up over the times, and down to the control row but not into it.
+   Offsets, not inset, which older TV browsers lack. */
+@media (pointer: coarse) {
+  .lmn-seek::before {
+    position: absolute;
+    top: -14px;
+    right: 0;
+    bottom: -6px;
+    left: 0;
+    content: '';
+  }
+}
+.lmn-seek.is-disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.lmn-seek__rail {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.24);
+  transform: translateY(-50%);
+  transition: height 0.15s;
+}
+.lmn-seek:hover .lmn-seek__rail,
+.lmn-seek.is-dragging .lmn-seek__rail {
+  height: 5px;
+}
+.lmn-seek__buffered,
+.lmn-seek__played {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+}
+.lmn-seek__buffered {
+  background: rgba(255, 255, 255, 0.32);
+}
+.lmn-seek__played {
+  background: #fff;
+}
+.lmn-seek__thumb {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%);
+  transition: transform 0.15s;
+}
+.lmn-seek:hover .lmn-seek__thumb,
+.lmn-seek.is-dragging .lmn-seek__thumb {
+  transform: translate(-50%, -50%) scale(1.2);
+}
+.lmn-seek__tip {
+  position: absolute;
+  bottom: 22px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(20, 20, 20, 0.85);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.lmn-player__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lmn-player__group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.lmn-player__next-label {
+  font: 600 14px var(--lmn-font);
+}
+.lmn-player__volume {
+  display: flex;
+  align-items: center;
+}
+.lmn-player__volume-slider {
+  width: 0;
+  height: 4px;
+  margin: 0;
+  opacity: 0;
+  border-radius: 4px;
+  background: linear-gradient(
+    to right,
+    #fff var(--lmn-fill, 0%),
+    rgba(255, 255, 255, 0.3) var(--lmn-fill, 0%)
+  );
+  cursor: pointer;
+  transition:
+    width 0.25s var(--lmn-ease),
+    opacity 0.2s,
+    margin 0.25s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.lmn-player__volume:hover .lmn-player__volume-slider,
+.lmn-player__volume:focus-within .lmn-player__volume-slider {
+  width: 90px;
+  margin: 0 10px 0 4px;
+  opacity: 1;
+}
+.lmn-player__volume-slider::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.lmn-player__volume-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+}
+
+/* Phones, either way up (and short windows): the panel hangs below the top bar as before, but fixed to the screen, so
+   that 100% is the height actually on screen (vh in Safari counts the space under its toolbars). It stops short of the
+   home indicator and scrolls inside. */
+@media (max-width: 640px), (max-height: 500px) {
+  .lmn-panel {
+    position: fixed;
+    top: 72px;
+    top: calc(max(20px, env(safe-area-inset-top)) + 52px);
+    right: 16px;
+    right: max(16px, min(3vw, 40px), env(safe-area-inset-right));
+    max-height: calc(100% - 88px);
+    max-height: calc(
+      100% - max(20px, env(safe-area-inset-top)) - 52px - max(16px, env(safe-area-inset-bottom))
+    );
+  }
+}
+/* Phones: icon-only pills (their names stay for screen readers), a smaller control row; the panel spans the width. */
+@media (max-width: 640px) {
+  .lmn-player__pill-label,
+  .lmn-player__pill-value,
+  .lmn-player__next-label {
+    display: none;
+  }
+  .lmn-player__pill {
+    padding: 0 10px;
+  }
+  .lmn-player__pills {
+    position: static;
+  }
+  .lmn-panel {
+    left: 16px;
+    left: max(16px, env(safe-area-inset-left));
+    width: auto;
+    min-width: 0;
+    max-width: none;
+  }
+  .lmn-panel__columns,
+  .lmn-panel--tracks .lmn-panel__columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lmn-panel__column + .lmn-panel__column {
+    padding-top: 14px;
+    padding-left: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 0;
+  }
+  .lmn-player__volume-slider {
+    display: none;
+  }
+}
+@media (hover: none) {
+  .lmn-player__volume-slider {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lmn-player__top,
+  .lmn-player__bottom,
+  .lmn-panel {
+    transition: none;
+    animation: none;
+  }
+  /* Hidden, they needn't move. A tap still fades them (the double tap above), without the slide. */
+  .lmn-osd.is-idle .lmn-player__top,
+  .lmn-osd.is-idle .lmn-player__bottom {
+    transform: none;
+  }
+  .lmn-osd.is-tapped .lmn-player__top,
+  .lmn-osd.is-tapped .lmn-player__bottom {
+    transition-property: opacity;
+  }
+}
+
+.lmn-player__syncplay {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Volume pill: drops down from the top centre after a volume change, without bringing back the controls. */
+.lmn-volume-pill {
+  position: fixed;
+  z-index: 3;
+  top: 16px;
+  top: calc(16px + env(safe-area-inset-top));
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 200px;
+  padding: 10px 16px;
+  border: 1px solid var(--lmn-line);
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.82);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.8);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -24px);
+  transition:
+    opacity 0.2s var(--lmn-ease),
+    transform 0.25s var(--lmn-ease);
+}
+.lmn-volume-pill.is-shown {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.lmn-volume-pill__track {
+  flex: 1;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+}
+.lmn-volume-pill__fill {
+  display: block;
+  height: 100%;
+  background: #fff;
+  transition: width 0.12s linear;
+}
+.lmn-volume-pill__value {
+  min-width: 42px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lmn-volume-pill {
+    transition: opacity 0.2s;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* "−10 s" or "+10 s" by the side of the picture a double tap skipped on, for a moment. */
+.lmn-player-skipped {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 17%;
+  padding: 10px 16px;
+  border: 1px solid var(--lmn-line);
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.82);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: lmn-skipped 0.7s ease both;
+}
+.lmn-player-skipped.is-forward {
+  left: 83%;
+}
+@keyframes lmn-skipped {
+  from,
+  to {
+    opacity: 0;
+  }
+  15%,
+  70% {
+    opacity: 1;
+  }
+}
+
+/* Quality/audio/subtitle switch that restarts the stream: the last frame stays up with a small note. */
+.lmn-switching {
+  position: fixed;
+  z-index: 1;
+  inset: 0;
+  display: grid;
+  place-items: end center;
+  padding-bottom: 18vh;
+  pointer-events: none;
+}
+.lmn-switching__frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+.lmn-switching__note {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.82);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Trickplay thumbnail above the seek bar */
+.lmn-seek__tip.has-thumbnail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 6px;
+}
+.lmn-seek__thumbnail-box {
+  overflow: hidden;
+  border-radius: 6px;
+  background: #000;
+}
+.lmn-seek__thumbnail {
+  transform-origin: 0 0;
+  background-repeat: no-repeat;
+}
+
+/* ---- Settings (gear) panel ----------------------------------------------------------------------------------- */
+.lmn-panel--settings {
+  width: 340px;
+  width: min(340px, calc(100vw - 32px));
+}
+.lmn-panel--settings .lmn-panel__speeds {
+  margin-top: 10px;
+}
+.lmn-panel__toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+/* Watch together and Playback info: rows below Repeat, clear of the divider (their hover fill has room). */
+.lmn-panel--settings .lmn-panel__column + .lmn-panel__rows {
+  margin-top: 16px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.lmn-panel__rows .lmn-panel__toggle {
+  margin: 0;
+}
+.lmn-panel__rows .lmn-panel__toggle + .lmn-panel__toggle {
+  margin-top: 2px;
+}
+.lmn-panel__toggle .lmn-panel__option-detail {
+  overflow: hidden;
+  margin-left: auto;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Playback info: a small glass card at the top left ---------------------------------------------------- */
+.lmn-player-info {
+  position: absolute;
+  z-index: 2;
+  top: 116px;
+  top: calc(max(20px, env(safe-area-inset-top)) + 96px);
+  left: 40px;
+  left: max(16px, min(3vw, 40px), env(safe-area-inset-left));
+  width: 360px;
+  width: min(360px, calc(100vw - 32px));
+  padding: 14px 16px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  background: rgba(20, 20, 20, 0.78);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  font-size: 13px;
+}
+.lmn-player-info__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -4px -6px 6px 0;
+}
+.lmn-player-info__header h2 {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.lmn-player-info__header .lmn-player__icon {
+  width: 32px;
+  height: 32px;
+}
+.lmn-player-info dl {
+  margin: 0;
+}
+.lmn-player-info__row {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 10px;
+  padding: 4px 0;
+}
+.lmn-player-info dt {
+  color: rgba(255, 255, 255, 0.55);
+}
+.lmn-player-info dd {
+  margin: 0;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* Short windows (a phone in landscape): the card sits higher, under the title block, with tighter rows, and stops above
+   the time over the seek bar, scrolling inside if need be. The card measures both (PlayerExtras.tsx placeInfo): the
+   title block is as tall as its fonts, a long episode name or Watch together's line make it. */
+@media (max-height: 500px) {
+  .lmn-player-info {
+    top: calc(var(--lmn-osd-title-bottom, 72px) + 8px);
+    max-height: calc(var(--lmn-osd-times-top, 100% - 120px) - var(--lmn-osd-title-bottom, 72px) - 16px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  .lmn-player-info__row {
+    padding: 2px 0;
+  }
+}
+
+/* While it loads: just the way back and the title, no 0:00 and Play button. */
+.lmn-osd.is-loading .lmn-player__bottom {
+  visibility: hidden;
+}
+
+/* Subtitles clear the bottom bar while it's up, and go back down as it hides (views/player/subtitleLift.ts sets how
+   far): jellyfin-web's own element, and Chromium's box of the browser's own cues. A rule each: a browser that doesn't
+   know the pseudo-element drops the whole rule. */
+html.lmn-skin-player .videoSubtitles {
+  transform: translateY(calc(-1 * var(--lmn-subtitle-lift, 0px)));
+  transition: transform 0.35s var(--lmn-ease);
+}
+html.lmn-skin-player video::-webkit-media-text-track-container {
+  transform: translateY(calc(-1 * var(--lmn-subtitle-lift, 0px)));
+  transition: transform 0.35s var(--lmn-ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  html.lmn-skin-player .videoSubtitles {
+    transition: none;
+  }
+  html.lmn-skin-player video::-webkit-media-text-track-container {
+    transition: none;
+  }
+}
