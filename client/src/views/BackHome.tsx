@@ -1,14 +1,16 @@
 import { HOME_HASH, replaceWith } from '../compat/jellyfin';
 import { Icon } from '../components/icons';
 import { strings } from '../strings';
-import { pagesBehind, usePageDepth } from '../takeover/pageDepth';
+import { backSteps, usePageDepth } from '../takeover/pageDepth';
 
 /**
  * Back to the app's page before this one; with none (a link, a new tab), `to` (home) in this page's place, so Back
  * from there doesn't come back here.
  */
 export function goBack(to = HOME_HASH): void {
-  if (pagesBehind()) window.history.back();
+  const steps = backSteps();
+  if (steps === 1) window.history.back();
+  else if (steps) window.history.go(-steps);
   else replaceWith(to);
 }
 

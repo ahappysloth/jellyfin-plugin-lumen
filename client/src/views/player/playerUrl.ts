@@ -22,14 +22,17 @@ export function playerHash(itemId: string, serverId?: string | null): string {
   return detailsHash(itemId, serverId ?? undefined).replace('?', `${STOCK_ROUTES.video}?`);
 }
 
-const PLAYER_URL = new RegExp(`^#!?${STOCK_ROUTES.details}${STOCK_ROUTES.video}\\?`, 'i');
+const PLAYER_URL = new RegExp(`^#!?${STOCK_ROUTES.details}${STOCK_ROUTES.video}(\\?|$)`, 'i');
 const ITEM_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
 
-/** The item a title's player URL names; null for #/video or any other address. */
+/**
+ * The item a title's player URL names: '' when it names none that could be (no id, or a malformed one), null for
+ * #/video or any other address.
+ */
 export function playerUrlItem(hash: string): string | null {
   if (!PLAYER_URL.test(hash)) return null;
-  const id = new URLSearchParams(hash.slice(hash.indexOf('?') + 1)).get('id');
-  return id && ITEM_ID.test(id) ? id : null;
+  const id = new URLSearchParams(hash.slice(hash.indexOf('?') + 1)).get('id') ?? '';
+  return ITEM_ID.test(id) ? id : '';
 }
 
 /** sessionStorage: where the video was as the page went, `[itemId, ticks]`, for this tab's reload. */
@@ -68,7 +71,7 @@ function rememberedPosition(itemId: string): number | undefined {
  *
  * Where the browser won't start it without a click, the player opens paused at that point, Play to go on (below).
  *
- * A title that can't be found (removed, or not this user's to see) goes home with a toast. One that can't play stays
+ * A title that can't be found (removed, not this user's to see, or no id at all) goes home with a toast. One that can't play stays
  * on its page with a toast. In Watch together the group decides what plays (starting this would change it for everyone
  * in the group): its page, and the group's playback brings the player back if it's playing.
  */
@@ -77,10 +80,15 @@ export async function restorePlayback(
   itemId: string,
   manager: PlaybackManager | null,
 ): Promise<void> {
-  let item: BaseItem;
+  let item: BaseItem | null = null;
   try {
-    item = await ctx.api.getItem(itemId);
+    if (itemId) item = await ctx.api.getItem(itemId);
   } catch {
+    // shown below
+  }
+  // Left meanwhile (Back, a link): that page stays.
+  if (parseRoute(location.hash).kind !== 'player') return;
+  if (!item) {
     replaceWith(HOME_HASH);
     showToast(playerStrings.restoreFailed);
     return;

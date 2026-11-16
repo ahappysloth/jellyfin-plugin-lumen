@@ -51,11 +51,10 @@ test('a reload in the player brings it back where it was, and Back goes to its p
   await expect(page).toHaveURL(detailsUrl(id));
   await expect(page.locator('#lmn-root .lmn-details--movie')).toBeVisible();
   await expect(video(page)).toHaveCount(0);
-  // Then where the user was before the reload: the page Play was pressed on.
-  await page.locator('#lmn-root').getByRole('button', { name: 'Back' }).click();
-  await expect(page).toHaveURL(detailsUrl(id));
+  // Then on to where the user was before that page, past the entry of it Play was pressed on (the same page again).
   await page.locator('#lmn-root').getByRole('button', { name: 'Back' }).click();
   await expect(page).toHaveURL(/#\/home$/);
+  await expect(page.locator('#lmn-root .lmn-home')).toBeVisible();
 });
 
 test("a title's player URL opened in a new tab plays it; Back goes to its page, and from there home", async ({ page }) => {

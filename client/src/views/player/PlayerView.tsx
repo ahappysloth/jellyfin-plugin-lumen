@@ -103,14 +103,15 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
     // Opened at a title's player URL with nothing playing (a reload, a pasted link): play it again (playerUrl.ts). That
     // leaves this page, so there's no player to wait for meanwhile.
     const restoring = playerUrlItem(location.hash);
-    if (restoring && !pm.current.getCurrentPlayer()) void restorePlayback(ctx, restoring, pm.current);
+    if (restoring !== null && !pm.current.getCurrentPlayer())
+      void restorePlayback(ctx, restoring, pm.current);
     const read = (): void => {
       if (document.hidden) return;
       const manager = pm.current;
       const player = manager?.getCurrentPlayer();
       if (!manager || !player) {
         missing.current += 1;
-        if (missing.current * POLL_MS > 4000 && !restoring) ctx.onFallback();
+        if (missing.current * POLL_MS > 4000 && restoring === null) ctx.onFallback();
         return;
       }
       missing.current = 0;
@@ -189,15 +190,21 @@ export function PlayerView({ ctx }: { ctx: ViewContext }) {
   useEffect(() => {
     if (!itemId || parseRoute(location.hash).kind !== 'player') return;
     const hash = playerHash(itemId, ctx.client.serverId?.());
-    if (location.hash !== hash) history.replaceState(history.state, '', hash);
+    try {
+      if (location.hash !== hash) history.replaceState(history.state, '', hash);
+    } catch {
+      // Safari refuses more than 100 history changes in 30 s: the address stays #/video this time
+    }
   }, [itemId]);
 
   // A reload or a closed tab: the server keeps where the video was, for that player to start from. jellyfin-web reports
   // the stop as the page goes (beforeunload) with an ordinary request, which the browser may cancel with the page, and
   // its last report before that can be 10 s old. A keepalive request outlives the page.
   useEffect(() => {
-    const onHide = (): void => {
+    const onHide = (e: PageTransitionEvent): void => {
       const last = latest.current;
+      // Kept whole for Back and Forward (the back-forward cache): it may come back playing.
+      if (e.persisted) return;
       const token = ctx.client.accessToken();
       if (!last?.item || !token) return;
       // jellyfin-web has stopped its player by now (on beforeunload, which comes first): it has no position left, so the

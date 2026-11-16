@@ -1209,7 +1209,7 @@ describe('PlayerView', () => {
       expect(document.querySelector('.lmn-osd')).not.toHaveClass('is-idle');
 
       // With no panel open, Back leaves the player.
-      vi.spyOn(pageDepth, 'pagesBehind').mockReturnValue(1);
+      vi.spyOn(pageDepth, 'backSteps').mockReturnValue(1);
       const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
       pressRemoteBack(tracks, keyCode);
       expect(back).toHaveBeenCalledTimes(1);
@@ -1238,7 +1238,7 @@ describe('PlayerView', () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(300);
       });
-      vi.spyOn(pageDepth, 'pagesBehind').mockReturnValue(1); // came from one of the app's pages
+      vi.spyOn(pageDepth, 'backSteps').mockReturnValue(1); // came from one of the app's pages
       return vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
     };
 
@@ -1273,7 +1273,7 @@ describe('PlayerView', () => {
 
     it("with none of the app's pages behind (a restored player's can't be), goes to the title's page in its place", async () => {
       const back = await open();
-      vi.spyOn(pageDepth, 'pagesBehind').mockReturnValue(0);
+      vi.spyOn(pageDepth, 'backSteps').mockReturnValue(0);
       const popped = vi.fn();
       window.addEventListener('popstate', popped);
       expect(pressRemoteBack(document.body, 461).reachedJellyfin).toBe(false);
@@ -1336,7 +1336,7 @@ describe('PlayerView', () => {
         await vi.advanceTimersByTimeAsync(300);
       });
       const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
-      vi.spyOn(pageDepth, 'pagesBehind').mockReturnValue(0);
+      vi.spyOn(pageDepth, 'backSteps').mockReturnValue(0);
 
       fireEvent.click(document.querySelector('.lmn-player__back')!);
 
@@ -1706,6 +1706,10 @@ describe("PlayerView's address", () => {
     await open(pm);
     // jellyfin-web stops its player on beforeunload, before pagehide: no position left to read.
     pm.currentTime.mockReturnValue(Number.NaN);
+
+    // Into the back-forward cache: it may come back playing, so nothing's reported.
+    window.dispatchEvent(Object.assign(new Event('pagehide'), { persisted: true }));
+    expect(fetch).not.toHaveBeenCalled();
 
     window.dispatchEvent(new Event('pagehide'));
 

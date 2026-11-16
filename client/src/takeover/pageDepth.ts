@@ -33,6 +33,9 @@ function subPage(hash: string): string | null {
 /** In-app entries behind the one on screen (see pagesBehind). */
 const BACK_KEY = 'lmnBack';
 let behind = 0;
+/** The hash of the app's entry behind the one on screen ('' with none), for backSteps. */
+const FROM_KEY = 'lmnFrom';
+let from = '';
 /** The hash of the entry on screen; null until the first is seen. */
 let shown: string | null = null;
 
@@ -41,7 +44,7 @@ function evaluate(win: Window, replaced: boolean): void {
   const hash = win.location.hash;
   const key = subPage(hash);
   const state = win.history.state as Record<string, unknown> | null;
-  const stamps: Record<string, number> = {};
+  const stamps: Record<string, number | string> = {};
   /** The entry's stamp `name` if it has one (Back, Forward, a reload; or a replace that kept it), else `fresh()`. */
   const read = (name: string, fresh: () => number): number => {
     const stamp = state?.[name];
@@ -49,7 +52,10 @@ function evaluate(win: Window, replaced: boolean): void {
   };
   // The first entry seen has nothing of the app's behind it. A new one has one more than the entry it follows, unless
   // it replaced it, or shows the same URL (jellyfin-web pushes the page again for a dialog, and on a cold load).
-  behind = read(BACK_KEY, () => (shown === null ? 0 : replaced || hash === shown ? behind : behind + 1));
+  const same = shown === null || replaced || hash === shown;
+  const fromStamp = state?.[FROM_KEY];
+  from = typeof fromStamp === 'string' ? fromStamp : (stamps[FROM_KEY] = same ? from : shown!);
+  behind = read(BACK_KEY, () => (shown === null ? 0 : same ? behind : behind + 1));
   shown = hash;
   let next = 0;
   // A new sub-page is one deeper than the page before it, unless it replaced it (react-router's replace writes a fresh
@@ -77,7 +83,7 @@ function evaluate(win: Window, replaced: boolean): void {
  */
 export function trackPageDepth(win: Window = window): () => void {
   depth = behind = 0;
-  page = '';
+  page = from = '';
   shown = null;
   installHooks(win);
   const handler = (e?: Event): void =>
@@ -98,6 +104,17 @@ export function trackPageDepth(win: Window = window): () => void {
  * tab starts on (where Back would leave the app, or do nothing).
  */
 export const pagesBehind = (): number => behind;
+
+/**
+ * How many entries Back goes to reach the app's page before this one: 1, or 2 past another entry of this same page
+ * right behind it (a reload on the player puts the title's page in its place, behind the player, where the page Play
+ * was pressed on is already: views/player/playerUrl.ts). 0 with none of the app's pages behind.
+ */
+export function backSteps(): number {
+  const key = subPage(shown ?? '');
+  const steps = key && subPage(from) === key ? 2 : 1;
+  return behind >= steps ? steps : 0;
+}
 
 /** How many sub-pages deep the page on screen is (see above). */
 export const pageDepth = (): number => depth;

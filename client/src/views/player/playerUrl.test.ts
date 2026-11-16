@@ -32,8 +32,9 @@ describe('the player URL', () => {
     expect(playerUrlItem(`#!/details/video?serverId=s1&id=${ID}`)).toBe(ID);
     expect(playerUrlItem('#/video')).toBeNull();
     expect(playerUrlItem(`#/details?id=${ID}`)).toBeNull();
-    expect(playerUrlItem('#/details/video?id=nope')).toBeNull();
-    expect(playerUrlItem('#/details/video')).toBeNull();
+    // A player URL that names nothing it could play: '' (the restore says so), not null (not a player URL).
+    expect(playerUrlItem('#/details/video?id=nope')).toBe('');
+    expect(playerUrlItem('#/details/video')).toBe('');
   });
 });
 
@@ -80,6 +81,7 @@ describe('restorePlayback', () => {
     expect(vi.mocked(startPlayback).mock.calls[0]![1].UserData?.PlaybackPositionTicks).toBe(50_000_000);
     expect(sessionStorage.getItem('lmnPosition')).toBeNull();
 
+    history.replaceState(null, '', `#/details/video?id=${ID}`); // another reload
     rememberPosition('fedcba9876543210fedcba9876543210', 50_000_000);
     await restorePlayback(context(), ID, manager());
     expect(vi.mocked(startPlayback).mock.calls[1]![1].UserData?.PlaybackPositionTicks).toBe(600_000_000);
@@ -89,6 +91,25 @@ describe('restorePlayback', () => {
     await restorePlayback(context(new Error('404')), ID, manager());
     expect(location.hash).toBe('#/home');
     expect(showToast).toHaveBeenCalledWith(playerStrings.restoreFailed);
+    expect(startPlayback).not.toHaveBeenCalled();
+  });
+
+  it('goes home with a toast for a player URL with no id, without asking the server', async () => {
+    const client = createFakeClient();
+    await restorePlayback(makeContext(client), '', manager());
+    expect(location.hash).toBe('#/home');
+    expect(showToast).toHaveBeenCalledWith(playerStrings.restoreFailed);
+    expect(client.requests).toHaveLength(0);
+  });
+
+  it('leaves alone a page the user went to while the title was being looked up', async () => {
+    let answer: (item: BaseItem) => void = () => undefined;
+    const ctx = makeContext(createFakeClient(() => new Promise((resolve) => (answer = resolve))));
+    const restoring = restorePlayback(ctx, ID, manager());
+    history.replaceState(null, '', '#/search');
+    answer(movie);
+    await restoring;
+    expect(location.hash).toBe('#/search');
     expect(startPlayback).not.toHaveBeenCalled();
   });
 
