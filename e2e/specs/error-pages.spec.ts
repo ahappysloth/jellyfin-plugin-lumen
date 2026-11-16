@@ -92,7 +92,9 @@ test("the loading screen's mark keeps its size when Lumen's stylesheet doesn't l
 
   await page.reload({ waitUntil: 'domcontentloaded' });
 
+  // 56 px, not the whole screen. It grows in from 94% (lmn-veil-in), and Firefox can measure the scaled box a hair over
+  // its size as that ends (56.00003): so up to 56.5.
   const mark = (await page.locator('#lmn-veil svg').boundingBox())!;
-  expect(mark.width).toBeLessThanOrEqual(56);
-  expect(mark.height).toBeLessThanOrEqual(56);
+  expect(mark.width).toBeLessThanOrEqual(56.5);
+  expect(mark.height).toBeLessThanOrEqual(56.5);
 });

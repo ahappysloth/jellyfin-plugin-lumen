@@ -30,8 +30,8 @@ export default defineConfig({
     trace: 'retain-on-failure',
     video: 'retain-on-failure',
   },
-  // CI runs every spec on chromium, and the `@smoke` ones on firefox and webkit-iphone, per pull request; the nightly
-  // workflow runs everything on all three (.github/workflows/e2e.yml).
+  // CI runs every spec on chromium, and the `@smoke` ones on firefox and webkit-iphone, per pull request; the weekly
+  // compatibility workflow runs everything on all three, and on Chromium alone for `unstable` (.github/workflows/e2e.yml).
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     // Tests of the TV layout (their titles say "TV layout") run on Chromium only: that's what TVs' browsers are

@@ -395,30 +395,57 @@ for (const transcode of [false, true]) {
       await setUp(page, { segments: [['Intro', 3, 11]], actions: { Intro: 'Skip' }, stock, transcode });
       await play(page);
       if (transcode) await expect.poll(() => video(page).evaluate((v: HTMLVideoElement) => v.currentSrc)).toMatch(/^blob:/);
-      // Seeks from the intro on (a converted stream may make one of its own as it starts).
+      // Seeks from the intro on (a converted stream may make one of its own as it starts), and those Lumen asked for:
+      // its files (/Lumen/Assets/) are in the stack of the call that moved the video. Its synchronous part only: Firefox
+      // adds the async causes ("setInterval handler*…", "EventListener.handleEvent*…"), and jellyfin-web's own skip,
+      // from a listener added as Lumen's Play started the video, would count as Lumen's.
       await page.evaluate(() => {
-        const w = window as unknown as { seeks: number };
+        const w = window as unknown as { seeks: number; lumenSeeks: number };
         w.seeks = 0;
+        w.lumenSeeks = 0;
         document.addEventListener('seeking', (e) => void ((e.target as HTMLVideoElement).currentTime >= 3 && w.seeks++), true);
+        const position = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime')!;
+        Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', {
+          ...position,
+          set(this: HTMLMediaElement, seconds: number) {
+            const frames = (new Error().stack ?? '').split('\n');
+            const cause = frames.findIndex((frame) => /^[^@]*\*/.test(frame) || /^\s*at async /.test(frame));
+            if (seconds >= 3 && /\/Lumen\/Assets\//.test((cause < 0 ? frames : frames.slice(0, cause)).join('\n'))) w.lumenSeeks++;
+            position.set!.call(this, seconds);
+          },
+        });
       });
-      const seeks = () => page.evaluate(() => (window as unknown as { seeks: number }).seeks);
+      const counts = () => page.evaluate(() => {
+        const w = window as unknown as { seeks: number; lumenSeeks: number };
+        return { all: w.seeks, lumen: w.lumenSeeks };
+      });
 
       const notice = page.getByRole('status').filter({ hasText: 'Skipped intro' });
       await expect(notice).toBeVisible({ timeout: 15_000 });
       await expect.poll(() => time(page)).toBeGreaterThanOrEqual(11);
-      // One seek: Lumen and jellyfin-web don't both make it.
-      expect(await seeks()).toBe(1);
+      // Lumen and jellyfin-web don't both make the skip: Lumen seeks only where jellyfin-web won't. jellyfin-web 12.1's
+      // segment manager seeks a second time as it lands on the intro's end (the end still counts as inside it there),
+      // a seek of its own to where it already is that Lumen has no part in: so only Lumen's are counted where it skips.
+      // Counted once playback has gone on past the end, so a seek made on a later `timeupdate` there is in.
+      await expect.poll(() => time(page), { timeout: 10_000 }).toBeGreaterThan(11.5);
+      const skipped = await counts();
+      if (stock) {
+        expect(skipped.lumen).toBe(0);
+        expect(skipped.all).toBeGreaterThanOrEqual(1);
+      } else expect(skipped).toEqual({ all: 1, lumen: 1 });
       await expect(page.getByRole('button', { name: 'Skip Intro' })).toBeHidden();
 
       await page.getByRole('button', { name: 'Undo' }).click();
 
       await expect.poll(() => time(page)).toBeLessThan(6);
       await expect(notice).toBeHidden();
-      // The intro plays this time, with the button to skip it after all.
-      await expect(page.getByRole('button', { name: 'Skip Intro' })).toBeVisible();
+      // The intro plays this time, with the button to skip it after all (once a converted stream has started again
+      // there, which can take as long as its first start).
+      await expect(page.getByRole('button', { name: 'Skip Intro' })).toBeVisible({ timeout: 15_000 });
       await expect.poll(() => time(page)).toBeGreaterThan(5);
       expect(await time(page)).toBeLessThan(11);
-      expect(await seeks()).toBe(2);
+      // Undo is one seek, Lumen's.
+      expect(await counts()).toEqual({ all: skipped.all + 1, lumen: skipped.lumen + 1 });
     });
   }
 }

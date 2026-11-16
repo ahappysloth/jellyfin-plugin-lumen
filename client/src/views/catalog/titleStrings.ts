@@ -23,6 +23,8 @@ export const titleStrings = {
   titleFailed: "Couldn't load this title from Seerr.",
   loadingTitle: 'Loading…',
   watchTrailer: 'Trailer',
+  // More's one entry (the item menu's own is in itemMenuStrings.ts, another file).
+  trailerInfo: 'Trailer info',
   openInLibrary: 'Open in library',
   // Request progress: under the status on a title's page, where the row in My requests has no detail to show
   // (progressDetail: Queued and Processing always have one, Downloading has its percentage).

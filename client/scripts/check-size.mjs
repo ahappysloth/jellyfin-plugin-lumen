@@ -105,7 +105,11 @@ console.log(`lumen restart banner: ${kb(restart)} gzipped (budget ${RESTART_BUDG
 // (keeping a remote's focus when one goes), a title page's status links to its row there, and My requests opened that
 // way scrolls to, outlines and (on a TV) focuses that row. The title page's link reuses the startup file's button and
 // bar styles, so the startup file didn't grow.
-const TITLE_BUDGET = 8.75 * 1024;
+// 9 KB since 0.6.7 (about 230 bytes more): the title page's More button and its menu, with Trailer info, as a library
+// title's page has. They can only be here: the startup file has no room, and the loader the item menu uses for Trailer
+// info's file, shared by the two, would be a file of its own; Trailer info itself is still its own file, loaded as it's
+// picked. The button reuses the startup file's More button code and styles.
+const TITLE_BUDGET = 9 * 1024;
 const title = gz(`dist/${titleChunk}`) + gz('dist/lumen-requests.css');
 console.log(
   `lumen catalog title + my requests styles: ${kb(title)} gzipped (budget ${TITLE_BUDGET / 1024} KB)`,

@@ -9,8 +9,14 @@ on:
         type: string
         default: e2e-report
       # Pull requests run every spec on chromium and the `@smoke` ones on firefox and webkit-iphone, in parallel jobs
-      # that take no longer than a chromium one. The nightly run sets this to run every spec on all three.
+      # that take no longer than a chromium one. The weekly compatibility run sets this to run every spec on all three
+      # (or on Chromium alone, with chromium-only).
       all-browsers:
+        type: boolean
+        default: false
+      # Only Chromium's two jobs (the nightly's `unstable`: what's new there is the server and jellyfin-web, which
+      # Chromium shows as well as any browser).
+      chromium-only:
         type: boolean
         default: false
 
@@ -21,23 +27,18 @@ jobs:
   e2e:
     name: e2e (${{ matrix.project }}${{ matrix.part && format(' {0}/2', matrix.part) || '' }})
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Every spec on WebKit takes 28 to 30 minutes (the nightly's `all-browsers`): 30 cut 12.1's and `unstable`'s off.
+    timeout-minutes: ${{ inputs.all-browsers && 45 || 30 }}
     strategy:
       fail-fast: false
       matrix:
         # The Playwright projects in e2e/playwright.config.ts, and the browser each one installs. Chromium runs every
-        # spec, so it's split in two jobs of about 5 minutes each (`part`, LUMEN_E2E_PART in the config).
-        include:
-          - project: chromium
-            browser: chromium
-            part: 1
-          - project: chromium
-            browser: chromium
-            part: 2
-          - project: firefox
-            browser: firefox
-          - project: webkit-iphone
-            browser: webkit
+        # spec, so it's split in two jobs (`part`, LUMEN_E2E_PART in the config). `chromium-only` drops the other two.
+        # (Folded: its lines, all indented alike, join into one, so no JSON string has a line break in it.)
+        include: >-
+          ${{ fromJSON(inputs.chromium-only
+          && '[{"project":"chromium","browser":"chromium","part":1},{"project":"chromium","browser":"chromium","part":2}]'
+          || '[{"project":"chromium","browser":"chromium","part":1},{"project":"chromium","browser":"chromium","part":2},{"project":"firefox","browser":"firefox"},{"project":"webkit-iphone","browser":"webkit"}]') }}
     steps:
       - uses: actions/checkout@v7
       # Docker shares one download between this and `docker run` below, which then waits for it.
@@ -71,7 +72,10 @@ jobs:
           # what a test does sends a notification, and a failed send is tried again after 2 s (ReadyPushTimings). The
           # stub stands in for YouTube's embedded player too, which the browser loads: that address is the browser's,
           # so localhost. So does IMDb's: its API, which the server asks, and its videos, which the browser loads.
-          docker run -d --name jellyfin -p 8096:8096 \
+          # Restarted should it crash, so one crash fails a test or two rather than every one after it (Jellyfin 12.4
+          # can, on a WebSocket that closes as it's sent a user-data change: jellyfin/jellyfin#18221). A step below says
+          # when it happened.
+          docker run -d --name jellyfin --restart on-failure -p 8096:8096 \
             --add-host=host.docker.internal:host-gateway \
             -e LUMEN_TMDB_IMAGE_BASE=http://host.docker.internal:5055/t/p \
             -e LUMEN_TRAKT_API_BASE=http://host.docker.internal:5055/trakt \
@@ -133,6 +137,14 @@ jobs:
         with:
           name: ${{ inputs.report-name }}-jellyfin-version-${{ github.run_attempt }}
           path: tested-jellyfin.txt
+      - name: Say whether Jellyfin crashed
+        if: always()
+        run: |
+          RESTARTS="$(docker inspect -f '{{.RestartCount}}' jellyfin 2>/dev/null || echo 0)"
+          if [[ "$RESTARTS" != 0 ]]; then
+            WHY="$(docker logs jellyfin 2>&1 | grep -m1 -A1 'Unhandled exception' | tr '\n' ' ' | cut -c1-300)"
+            echo "::warning title=Jellyfin crashed during the e2e run::Restarted $RESTARTS time(s). $WHY"
+          fi
       - if: failure()
         run: docker logs jellyfin > jellyfin.log 2>&1 || true
       - if: failure()

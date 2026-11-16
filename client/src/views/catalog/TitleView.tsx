@@ -4,9 +4,12 @@ import { detailsHash } from '../../compat/jellyfin';
 import { Icon } from '../../components/icons';
 import { ProgressBar } from '../../components/ProgressBar';
 import { LoadError } from '../../components/LoadError';
+import { openContextMenu } from '../../components/ContextMenu';
+import { showToast } from '../../components/Toast';
 import { useAutoFocus } from '../../components/useAutoFocus';
 import { strings } from '../../strings';
 import { liftVeil } from '../../veil/veil';
+import { loadStyles } from '../../util/loadStyles';
 import { VIEW_TIMEOUT_MS, withTimeout } from '../../util/withTimeout';
 import type { ViewContext } from '../context';
 import { FailedPageMark } from '../pageError';
@@ -14,6 +17,7 @@ import { initials } from '../details/CastRow';
 import { BackHome, goBack } from '../BackHome';
 import { DETAILS_TRAILER_DELAY_SECONDS } from '../details/DetailsHeader';
 import { LazyTrailer, LazyTrailerControls, useTrailerControls } from '../home/lazyTrailer';
+import { useMoreButton } from '../itemMenu/lazyItemMenu';
 import { usePrefersReducedMotion } from '../../components/usePrefersReducedMotion';
 import {
   catalogHash,
@@ -192,6 +196,38 @@ function TitleHeader({
   const reducedMotion = usePrefersReducedMotion();
   const preview = ctx.config.TrailerPreview && ctx.config.YouTubeTrailers && !reducedMotion;
   const trailer = useTrailerControls();
+  // More, as on a library title's page, with Trailer info: what the server found of this title's trailer online and
+  // why, and how it went on this device (views/trailerInfo, its own file, loaded as it's picked). Offered where the
+  // library's is, with previews on; the dialog says when online trailers are off.
+  const path = `Requests/Title/${title.MediaType}/${title.TmdbId}`;
+  const more = useMoreButton({
+    open: (at) =>
+      openContextMenu({
+        ...at,
+        label: strings.moreActionsFor(title.Title),
+        entries: [
+          {
+            label: titleStrings.trailerInfo,
+            icon: 'film',
+            // Loaded here rather than with lazyTrailerInfo.ts, which the item menu's file has: shared, it would be a
+            // file of its own.
+            onSelect: () =>
+              void Promise.all([
+                import('../trailerInfo/TrailerInfo'),
+                loadStyles('lumen-trailerinfo.css'),
+              ]).then(
+                ([m]) =>
+                  m.openTrailerInfoDialog(
+                    ctx,
+                    { key: title.Key, of: path, name: title.Title },
+                    at.returnFocus,
+                  ),
+                () => showToast(strings.itemMenuFailed),
+              ),
+          },
+        ],
+      }),
+  });
   // The user's own request shows as a link to it in My requests instead of the state: the word its row there shows,
   // with the row's bar while it downloads, and the row's detail under it (or what the word means, where it has none).
   const mine = useRequestProgress(title.Key);
@@ -223,7 +259,9 @@ function TitleHeader({
       {preview && (
         <LazyTrailer
           key={title.Key}
-          lookup={() => ctx.api.getOnlineTrailer(`Requests/Title/${title.MediaType}/${title.TmdbId}`)}
+          lookup={() => ctx.api.getOnlineTrailer(path)}
+          // Its attempts on this device, for Trailer info (a catalog key, apart from library items' ids).
+          logKey={title.Key}
           embedBase={ctx.config.YouTubeEmbedBase}
           delaySeconds={DETAILS_TRAILER_DELAY_SECONDS}
           client={ctx.client}
@@ -306,6 +344,19 @@ function TitleHeader({
               <Icon name="film" />
               <span class="lmn-button__label">{titleStrings.watchTrailer}</span>
             </a>
+          )}
+          {ctx.config.TrailerPreview && (
+            <button
+              type="button"
+              class="lmn-button lmn-button--secondary"
+              aria-label={strings.moreActionsFor(title.Title)}
+              aria-haspopup="menu"
+              aria-expanded={more.expanded}
+              onClick={(e) => more.open(e.currentTarget)}
+            >
+              <Icon name="more" />
+              <span class="lmn-button__label">{strings.more}</span>
+            </button>
           )}
         </div>
         {mine && !owned && mineDetail && (

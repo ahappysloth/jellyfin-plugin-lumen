@@ -8,7 +8,17 @@ import { myRequest } from '../../../test/myRequest';
 import type { MyRequest } from '../../api/types';
 import { clearRequestStatus } from './catalog';
 import { refreshRequestProgress, reset, startRequestProgress } from './requestProgress';
+import { ContextMenuHost } from '../../components/ContextMenu';
+import { ToastHost } from '../../components/Toast';
+import type { TrailerInfoResponse } from '../trailerInfo/TrailerInfo';
+import { strings } from '../../strings';
 import { TitleView } from './TitleView';
+
+// Trailer info's stylesheet: jsdom never loads one (and the dialog doesn't wait on it in a browser either).
+const styles = vi.hoisted(() => ({ fail: false }));
+vi.mock('../../util/loadStyles', () => ({
+  loadStyles: () => (styles.fail ? Promise.reject(new Error('offline')) : Promise.resolve()),
+}));
 
 const movie: CatalogTitle = {
   Key: 'movie-603',
@@ -377,6 +387,116 @@ describe('TitleView', () => {
         expect(asked).not.toHaveBeenCalled();
         view.unmount();
       }
+    });
+  });
+
+  describe('More', () => {
+    const info: TrailerInfoResponse = {
+      Previews: true,
+      OnlineTrailers: true,
+      LocalTrailer: null,
+      Skipped: null,
+      Imdb: { Id: 'tt0133093', Status: 'found', Qualities: ['1080p'], Cached: true },
+      YouTube: { Status: 'found', VideoId: 'dQw4w9WgXcQ', Source: 'seerr', Cached: true },
+      CanRefresh: true,
+    };
+    const open = (config: Partial<typeof testConfig>, answer: TrailerInfoResponse = info) => {
+      const client = createFakeClient(
+        routes({
+          'Lumen/Requests/Title/movie/603': movie,
+          'Lumen/Requests/Title/movie/603/TrailerInfo': answer,
+          'Lumen/Requests/Title/movie/603/TrailerInfo/Refresh': { ...answer, CanRefresh: true },
+          'Lumen/Requests/Title/movie/603/Trailer': { ImdbUrl: null, YouTubeId: null },
+        }),
+      );
+      const ctx = makeContext(client, { config: { ...testConfig, ...config } });
+      render(
+        <>
+          <TitleView mediaType="movie" tmdbId={603} ctx={ctx} />
+          <ContextMenuHost />
+          <ToastHost />
+        </>,
+      );
+      return { client };
+    };
+    const more = () => screen.findByRole('button', { name: 'More actions for The Matrix' });
+
+    afterEach(() => {
+      styles.fail = false;
+      sessionStorage.clear();
+      document.body.innerHTML = '';
+    });
+
+    it('is offered with trailer previews on, as on a library title’s page, and not without', async () => {
+      open({ TrailerPreview: false });
+      await screen.findByRole('heading', { name: 'The Matrix' });
+      expect(screen.queryByRole('button', { name: 'More actions for The Matrix' })).toBeNull();
+      document.body.innerHTML = '';
+
+      open({ TrailerPreview: true });
+      const button = await more();
+      expect(button.getAttribute('aria-haspopup')).toBe('menu');
+      // Last of the header's buttons, after Trailer.
+      const actions = [...button.parentElement!.children];
+      expect(actions[actions.length - 1]).toBe(button);
+    });
+
+    it('has Trailer info, which opens the title’s trailer status in a dialog, and gives focus back to More', async () => {
+      const { client } = open({ TrailerPreview: true, YouTubeTrailers: true });
+      const button = await more();
+      button.focus();
+      fireEvent.click(button);
+      expect(button.getAttribute('aria-expanded')).toBe('true');
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Trailer info' }));
+
+      const dialog = await screen.findByRole('dialog', { name: 'Trailer info: The Matrix' });
+      await within(dialog).findByText('Found: 1080p available');
+      expect(dialog.textContent).toContain('tt0133093');
+      expect(dialog.textContent).toContain('from Seerr (TMDB)');
+      // This page's own attempt (its trailer looked up as it opened: here, the server had none), under the title's key.
+      expect(dialog.textContent).toContain('The server had no trailer to play');
+      expect(client.requests.map((r) => r.url)).toContain(
+        client.getUrl('Lumen/Requests/Title/movie/603/TrailerInfo'),
+      );
+      expect(button.getAttribute('aria-expanded')).toBe('false');
+
+      // An administrator's Check again asks the catalog title's Refresh.
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Check again' }));
+      await within(dialog).findByText('Checked again');
+      expect(client.requests.some((r) => r.type === 'POST' && r.url.endsWith('/TrailerInfo/Refresh'))).toBe(
+        true,
+      );
+
+      fireEvent.keyDown(within(dialog).getByRole('button', { name: 'Check again' }), { key: 'Escape' });
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(document.activeElement).toBe(button);
+    });
+
+    it('says so when online trailers are off, as the library’s does', async () => {
+      open(
+        { TrailerPreview: true, YouTubeTrailers: false },
+        {
+          ...info,
+          OnlineTrailers: false,
+          Imdb: { Id: 'tt0133093', Status: 'skipped', Qualities: [], Cached: false },
+          YouTube: { Status: 'skipped', Cached: false },
+          CanRefresh: false,
+        },
+      );
+      fireEvent.click(await more());
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Trailer info' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Trailer info: The Matrix' });
+      await within(dialog).findByText('Off (“Use online trailers” is off)');
+      expect(within(dialog).queryByRole('button', { name: 'Check again' })).toBeNull();
+    });
+
+    it('says the dialog couldn’t open when its file can’t load', async () => {
+      styles.fail = true;
+      open({ TrailerPreview: true });
+      fireEvent.click(await more());
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Trailer info' }));
+      await screen.findByText(strings.itemMenuFailed);
+      expect(screen.queryByRole('dialog')).toBeNull();
     });
   });
 });

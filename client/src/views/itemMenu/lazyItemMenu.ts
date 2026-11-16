@@ -80,14 +80,17 @@ export function useItemMenu(
   return menu && menu.item.Id === id ? menu : null;
 }
 
+/** A menu a More button opens: an item's (PreparedMenu), or a page's own (a catalog title's). */
+export type MoreMenu = Pick<PreparedMenu, 'open'>;
+
 /** Opens a prepared menu under its button, aligned to the button's left edge (the menu flips if it would overflow). */
-export function openUnder(menu: PreparedMenu, button: HTMLElement, onClose?: () => void): void {
+export function openUnder(menu: MoreMenu, button: HTMLElement, onClose?: () => void): void {
   const box = button.getBoundingClientRect();
   menu.open({ x: box.left, y: box.bottom, returnFocus: button, anchor: button, onClose });
 }
 
 /** A More button: opens its menu underneath, and is `expanded` (aria-expanded) while the menu is open. */
-export function useMoreButton(menu: PreparedMenu | null): {
+export function useMoreButton(menu: MoreMenu | null): {
   expanded: boolean;
   open: (button: HTMLElement) => void;
 } {

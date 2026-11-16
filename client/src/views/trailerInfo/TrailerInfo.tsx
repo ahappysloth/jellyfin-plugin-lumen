@@ -20,7 +20,10 @@ import type { ViewContext } from '../context';
 import { lastAttempt } from './deviceLog';
 import { trailerInfoStrings as t } from './trailerInfoStrings';
 
-/** The title the section is for: its log key (the item's id) and its API path (`Items/{id}`). */
+/**
+ * The title the section is for: its log key and its API path. A library item's id and `Items/{id}`; a catalog title's key
+ * ("movie-603") and `Requests/Title/{type}/{tmdbId}`.
+ */
 export interface TrailerTarget {
   key: string;
   of: string;
@@ -428,7 +431,10 @@ function TrailerInfoDialog({
   );
 }
 
-/** Trailer info for a title without Media info (a show): the section in Lumen's dialog, until closed. */
+/**
+ * Trailer info for a title without Media info (a show, or a catalog title the server doesn't have): the section in
+ * Lumen's dialog, until closed.
+ */
 export function openTrailerInfoDialog(
   ctx: ViewContext,
   target: TrailerTarget,

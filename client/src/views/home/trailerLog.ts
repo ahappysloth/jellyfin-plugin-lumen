@@ -71,8 +71,9 @@ export interface TrailerLogger {
 }
 
 /**
- * A new attempt for the title `key` (a library item's id), or null without one. Nothing is stored until its first step:
- * a preview that never got as far as playing (a hero slide swiped past) leaves the last real attempt as it was.
+ * A new attempt for the title `key` (a library item's id, or a catalog title's key), or null without one. Nothing is
+ * stored until its first step: a preview that never got as far as playing (a hero slide swiped past) leaves the last
+ * real attempt as it was.
  */
 export function trailerLogger(key: string | null | undefined, tv: boolean): TrailerLogger | null {
   if (!key) return null;
