@@ -509,9 +509,7 @@ describe('progress words', () => {
     // As the answer arrived (nothing has arrived since reset: that's at 0).
     const now = 0;
     expect(progressDetail(myRequest({ Percent: 45.7, SecondsLeft: null }), now)).toBe('45%');
-    expect(progressDetail(myRequest({ Percent: 45, SecondsLeft: 30 }), now)).toMatch(
-      /^45% · Less than a minute left$/,
-    );
+    expect(progressDetail(myRequest({ Percent: 45, SecondsLeft: 30 }), now)).toMatch(/^45% · < 1 min left$/);
     expect(progressDetail(myRequest({ Percent: 45, SecondsLeft: 750 }), now)).toMatch(/13 min left$/);
     expect(progressDetail(myRequest({ Percent: 45, SecondsLeft: 3 * 3600 + 600 }), now)).toMatch(
       /3 hr 10 min left$/,
@@ -527,7 +525,7 @@ describe('progress words', () => {
   it('rounds the time left to whole minutes before splitting it into hours, and counts one day as one', () => {
     const left = (seconds: number): string =>
       progressDetail(myRequest({ Percent: 45, SecondsLeft: seconds }), 0).replace('45% · ', '');
-    expect(left(59)).toBe('Less than a minute left');
+    expect(left(59)).toBe('< 1 min left');
     expect(left(60)).toBe('1 min left');
     expect(left(3569)).toBe('59 min left');
     // Half a minute short of the hour, of two hours and of a day: never "60 min".

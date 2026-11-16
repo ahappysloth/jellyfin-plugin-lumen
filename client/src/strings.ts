@@ -206,7 +206,7 @@ export const strings = {
     const min = Math.round(s / 60);
     const days = Math.round(min / 1440);
     return s < 60
-      ? 'Less than a minute left'
+      ? '< 1 min left'
       : min < 60
         ? `${formatNumber(min)} min left`
         : min < 1440
