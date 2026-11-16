@@ -12,6 +12,7 @@ import {
   playbackInfoRows,
   reasonText,
   repeatOptions,
+  resolutionText,
   SettingsPanel,
 } from './PlayerExtras';
 import type { PlayerSnapshot } from './playerState';
@@ -52,7 +53,7 @@ describe('player extras', () => {
     const rows = playbackInfoRows({ playMethod: 'DirectPlay', mediaSource: source }, null);
     expect(Object.fromEntries(rows.map((r) => [r.label, r.value]))).toEqual({
       Playback: 'Direct play',
-      Video: 'HEVC · 2160p · HDR10',
+      Video: 'HEVC · 4K · HDR10',
       Audio: 'EAC3 · 5.1 · eng',
       Container: 'MKV',
       Bitrate: '25.0 Mbps',
@@ -78,12 +79,25 @@ describe('player extras', () => {
     expect(Object.fromEntries(rows.map((r) => [r.label, r.value]))).toEqual({
       Playback: 'Transcoding',
       Why: 'video codec not supported, audio channels not supported',
-      Video: 'HEVC · 2160p · HDR10 → H264 · 1080p',
+      Video: 'HEVC · 4K · HDR10 → H264 · 1080p',
       Audio: 'EAC3 · 5.1 · eng → AAC · stereo',
       Container: 'MKV → MP4',
       Bitrate: '25.0 Mbps → 8.0 Mbps',
       Encoding: '12 fps (0.5×)',
     });
+  });
+
+  it('names a widescreen film by its class, with the frame it really has', () => {
+    const wide = {
+      ...source,
+      MediaStreams: [{ Type: 'Video', Codec: 'h264', Width: 1920, Height: 804, VideoRangeType: 'SDR' }],
+    };
+    const rows = playbackInfoRows({ playMethod: 'DirectPlay', mediaSource: wide }, null);
+    expect(rows.find((r) => r.label === 'Video')?.value).toBe('H264 · 1080p (1920×804) · SDR');
+    expect(resolutionText(1920, 1080)).toBe('1080p');
+    expect(resolutionText(3840, 1600)).toBe('4K (3840×1600)');
+    expect(resolutionText(undefined, 576)).toBe('480p');
+    expect(resolutionText()).toBeNull();
   });
 
   it('reads transcode reasons as words', () => {

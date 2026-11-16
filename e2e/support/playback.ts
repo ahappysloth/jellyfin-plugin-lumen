@@ -7,7 +7,7 @@ import { api, loadState } from './api';
  * playing reports its position again after forgetPlayback() has reset it.
  */
 export async function endPlayback(page: Page): Promise<void> {
-  if (!/#\/video/.test(page.url())) return;
+  if (!/#\/(details\/)?video/.test(page.url())) return;
   const stopped = page
     .waitForResponse((r) => r.url().includes('/Sessions/Playing/Stopped'), { timeout: 10_000 })
     .catch(() => undefined);

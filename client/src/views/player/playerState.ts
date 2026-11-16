@@ -22,7 +22,10 @@ export interface PlayerSnapshot {
   subtitleIndex: number;
   autoQuality: boolean;
   maxBitrate: number;
-  /** The playing video's height, for the quality label (e.g. "1080p"). */
+  /**
+   * The playing video's height as its quality class sees it (classHeight): a 1920×804 widescreen film counts as 1080,
+   * not 804. For the quality label ("1080p") and the presets offered.
+   */
   videoHeight: number | null;
   rates: number[];
   rate: number;
@@ -78,7 +81,7 @@ export function readPlayerState(pm: PlaybackManager, player: Player): PlayerSnap
     subtitleIndex: attempt(() => pm.getSubtitleStreamIndex(player), -1),
     autoQuality: attempt(() => pm.enableAutomaticBitrateDetection(player), true),
     maxBitrate: attempt(() => pm.getMaxStreamingBitrate(player), 0),
-    videoHeight: video?.Height ?? null,
+    videoHeight: classHeight(video?.Width, video?.Height),
     rates: attempt(() => pm.getSupportedPlaybackRates(player).map((r) => r.id), [] as number[]),
     rate: attempt(() => pm.getPlaybackRate(player), 1),
     aspectRatios: attempt(() => pm.getSupportedAspectRatios(player), []),
@@ -115,4 +118,14 @@ export function snapshotKey(snap: PlayerSnapshot, withPosition: boolean): string
     if (!withPosition && (key === 'positionMs' || key === 'bufferedMs')) return undefined;
     return value;
   });
+}
+
+/**
+ * The height a video's quality is named by. A film cropped to a wide frame keeps its width and loses height (1080p's
+ * 1920 × 1080 becomes 1920 × 804 at 2.39:1, 4K's 3840 × 1600), so the width counts too: the larger of the height and
+ * the height a 16:9 frame of that width would have. null when neither is known.
+ */
+export function classHeight(width: number | undefined, height: number | undefined): number | null {
+  const fromWidth = width ? Math.round((width * 9) / 16) : 0;
+  return Math.max(height ?? 0, fromWidth) || null;
 }

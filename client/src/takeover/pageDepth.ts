@@ -30,32 +30,47 @@ function subPage(hash: string): string | null {
   return route.kind === 'player' ? '' : null;
 }
 
+/** In-app entries behind the one on screen (see pagesBehind). */
+const BACK_KEY = 'lmnBack';
+let behind = 0;
+/** The hash of the app's entry behind the one on screen ('' with none), for backSteps. */
+const FROM_KEY = 'lmnFrom';
+let from = '';
+/** The hash of the entry on screen; null until the first is seen. */
+let shown: string | null = null;
+
 /** `replaced`: the entry on screen was replaced (history.replaceState), not a new one added after it. */
 function evaluate(win: Window, replaced: boolean): void {
-  const key = subPage(win.location.hash);
+  const hash = win.location.hash;
+  const key = subPage(hash);
+  const state = win.history.state as Record<string, unknown> | null;
+  const stamps: Record<string, number | string> = {};
+  /** The entry's stamp `name` if it has one (Back, Forward, a reload; or a replace that kept it), else `fresh()`. */
+  const read = (name: string, fresh: () => number): number => {
+    const stamp = state?.[name];
+    return typeof stamp === 'number' ? stamp : (stamps[name] = fresh());
+  };
+  // The first entry seen has nothing of the app's behind it. A new one has one more than the entry it follows, unless
+  // it replaced it, or shows the same URL (jellyfin-web pushes the page again for a dialog, and on a cold load).
+  const same = shown === null || replaced || hash === shown;
+  const fromStamp = state?.[FROM_KEY];
+  from = typeof fromStamp === 'string' ? fromStamp : (stamps[FROM_KEY] = same ? from : shown!);
+  behind = read(BACK_KEY, () => (shown === null ? 0 : same ? behind : behind + 1));
+  shown = hash;
   let next = 0;
-  if (key) {
-    const state = win.history.state as Record<string, unknown> | null;
-    const stamp = state?.[STATE_KEY];
-    // Seen before (Back, Forward, a reload; or replaced with a state that kept the stamp).
-    if (typeof stamp === 'number') next = stamp;
-    else {
-      // A new entry, unless it replaced the one on screen (react-router's replace writes a fresh state, without the
-      // stamp): that takes the depth of the entry it replaced, as does the same page again (jellyfin-web pushes one for
-      // a dialog). Another page is one deeper.
-      next = replaced || key === page ? Math.max(depth, 1) : depth + 1;
-      if (state === null || typeof state === 'object') {
-        // An entry with no state reads to react-router as `idx: null` (push then counts null + 1 = 1); a stamp alone
-        // would make that undefined + 1, NaN. So a null state keeps reading as idx null.
-        const stamped = state === null ? { idx: null, [STATE_KEY]: next } : { ...state, [STATE_KEY]: next };
-        try {
-          History.prototype.replaceState.call(win.history, stamped, '');
-        } catch {
-          // Safari refuses more than 100 history changes in 30 s: the depth still holds until this entry is left.
-        }
-      }
+  // A new sub-page is one deeper than the page before it, unless it replaced it (react-router's replace writes a fresh
+  // state, without the stamp) or is the same page again: those take the depth of the entry before.
+  if (key) next = read(STATE_KEY, () => (replaced || key === page ? Math.max(depth, 1) : depth + 1));
+  else if (key === '') next = depth;
+  if (Object.keys(stamps).length && (state === null || typeof state === 'object')) {
+    // An entry with no state reads to react-router as `idx: null` (push then counts null + 1 = 1); a stamp alone
+    // would make that undefined + 1, NaN. So a null state keeps reading as idx null.
+    try {
+      History.prototype.replaceState.call(win.history, { idx: null, ...state, ...stamps }, '');
+    } catch {
+      // Safari refuses more than 100 history changes in 30 s: the counts still hold until this entry is left.
     }
-  } else if (key === '') next = depth;
+  }
   if (key !== '') page = key ?? '';
   if (next === depth) return;
   depth = next;
@@ -67,8 +82,9 @@ function evaluate(win: Window, replaced: boolean): void {
  * is right by the time a page mounts). Returns a function that stops.
  */
 export function trackPageDepth(win: Window = window): () => void {
-  depth = 0;
-  page = '';
+  depth = behind = 0;
+  page = from = '';
+  shown = null;
   installHooks(win);
   const handler = (e?: Event): void =>
     evaluate(
@@ -79,6 +95,25 @@ export function trackPageDepth(win: Window = window): () => void {
   events.forEach((e) => win.addEventListener(e, handler));
   handler();
   return () => events.forEach((e) => win.removeEventListener(e, handler));
+}
+
+/**
+ * How many of the app's pages are behind the one on screen in this tab's history: 0 when it was opened from a link, in
+ * a new tab, or after a reload with nothing of the app's before it. Kept in `history.state` beside the depth, so Back,
+ * Forward and a reload find it again. Not history.length, which counts the tab's other sites, and the blank page a new
+ * tab starts on (where Back would leave the app, or do nothing).
+ */
+export const pagesBehind = (): number => behind;
+
+/**
+ * How many entries Back goes to reach the app's page before this one: 1, or 2 past another entry of this same page
+ * right behind it (a reload on the player puts the title's page in its place, behind the player, where the page Play
+ * was pressed on is already: views/player/playerUrl.ts). 0 with none of the app's pages behind.
+ */
+export function backSteps(): number {
+  const key = subPage(shown ?? '');
+  const steps = key && subPage(from) === key ? 2 : 1;
+  return behind >= steps ? steps : 0;
 }
 
 /** How many sub-pages deep the page on screen is (see above). */

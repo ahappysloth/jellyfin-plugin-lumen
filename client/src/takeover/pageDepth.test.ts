@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { onNavigate } from './navigation';
-import { pageDepth, trackPageDepth } from './pageDepth';
+import { backSteps, pageDepth, pagesBehind, trackPageDepth } from './pageDepth';
 
 const HOME = '#/home';
 const MOVIE = '#/details?id=11111111111111111111111111111111';
@@ -168,7 +168,7 @@ describe('page depth', () => {
     // react-router's navigate(…, { replace: true }): a fresh state (new key, same idx), so no stamp to find.
     history.replaceState({ usr: null, key: 'k2', idx: 2 }, '', OTHER);
     expect(pageDepth()).toBe(2);
-    expect(history.state).toEqual({ usr: null, key: 'k2', idx: 2, lmnDepth: 2 });
+    expect(history.state).toEqual({ usr: null, key: 'k2', idx: 2, lmnDepth: 2, lmnBack: 2, lmnFrom: MOVIE });
     // And again: still no deeper.
     history.replaceState({ usr: null, key: 'k3', idx: 2 }, '', CATALOG);
     expect(pageDepth()).toBe(2);
@@ -191,7 +191,7 @@ describe('page depth', () => {
     // jellyfin-web's router (react-router's hash history) keeps usr, key and idx in the entry's state.
     history.pushState({ usr, key: 'abc123', idx: 4 }, '', MOVIE);
 
-    expect(history.state).toEqual({ usr, key: 'abc123', idx: 4, lmnDepth: 1 });
+    expect(history.state).toEqual({ usr, key: 'abc123', idx: 4, lmnDepth: 1, lmnBack: 1, lmnFrom: HOME });
     expect(window.location.hash).toBe(MOVIE);
     // The navigation itself, once; the stamp went past the wrapped methods, so nothing heard of it.
     expect(navigated).toHaveBeenCalledTimes(1);
@@ -201,10 +201,10 @@ describe('page depth', () => {
     // An entry made by a link has no state: the stamp is all of it, with react-router's idx left reading null (its push
     // counts getIndex() + 1, which a missing idx would make NaN).
     go(ACTOR);
-    expect(history.state).toEqual({ idx: null, lmnDepth: 2 });
-    // The pages that aren't sub-pages are left as they are.
+    expect(history.state).toEqual({ idx: null, lmnDepth: 2, lmnBack: 2, lmnFrom: MOVIE });
+    // The pages that aren't sub-pages have no depth, only the count of the app's pages behind them.
     go(HOME);
-    expect(history.state).toBeNull();
+    expect(history.state).toEqual({ idx: null, lmnBack: 3, lmnFrom: ACTOR });
     stopListening();
   });
 
@@ -229,5 +229,91 @@ describe('page depth', () => {
     stop();
     go(ACTOR);
     expect(pageDepth()).toBe(1);
+  });
+});
+
+describe('pages behind', () => {
+  it('is 0 on the first page the app sees, and counts each new page after it', () => {
+    expect(pagesBehind()).toBe(0);
+    go(MOVIE);
+    expect(pagesBehind()).toBe(1);
+    go(VIDEO);
+    expect(pagesBehind()).toBe(2);
+    go(HOME);
+    expect(pagesBehind()).toBe(3);
+  });
+
+  it('follows Back and Forward, and a reload, from the entries themselves', async () => {
+    go(MOVIE);
+    go(ACTOR);
+    await travel(-1);
+    expect(pagesBehind()).toBe(1);
+    load();
+    expect(pagesBehind()).toBe(1);
+    await travel(-1);
+    expect(pagesBehind()).toBe(0);
+    await travel(2);
+    expect(pagesBehind()).toBe(2);
+  });
+
+  it('is 0 on a page opened in a new tab or from a link, though the tab has history before it', () => {
+    stop();
+    History.prototype.pushState.call(history, null, '', MOVIE);
+    stop = trackPageDepth(window);
+    expect(history.length).toBeGreaterThan(1);
+    expect(pagesBehind()).toBe(0);
+  });
+
+  it('isn’t more for an entry replaced, or the same URL added again (jellyfin-web’s dialogs, its cold load)', () => {
+    go(MOVIE);
+    history.replaceState(null, '', ACTOR);
+    expect(pagesBehind()).toBe(1);
+    history.pushState({ idx: 3 }, '', ACTOR);
+    expect(pagesBehind()).toBe(1);
+    go(OTHER);
+    expect(pagesBehind()).toBe(2);
+  });
+
+  it('keeps the count when the player names what plays (its entry replaced with the title’s player URL)', () => {
+    go(MOVIE);
+    go(VIDEO);
+    history.replaceState(history.state, '', '#/details/video?id=11111111111111111111111111111111');
+    expect(pagesBehind()).toBe(2);
+  });
+});
+
+describe('back steps', () => {
+  it('goes one entry back to the page before, and none from the first', () => {
+    expect(backSteps()).toBe(0);
+    go(MOVIE);
+    expect(backSteps()).toBe(1);
+    go(VIDEO);
+    expect(backSteps()).toBe(1);
+  });
+
+  it('goes past a second entry of the same page: a reload on the player puts its title behind it again', async () => {
+    go(MOVIE); // the page Play was pressed on
+    go(VIDEO);
+    history.replaceState(history.state, '', '#/details/video?id=11111111111111111111111111111111');
+    load(); // the reload
+    history.replaceState(null, '', MOVIE); // the player's restore: its title's page in this entry's place
+    expect(backSteps()).toBe(2);
+    go(VIDEO); // jellyfin-web opens the player again
+    expect(backSteps()).toBe(1);
+    await travel(-1);
+    expect(backSteps()).toBe(2);
+  });
+
+  it('goes home rather than past the copy when nothing of the app is before it', () => {
+    stop();
+    History.prototype.pushState.call(
+      history,
+      null,
+      '',
+      '#/details/video?id=11111111111111111111111111111111',
+    );
+    stop = trackPageDepth(window); // a player URL opened in a new tab
+    history.replaceState(null, '', MOVIE);
+    expect(backSteps()).toBe(0);
   });
 });

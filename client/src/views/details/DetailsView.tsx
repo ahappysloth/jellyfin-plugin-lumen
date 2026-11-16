@@ -134,7 +134,7 @@ export function DetailsView({ id, ctx }: { id: string; ctx: ViewContext }) {
         ctx={ctx}
         title={strings.itemNotFoundTitle}
         message={strings.itemNotFound}
-        onBack={() => goBack(ctx)}
+        onBack={() => goBack()}
       />
     );
   if (failure)
@@ -154,7 +154,7 @@ export function DetailsView({ id, ctx }: { id: string; ctx: ViewContext }) {
               }
         }
         retrying={retrying}
-        onBack={() => goBack(ctx)}
+        onBack={() => goBack()}
       />
     );
   const loading = <div class="lmn-details lmn-details--loading" aria-busy="true" />;
@@ -168,7 +168,7 @@ export function DetailsView({ id, ctx }: { id: string; ctx: ViewContext }) {
           ctx={ctx}
           pending={loading}
           liftOnLoad
-          onBack={() => goBack(ctx)}
+          onBack={() => goBack()}
           view={(m) => <m.CollectionDetails item={resolved.item} ctx={ctx} reload={reload} />}
         />
       );
@@ -178,7 +178,7 @@ export function DetailsView({ id, ctx }: { id: string; ctx: ViewContext }) {
           ctx={ctx}
           pending={loading}
           liftOnLoad
-          onBack={() => goBack(ctx)}
+          onBack={() => goBack()}
           view={(m) => <m.PersonDetails item={resolved.item} ctx={ctx} />}
         />
       );

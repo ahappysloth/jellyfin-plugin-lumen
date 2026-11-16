@@ -60,7 +60,7 @@ export function PersonDetails({ item, ctx }: { item: BaseItem; ctx: ViewContext 
           />
         )}
         <div class="lmn-person-page__topbar focuscontainer-x">
-          <BackHome onBack={() => goBack(ctx)} autoFocus />
+          <BackHome onBack={() => goBack()} autoFocus />
         </div>
         <div class="lmn-person-page__intro">
           {photo ? (

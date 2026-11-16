@@ -40,7 +40,11 @@ export type Route =
   | { kind: 'charts' }
   /** A stock settings page Lumen restyles and frames with its own nav; the page itself stays jellyfin-web's. */
   | { kind: 'settings'; page: SettingsPage }
-  /** jellyfin-web's video player: Lumen draws its controls over it; playback stays jellyfin-web's. */
+  /**
+   * jellyfin-web's video player: Lumen draws its controls over it; playback stays jellyfin-web's. Its own route is
+   * #/video; while Lumen's player is up the address names what plays, #/details/video?id=… (views/player/playerUrl.ts),
+   * which jellyfin-web has no page for, so a reload there is Lumen's to start again.
+   */
   | { kind: 'player' }
   /**
    * A URL jellyfin-web has no page for. Never from parseRoute: only jellyfin-web knows all its routes (plugins add
@@ -104,7 +108,8 @@ export function parseRoute(hash: string): Route {
   }
   if (path === STOCK_ROUTES.search) return { kind: 'search', query: query.get('query') ?? '' };
   if (path === STOCK_ROUTES.preferencesMenu) return { kind: 'profile' };
-  if (path === STOCK_ROUTES.video) return { kind: 'player' };
+  if (path === STOCK_ROUTES.video || path === STOCK_ROUTES.details + STOCK_ROUTES.video)
+    return { kind: 'player' };
   const settings = SETTINGS_PATHS[path];
   if (settings) return { kind: 'settings', page: settings };
   if (path === STOCK_ROUTES.list) {

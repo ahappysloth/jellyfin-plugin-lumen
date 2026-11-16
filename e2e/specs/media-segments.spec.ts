@@ -129,7 +129,7 @@ const nowPlaying = (page: Page) => page.locator('.lmn-player__subtitle');
 async function play(page: Page, episode = 0): Promise<void> {
   await page.goto(`/web/#/details?id=${episodes[episode]!.Id}`);
   await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).first().click();
-  await expect(page).toHaveURL(/#\/video/);
+  await expect(page).toHaveURL(/#\/(details\/)?video/);
   await expect(nowPlaying(page)).toContainText(`S${Math.floor(episode / 3) + 1}:E${(episode % 3) + 1}`);
 }
 
@@ -507,7 +507,7 @@ test.describe('the next-episode card', () => {
     await expect(stockCard(page)).toBeHidden();
     await page.mouse.move(640, 360);
     await page.locator('#lmn-root').getByRole('button', { name: 'Back', exact: true }).click();
-    await expect(page).not.toHaveURL(/#\/video/);
+    await expect(page).not.toHaveURL(/#\/(details\/)?video/);
   });
 
   test('counts down from 10 and starts the next episode in place of the credits', async ({ page }) => {
@@ -698,7 +698,7 @@ test.describe('watching together', () => {
     try {
       await page.goto(`/web/#/details?id=${episodes[0]!.Id}`);
       await page.locator('#lmn-root').getByRole('button', { name: 'Play' }).first().click();
-      await expect(page).toHaveURL(/#\/video/, { timeout: 20_000 });
+      await expect(page).toHaveURL(/#\/(details\/)?video/, { timeout: 20_000 });
       await expect(page.locator('.lmn-player__syncplay')).toBeVisible({ timeout: 15_000 });
       // What the prompts go by until the player's own poll has found the group: jellyfin-web's playback manager says
       // it is in one, from the moment it joins.

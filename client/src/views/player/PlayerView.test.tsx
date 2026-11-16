@@ -4,9 +4,10 @@ import { createFakeClient } from '../../../test/fakeClient';
 import { pressRemoteBack, REMOTE_BACK_KEY_CODES } from '../../../test/remoteBack';
 import { makeContext } from '../../../test/viewContext';
 import * as compat from '../../compat/playbackManager';
+import * as pageDepth from '../../takeover/pageDepth';
 import { qualityLabel, trackParts } from './PlayerPanels';
 import { formatClock, PlayerView } from './PlayerView';
-import type { PlayerSnapshot } from './playerState';
+import { classHeight, type PlayerSnapshot } from './playerState';
 import { ContextMenuHost } from '../../components/ContextMenu';
 import * as syncPlayState from '../syncplay/syncPlayState';
 import { NO_SYNCPLAY } from '../syncplay/syncPlayState';
@@ -103,6 +104,20 @@ describe('PlayerView extras', () => {
     document.body.appendChild(video);
     await start();
     expect(screen.queryByRole('status', { name: 'Starting…' })).toBeNull();
+  });
+
+  it("shows its controls, paused with Play, when the browser wouldn't start the video without a click", async () => {
+    const pm = fakeManager();
+    pm.playPause(); // paused before its first frame
+    vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+    render(<PlayerView ctx={makeContext(createFakeClient())} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    expect(screen.queryByRole('status', { name: 'Starting…' })).toBeNull();
+    expect(document.querySelector('.lmn-osd')).not.toHaveClass('is-loading');
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    expect(pm.playPause).toHaveBeenCalledTimes(2);
   });
 
   it('shows a loading screen until the video plays, then a spinner only for a real stall', async () => {
@@ -1194,7 +1209,7 @@ describe('PlayerView', () => {
       expect(document.querySelector('.lmn-osd')).not.toHaveClass('is-idle');
 
       // With no panel open, Back leaves the player.
-      vi.spyOn(window.history, 'length', 'get').mockReturnValue(2);
+      vi.spyOn(pageDepth, 'backSteps').mockReturnValue(1);
       const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
       pressRemoteBack(tracks, keyCode);
       expect(back).toHaveBeenCalledTimes(1);
@@ -1223,7 +1238,7 @@ describe('PlayerView', () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(300);
       });
-      vi.spyOn(window.history, 'length', 'get').mockReturnValue(2); // came from a page
+      vi.spyOn(pageDepth, 'backSteps').mockReturnValue(1); // came from one of the app's pages
       return vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
     };
 
@@ -1256,12 +1271,17 @@ describe('PlayerView', () => {
       expect(osdTookBack).toBe(false);
     });
 
-    it('leaves Back to jellyfin-web when there is nothing to go back to (it exits the app)', async () => {
+    it("with none of the app's pages behind (a restored player's can't be), goes to the title's page in its place", async () => {
       const back = await open();
-      vi.spyOn(window.history, 'length', 'get').mockReturnValue(1);
-      expect(pressRemoteBack(document.body, 461).reachedJellyfin).toBe(false); // the stock OSD's, as before
-      expect(osdTookBack).toBe(true);
+      vi.spyOn(pageDepth, 'backSteps').mockReturnValue(0);
+      const popped = vi.fn();
+      window.addEventListener('popstate', popped);
+      expect(pressRemoteBack(document.body, 461).reachedJellyfin).toBe(false);
+      window.removeEventListener('popstate', popped);
       expect(back).not.toHaveBeenCalled();
+      expect(osdTookBack).toBe(false);
+      expect(location.hash).toBe('#/details?id=e1');
+      expect(popped).toHaveBeenCalledOnce();
     });
 
     it('acts on a held Back once, and keeps its repeats from jellyfin-web', async () => {
@@ -1307,7 +1327,7 @@ describe('PlayerView', () => {
       expect(osdTookBack).toBe(false);
     });
 
-    it("goes home from the Back button when there's nothing to go back to", async () => {
+    it("goes to the title's page from the Back button when none of the app's pages is behind", async () => {
       const pm = fakeManager();
       vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
       const ctx = makeContext(createFakeClient(), { layout: 'tv' });
@@ -1316,12 +1336,12 @@ describe('PlayerView', () => {
         await vi.advanceTimersByTimeAsync(300);
       });
       const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
-      vi.spyOn(window.history, 'length', 'get').mockReturnValue(1);
+      vi.spyOn(pageDepth, 'backSteps').mockReturnValue(0);
 
       fireEvent.click(document.querySelector('.lmn-player__back')!);
 
       expect(back).not.toHaveBeenCalled();
-      expect(ctx.navigate).toHaveBeenCalledWith('#/home');
+      expect(location.hash).toBe('#/details?id=e1');
     });
 
     it('leaves Back to an open jellyfin-web dialog', async () => {
@@ -1628,5 +1648,91 @@ describe('player helpers', () => {
     const base = { autoQuality: true, videoHeight: 1080, maxBitrate: 0 } as PlayerSnapshot;
     expect(qualityLabel(base)).toBe('1080p');
     expect(qualityLabel({ ...base, autoQuality: false, maxBitrate: 6_000_000 })).toBe('720p');
+    // A widescreen film cropped to 1920×804 is a 1080p picture, not a 720p one.
+    expect(qualityLabel({ ...base, videoHeight: classHeight(1920, 804) })).toBe('1080p');
+    expect(qualityLabel({ ...base, videoHeight: classHeight(3840, 1600) })).toBe('4K');
+    expect(qualityLabel({ ...base, videoHeight: classHeight(1280, 536) })).toBe('720p');
+  });
+});
+
+describe("PlayerView's address", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    sessionStorage.clear();
+    history.replaceState(null, '', '#/home');
+  });
+
+  const open = async (pm = fakeManager(), client = createFakeClient()) => {
+    vi.spyOn(compat, 'getPlaybackManager').mockReturnValue(pm as unknown as compat.PlaybackManager);
+    const ctx = makeContext(client);
+    render(<PlayerView ctx={ctx} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    return ctx;
+  };
+
+  it("names what plays in place of jellyfin-web's #/video, keeping the entry's state, and follows the next episode", async () => {
+    history.pushState({ idx: 4, key: 'k' }, '', '#/video');
+    const length = history.length;
+    const pm = fakeManager();
+    let id = 'e1';
+    const state = pm.getPlayerState;
+    pm.getPlayerState = () => ({ ...state(), NowPlayingItem: { ...state().NowPlayingItem, Id: id } });
+    await open(pm);
+    expect(location.hash).toBe('#/details/video?id=e1');
+    expect(history.length).toBe(length);
+    expect(history.state).toMatchObject({ idx: 4, key: 'k' });
+
+    id = 'e2';
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    expect(location.hash).toBe('#/details/video?id=e2');
+  });
+
+  it("leaves the address alone once it isn't the player's", async () => {
+    history.replaceState(null, '', '#/home');
+    await open();
+    expect(location.hash).toBe('#/home');
+  });
+
+  it('keeps where the video was as the page goes: in this tab, and on the server with a request that outlives it', async () => {
+    const fetch = vi.fn(() => Promise.resolve(new Response()));
+    vi.stubGlobal('fetch', fetch);
+    const pm = fakeManager();
+    await open(pm);
+    // jellyfin-web stops its player on beforeunload, before pagehide: no position left to read.
+    pm.currentTime.mockReturnValue(Number.NaN);
+
+    // Into the back-forward cache: it may come back playing, so nothing's reported.
+    window.dispatchEvent(Object.assign(new Event('pagehide'), { persisted: true }));
+    expect(fetch).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new Event('pagehide'));
+
+    expect(JSON.parse(sessionStorage.getItem('lmnPosition')!)).toEqual(['e1', 30_000_000]);
+    expect(fetch).toHaveBeenCalledWith('http://jf/Sessions/Playing/Stopped', {
+      method: 'POST',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json', 'X-Emby-Token': 'token1' },
+      body: JSON.stringify({ ItemId: 'e1', PositionTicks: 30_000_000 }),
+    });
+    vi.unstubAllGlobals();
+  });
+
+  it("plays a title's player URL again when nothing plays, without handing the page to the stock player meanwhile", async () => {
+    history.replaceState(null, '', '#/details/video?id=0123456789abcdef0123456789abcdef');
+    const pm = fakeManager();
+    pm.getCurrentPlayer.mockReturnValue(null as never);
+    const client = createFakeClient(() => new Promise(() => undefined)); // the item takes its time
+    const ctx = await open(pm, client);
+    expect(client.requests[0]?.url).toContain('Items/0123456789abcdef0123456789abcdef');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(ctx.onFallback).not.toHaveBeenCalled();
   });
 });

@@ -91,6 +91,8 @@ describe('parseRoute', () => {
     ['#/userprofile?userId=x', { kind: 'settings', page: 'profile' }],
     ['#/login', { kind: 'other' }],
     ['#/video', { kind: 'player' }],
+    // The player's own address while a title plays (views/player/playerUrl.ts); jellyfin-web has no page there.
+    ['#/details/video?id=0123456789abcdef0123456789abcdef&serverId=s', { kind: 'player' }],
     [
       '#/list?genreId=0123456789abcdef0123456789abcdef&serverId=s',
       { kind: 'genre', id: '0123456789abcdef0123456789abcdef' },

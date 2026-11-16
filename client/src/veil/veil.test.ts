@@ -27,6 +27,9 @@ describe('veil', () => {
     ['#/details?id=0123456789abcdef0123456789abcdef', true],
     ['#/login', false],
     ['#/dashboard', false],
+    // A reload on jellyfin-web's player goes where jellyfin-web sends it; on a title's player URL Lumen plays it again.
+    ['#/video', false],
+    ['#/details/video?id=0123456789abcdef0123456789abcdef', true],
   ])('shouldVeil(%s) = %s', (hash, expected) => {
     expect(shouldVeil(hash)).toBe(expected);
   });

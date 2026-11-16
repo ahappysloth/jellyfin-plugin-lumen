@@ -74,9 +74,14 @@ console.log(`lumen bundle: ${kb(total)} gzipped (budget ${BUDGET / 1024} KB): ${
 // Loads on Play, behind the "Starting…" screen. 13 KB since its own strings and icons moved here out of the core (about
 // 1 KB, which freed ~2.8 KB at startup). 13.5 KB since request progress: the player's code didn't change, but
 // the core chunk's new exports renamed the minified imports it uses, 28 bytes more gzipped, past 13 KB by 26.
-const PLAYER_BUDGET = 13.5 * 1024;
-const player = gz(`dist/${playerChunk}`);
-console.log(`lumen player: ${kb(player)} gzipped (budget ${PLAYER_BUDGET / 1024} KB)`);
+// 18 KB since 0.6.8, counting its stylesheet (lumen-player.css, 3.5 KB), which moved here out of lumen.css: the
+// controls' styles are only for the player, and the startup file (71.9 of 72 KB) had no room for 0.6.8's Back that
+// never leaves the app; the move freed 2.2 KB there. The player's code grew 1.2 KB in 0.6.8: its URL that survives a
+// reload (and the restore behind it), the position saved as the page goes, subtitles lifted over the controls, and
+// Audio & Subtitles fitting its longest track. 18 KB leaves it about 30 bytes.
+const PLAYER_BUDGET = 18 * 1024;
+const player = gz(`dist/${playerChunk}`) + gz('dist/lumen-player.css');
+console.log(`lumen player + styles: ${kb(player)} gzipped (budget ${PLAYER_BUDGET / 1024} KB)`);
 // The player's Skip Intro button, "Skipped intro" notice and next-episode card, with their stylesheet
 // (views/player/lazySegments.tsx): fetched as the player opens, apart from it, so the player's budget stays where it was.
 // 4 KB at first, with 16 bytes to spare. 4.2 KB since the re-check fixes, about 130 bytes (the owner approved up to

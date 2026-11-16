@@ -105,18 +105,45 @@ describe('BackHome', () => {
 });
 
 describe('goBack', () => {
-  it('goes back in the history, or home when there’s nowhere to go back to', () => {
+  it('goes back in the history when one of the app’s pages is behind this one', () => {
+    go(MOVIE);
     const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
-    const navigate = vi.fn();
-
-    goBack({ navigate });
+    goBack();
     expect(back).toHaveBeenCalledOnce();
-    expect(navigate).not.toHaveBeenCalled();
-
-    vi.spyOn(window.history, 'length', 'get').mockReturnValue(1);
-    goBack({ navigate });
-    expect(back).toHaveBeenCalledOnce();
-    expect(navigate).toHaveBeenCalledWith('#/home');
+    expect(location.hash).toBe(MOVIE);
     vi.restoreAllMocks();
+  });
+
+  it('with none behind (a link, a new tab), goes home in this page’s place, whatever history.length says', () => {
+    // A tab opened on a link: the page is the first the app has seen, though the tab has a blank page behind it.
+    stop();
+    History.prototype.pushState.call(history, null, '', MOVIE);
+    stop = trackPageDepth(window);
+    expect(history.length).toBeGreaterThan(1);
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    const popped = vi.fn();
+    window.addEventListener('popstate', popped);
+    const length = history.length;
+
+    goBack();
+    expect(back).not.toHaveBeenCalled();
+    expect(location.hash).toBe('#/home');
+    expect(history.length).toBe(length); // replaced, not added: Back from home doesn't come back here
+    expect(popped).toHaveBeenCalledOnce(); // jellyfin-web's router follows popstate
+    window.removeEventListener('popstate', popped);
+    vi.restoreAllMocks();
+  });
+
+  it('goes to the place it’s given instead of home', () => {
+    stop();
+    History.prototype.pushState.call(
+      history,
+      null,
+      '',
+      '#/details/video?id=11111111111111111111111111111111',
+    );
+    stop = trackPageDepth(window);
+    goBack(MOVIE);
+    expect(location.hash).toBe(MOVIE);
   });
 });

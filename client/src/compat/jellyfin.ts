@@ -200,6 +200,20 @@ export function navigateTo(hash: string, win: Window = window): void {
   win.location.hash = hash;
 }
 
+/**
+ * Shows `hash` in place of the entry on screen, so Back doesn't return to it. jellyfin-web's router only follows
+ * popstate, so it gets one.
+ */
+export function replaceWith(hash: string, win: Window = window): void {
+  try {
+    win.history.replaceState(null, '', hash);
+    win.dispatchEvent(new PopStateEvent('popstate'));
+  } catch {
+    // Safari refuses more than 100 history changes in 30 s: replaced all the same, as a navigation
+    win.location.replace(hash);
+  }
+}
+
 export function detailsHash(itemId: string, serverId?: string): string {
   const server = serverId ? `&serverId=${encodeURIComponent(serverId)}` : '';
   return `#${STOCK_ROUTES.details}?id=${encodeURIComponent(itemId)}${server}`;

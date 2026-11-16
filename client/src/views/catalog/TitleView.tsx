@@ -104,7 +104,7 @@ export function TitleView({
           message={titleStrings.titleFailed}
           onRetry={() => setAttempt((n) => n + 1)}
         >
-          <button type="button" class="lmn-button lmn-button--secondary" onClick={() => goBack(ctx)}>
+          <button type="button" class="lmn-button lmn-button--secondary" onClick={() => goBack()}>
             {strings.back}
           </button>
         </LoadError>
@@ -273,7 +273,7 @@ function TitleHeader({
       )}
       <div class="lmn-details__scrim" />
       <div class="lmn-details__topbar focuscontainer-x">
-        <BackHome onBack={() => goBack(ctx)} />
+        <BackHome onBack={() => goBack()} />
         <LazyTrailerControls state={trailer} />
       </div>
       <div class="lmn-details__info">

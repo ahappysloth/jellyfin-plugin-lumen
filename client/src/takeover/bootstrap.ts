@@ -6,8 +6,12 @@ import {
   getLayout,
   getServerName,
   getServerVersion,
+  HOME_HASH,
+  isBackKey,
+  isRemoteBack,
   isStockNotFound,
   navigateTo,
+  replaceWith,
   SELECTORS,
   selfTest,
   setFavicon,
@@ -19,7 +23,7 @@ import { describeServerVersion } from '../compat/testedVersions';
 import type { ViewContext } from '../views/context';
 import { VIEW_TIMEOUT_MS, withTimeout } from '../util/withTimeout';
 import { onNavigate } from './navigation';
-import { trackPageDepth } from './pageDepth';
+import { backSteps, trackPageDepth } from './pageDepth';
 import { parseRoute, type Route, type TakeoverRoute } from './routes';
 import { applyDashboardSkin, applySignInSkin, isSignInRoute } from '../veil/skin';
 import { liftVeil, liftVeilNow, PENDING_CLASS, rememberVeilName, SAFETY_TIMER_KEY } from '../veil/veil';
@@ -280,6 +284,22 @@ export function startLumen(options: BootstrapOptions): () => void {
 
   // First, so the depth is the new page's by the time `sync` mounts it (the Back pill's Home button reads it).
   const stopDepth = trackPageDepth(win);
+  // A remote's Back (Escape too, in the TV layout) on one of Lumen's pages with none of the app's behind it (a link, a
+  // new tab): home, in this page's place; with the same page right behind it, past that. jellyfin-web's would go back by history.length, out of the app or onto
+  // nothing. Lumen's overlays and player take their Back first and stop it; on home it stays jellyfin-web's (a TV app
+  // exits there), and on its own pages too.
+  const onBack = (e: KeyboardEvent): void => {
+    const steps = backSteps();
+    if (e.defaultPrevented || steps === 1 || !session?.takeover) return;
+    if (!isRemoteBack(e) && !(isBackKey(e) && getLayout(doc) === 'tv')) return;
+    const kind = parseRoute(win.location.hash).kind;
+    if (kind === 'home' || kind === 'other' || doc.querySelector('.dialogContainer .dialog.opened')) return;
+    e.preventDefault();
+    // Past a second entry of this page (Back pill's rule: BackHome.tsx goBack), or home in its place.
+    if (steps) win.history.go(-steps);
+    else replaceWith(HOME_HASH, win);
+  };
+  doc.addEventListener('keydown', onBack);
   const stopNavigation = onNavigate(() => void sync(), win);
   const stopViewportCover = keepViewportCover(doc);
   void waitForUser(win, pollMs, options.timeoutMs ?? 60_000)
@@ -297,6 +317,7 @@ export function startLumen(options: BootstrapOptions): () => void {
     notFoundWatcher.disconnect();
     stopNavigation();
     stopDepth();
+    doc.removeEventListener('keydown', onBack);
     stopViewportCover();
     pluginsButton.stop();
     restartWatch.stop();

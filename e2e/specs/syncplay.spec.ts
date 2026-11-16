@@ -98,7 +98,7 @@ test('two viewers watch together: create, join, leave and rejoin, play for both'
   // a member back in: that's jellyfin-web's SyncPlay, so the test ends here and cleanup leaves the group.)
   await a.goto(`/web/#/details?id=${episodes.Items[0]!.Id}`);
   await a.locator('#lmn-root .lmn-details--episode').getByRole('button', { name: 'Play' }).click();
-  await expect(a).toHaveURL(/#\/video/, { timeout: 20_000 });
-  await expect(b).toHaveURL(/#\/video/, { timeout: 30_000 });
+  await expect(a).toHaveURL(/#\/(details\/)?video/, { timeout: 20_000 });
+  await expect(b).toHaveURL(/#\/(details\/)?video/, { timeout: 30_000 });
   await expect(a.getByText('Watching with kid')).toBeVisible({ timeout: 15_000 });
 });

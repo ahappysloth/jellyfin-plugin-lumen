@@ -259,3 +259,39 @@ test('TV layout: the D-pad reaches Back and Home, with Left and Right along the 
   await expect(page).toHaveURL(/#\/home$/);
   await expect(page.locator('#lmn-root .lmn-hero')).toBeVisible();
 });
+
+test('a details page opened on its own (a pasted link, a new tab): Back goes home in its place, not nowhere', { tag: '@smoke' }, async ({ page }) => {
+  const { items } = loadState();
+  await login(page, ADMIN);
+  // A new tab starts on a blank page: history.length is 2 already, though none of the app's pages is behind this one.
+  const fresh = await page.context().newPage();
+  await fresh.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await expect(fresh.locator('#lmn-root .lmn-details--movie')).toBeVisible();
+  const length = await fresh.evaluate(() => history.length);
+
+  await back(fresh).click();
+
+  await expect(fresh).toHaveURL(/#\/home$/);
+  await expect(fresh.locator('#lmn-root .lmn-home')).toBeVisible();
+  // In its place: Back from home doesn't come back to the page.
+  expect(await fresh.evaluate(() => history.length)).toBe(length);
+  await fresh.close();
+});
+
+test("TV layout: the remote's Back on a details page opened on its own goes home, not out of the app", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.addInitScript(() => localStorage.setItem('layout', 'tv'));
+  const { items } = loadState();
+  await login(page, ADMIN);
+  const fresh = await page.context().newPage();
+  await fresh.goto(`/web/#/details?id=${items['Lumen Alpha']}`);
+  await expect(fresh.locator('html')).toHaveClass(/\blayout-tv\b/);
+  await expect(fresh.locator('#lmn-root .lmn-details--movie').getByRole('button', { name: 'Play', exact: true })).toBeFocused();
+
+  // Escape is a TV remote's Back to jellyfin-web in the TV layout (webOS's 461 and Tizen's 10009 too: the unit tests).
+  await fresh.keyboard.press('Escape');
+
+  await expect(fresh).toHaveURL(/#\/home$/);
+  await expect(fresh.locator('#lmn-root .lmn-home')).toBeVisible();
+  await fresh.close();
+});

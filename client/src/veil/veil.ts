@@ -42,8 +42,9 @@ const RETRY_TEXT = 'Try again';
 export function shouldVeil(hash: string, path = '/'): boolean {
   if (/^#?!?\/?$/.test(hash)) return /\/(index\.html)?$/i.test(path);
   const kind = parseRoute(hash).kind;
-  // A reload on the player lands wherever jellyfin-web sends it; nothing of Lumen's to wait for.
-  return kind !== 'other' && kind !== 'player';
+  // A reload on jellyfin-web's player (#/video) lands wherever jellyfin-web sends it; nothing of Lumen's to wait for.
+  // On a title's player URL Lumen starts it again (views/player/playerUrl.ts): jellyfin-web's 404 page stays veiled.
+  return kind !== 'other' && (kind !== 'player' || hash.indexOf('/details') > 0);
 }
 
 export function rememberVeilName(name: string): void {

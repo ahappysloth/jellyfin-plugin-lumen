@@ -98,7 +98,7 @@ export function LazyTitleView(props: Props) {
           message={strings.loadFailed}
           onRetry={() => setAttempt((n) => n + 1)}
         >
-          <button type="button" class="lmn-button lmn-button--secondary" onClick={() => goBack(props.ctx)}>
+          <button type="button" class="lmn-button lmn-button--secondary" onClick={() => goBack()}>
             {strings.back}
           </button>
         </LoadError>

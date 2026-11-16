@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/preact';
+import * as pageDepth from '../../takeover/pageDepth';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeClient, routes } from '../../../test/fakeClient';
 import { setJellyfinLocale } from '../../../test/locale';
@@ -716,7 +717,7 @@ describe('DetailsView after an action from its ⋯ menu', () => {
   it("goes back after a deletion, to a grid that doesn't have the title any more", async () => {
     vi.spyOn(dialogs, 'openItemDialog').mockResolvedValue({ updated: false, deleted: true });
     const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
-    vi.spyOn(window.history, 'length', 'get').mockReturnValue(3);
+    vi.spyOn(pageDepth, 'backSteps').mockReturnValue(1);
     page(() => ({ ...movie, CanDelete: true }));
     saveSnapshot('movies', {
       items: [{ Id: 'm1', Name: 'Lumen Alpha', Type: 'Movie' }],

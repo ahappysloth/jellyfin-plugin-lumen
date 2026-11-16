@@ -48,7 +48,7 @@ export function EpisodeDetails({ episode, ctx, reload }: DetailsProps & { episod
     complete: true,
     downloadButton: !!download,
     onChanged: reload,
-    onDeleted: () => goBack(ctx),
+    onDeleted: () => goBack(),
     fallback: ctx.onFallback,
   });
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -130,7 +130,7 @@ export function EpisodeDetails({ episode, ctx, reload }: DetailsProps & { episod
         trailerId={null}
         download={download}
         more={more}
-        onBack={() => goBack(ctx)}
+        onBack={() => goBack()}
         badges={deriveBadges(episode.MediaStreams)}
         {...actions}
       />

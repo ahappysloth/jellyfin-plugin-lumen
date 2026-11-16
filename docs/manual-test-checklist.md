@@ -254,6 +254,28 @@ stream, and real episode lengths.
 - [ ] A title without segments has no button. With the segment provider's plugin removed, nothing changes for titles
       that never had segments.
 
+## Player address, reload and Back
+
+Automated tests reload the player in Chromium and Firefox and stand in for a browser's autoplay rule; only real
+browsers and TVs show their own rules and remotes.
+
+- [ ] While a film plays, the address bar reads its page's address with `/video` added; an episode's, the episode's.
+      The next episode changes it. Back, Stop and the end of the film take `/video` off.
+- [ ] Reload mid-film (desktop Chrome, Safari, Firefox; an iPhone; a TV browser): the player comes back within a second
+      or so of where it was. Where the browser blocks sound before a click, it opens paused there, with Play. Back goes
+      to the film's page, and Back again to where you were before.
+- [ ] Paste a player address into a new tab: it plays from the title's resume point; Back goes to its page, then home.
+      A deleted title's address goes home with a message.
+- [ ] A title's page opened from a pasted link: the page's Back arrow, and a TV remote's Back, go home.
+- [ ] Watch together: reloading while in a group lands on the title's page; the group's playback brings the player
+      back (Lumen doesn't start the title for the group). Casting: the player address isn't used (jellyfin-web shows
+      its remote control page).
+- [ ] Subtitles (an SRT file; and with Jellyfin's subtitle settings on *Custom*, and moved up or down): they sit just
+      above the controls while those show and go back down as they hide, on a desktop, an iPhone (both ways up) and a
+      TV. ASS and PGS subtitles stay where they are.
+- [ ] Audio & Subtitles with a file whose track names are long: the menu widens to fit them, and on a phone in
+      portrait a long name ends in "…" inside the screen.
+
 ## Home-screen app (iPhone Safari, Android Chrome)
 
 Automated tests check the page's tags, the manifest and the icons, and the layout with a simulated status bar; only a

@@ -27,7 +27,7 @@ export function SeriesDetails({ series, initialSeasonId, ctx, reload }: Props) {
   const more = useItemMenu(ctx, series, {
     complete: true,
     onChanged: reload,
-    onDeleted: () => goBack(ctx),
+    onDeleted: () => goBack(),
     fallback: ctx.onFallback,
   });
   // Seasons are fetched again after one is edited or deleted from its own ⋯ menu.
@@ -136,7 +136,7 @@ export function SeriesDetails({ series, initialSeasonId, ctx, reload }: Props) {
         trailerId={trailerId}
         onlineTrailer={() => ctx.api.getOnlineTrailer(`Items/${series.Id}`)}
         onTrailer={trailerId ? () => actions.play(trailerId) : undefined}
-        onBack={() => goBack(ctx)}
+        onBack={() => goBack()}
         badges={[]}
         {...actions}
         more={more}

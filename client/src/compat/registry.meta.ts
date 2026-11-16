@@ -29,6 +29,7 @@ export type ProbePage =
 export type Stylesheet =
   | 'base.css'
   | 'player.css'
+  | 'player-controls.css'
   | 'segments.css'
   | 'stock-skin.css'
   | 'toasts.css'
@@ -59,6 +60,9 @@ export const STOCK_SELECTOR_META = {
   // player.css keeps both above Lumen's player; segments.css hides them while Lumen draws its own.
   skipIntro: { probe: null, css: ['player.css', 'segments.css'] },
   upNext: { probe: 'player', css: ['player.css', 'segments.css'] },
+  // Only with a subtitle track on that jellyfin-web draws itself: e2e/specs/player-url.spec.ts looks for them there.
+  videoSubtitles: { probe: null, css: 'player-controls.css' },
+  videoSubtitlesInner: { probe: null },
   loginForm: { probe: 'login', css: 'stock-skin.css' },
   quickConnectButton: { probe: 'login', css: 'stock-skin.css' },
   submitButton: { probe: 'login', css: 'stock-skin.css' },
