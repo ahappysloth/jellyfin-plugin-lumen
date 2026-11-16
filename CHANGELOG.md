@@ -2,6 +2,13 @@
 
 All notable changes to Lumen are documented here. Versions follow SemVer; Jellyfin sees them as `MAJOR.MINOR.PATCH.0`.
 
+## [0.6.8] - 2026-11-15
+
+### Fixed
+- A widescreen film's quality is now named by its full picture. A 1080p film cropped to 1920×804 showed as **720p** on
+  the player's Quality button and as **804p** in Playback info. It now says **1080p**, and Playback info adds the real
+  frame size: "1080p (1920×804)". The Quality menu also offers 1080p for these films, which it left out before.
+
 ## [0.6.7] - 2026-11-15
 
 ### Added

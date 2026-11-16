@@ -11,8 +11,8 @@ import { formatTime } from '../../util/locale';
 import type { ViewContext } from '../context';
 import { openWatchTogether } from '../secondary/lazySecondary';
 import { othersInGroup, type SyncPlayState } from '../syncplay/syncPlayState';
-import { usePanel } from './PlayerPanels';
-import type { PlayerSnapshot } from './playerState';
+import { heightLabel, usePanel } from './PlayerPanels';
+import { classHeight, type PlayerSnapshot } from './playerState';
 import { PLAYER_ICONS } from './playerIcons';
 import { playerStrings } from './playerStrings';
 
@@ -162,6 +162,17 @@ function channels(n?: number): string | null {
   return n === 1 ? 'mono' : n === 2 ? 'stereo' : n === 6 ? '5.1' : n === 8 ? '7.1' : `${n} ch`;
 }
 
+/**
+ * "1080p (1920×804)": the quality class (classHeight, so a widescreen film's cropped height doesn't read as a lower
+ * quality) with the exact frame size after it when that isn't simply the class's own.
+ */
+export function resolutionText(width?: number, height?: number): string | null {
+  const cls = classHeight(width, height);
+  const name = heightLabel(cls);
+  if (!name) return null;
+  return width && height && cls !== height ? `${name} (${width}×${height})` : name;
+}
+
 const join = (...parts: (string | null | undefined)[]): string => parts.filter(Boolean).join(' · ');
 
 export interface InfoRow {
@@ -197,11 +208,11 @@ export function playbackInfoRows(
     });
 
   const sourceVideo = video
-    ? join(upper(video.Codec), video.Height ? `${video.Height}p` : null, video.VideoRangeType)
+    ? join(upper(video.Codec), resolutionText(video.Width, video.Height), video.VideoRangeType)
     : '';
   const outVideo =
     transcoding && !transcode.IsVideoDirect
-      ? join(upper(transcode.VideoCodec), transcode.Height ? `${transcode.Height}p` : null)
+      ? join(upper(transcode.VideoCodec), resolutionText(transcode.Width, transcode.Height))
       : '';
   if (sourceVideo)
     rows.push({

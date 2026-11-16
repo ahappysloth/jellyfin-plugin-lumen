@@ -13,7 +13,8 @@ import { playerStrings } from './playerStrings';
 import { outsidePress } from './touch';
 
 /**
- * Quality presets, highest first. A preset shows when the source is at least `minHeight` tall (no "4K" for a 1080p
+ * Quality presets, highest first. A preset shows when the source is at least `minHeight` tall, as its quality class sees it
+ * (playerState classHeight: a 1920×804 film is 1080p) (no "4K" for a 1080p
  * file). Bitrates follow jellyfin-web's own quality menu, and like it they only cap the bitrate: the server transcodes
  * under the cap but keeps the source resolution, so the menu shows the bitrate next to each name.
  */
@@ -28,7 +29,8 @@ export const QUALITY_PRESETS = [
 /** Speeds offered in the panel (jellyfin-web supports more; these cover what people use). */
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
-function heightLabel(height: number | null): string {
+/** "1080p" for any height from 1000 up to 4K's, and so on: the quality class's name. Empty when unknown. */
+export function heightLabel(height: number | null): string {
   if (!height) return '';
   if (height >= 1500) return '4K';
   if (height >= 1000) return '1080p';

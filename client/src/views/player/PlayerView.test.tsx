@@ -6,7 +6,7 @@ import { makeContext } from '../../../test/viewContext';
 import * as compat from '../../compat/playbackManager';
 import { qualityLabel, trackParts } from './PlayerPanels';
 import { formatClock, PlayerView } from './PlayerView';
-import type { PlayerSnapshot } from './playerState';
+import { classHeight, type PlayerSnapshot } from './playerState';
 import { ContextMenuHost } from '../../components/ContextMenu';
 import * as syncPlayState from '../syncplay/syncPlayState';
 import { NO_SYNCPLAY } from '../syncplay/syncPlayState';
@@ -1628,5 +1628,9 @@ describe('player helpers', () => {
     const base = { autoQuality: true, videoHeight: 1080, maxBitrate: 0 } as PlayerSnapshot;
     expect(qualityLabel(base)).toBe('1080p');
     expect(qualityLabel({ ...base, autoQuality: false, maxBitrate: 6_000_000 })).toBe('720p');
+    // A widescreen film cropped to 1920×804 is a 1080p picture, not a 720p one.
+    expect(qualityLabel({ ...base, videoHeight: classHeight(1920, 804) })).toBe('1080p');
+    expect(qualityLabel({ ...base, videoHeight: classHeight(3840, 1600) })).toBe('4K');
+    expect(qualityLabel({ ...base, videoHeight: classHeight(1280, 536) })).toBe('720p');
   });
 });
